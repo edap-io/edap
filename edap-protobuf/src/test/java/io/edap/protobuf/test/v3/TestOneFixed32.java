@@ -17,13 +17,15 @@
 package io.edap.protobuf.test.v3;
 
 import com.google.protobuf.InvalidProtocolBufferException;
+import io.edap.protobuf.EncodeException;
 import io.edap.protobuf.ProtoBuf;
 import io.edap.protobuf.ProtoBufException;
-import io.edap.protobuf.test.message.v3.OneFixed32;
-import io.edap.protobuf.test.message.v3.OneFixed32OuterClass;
-import io.edap.protobuf.test.message.v3.OneFixed32Unboxed;
+import io.edap.protobuf.test.message.v3.*;
+import io.edap.util.ClazzUtil;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+
+import java.lang.reflect.Field;
 
 import static io.edap.protobuf.test.TestUtil.conver2HexStr;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
@@ -37,7 +39,7 @@ public class TestOneFixed32 {
             -1,
             -129
     })
-    void testEncode(int value) {
+    void testEncode(int value) throws EncodeException {
 
         OneFixed32OuterClass.OneFixed32.Builder builder = OneFixed32OuterClass.OneFixed32.newBuilder();
         builder.setValue(value);
@@ -86,7 +88,7 @@ public class TestOneFixed32 {
             -1,
             -129
     })
-    void testEncodeUnboxed(int value) {
+    void testEncodeUnboxed(int value) throws EncodeException {
 
         OneFixed32OuterClass.OneFixed32.Builder builder = OneFixed32OuterClass.OneFixed32.newBuilder();
         builder.setValue(value);
@@ -125,6 +127,114 @@ public class TestOneFixed32 {
 
 
         assertEquals(pbOf.getValue(), oneFixed32.value);
+
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {
+            1,
+            128,
+            -1,
+            -129
+    })
+    void testEncodeNoAccess(int value) throws EncodeException, NoSuchFieldException, IllegalAccessException {
+
+        OneFixed32OuterClass.OneFixed32.Builder builder = OneFixed32OuterClass.OneFixed32.newBuilder();
+        builder.setValue(value);
+        OneFixed32OuterClass.OneFixed32 oi32 = builder.build();
+        byte[] pb = oi32.toByteArray();
+
+        System.out.println("+--------------------+");
+        System.out.println(conver2HexStr(pb));
+        System.out.println("+--------------------+");
+
+        Field fieldF = ClazzUtil.getDeclaredField(OneFixed32NoAccess.class, "value");
+        fieldF.setAccessible(true);
+
+        OneFixed32NoAccess oneFixed32 = new OneFixed32NoAccess();
+        fieldF.set(oneFixed32, value);
+        byte[] epb = ProtoBuf.toByteArray(oneFixed32);
+
+
+        assertArrayEquals(pb, epb);
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {
+            1,
+            128,
+            -1,
+            -129
+    })
+    void testEncodeUnboxedNoAccess(int value) throws EncodeException, NoSuchFieldException, IllegalAccessException {
+
+        OneFixed32OuterClass.OneFixed32.Builder builder = OneFixed32OuterClass.OneFixed32.newBuilder();
+        builder.setValue(value);
+        OneFixed32OuterClass.OneFixed32 oi32 = builder.build();
+        byte[] pb = oi32.toByteArray();
+
+        System.out.println("+--------------------+");
+        System.out.println(conver2HexStr(pb));
+        System.out.println("+--------------------+");
+
+        Field fieldF = ClazzUtil.getDeclaredField(OneFixed32UnboxedNoAccess.class, "value");
+        fieldF.setAccessible(true);
+
+        OneFixed32UnboxedNoAccess oneFixed32 = new OneFixed32UnboxedNoAccess();
+        fieldF.set(oneFixed32, value);
+        byte[] epb = ProtoBuf.toByteArray(oneFixed32);
+
+
+        assertArrayEquals(pb, epb);
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {
+            1,
+            128,
+            -1,
+            -128
+    })
+    void testDecodeNoAccess(int value) throws InvalidProtocolBufferException, ProtoBufException, NoSuchFieldException, IllegalAccessException {
+
+        OneFixed32OuterClass.OneFixed32.Builder builder = OneFixed32OuterClass.OneFixed32.newBuilder();
+        builder.setValue(value);
+        OneFixed32OuterClass.OneFixed32 oFixed32 = builder.build();
+        byte[] pb = oFixed32.toByteArray();
+
+
+        OneFixed32OuterClass.OneFixed32 pbOf = OneFixed32OuterClass.OneFixed32.parseFrom(pb);
+
+        OneFixed32NoAccess oneFixed32 = ProtoBuf.toObject(pb, OneFixed32NoAccess.class);
+        Field fieldF = ClazzUtil.getDeclaredField(OneFixed32NoAccess.class, "value");
+        fieldF.setAccessible(true);
+
+        assertEquals(pbOf.getValue(), (Integer)fieldF.get(oneFixed32));
+
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {
+            1,
+            128,
+            -1,
+            -128
+    })
+    void testDecodeUnboxedNoAccess(int value) throws InvalidProtocolBufferException, ProtoBufException, NoSuchFieldException, IllegalAccessException {
+
+        OneFixed32OuterClass.OneFixed32.Builder builder = OneFixed32OuterClass.OneFixed32.newBuilder();
+        builder.setValue(value);
+        OneFixed32OuterClass.OneFixed32 oFixed32 = builder.build();
+        byte[] pb = oFixed32.toByteArray();
+
+
+        OneFixed32OuterClass.OneFixed32 pbOf = OneFixed32OuterClass.OneFixed32.parseFrom(pb);
+
+        OneFixed32UnboxedNoAccess oneFixed32 = ProtoBuf.toObject(pb, OneFixed32UnboxedNoAccess.class);
+        Field fieldF = ClazzUtil.getDeclaredField(OneFixed32UnboxedNoAccess.class, "value");
+        fieldF.setAccessible(true);
+
+        assertEquals(pbOf.getValue(), (int)fieldF.get(oneFixed32));
 
     }
 }

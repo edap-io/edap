@@ -21,7 +21,9 @@ import io.edap.protobuf.wire.Field;
 
 import java.util.Map;
 
-
+/**
+ * 包含支持全部类型的对象
+ */
 public class AllType {
     @ProtoField(tag = 1, type = Field.Type.BOOL)
     public Boolean field1;

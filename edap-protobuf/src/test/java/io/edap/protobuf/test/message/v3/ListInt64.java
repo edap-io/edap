@@ -19,7 +19,7 @@ package io.edap.protobuf.test.message.v3;
 import java.util.List;
 
 /**
- * @date : 2020/1/7
+ * int64的list对象
  */
 public class ListInt64 {
 

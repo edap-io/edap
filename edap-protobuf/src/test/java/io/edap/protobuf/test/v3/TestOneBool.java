@@ -17,13 +17,15 @@
 package io.edap.protobuf.test.v3;
 
 import com.google.protobuf.InvalidProtocolBufferException;
+import io.edap.protobuf.EncodeException;
 import io.edap.protobuf.ProtoBuf;
 import io.edap.protobuf.ProtoBufException;
-import io.edap.protobuf.test.message.v3.OneBool;
-import io.edap.protobuf.test.message.v3.OneBoolOuterClass;
-import io.edap.protobuf.test.message.v3.OneBoolUnboxed;
+import io.edap.protobuf.test.message.v3.*;
+import io.edap.util.ClazzUtil;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+
+import java.lang.reflect.Field;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -35,7 +37,7 @@ public class TestOneBool {
             true,
             false
     })
-    void testEncode(boolean value) {
+    void testEncode(boolean value) throws EncodeException {
 
         OneBoolOuterClass.OneBool.Builder builder = OneBoolOuterClass.OneBool.newBuilder();
         builder.setValue(value);
@@ -76,7 +78,7 @@ public class TestOneBool {
             true,
             false
     })
-    void testEncodeUnboxed(boolean value) {
+    void testEncodeUnboxed(boolean value) throws EncodeException {
 
         OneBoolOuterClass.OneBool.Builder builder = OneBoolOuterClass.OneBool.newBuilder();
         builder.setValue(value);
@@ -109,6 +111,98 @@ public class TestOneBool {
 
 
         assertEquals(pbOd.getValue(), oneBool.value);
+
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {
+            true,
+            false
+    })
+    void testEncodeNoAccess(boolean value) throws EncodeException, NoSuchFieldException, IllegalAccessException {
+
+        OneBoolOuterClass.OneBool.Builder builder = OneBoolOuterClass.OneBool.newBuilder();
+        builder.setValue(value);
+        OneBoolOuterClass.OneBool od = builder.build();
+        byte[] pb = od.toByteArray();
+
+        Field field1F = ClazzUtil.getDeclaredField(OneBoolNoAccess.class, "value");
+        field1F.setAccessible(true);
+
+        OneBoolNoAccess oneBool = new OneBoolNoAccess();
+        field1F.set(oneBool, value);
+        byte[] epb = ProtoBuf.toByteArray(oneBool);
+
+        assertArrayEquals(pb, epb);
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {
+            true,
+            false
+    })
+    void testEncodeUnboxedNoAccess(boolean value) throws EncodeException, NoSuchFieldException, IllegalAccessException {
+
+        OneBoolOuterClass.OneBool.Builder builder = OneBoolOuterClass.OneBool.newBuilder();
+        builder.setValue(value);
+        OneBoolOuterClass.OneBool od = builder.build();
+        byte[] pb = od.toByteArray();
+
+        Field field1F = ClazzUtil.getDeclaredField(OneBoolUnboxedNoAccess.class, "value");
+        field1F.setAccessible(true);
+
+        OneBoolUnboxedNoAccess oneBool = new OneBoolUnboxedNoAccess();
+        field1F.set(oneBool, value);
+        byte[] epb = ProtoBuf.toByteArray(oneBool);
+
+        assertArrayEquals(pb, epb);
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {
+            true,
+            false
+    })
+    void testDecodeNoAccess(boolean value) throws InvalidProtocolBufferException, ProtoBufException, NoSuchFieldException, IllegalAccessException {
+
+        OneBoolOuterClass.OneBool.Builder builder = OneBoolOuterClass.OneBool.newBuilder();
+        builder.setValue(value);
+        OneBoolOuterClass.OneBool od = builder.build();
+        byte[] pb = od.toByteArray();
+
+
+        OneBoolOuterClass.OneBool pbOd = OneBoolOuterClass.OneBool.parseFrom(pb);
+
+        OneBoolNoAccess oneBool = ProtoBuf.toObject(pb, OneBoolNoAccess.class);
+
+        Field fieldF = ClazzUtil.getDeclaredField(OneBoolNoAccess.class, "value");
+        fieldF.setAccessible(true);
+
+        assertEquals(pbOd.getValue(), fieldF.get(oneBool)==null?false:(boolean)fieldF.get(oneBool));
+
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {
+            true,
+            false
+    })
+    void testDecodeUnboxedNoAccess(boolean value) throws InvalidProtocolBufferException, ProtoBufException, NoSuchFieldException, IllegalAccessException {
+
+        OneBoolOuterClass.OneBool.Builder builder = OneBoolOuterClass.OneBool.newBuilder();
+        builder.setValue(value);
+        OneBoolOuterClass.OneBool od = builder.build();
+        byte[] pb = od.toByteArray();
+
+
+        OneBoolOuterClass.OneBool pbOd = OneBoolOuterClass.OneBool.parseFrom(pb);
+
+        OneBoolUnboxedNoAccess oneBool = ProtoBuf.toObject(pb, OneBoolUnboxedNoAccess.class);
+
+        Field fieldF = ClazzUtil.getDeclaredField(OneBoolUnboxedNoAccess.class, "value");
+        fieldF.setAccessible(true);
+
+        assertEquals(pbOd.getValue(), fieldF.get(oneBool)==null?false:(boolean)fieldF.get(oneBool));
 
     }
 }

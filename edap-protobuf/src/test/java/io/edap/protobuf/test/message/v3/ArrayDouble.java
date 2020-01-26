@@ -17,7 +17,7 @@
 package io.edap.protobuf.test.message.v3;
 
 /**
- * @date : 2020/1/8
+ * Double数组
  */
 public class ArrayDouble {
 

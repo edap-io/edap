@@ -17,7 +17,7 @@
 package io.edap.protobuf.test.message.v3;
 
 /**
- * @date : 2020/1/6
+ * 一个Message类型OneMessage
  */
 public class OneMessage {
     private Proj proj;

@@ -34,7 +34,15 @@ public class ProtoBuf {
 
     public static class ProtoFieldInfo {
         public Field field;
-        public Method method;
+        /**
+         * 是否有Get方法或者Field是public，可以直接获取Field的值
+         */
+        public boolean hasGetAccessed;
+        /**
+         * 是否有Set方法或者Field是public，可以直接给Field赋值
+         */
+        public boolean hasSetAccessed;
+        public Method getMethod;
         public Method setMethod;
         public ProtoField protoField;
     }
@@ -62,7 +70,7 @@ public class ProtoBuf {
      * @param obj 需要序列化的java对象
      * @return 返回序列化后的字节数组，如果对象为null则返回null
      */
-    public static byte [] toByteArray(Object obj) {
+    public static byte [] toByteArray(Object obj) throws EncodeException  {
         if (obj == null) {
             return null;
         }

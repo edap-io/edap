@@ -19,6 +19,9 @@ package io.edap.protobuf.test.message.v3;
 import io.edap.protobuf.annotation.ProtoField;
 import io.edap.protobuf.wire.Field;
 
+/**
+ * 一个uint32
+ */
 public class OneUint32 {
     @ProtoField(tag = 1, type = Field.Type.UINT32)
     private Integer value;

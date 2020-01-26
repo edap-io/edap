@@ -19,6 +19,9 @@ package io.edap.protobuf.test.message.v3;
 import io.edap.protobuf.annotation.ProtoField;
 import io.edap.protobuf.wire.Field;
 
+/**
+ * sint32数组
+ */
 public class ArraySint32Unboxed {
 
     @ProtoField(tag = 1, type = Field.Type.SINT32, cardinality = Field.Cardinality.REPEATED)

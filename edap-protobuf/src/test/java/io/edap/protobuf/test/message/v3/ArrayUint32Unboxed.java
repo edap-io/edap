@@ -19,6 +19,9 @@ package io.edap.protobuf.test.message.v3;
 import io.edap.protobuf.annotation.ProtoField;
 import io.edap.protobuf.wire.Field;
 
+/**
+ * uint32数组
+ */
 public class ArrayUint32Unboxed {
 
     @ProtoField(tag = 1, type = Field.Type.UINT32, cardinality = Field.Cardinality.REPEATED)

@@ -20,9 +20,11 @@ import com.alibaba.fastjson.JSONObject;
 import com.google.protobuf.ByteString;
 import io.edap.protobuf.ProtoBuf;
 import io.edap.protobuf.test.message.v3.*;
+import io.edap.util.ClazzUtil;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
+import java.lang.reflect.Field;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -459,6 +461,444 @@ public class TestAllType {
             assertEquals(pbOf.getField16(), allType.field16);
             assertEquals(pbOf.getField17(), allType.field17);
             assertEquals(pbOf.getField18(), allType.field18);
+        } catch (Exception e) {
+            fail(e);
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "{" +
+                    "\"field1\":true," +
+                    "\"field2\":\"abcdefwxyz\"," +
+                    "\"field3\":31.415926," +
+                    "\"field4\":\"WEB\"," +
+                    "\"field5\":127," +
+                    "\"field6\":5671506337319861521L," +
+                    "\"field7\":3.1415," +
+                    "\"field8\":128," +
+                    "\"field9\":5671506337319861522L," +
+                    "\"field10\":{\"edap\":{\"id\":1,\"name\":\"edap\",\"repoPath\":\"https://www.easyea.com/edap/edap.git\"}}," +
+                    "\"field11\":{\"id\":2,\"name\":\"edao\",\"repoPath\":\"https://www.easyea.com/easyea/edao.git\"}," +
+                    "\"field12\":129," +
+                    "\"field13\":5671506337319861523L," +
+                    "\"field14\":130," +
+                    "\"field15\":5671506337319861524L," +
+                    "\"field16\":\"abcdefgwxyz\"," +
+                    "\"field17\":131," +
+                    "\"field18\":5671506337319861525L" +
+                    "}"
+    })
+    void testEncodeNoAccess(String v) {
+        try {
+            JSONObject jvalue = JSONObject.parseObject(v);
+
+            AllTypeOuterClass.AllType.Builder builder = AllTypeOuterClass.AllType.newBuilder();
+            JSONObject jproj = jvalue.getJSONObject("field11");
+            builder.setField1(jvalue.getBooleanValue("field1"));
+            builder.setField2(ByteString.copyFromUtf8(jvalue.getString("field2")));
+            builder.setField3(jvalue.getDoubleValue("field3"));
+            builder.setField4(OneEnumOuterClass.Corpus.valueOf(jvalue.getString("field4")));
+            builder.setField5(jvalue.getIntValue("field5"));
+            builder.setField6(jvalue.getLongValue("field6"));
+            builder.setField7(jvalue.getFloatValue("field7"));
+            builder.setField8(jvalue.getIntValue("field8"));
+            builder.setField9(jvalue.getLongValue("field9"));
+            for (Map.Entry<String, Object> jv : jvalue.getJSONObject("field10").entrySet()) {
+                JSONObject jp = (JSONObject) jv.getValue();
+                OneMapOuterClass.Project.Builder pbuider = OneMapOuterClass.Project.newBuilder();
+                pbuider.setId(jp.getLongValue("id"));
+                pbuider.setName(jp.getString("name"));
+                pbuider.setRepoPath(jp.getString("repoPath"));
+                builder.putField10(jv.getKey(), pbuider.build());
+            }
+            OneMessageOuterClass.Proj.Builder projB = OneMessageOuterClass.Proj.newBuilder();
+
+            projB.setId(jproj.getLongValue("id"));
+            projB.setName(jproj.getString("name"));
+            projB.setRepoPath(jproj.getString("repoPath"));
+            builder.setField11(projB.build());
+            builder.setField12(jvalue.getIntValue("field12"));
+            builder.setField13(jvalue.getLongValue("field13"));
+            builder.setField14(jvalue.getIntValue("field14"));
+            builder.setField15(jvalue.getLongValue("field15"));
+            builder.setField16(jvalue.getString("field16"));
+            builder.setField17(jvalue.getIntValue("field17"));
+            builder.setField18(jvalue.getLongValue("field18"));
+
+            AllTypeOuterClass.AllType oi32 = builder.build();
+            byte[] pb = oi32.toByteArray();
+
+
+            System.out.println("+--------------------+");
+            System.out.println(conver2HexStr(pb));
+            Proj proj = new Proj();
+            proj.setId(jproj.getLongValue("id"));
+            proj.setName(jproj.getString("name"));
+            proj.setRepoPath(jproj.getString("repoPath"));
+
+            Field field1F = ClazzUtil.getDeclaredField(AllTypeNoAccess.class, "field1");
+            Field field2F = ClazzUtil.getDeclaredField(AllTypeNoAccess.class, "field2");
+            Field field3F = ClazzUtil.getDeclaredField(AllTypeNoAccess.class, "field3");
+            Field field4F = ClazzUtil.getDeclaredField(AllTypeNoAccess.class, "field4");
+            Field field5F = ClazzUtil.getDeclaredField(AllTypeNoAccess.class, "field5");
+            Field field6F = ClazzUtil.getDeclaredField(AllTypeNoAccess.class, "field6");
+            Field field7F = ClazzUtil.getDeclaredField(AllTypeNoAccess.class, "field7");
+            Field field8F = ClazzUtil.getDeclaredField(AllTypeNoAccess.class, "field8");
+            Field field9F = ClazzUtil.getDeclaredField(AllTypeNoAccess.class, "field9");
+            Field field10F = ClazzUtil.getDeclaredField(AllTypeNoAccess.class, "field10");
+            Field field11F = ClazzUtil.getDeclaredField(AllTypeNoAccess.class, "field11");
+            Field field12F = ClazzUtil.getDeclaredField(AllTypeNoAccess.class, "field12");
+            Field field13F = ClazzUtil.getDeclaredField(AllTypeNoAccess.class, "field13");
+            Field field14F = ClazzUtil.getDeclaredField(AllTypeNoAccess.class, "field14");
+            Field field15F = ClazzUtil.getDeclaredField(AllTypeNoAccess.class, "field15");
+            Field field16F = ClazzUtil.getDeclaredField(AllTypeNoAccess.class, "field16");
+            Field field17F = ClazzUtil.getDeclaredField(AllTypeNoAccess.class, "field17");
+            Field field18F = ClazzUtil.getDeclaredField(AllTypeNoAccess.class, "field18");
+            field1F.setAccessible(true);
+            field2F.setAccessible(true);
+            field3F.setAccessible(true);
+            field4F.setAccessible(true);
+            field5F.setAccessible(true);
+            field6F.setAccessible(true);
+            field7F.setAccessible(true);
+            field8F.setAccessible(true);
+            field9F.setAccessible(true);
+            field10F.setAccessible(true);
+            field11F.setAccessible(true);
+            field12F.setAccessible(true);
+            field13F.setAccessible(true);
+            field14F.setAccessible(true);
+            field15F.setAccessible(true);
+            field16F.setAccessible(true);
+            field17F.setAccessible(true);
+            field18F.setAccessible(true);
+
+            //System.out.println(JSONObject.toJSONString(proj, true));
+            AllTypeNoAccess allType = new AllTypeNoAccess();
+            field1F.set(allType, jvalue.getBooleanValue("field1"));
+            field2F.set(allType, jvalue.getString("field2").getBytes("utf-8"));
+            field3F.set(allType, jvalue.getDoubleValue("field3"));
+            field4F.set(allType, Corpus.valueOf(jvalue.getString("field4")));
+            field5F.set(allType, jvalue.getIntValue("field5"));
+            field6F.set(allType, jvalue.getLongValue("field6"));
+            field7F.set(allType, jvalue.getFloatValue("field7"));
+            field8F.set(allType, jvalue.getIntValue("field8"));
+            field9F.set(allType, jvalue.getLongValue("field9"));
+            Map<String, Project> projects = new HashMap<>();
+            for (Map.Entry<String, Object> jv : jvalue.getJSONObject("field10").entrySet()) {
+                JSONObject jp = (JSONObject) jv.getValue();
+                Project project = new Project();
+                project.setId(jp.getLongValue("id"));
+                project.setName(jp.getString("name"));
+                project.setRepoPath(jp.getString("repoPath"));
+                projects.put(jv.getKey(), project);
+            }
+            field10F.set(allType, projects);
+            field11F.set(allType, proj);
+            field12F.set(allType, jvalue.getIntValue("field12"));
+            field13F.set(allType, jvalue.getLongValue("field13"));
+            field14F.set(allType, jvalue.getIntValue("field14"));
+
+            field15F.set(allType, jvalue.getLongValue("field15"));
+            field16F.set(allType, jvalue.getString("field16"));
+            field17F.set(allType, jvalue.getIntValue("field17"));
+            field18F.set(allType, jvalue.getLongValue("field18"));
+
+            byte[] epb = ProtoBuf.toByteArray(allType);
+            //System.out.println("----------------------");
+            System.out.println(conver2HexStr(epb));
+            System.out.println("+--------------------+");
+            assertArrayEquals(pb, epb);
+        } catch (Exception e) {
+            fail(e);
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "{" +
+                    "\"field1\":true," +
+                    "\"field2\":\"abcdefwxyz\"," +
+                    "\"field3\":31.415926," +
+                    "\"field4\":\"WEB\"," +
+                    "\"field5\":127," +
+                    "\"field6\":5671506337319861521L," +
+                    "\"field7\":3.1415," +
+                    "\"field8\":128," +
+                    "\"field9\":5671506337319861522L," +
+                    "\"field10\":{\"edap\":{\"id\":1,\"name\":\"edap\",\"repoPath\":\"https://www.easyea.com/edap/edap.git\"}}," +
+                    "\"field11\":{\"id\":2,\"name\":\"edao\",\"repoPath\":\"https://www.easyea.com/easyea/edao.git\"}," +
+                    "\"field12\":129," +
+                    "\"field13\":5671506337319861523L," +
+                    "\"field14\":130," +
+                    "\"field15\":5671506337319861524L," +
+                    "\"field16\":\"abcdefgwxyz\"," +
+                    "\"field17\":131," +
+                    "\"field18\":5671506337319861525L" +
+                    "}"
+    })
+    void testEncodeUnboxedNoAccess(String v) {
+        try {
+            JSONObject jvalue = JSONObject.parseObject(v);
+
+            AllTypeOuterClass.AllType.Builder builder = AllTypeOuterClass.AllType.newBuilder();
+            JSONObject jproj = jvalue.getJSONObject("field11");
+            builder.setField1(jvalue.getBooleanValue("field1"));
+            builder.setField2(ByteString.copyFromUtf8(jvalue.getString("field2")));
+            builder.setField3(jvalue.getDoubleValue("field3"));
+            builder.setField4(OneEnumOuterClass.Corpus.valueOf(jvalue.getString("field4")));
+            builder.setField5(jvalue.getIntValue("field5"));
+            builder.setField6(jvalue.getLongValue("field6"));
+            builder.setField7(jvalue.getFloatValue("field7"));
+            builder.setField8(jvalue.getIntValue("field8"));
+            builder.setField9(jvalue.getLongValue("field9"));
+            for (Map.Entry<String, Object> jv : jvalue.getJSONObject("field10").entrySet()) {
+                JSONObject jp = (JSONObject) jv.getValue();
+                OneMapOuterClass.Project.Builder pbuider = OneMapOuterClass.Project.newBuilder();
+                pbuider.setId(jp.getLongValue("id"));
+                pbuider.setName(jp.getString("name"));
+                pbuider.setRepoPath(jp.getString("repoPath"));
+                builder.putField10(jv.getKey(), pbuider.build());
+            }
+            OneMessageOuterClass.Proj.Builder projB = OneMessageOuterClass.Proj.newBuilder();
+
+            projB.setId(jproj.getLongValue("id"));
+            projB.setName(jproj.getString("name"));
+            projB.setRepoPath(jproj.getString("repoPath"));
+            builder.setField11(projB.build());
+            builder.setField12(jvalue.getIntValue("field12"));
+            builder.setField13(jvalue.getLongValue("field13"));
+            builder.setField14(jvalue.getIntValue("field14"));
+            builder.setField15(jvalue.getLongValue("field15"));
+            builder.setField16(jvalue.getString("field16"));
+            builder.setField17(jvalue.getIntValue("field17"));
+            builder.setField18(jvalue.getLongValue("field18"));
+
+            AllTypeOuterClass.AllType oi32 = builder.build();
+            byte[] pb = oi32.toByteArray();
+
+
+            System.out.println("+--------------------+");
+            System.out.println(conver2HexStr(pb));
+            Proj proj = new Proj();
+            proj.setId(jproj.getLongValue("id"));
+            proj.setName(jproj.getString("name"));
+            proj.setRepoPath(jproj.getString("repoPath"));
+
+            Field field1F = ClazzUtil.getDeclaredField(AllTypeUnboxedNoAccess.class, "field1");
+            Field field2F = ClazzUtil.getDeclaredField(AllTypeUnboxedNoAccess.class, "field2");
+            Field field3F = ClazzUtil.getDeclaredField(AllTypeUnboxedNoAccess.class, "field3");
+            Field field4F = ClazzUtil.getDeclaredField(AllTypeUnboxedNoAccess.class, "field4");
+            Field field5F = ClazzUtil.getDeclaredField(AllTypeUnboxedNoAccess.class, "field5");
+            Field field6F = ClazzUtil.getDeclaredField(AllTypeUnboxedNoAccess.class, "field6");
+            Field field7F = ClazzUtil.getDeclaredField(AllTypeUnboxedNoAccess.class, "field7");
+            Field field8F = ClazzUtil.getDeclaredField(AllTypeUnboxedNoAccess.class, "field8");
+            Field field9F = ClazzUtil.getDeclaredField(AllTypeUnboxedNoAccess.class, "field9");
+            Field field10F = ClazzUtil.getDeclaredField(AllTypeUnboxedNoAccess.class, "field10");
+            Field field11F = ClazzUtil.getDeclaredField(AllTypeUnboxedNoAccess.class, "field11");
+            Field field12F = ClazzUtil.getDeclaredField(AllTypeUnboxedNoAccess.class, "field12");
+            Field field13F = ClazzUtil.getDeclaredField(AllTypeUnboxedNoAccess.class, "field13");
+            Field field14F = ClazzUtil.getDeclaredField(AllTypeUnboxedNoAccess.class, "field14");
+            Field field15F = ClazzUtil.getDeclaredField(AllTypeUnboxedNoAccess.class, "field15");
+            Field field16F = ClazzUtil.getDeclaredField(AllTypeUnboxedNoAccess.class, "field16");
+            Field field17F = ClazzUtil.getDeclaredField(AllTypeUnboxedNoAccess.class, "field17");
+            Field field18F = ClazzUtil.getDeclaredField(AllTypeUnboxedNoAccess.class, "field18");
+            field1F.setAccessible(true);
+            field2F.setAccessible(true);
+            field3F.setAccessible(true);
+            field4F.setAccessible(true);
+            field5F.setAccessible(true);
+            field6F.setAccessible(true);
+            field7F.setAccessible(true);
+            field8F.setAccessible(true);
+            field9F.setAccessible(true);
+            field10F.setAccessible(true);
+            field11F.setAccessible(true);
+            field12F.setAccessible(true);
+            field13F.setAccessible(true);
+            field14F.setAccessible(true);
+            field15F.setAccessible(true);
+            field16F.setAccessible(true);
+            field17F.setAccessible(true);
+            field18F.setAccessible(true);
+
+            //System.out.println(JSONObject.toJSONString(proj, true));
+            AllTypeUnboxedNoAccess allType = new AllTypeUnboxedNoAccess();
+            field1F.set(allType, jvalue.getBooleanValue("field1"));
+            field2F.set(allType, jvalue.getString("field2").getBytes("utf-8"));
+            field3F.set(allType, jvalue.getDoubleValue("field3"));
+            field4F.set(allType, Corpus.valueOf(jvalue.getString("field4")));
+            field5F.set(allType, jvalue.getIntValue("field5"));
+            field6F.set(allType, jvalue.getLongValue("field6"));
+            field7F.set(allType, jvalue.getFloatValue("field7"));
+            field8F.set(allType, jvalue.getIntValue("field8"));
+            field9F.set(allType, jvalue.getLongValue("field9"));
+            Map<String, Project> projects = new HashMap<>();
+            for (Map.Entry<String, Object> jv : jvalue.getJSONObject("field10").entrySet()) {
+                JSONObject jp = (JSONObject) jv.getValue();
+                Project project = new Project();
+                project.setId(jp.getLongValue("id"));
+                project.setName(jp.getString("name"));
+                project.setRepoPath(jp.getString("repoPath"));
+                projects.put(jv.getKey(), project);
+            }
+            field10F.set(allType, projects);
+            field11F.set(allType, proj);
+            field12F.set(allType, jvalue.getIntValue("field12"));
+            field13F.set(allType, jvalue.getLongValue("field13"));
+            field14F.set(allType, jvalue.getIntValue("field14"));
+            field15F.set(allType, jvalue.getLongValue("field15"));
+            field16F.set(allType, jvalue.getString("field16"));
+            field17F.set(allType, jvalue.getIntValue("field17"));
+            field18F.set(allType, jvalue.getLongValue("field18"));
+
+            byte[] epb = ProtoBuf.toByteArray(allType);
+            //System.out.println("----------------------");
+            System.out.println(conver2HexStr(epb));
+            System.out.println("+--------------------+");
+            assertArrayEquals(pb, epb);
+        } catch (Exception e) {
+            fail(e);
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "{" +
+                    "\"field1\":true," +
+                    "\"field2\":\"abcdefwxyz\"," +
+                    "\"field3\":31.415926," +
+                    "\"field4\":\"WEB\"," +
+                    "\"field5\":127," +
+                    "\"field6\":5671506337319861521L," +
+                    "\"field7\":3.1415," +
+                    "\"field8\":128," +
+                    "\"field9\":5671506337319861522L," +
+                    "\"field10\":{\"edap\":{\"id\":1,\"name\":\"edap\",\"repoPath\":\"https://www.easyea.com/edap/edap.git\"}}," +
+                    "\"field11\":{\"id\":2,\"name\":\"edao\",\"repoPath\":\"https://www.easyea.com/easyea/edao.git\"}," +
+                    "\"field12\":129," +
+                    "\"field13\":5671506337319861523L," +
+                    "\"field14\":130," +
+                    "\"field15\":5671506337319861524L," +
+                    "\"field16\":\"abcdefgwxyz\"," +
+                    "\"field17\":131," +
+                    "\"field18\":5671506337319861525L" +
+                    "}"
+    })
+    void testDecodeNoAccess(String v) {
+        try {
+            JSONObject jvalue = JSONObject.parseObject(v);
+
+            AllTypeOuterClass.AllType.Builder builder = AllTypeOuterClass.AllType.newBuilder();
+            builder.setField1(jvalue.getBooleanValue("field1"));
+            builder.setField2(ByteString.copyFromUtf8(jvalue.getString("field2")));
+            builder.setField3(jvalue.getDoubleValue("field3"));
+            builder.setField4(OneEnumOuterClass.Corpus.valueOf(jvalue.getString("field4")));
+            builder.setField5(jvalue.getIntValue("field5"));
+            builder.setField6(jvalue.getLongValue("field6"));
+            builder.setField7(jvalue.getFloatValue("field7"));
+            builder.setField8(jvalue.getIntValue("field8"));
+            builder.setField9(jvalue.getLongValue("field9"));
+            for (Map.Entry<String, Object> jv : jvalue.getJSONObject("field10").entrySet()) {
+                JSONObject jp = (JSONObject) jv.getValue();
+                OneMapOuterClass.Project.Builder pbuider = OneMapOuterClass.Project.newBuilder();
+                pbuider.setId(jp.getLongValue("id"));
+                pbuider.setName(jp.getString("name"));
+                pbuider.setRepoPath(jp.getString("repoPath"));
+                builder.putField10(jv.getKey(), pbuider.build());
+            }
+            OneMessageOuterClass.Proj.Builder projB = OneMessageOuterClass.Proj.newBuilder();
+            JSONObject jproj = jvalue.getJSONObject("field11");
+            projB.setId(jproj.getLongValue("id"));
+            projB.setName(jproj.getString("name"));
+            projB.setRepoPath(jproj.getString("repoPath"));
+            builder.setField11(projB.build());
+            builder.setField12(jvalue.getIntValue("field12"));
+            builder.setField13(jvalue.getLongValue("field13"));
+            builder.setField14(jvalue.getIntValue("field14"));
+            builder.setField15(jvalue.getLongValue("field15"));
+            builder.setField16(jvalue.getString("field16"));
+            builder.setField17(jvalue.getIntValue("field17"));
+            builder.setField18(jvalue.getLongValue("field18"));
+
+            AllTypeOuterClass.AllType oi32 = builder.build();
+            byte[] pb = oi32.toByteArray();
+
+
+            AllTypeOuterClass.AllType pbOf = AllTypeOuterClass.AllType.parseFrom(pb);
+
+            AllTypeNoAccess allType = ProtoBuf.toObject(pb, AllTypeNoAccess.class);
+
+            Field field1F = ClazzUtil.getDeclaredField(AllTypeNoAccess.class, "field1");
+            Field field2F = ClazzUtil.getDeclaredField(AllTypeNoAccess.class, "field2");
+            Field field3F = ClazzUtil.getDeclaredField(AllTypeNoAccess.class, "field3");
+            Field field4F = ClazzUtil.getDeclaredField(AllTypeNoAccess.class, "field4");
+            Field field5F = ClazzUtil.getDeclaredField(AllTypeNoAccess.class, "field5");
+            Field field6F = ClazzUtil.getDeclaredField(AllTypeNoAccess.class, "field6");
+            Field field7F = ClazzUtil.getDeclaredField(AllTypeNoAccess.class, "field7");
+            Field field8F = ClazzUtil.getDeclaredField(AllTypeNoAccess.class, "field8");
+            Field field9F = ClazzUtil.getDeclaredField(AllTypeNoAccess.class, "field9");
+            Field field10F = ClazzUtil.getDeclaredField(AllTypeNoAccess.class, "field10");
+            Field field11F = ClazzUtil.getDeclaredField(AllTypeNoAccess.class, "field11");
+            Field field12F = ClazzUtil.getDeclaredField(AllTypeNoAccess.class, "field12");
+            Field field13F = ClazzUtil.getDeclaredField(AllTypeNoAccess.class, "field13");
+            Field field14F = ClazzUtil.getDeclaredField(AllTypeNoAccess.class, "field14");
+            Field field15F = ClazzUtil.getDeclaredField(AllTypeNoAccess.class, "field15");
+            Field field16F = ClazzUtil.getDeclaredField(AllTypeNoAccess.class, "field16");
+            Field field17F = ClazzUtil.getDeclaredField(AllTypeNoAccess.class, "field17");
+            Field field18F = ClazzUtil.getDeclaredField(AllTypeNoAccess.class, "field18");
+            field1F.setAccessible(true);
+            field2F.setAccessible(true);
+            field3F.setAccessible(true);
+            field4F.setAccessible(true);
+            field5F.setAccessible(true);
+            field6F.setAccessible(true);
+            field7F.setAccessible(true);
+            field8F.setAccessible(true);
+            field9F.setAccessible(true);
+            field10F.setAccessible(true);
+            field11F.setAccessible(true);
+            field12F.setAccessible(true);
+            field13F.setAccessible(true);
+            field14F.setAccessible(true);
+            field15F.setAccessible(true);
+            field16F.setAccessible(true);
+            field17F.setAccessible(true);
+            field18F.setAccessible(true);
+
+
+            assertEquals(pbOf.getField1(), (Boolean) field1F.get(allType));
+            assertArrayEquals(pbOf.getField2().toByteArray(), (byte[])field2F.get(allType));
+            assertEquals(pbOf.getField3(), (Double)field3F.get(allType));
+            assertEquals(pbOf.getField4().name(), ((Corpus)field4F.get(allType)).name());
+            assertEquals(pbOf.getField5(), (Integer)field5F.get(allType));
+            assertEquals(pbOf.getField6(), (Long)field6F.get(allType));
+            assertEquals(pbOf.getField7(), (Float)field7F.get(allType));
+            assertEquals(pbOf.getField8(), (Integer)field8F.get(allType));
+            assertEquals(pbOf.getField9(), (Long)field9F.get(allType));
+
+            Map<String, Project> f10 = (Map<String, Project>) field10F.get(allType);
+            assertEquals(pbOf.getField10Map().size(), f10.size());
+            for (Map.Entry<String, OneMapOuterClass.Project> entry : pbOf.getField10Map().entrySet()) {
+                Project project = f10.get(entry.getKey());
+                assertEquals(project.getId(), entry.getValue().getId());
+                assertEquals(project.getName(), entry.getValue().getName());
+                assertEquals(project.getRepoPath(), entry.getValue().getRepoPath());
+            }
+            OneMessageOuterClass.Proj pproj = pbOf.getField11();
+            Proj proj = (Proj)field11F.get(allType);
+            assertEquals(proj.getId(), pproj.getId());
+            assertEquals(proj.getName(), pproj.getName());
+            assertEquals(proj.getRepoPath(), pproj.getRepoPath());
+
+            assertEquals(pbOf.getField12(), field12F.get(allType));
+            assertEquals(pbOf.getField13(), field13F.get(allType));
+            assertEquals(pbOf.getField14(), field14F.get(allType));
+            assertEquals(pbOf.getField15(), field15F.get(allType));
+            assertEquals(pbOf.getField16(), field16F.get(allType));
+            assertEquals(pbOf.getField17(), field17F.get(allType));
+            assertEquals(pbOf.getField18(), field18F.get(allType));
         } catch (Exception e) {
             fail(e);
         }

@@ -91,10 +91,10 @@ public interface ProtoBufWriter {
     void writeFixed64(long value);
     void writeUInt64(long value);
 
-    <T> void writeMessage(byte[] fieldData, int tag, T msg, ProtoBufEncoder<T> encoder);
+    <T> void writeMessage(byte[] fieldData, int tag, T msg, ProtoBufEncoder<T> encoder) throws EncodeException;
 
-    <T> void writeMessages(byte[] fieldData, int tag, T[] msg, ProtoBufEncoder<T> encoder);
-    <T> void writeMessages(byte[] fieldData, int tag, List<T> msg, ProtoBufEncoder<T> encoder);
+    <T> void writeMessages(byte[] fieldData, int tag, T[] msg, ProtoBufEncoder<T> encoder) throws EncodeException;
+    <T> void writeMessages(byte[] fieldData, int tag, List<T> msg, ProtoBufEncoder<T> encoder) throws EncodeException;
 
     static int encodeZigZag32(int n) {
         // Note:  the right-shift must be arithmetic

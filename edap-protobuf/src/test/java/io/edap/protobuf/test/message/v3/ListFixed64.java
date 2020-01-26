@@ -22,7 +22,7 @@ import io.edap.protobuf.wire.Field;
 import java.util.List;
 
 /**
- * @date : 2020/1/7
+ * fixed64的list对象
  */
 public class ListFixed64 {
     @ProtoField(tag = 1, type = Field.Type.FIXED64, cardinality = Field.Cardinality.REPEATED)

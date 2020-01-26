@@ -18,16 +18,16 @@ package io.edap.protobuf.test.v3;
 
 import com.alibaba.fastjson.JSONArray;
 import com.google.protobuf.InvalidProtocolBufferException;
+import io.edap.protobuf.EncodeException;
 import io.edap.protobuf.ProtoBuf;
 import io.edap.protobuf.ProtoBufException;
-import io.edap.protobuf.test.message.v3.ArrayInt64;
-import io.edap.protobuf.test.message.v3.ArrayInt64Unboxed;
-import io.edap.protobuf.test.message.v3.ListInt64;
-import io.edap.protobuf.test.message.v3.ListInt64OuterClass;
+import io.edap.protobuf.test.message.v3.*;
+import io.edap.util.ClazzUtil;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
+import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -43,7 +43,7 @@ public class TestListInt64 {
             "[1,128,2147483648L]",
             "[-1,1,128,2147483648L]"
     })
-    void testEncode(String v) {
+    void testEncode(String v) throws EncodeException {
         List<Long> vs = new ArrayList<>();
         List<Long> pvs = new ArrayList<>();
         JSONArray jvs = JSONArray.parseArray(v);
@@ -105,7 +105,7 @@ public class TestListInt64 {
             "[1,128,2147483648L]",
             "[-1,1,128,2147483648L]"
     })
-    void testEncodeArray(String v) {
+    void testEncodeArray(String v) throws EncodeException {
 
         List<Long> pvs = new ArrayList<>();
         JSONArray jvs = JSONArray.parseArray(v);
@@ -131,7 +131,7 @@ public class TestListInt64 {
     }
 
     @Test
-    void testEncodeArrayNull() {
+    void testEncodeArrayNull() throws EncodeException {
         ArrayInt64 listInt64 = new ArrayInt64();
         byte[] epb = ProtoBuf.toByteArray(listInt64);
 
@@ -139,7 +139,7 @@ public class TestListInt64 {
     }
 
     @Test
-    void testEncodeArrayEmpty() {
+    void testEncodeArrayEmpty() throws EncodeException {
         ArrayInt64 listInt64 = new ArrayInt64();
         listInt64.list = new Long[0];
         byte[] epb = ProtoBuf.toByteArray(listInt64);
@@ -148,7 +148,7 @@ public class TestListInt64 {
     }
 
     @Test
-    void testEncodeArrayNullUnboxed() {
+    void testEncodeArrayNullUnboxed() throws EncodeException {
         ArrayInt64Unboxed listInt64 = new ArrayInt64Unboxed();
         byte[] epb = ProtoBuf.toByteArray(listInt64);
 
@@ -156,7 +156,7 @@ public class TestListInt64 {
     }
 
     @Test
-    void testEncodeArrayEmptyUnboxed() {
+    void testEncodeArrayEmptyUnboxed() throws EncodeException {
         ArrayInt64Unboxed listInt64 = new ArrayInt64Unboxed();
         listInt64.list = new long[0];
         byte[] epb = ProtoBuf.toByteArray(listInt64);
@@ -200,7 +200,7 @@ public class TestListInt64 {
             "[1,128,2147483648L]",
             "[-1,1,128,2147483648L]"
     })
-    void testEncodeArrayUnboxed(String v) {
+    void testEncodeArrayUnboxed(String v) throws EncodeException {
 
         List<Long> pvs = new ArrayList<>();
         JSONArray jvs = JSONArray.parseArray(v);
@@ -252,6 +252,209 @@ public class TestListInt64 {
         assertEquals(pbOd.getValueList().size(), ListInt64.list.length);
         for (int i=0;i<pbOd.getValueList().size();i++) {
             assertEquals(pbOd.getValueList().get(i).longValue(), ListInt64.list[i]);
+        }
+
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "[1,128,2147483648L]",
+            "[-1,1,128,2147483648L]"
+    })
+    void testEncodeNoAccess(String v) throws EncodeException, NoSuchFieldException, IllegalAccessException {
+        List<Long> vs = new ArrayList<>();
+        List<Long> pvs = new ArrayList<>();
+        JSONArray jvs = JSONArray.parseArray(v);
+        for (int i=0;i<jvs.size();i++) {
+            vs.add(jvs.getLongValue(i));
+            pvs.add(jvs.getLongValue(i));
+        }
+
+        ListInt64OuterClass.ListInt64.Builder builder = ListInt64OuterClass.ListInt64.newBuilder();
+        builder.addAllValue(pvs);
+        ListInt64OuterClass.ListInt64 od = builder.build();
+        byte[] pb = od.toByteArray();
+
+        System.out.println(conver2HexStr(pb));
+
+        Field field1F = ClazzUtil.getDeclaredField(ListInt64NoAccess.class, "list");
+        field1F.setAccessible(true);
+
+        ListInt64NoAccess listInt64 = new ListInt64NoAccess();
+        field1F.set(listInt64, vs);
+        byte[] epb = ProtoBuf.toByteArray(listInt64);
+        System.out.println(conver2HexStr(epb));
+
+        assertArrayEquals(pb, epb);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "[1,128,2147483648L]",
+            "[-1,1,128,2147483648L]"
+    })
+    void testEncodeArrayNoAccess(String v) throws EncodeException, NoSuchFieldException, IllegalAccessException {
+
+        List<Long> pvs = new ArrayList<>();
+        JSONArray jvs = JSONArray.parseArray(v);
+        Long[] vs = new Long[jvs.size()];
+        for (int i=0;i<jvs.size();i++) {
+            vs[i] = jvs.getLongValue(i);
+            pvs.add(jvs.getLongValue(i));
+        }
+
+        ListInt64OuterClass.ListInt64.Builder builder = ListInt64OuterClass.ListInt64.newBuilder();
+        builder.addAllValue(pvs);
+        ListInt64OuterClass.ListInt64 od = builder.build();
+        byte[] pb = od.toByteArray();
+
+        System.out.println(conver2HexStr(pb));
+
+        Field field1F = ClazzUtil.getDeclaredField(ArrayInt64NoAccess.class, "list");
+        field1F.setAccessible(true);
+
+        ArrayInt64NoAccess listInt64 = new ArrayInt64NoAccess();
+        field1F.set(listInt64, vs);
+        byte[] epb = ProtoBuf.toByteArray(listInt64);
+        System.out.println(conver2HexStr(epb));
+
+        assertArrayEquals(pb, epb);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "[1,128,2147483648L]",
+            "[-1,1,128,2147483648L]"
+    })
+    void testEncodeArrayUnboxedNoAccess(String v) throws EncodeException, NoSuchFieldException, IllegalAccessException {
+
+        List<Long> pvs = new ArrayList<>();
+        JSONArray jvs = JSONArray.parseArray(v);
+        long[] vs = new long[jvs.size()];
+        for (int i=0;i<jvs.size();i++) {
+            vs[i] = jvs.getLongValue(i);
+            pvs.add(jvs.getLongValue(i));
+        }
+
+        ListInt64OuterClass.ListInt64.Builder builder = ListInt64OuterClass.ListInt64.newBuilder();
+        builder.addAllValue(pvs);
+        ListInt64OuterClass.ListInt64 od = builder.build();
+        byte[] pb = od.toByteArray();
+
+        System.out.println(conver2HexStr(pb));
+
+        Field field1F = ClazzUtil.getDeclaredField(ArrayInt64UnboxedNoAccess.class, "list");
+        field1F.setAccessible(true);
+
+        ArrayInt64UnboxedNoAccess listInt64 = new ArrayInt64UnboxedNoAccess();
+        field1F.set(listInt64, vs);
+        byte[] epb = ProtoBuf.toByteArray(listInt64);
+        System.out.println(conver2HexStr(epb));
+
+        assertArrayEquals(pb, epb);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "[1,128,2147483648L]",
+            "[-1,1,128,2147483648L]"
+    })
+    void testDecodeNoAccess(String v) throws InvalidProtocolBufferException, ProtoBufException, NoSuchFieldException, IllegalAccessException {
+
+        List<Long> vs = new ArrayList<>();
+        List<Long> pvs = new ArrayList<>();
+        JSONArray jvs = JSONArray.parseArray(v);
+        for (int i=0;i<jvs.size();i++) {
+            vs.add(jvs.getLongValue(i));
+            pvs.add(jvs.getLongValue(i));
+        }
+
+        ListInt64OuterClass.ListInt64.Builder builder = ListInt64OuterClass.ListInt64.newBuilder();
+        builder.addAllValue(pvs);
+        ListInt64OuterClass.ListInt64 od = builder.build();
+        byte[] pb = od.toByteArray();
+
+
+        ListInt64OuterClass.ListInt64 pbOd = ListInt64OuterClass.ListInt64.parseFrom(pb);
+
+        ListInt64NoAccess ListInt64 = ProtoBuf.toObject(pb, ListInt64NoAccess.class);
+        Field fieldF = ClazzUtil.getDeclaredField(ListInt64NoAccess.class, "list");
+        fieldF.setAccessible(true);
+
+        List<Long> list = (List<Long>)fieldF.get(ListInt64);
+        assertEquals(pbOd.getValueList().size(), list.size());
+        for (int i=0;i<pbOd.getValueList().size();i++) {
+            assertEquals(pbOd.getValueList().get(i), list.get(i));
+        }
+
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "[1,128,2147483648L]",
+            "[-1,1,128,2147483648L]"
+    })
+    void testDecodeArrayNoAccess(String v) throws InvalidProtocolBufferException, ProtoBufException, NoSuchFieldException, IllegalAccessException {
+
+        List<Long> vs = new ArrayList<>();
+        List<Long> pvs = new ArrayList<>();
+        JSONArray jvs = JSONArray.parseArray(v);
+        for (int i=0;i<jvs.size();i++) {
+            vs.add(jvs.getLongValue(i));
+            pvs.add(jvs.getLongValue(i));
+        }
+
+        ListInt64OuterClass.ListInt64.Builder builder = ListInt64OuterClass.ListInt64.newBuilder();
+        builder.addAllValue(pvs);
+        ListInt64OuterClass.ListInt64 od = builder.build();
+        byte[] pb = od.toByteArray();
+
+
+        ListInt64OuterClass.ListInt64 pbOd = ListInt64OuterClass.ListInt64.parseFrom(pb);
+
+        ArrayInt64NoAccess ListInt64 = ProtoBuf.toObject(pb, ArrayInt64NoAccess.class);
+        Field fieldF = ClazzUtil.getDeclaredField(ArrayInt64NoAccess.class, "list");
+        fieldF.setAccessible(true);
+
+        Long[] list = (Long[])fieldF.get(ListInt64);
+        assertEquals(pbOd.getValueList().size(), list.length);
+        for (int i=0;i<pbOd.getValueList().size();i++) {
+            assertEquals(pbOd.getValueList().get(i), list[i]);
+        }
+
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "[1,128,2147483648L]",
+            "[-1,1,128,2147483648L]"
+    })
+    void testDecodeArrayUnboxedNoAccess(String v) throws InvalidProtocolBufferException, ProtoBufException, NoSuchFieldException, IllegalAccessException {
+
+        List<Long> vs = new ArrayList<>();
+        List<Long> pvs = new ArrayList<>();
+        JSONArray jvs = JSONArray.parseArray(v);
+        for (int i=0;i<jvs.size();i++) {
+            vs.add(jvs.getLongValue(i));
+            pvs.add(jvs.getLongValue(i));
+        }
+
+        ListInt64OuterClass.ListInt64.Builder builder = ListInt64OuterClass.ListInt64.newBuilder();
+        builder.addAllValue(pvs);
+        ListInt64OuterClass.ListInt64 od = builder.build();
+        byte[] pb = od.toByteArray();
+
+
+        ListInt64OuterClass.ListInt64 pbOd = ListInt64OuterClass.ListInt64.parseFrom(pb);
+
+        ArrayInt64UnboxedNoAccess ListInt64 = ProtoBuf.toObject(pb, ArrayInt64UnboxedNoAccess.class);
+        Field fieldF = ClazzUtil.getDeclaredField(ArrayInt64UnboxedNoAccess.class, "list");
+        fieldF.setAccessible(true);
+
+        long[] list = (long[])fieldF.get(ListInt64);
+        assertEquals(pbOd.getValueList().size(), list.length);
+        for (int i=0;i<pbOd.getValueList().size();i++) {
+            assertEquals(pbOd.getValueList().get(i), list[i]);
         }
 
     }

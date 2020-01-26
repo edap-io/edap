@@ -16,6 +16,9 @@
 
 package io.edap.protobuf.test.message.v3;
 
+/**
+ * 一个int64
+ */
 public class OneInt64 {
     private Long value;
 

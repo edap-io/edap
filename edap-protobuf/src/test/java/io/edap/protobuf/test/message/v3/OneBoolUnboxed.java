@@ -17,7 +17,7 @@
 package io.edap.protobuf.test.message.v3;
 
 /**
- * @date : 2020/1/8
+ * 一个bool类型
  */
 public class OneBoolUnboxed {
     public boolean value;

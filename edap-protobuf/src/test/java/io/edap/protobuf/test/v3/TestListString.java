@@ -18,15 +18,16 @@ package io.edap.protobuf.test.v3;
 
 import com.alibaba.fastjson.JSONArray;
 import com.google.protobuf.InvalidProtocolBufferException;
+import io.edap.protobuf.EncodeException;
 import io.edap.protobuf.ProtoBuf;
 import io.edap.protobuf.ProtoBufException;
-import io.edap.protobuf.test.message.v3.ArrayString;
-import io.edap.protobuf.test.message.v3.ListString;
-import io.edap.protobuf.test.message.v3.ListStringOuterClass;
+import io.edap.protobuf.test.message.v3.*;
+import io.edap.util.ClazzUtil;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
+import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -41,7 +42,7 @@ public class TestListString {
     @ValueSource(strings = {
             "[\"a\",\"abcdefgh\",\"中文内容\"]"
     })
-    void testEncode(String value) {
+    void testEncode(String value) throws EncodeException {
         JSONArray jl = JSONArray.parseArray(value);
         List<String> vs = new ArrayList<>();
         for (int i=0;i<jl.size();i++) {
@@ -64,7 +65,7 @@ public class TestListString {
     }
 
     @Test
-    void testEncodeStringNull() {
+    void testEncodeStringNull() throws EncodeException {
         List<String> vs = new ArrayList<>();
         vs.add(null);
         ListString listString = new ListString();
@@ -76,7 +77,7 @@ public class TestListString {
     }
 
     @Test
-    void testEncodeStringEmpty() {
+    void testEncodeStringEmpty() throws EncodeException {
         List<String> vs = new ArrayList<>();
         vs.add("");
         ListString listString = new ListString();
@@ -120,7 +121,7 @@ public class TestListString {
     @ValueSource(strings = {
             "[\"a\",\"abcdefgh\",\"中文内容\"]"
     })
-    void testEncodeArray(String value) {
+    void testEncodeArray(String value) throws EncodeException {
         JSONArray jl = JSONArray.parseArray(value);
         String[] vs = new String[jl.size()];
         List<String> pvs= new ArrayList<>();
@@ -145,7 +146,7 @@ public class TestListString {
     }
 
     @Test
-    void testEncodeArrayNull() {
+    void testEncodeArrayNull() throws EncodeException {
         ArrayString listString = new ArrayString();
         byte[] epb = ProtoBuf.toByteArray(listString);
 
@@ -154,7 +155,7 @@ public class TestListString {
     }
 
     @Test
-    void testEncodeArrayEmpty() {
+    void testEncodeArrayEmpty() throws EncodeException {
         ArrayString listString = new ArrayString();
         listString.list = new String[0];
         byte[] epb = ProtoBuf.toByteArray(listString);
@@ -164,7 +165,7 @@ public class TestListString {
     }
 
     @Test
-    void testEncodeArrayStringNull() {
+    void testEncodeArrayStringNull() throws EncodeException {
         ArrayString listString = new ArrayString();
         listString.list = new String[]{null};
         byte[] epb = ProtoBuf.toByteArray(listString);
@@ -174,7 +175,7 @@ public class TestListString {
     }
 
     @Test
-    void testEncodeArrayStringEmpty() {
+    void testEncodeArrayStringEmpty() throws EncodeException {
         ArrayString listString = new ArrayString();
         listString.list = new String[]{""};
         byte[] epb = ProtoBuf.toByteArray(listString);
@@ -208,6 +209,130 @@ public class TestListString {
         for (int i=0;i<pbOf.getValueCount();i++) {
 
             assertEquals(pbOf.getValue(i), listString.list[i]);
+        }
+
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "[\"a\",\"abcdefgh\",\"中文内容\"]"
+    })
+    void testEncodeNoAccess(String value) throws EncodeException, NoSuchFieldException, IllegalAccessException {
+        JSONArray jl = JSONArray.parseArray(value);
+        List<String> vs = new ArrayList<>();
+        for (int i=0;i<jl.size();i++) {
+            vs.add(jl.getString(i));
+        }
+        ListStringOuterClass.ListString.Builder builder = ListStringOuterClass.ListString.newBuilder();
+        builder.addAllValue(vs);
+        ListStringOuterClass.ListString oi32 = builder.build();
+        byte[] pb = oi32.toByteArray();
+
+        System.out.println("+--------------------+");
+        System.out.println(conver2HexStr(pb));
+        System.out.println("+--------------------+");
+
+        Field field1F = ClazzUtil.getDeclaredField(ListStringNoAccess.class, "list");
+        field1F.setAccessible(true);
+
+        ListStringNoAccess listString = new ListStringNoAccess();
+        field1F.set(listString, vs);
+        byte[] epb = ProtoBuf.toByteArray(listString);
+
+
+        assertArrayEquals(pb, epb);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "[\"a\",\"abcdefgh\",\"中文内容\"]"
+    })
+    void testEncodeArrayNoAccess(String value) throws EncodeException, NoSuchFieldException, IllegalAccessException {
+        JSONArray jl = JSONArray.parseArray(value);
+        String[] vs = new String[jl.size()];
+        List<String> pvs= new ArrayList<>();
+        for (int i=0;i<jl.size();i++) {
+            vs[i] = jl.getString(i);
+            pvs.add(jl.getString(i));
+        }
+        ListStringOuterClass.ListString.Builder builder = ListStringOuterClass.ListString.newBuilder();
+        builder.addAllValue(pvs);
+        ListStringOuterClass.ListString oi32 = builder.build();
+        byte[] pb = oi32.toByteArray();
+
+        System.out.println("+--------------------+");
+        System.out.println(conver2HexStr(pb));
+        System.out.println("+--------------------+");
+
+        Field field1F = ClazzUtil.getDeclaredField(ArrayStringNoAccess.class, "list");
+        field1F.setAccessible(true);
+
+        ArrayStringNoAccess listString = new ArrayStringNoAccess();
+        field1F.set(listString, vs);
+        byte[] epb = ProtoBuf.toByteArray(listString);
+
+
+        assertArrayEquals(pb, epb);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "[\"a\",\"abcdefgh\",\"中文内容\"]"
+    })
+    void testDecodeNoAccess(String value) throws InvalidProtocolBufferException, ProtoBufException, NoSuchFieldException, IllegalAccessException {
+
+        JSONArray jl = JSONArray.parseArray(value);
+        List<String> vs = new ArrayList<>();
+        for (int i=0;i<jl.size();i++) {
+            vs.add(jl.getString(i));
+        }
+        ListStringOuterClass.ListString.Builder builder = ListStringOuterClass.ListString.newBuilder();
+        builder.addAllValue(vs);
+        ListStringOuterClass.ListString oi32 = builder.build();
+        byte[] pb = oi32.toByteArray();
+
+        ListStringOuterClass.ListString pbOf = ListStringOuterClass.ListString.parseFrom(pb);
+
+        ListStringNoAccess listString = ProtoBuf.toObject(pb, ListStringNoAccess.class);
+        Field fieldF = ClazzUtil.getDeclaredField(ListStringNoAccess.class, "list");
+        fieldF.setAccessible(true);
+
+        List<String> list = (List<String>)fieldF.get(listString);
+        assertEquals(pbOf.getValueCount(), list.size());
+        for (int i=0;i<pbOf.getValueCount();i++) {
+
+            assertEquals(pbOf.getValue(i), list.get(i));
+        }
+
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "[\"a\",\"abcdefgh\",\"中文内容\"]"
+    })
+    void testDecodeArrayNoAccess(String value) throws InvalidProtocolBufferException, ProtoBufException, NoSuchFieldException, IllegalAccessException {
+
+        JSONArray jl = JSONArray.parseArray(value);
+        List<String> vs = new ArrayList<>();
+        for (int i=0;i<jl.size();i++) {
+            vs.add(jl.getString(i));
+        }
+        ListStringOuterClass.ListString.Builder builder = ListStringOuterClass.ListString.newBuilder();
+        builder.addAllValue(vs);
+        ListStringOuterClass.ListString oi32 = builder.build();
+        byte[] pb = oi32.toByteArray();
+
+        ListStringOuterClass.ListString pbOf = ListStringOuterClass.ListString.parseFrom(pb);
+
+        ArrayStringNoAccess listString = ProtoBuf.toObject(pb, ArrayStringNoAccess.class);
+        Field fieldF = ClazzUtil.getDeclaredField(ArrayStringNoAccess.class, "list");
+        fieldF.setAccessible(true);
+
+        String[] list = (String[])fieldF.get(listString);
+        assertEquals(pbOf.getValueCount(), list.length);
+        for (int i=0;i<pbOf.getValueCount();i++) {
+
+            assertEquals(pbOf.getValue(i), list[i]);
         }
 
     }

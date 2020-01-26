@@ -18,7 +18,7 @@ package io.edap.protobuf.test.message.v3;
 
 
 /**
- * @date : 2020/1/8
+ * Float数组
  */
 public class ArrayFloat {
     public Float[] list;

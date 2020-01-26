@@ -17,6 +17,7 @@
 package io.edap.protobuf.writer;
 
 import io.edap.io.BufOut;
+import io.edap.protobuf.EncodeException;
 import io.edap.protobuf.ProtoBufEncoder;
 import io.edap.protobuf.wire.WireFormat;
 import io.edap.protobuf.wire.WireType;
@@ -71,7 +72,7 @@ public class FastProtoBufWriter extends StandardProtoBufWriter {
     }
 
     @Override
-    public <T> void writeMessage(byte[] fieldData, int tag, T v, ProtoBufEncoder<T> codec) {
+    public <T> void writeMessage(byte[] fieldData, int tag, T v, ProtoBufEncoder<T> codec) throws EncodeException {
         if (v == null) {
             return;
         }
@@ -81,7 +82,7 @@ public class FastProtoBufWriter extends StandardProtoBufWriter {
     }
 
     @Override
-    public <T> void writeMessages(byte[] fieldData, int tag, List<T> vs, ProtoBufEncoder<T> codec) {
+    public <T> void writeMessages(byte[] fieldData, int tag, List<T> vs, ProtoBufEncoder<T> codec) throws EncodeException {
         int size = vs.size();
         expand(MAX_VARINT_SIZE);
         writeFieldData(fieldData);

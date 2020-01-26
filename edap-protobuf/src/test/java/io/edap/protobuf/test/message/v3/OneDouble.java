@@ -16,6 +16,9 @@
 
 package io.edap.protobuf.test.message.v3;
 
+/**
+ * 一个Double
+ */
 public class OneDouble {
 
     private Double d;

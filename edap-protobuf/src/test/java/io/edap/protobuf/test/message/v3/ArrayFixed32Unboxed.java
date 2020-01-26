@@ -20,7 +20,7 @@ import io.edap.protobuf.annotation.ProtoField;
 import io.edap.protobuf.wire.Field;
 
 /**
- * @date : 2020/1/8
+ * Fixed32的数组，int为原始的int
  */
 public class ArrayFixed32Unboxed {
     @ProtoField(tag = 1, type = Field.Type.FIXED32, cardinality = Field.Cardinality.REPEATED)

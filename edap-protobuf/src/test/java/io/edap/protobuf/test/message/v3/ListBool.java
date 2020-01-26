@@ -19,8 +19,7 @@ package io.edap.protobuf.test.message.v3;
 import java.util.List;
 
 /**
- * @author : luysh@yonyou.com
- * @date : 2020/1/6
+ * Boolean的list
  */
 public class ListBool {
     //@ProtoField(tag = 1, type = Field.Type.BOOL, cardinality = Field.Cardinality.REPEATED)

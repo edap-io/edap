@@ -20,7 +20,7 @@ import io.edap.protobuf.annotation.ProtoField;
 import io.edap.protobuf.wire.Field;
 
 /**
- * @date : 2020/1/8
+ * 一个sint32
  */
 public class OneSint32Unboxed {
 

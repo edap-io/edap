@@ -17,13 +17,15 @@
 package io.edap.protobuf.test.v3;
 
 import com.google.protobuf.InvalidProtocolBufferException;
+import io.edap.protobuf.EncodeException;
 import io.edap.protobuf.ProtoBuf;
 import io.edap.protobuf.ProtoBufException;
-import io.edap.protobuf.test.message.v3.OneSint32;
-import io.edap.protobuf.test.message.v3.OneSint32OuterClass;
-import io.edap.protobuf.test.message.v3.OneSint32Unboxed;
+import io.edap.protobuf.test.message.v3.*;
+import io.edap.util.ClazzUtil;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+
+import java.lang.reflect.Field;
 
 import static io.edap.protobuf.test.TestUtil.conver2HexStr;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
@@ -38,7 +40,7 @@ public class TestOneSint32 {
             -1,
             -129
     })
-    void testEncode(int value) {
+    void testEncode(int value) throws EncodeException {
 
         OneSint32OuterClass.OneSint32.Builder builder = OneSint32OuterClass.OneSint32.newBuilder();
         builder.setValue(value);
@@ -87,7 +89,7 @@ public class TestOneSint32 {
             -1,
             -129
     })
-    void testEncodeUnboxed(int value) {
+    void testEncodeUnboxed(int value) throws EncodeException {
 
         OneSint32OuterClass.OneSint32.Builder builder = OneSint32OuterClass.OneSint32.newBuilder();
         builder.setValue(value);
@@ -126,6 +128,114 @@ public class TestOneSint32 {
 
 
         assertEquals(pbOf.getValue(), oneSint32.value);
+
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {
+            1,
+            128,
+            -1,
+            -129
+    })
+    void testEncodeNoAccess(int value) throws EncodeException, NoSuchFieldException, IllegalAccessException {
+
+        OneSint32OuterClass.OneSint32.Builder builder = OneSint32OuterClass.OneSint32.newBuilder();
+        builder.setValue(value);
+        OneSint32OuterClass.OneSint32 oi32 = builder.build();
+        byte[] pb = oi32.toByteArray();
+
+        System.out.println("+--------------------+");
+        System.out.println(conver2HexStr(pb));
+        System.out.println("+--------------------+");
+
+        Field fieldF = ClazzUtil.getDeclaredField(OneSint32NoAccess.class, "value");
+        fieldF.setAccessible(true);
+
+        OneSint32NoAccess oneSint32 = new OneSint32NoAccess();
+        fieldF.set(oneSint32, value);
+        byte[] epb = ProtoBuf.toByteArray(oneSint32);
+
+
+        assertArrayEquals(pb, epb);
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {
+            1,
+            128,
+            -1,
+            -129
+    })
+    void testEncodeUnboxedNoAccess(int value) throws EncodeException, NoSuchFieldException, IllegalAccessException {
+
+        OneSint32OuterClass.OneSint32.Builder builder = OneSint32OuterClass.OneSint32.newBuilder();
+        builder.setValue(value);
+        OneSint32OuterClass.OneSint32 oi32 = builder.build();
+        byte[] pb = oi32.toByteArray();
+
+        System.out.println("+--------------------+");
+        System.out.println(conver2HexStr(pb));
+        System.out.println("+--------------------+");
+
+        Field fieldF = ClazzUtil.getDeclaredField(OneSint32UnboxedNoAccess.class, "value");
+        fieldF.setAccessible(true);
+
+        OneSint32UnboxedNoAccess oneSint32 = new OneSint32UnboxedNoAccess();
+        fieldF.set(oneSint32, value);
+        byte[] epb = ProtoBuf.toByteArray(oneSint32);
+
+
+        assertArrayEquals(pb, epb);
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {
+            1,
+            128,
+            -1,
+            -128
+    })
+    void testDecodeNoAccess(int value) throws InvalidProtocolBufferException, ProtoBufException, NoSuchFieldException, IllegalAccessException {
+
+        OneSint32OuterClass.OneSint32.Builder builder = OneSint32OuterClass.OneSint32.newBuilder();
+        builder.setValue(value);
+        OneSint32OuterClass.OneSint32 oSint32 = builder.build();
+        byte[] pb = oSint32.toByteArray();
+
+
+        OneSint32OuterClass.OneSint32 pbOf = OneSint32OuterClass.OneSint32.parseFrom(pb);
+
+        OneSint32NoAccess oneSint32 = ProtoBuf.toObject(pb, OneSint32NoAccess.class);
+        Field fieldF = ClazzUtil.getDeclaredField(OneSint32NoAccess.class, "value");
+        fieldF.setAccessible(true);
+
+        assertEquals(pbOf.getValue(), (Integer)fieldF.get(oneSint32));
+
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {
+            1,
+            128,
+            -1,
+            -128
+    })
+    void testDecodeUnboxedNoAccess(int value) throws InvalidProtocolBufferException, ProtoBufException, NoSuchFieldException, IllegalAccessException {
+
+        OneSint32OuterClass.OneSint32.Builder builder = OneSint32OuterClass.OneSint32.newBuilder();
+        builder.setValue(value);
+        OneSint32OuterClass.OneSint32 oSint32 = builder.build();
+        byte[] pb = oSint32.toByteArray();
+
+
+        OneSint32OuterClass.OneSint32 pbOf = OneSint32OuterClass.OneSint32.parseFrom(pb);
+
+        OneSint32UnboxedNoAccess oneSint32 = ProtoBuf.toObject(pb, OneSint32UnboxedNoAccess.class);
+        Field fieldF = ClazzUtil.getDeclaredField(OneSint32UnboxedNoAccess.class, "value");
+        fieldF.setAccessible(true);
+
+        assertEquals(pbOf.getValue(), (Integer)fieldF.get(oneSint32));
 
     }
 }

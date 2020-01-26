@@ -19,6 +19,9 @@ package io.edap.protobuf.test.message.v3;
 import io.edap.protobuf.annotation.ProtoField;
 import io.edap.protobuf.wire.Field;
 
+/**
+ * sfixed64的数组
+ */
 public class ArraySfixed64 {
 
     @ProtoField(tag = 1, type = Field.Type.SFIXED64, cardinality = Field.Cardinality.REPEATED)

@@ -17,15 +17,15 @@
 package io.edap.protobuf.test.v3;
 
 import com.alibaba.fastjson.JSONArray;
+import io.edap.protobuf.EncodeException;
 import io.edap.protobuf.ProtoBuf;
-import io.edap.protobuf.test.message.v3.ArrayBool;
-import io.edap.protobuf.test.message.v3.ArrayBoolUnboxed;
-import io.edap.protobuf.test.message.v3.ListBool;
-import io.edap.protobuf.test.message.v3.ListBoolOuterClass;
+import io.edap.protobuf.test.message.v3.*;
+import io.edap.util.ClazzUtil;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
+import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -40,7 +40,7 @@ public class TestListBool {
             "[true,false,true,true,false]",
             "[true,true,false,true,false]"
     })
-    void testEncode(String jlist) {
+    void testEncode(String jlist) throws EncodeException {
         List<Boolean> vs = new ArrayList<>();
         JSONArray jl = JSONArray.parseArray(jlist);
         for (int i=0;i<jl.size();i++) {
@@ -97,7 +97,7 @@ public class TestListBool {
             "[true,false,true,true,false]",
             "[true,true,false,true,false]"
     })
-    void testEncodeArray(String jlist) {
+    void testEncodeArray(String jlist) throws EncodeException {
         List<Boolean> vs = new ArrayList<>();
         JSONArray jl = JSONArray.parseArray(jlist);
         Boolean[] evs = new Boolean[jl.size()];
@@ -122,7 +122,7 @@ public class TestListBool {
     }
 
     @Test
-    void testEncodeArrayNull() {
+    void testEncodeArrayNull() throws EncodeException {
         ArrayBool arrayBool = new ArrayBool();
         byte[] epb = ProtoBuf.toByteArray(arrayBool);
 
@@ -130,7 +130,7 @@ public class TestListBool {
     }
 
     @Test
-    void testEncodeArrayEmpty() {
+    void testEncodeArrayEmpty() throws EncodeException {
         ArrayBool arrayBool = new ArrayBool();
         arrayBool.values = new Boolean[0];
         byte[] epb = ProtoBuf.toByteArray(arrayBool);
@@ -139,7 +139,7 @@ public class TestListBool {
     }
 
     @Test
-    void testEncodeArrayNullUnboxed() {
+    void testEncodeArrayNullUnboxed() throws EncodeException {
         ArrayBoolUnboxed arrayBool = new ArrayBoolUnboxed();
         byte[] epb = ProtoBuf.toByteArray(arrayBool);
 
@@ -147,7 +147,7 @@ public class TestListBool {
     }
 
     @Test
-    void testEncodeArrayEmptyUnboxed() {
+    void testEncodeArrayEmptyUnboxed() throws EncodeException {
         ArrayBoolUnboxed arrayBool = new ArrayBoolUnboxed();
         arrayBool.values = new boolean[0];
         byte[] epb = ProtoBuf.toByteArray(arrayBool);
@@ -190,7 +190,7 @@ public class TestListBool {
             "[true,false,true,true,false]",
             "[true,true,false,true,false]"
     })
-    void testEncodeArrayUnboxed(String jlist) {
+    void testEncodeArrayUnboxed(String jlist) throws EncodeException {
         List<Boolean> vs = new ArrayList<>();
         JSONArray jl = JSONArray.parseArray(jlist);
         boolean[] evs = new boolean[jl.size()];
@@ -239,6 +239,191 @@ public class TestListBool {
 
 
             assertEquals(pbOd.getValueList().size(), arrayBool.values.length);
+        } catch (Exception e) {
+            fail(e);
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "[true,false,true,true,false]",
+            "[true,true,false,true,false]"
+    })
+    void testEncodeNoAccess(String jlist) throws EncodeException, NoSuchFieldException, IllegalAccessException {
+        List<Boolean> vs = new ArrayList<>();
+        JSONArray jl = JSONArray.parseArray(jlist);
+        for (int i=0;i<jl.size();i++) {
+            vs.add(Boolean.valueOf(jl.getBoolean(i)));
+        }
+        ListBoolOuterClass.ListBool.Builder builder = ListBoolOuterClass.ListBool.newBuilder();
+        builder.addAllValue(vs);
+        ListBoolOuterClass.ListBool od = builder.build();
+        byte[] pb = od.toByteArray();
+
+        System.out.println(conver2HexStr(pb));
+
+        Field field1F = ClazzUtil.getDeclaredField(ListBoolNoAccess.class, "values");
+        field1F.setAccessible(true);
+
+        ListBoolNoAccess listBool = new ListBoolNoAccess();
+        field1F.set(listBool, vs);
+        byte[] epb = ProtoBuf.toByteArray(listBool);
+
+        System.out.println(conver2HexStr(epb));
+
+        assertArrayEquals(pb, epb);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "[true,false,true,true,false]",
+            "[true,true,false,true,false]"
+    })
+    void testEncodeArrayNoAccess(String jlist) throws EncodeException, NoSuchFieldException, IllegalAccessException {
+        List<Boolean> vs = new ArrayList<>();
+        JSONArray jl = JSONArray.parseArray(jlist);
+        Boolean[] evs = new Boolean[jl.size()];
+        for (int i=0;i<jl.size();i++) {
+            vs.add(Boolean.valueOf(jl.getBoolean(i)));
+            evs[i] = Boolean.valueOf(jl.getBoolean(i));
+        }
+        ListBoolOuterClass.ListBool.Builder builder = ListBoolOuterClass.ListBool.newBuilder();
+        builder.addAllValue(vs);
+        ListBoolOuterClass.ListBool od = builder.build();
+        byte[] pb = od.toByteArray();
+
+        System.out.println(conver2HexStr(pb));
+
+        ArrayBoolNoAccess arrayBool = new ArrayBoolNoAccess();
+        Field field1F = ClazzUtil.getDeclaredField(ArrayBoolNoAccess.class, "values");
+        field1F.setAccessible(true);
+        field1F.set(arrayBool, evs);
+        byte[] epb = ProtoBuf.toByteArray(arrayBool);
+
+        System.out.println(conver2HexStr(epb));
+
+        assertArrayEquals(pb, epb);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "[true,false,true,true,false]",
+            "[true,true,false,true,false]"
+    })
+    void testEncodeArrayUnboxedNoAccess(String jlist) throws EncodeException, NoSuchFieldException, IllegalAccessException {
+        List<Boolean> vs = new ArrayList<>();
+        JSONArray jl = JSONArray.parseArray(jlist);
+        boolean[] evs = new boolean[jl.size()];
+        for (int i=0;i<jl.size();i++) {
+            vs.add(Boolean.valueOf(jl.getBoolean(i)));
+            evs[i] = Boolean.valueOf(jl.getBoolean(i));
+        }
+        ListBoolOuterClass.ListBool.Builder builder = ListBoolOuterClass.ListBool.newBuilder();
+        builder.addAllValue(vs);
+        ListBoolOuterClass.ListBool od = builder.build();
+        byte[] pb = od.toByteArray();
+
+        System.out.println(conver2HexStr(pb));
+
+        ArrayBoolUnboxedNoAccess arrayBool = new ArrayBoolUnboxedNoAccess();
+        Field field1F = ClazzUtil.getDeclaredField(ArrayBoolUnboxedNoAccess.class, "values");
+        field1F.setAccessible(true);
+        field1F.set(arrayBool, evs);
+        byte[] epb = ProtoBuf.toByteArray(arrayBool);
+
+        System.out.println(conver2HexStr(epb));
+
+        assertArrayEquals(pb, epb);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "[true,false,true,true,false]",
+            "[true,true,false,true,false]"
+    })
+    void testDecodeNoAccess(String jlist) {
+
+        try {
+            List<Boolean> vs = new ArrayList<>();
+            JSONArray jl = JSONArray.parseArray(jlist);
+            for (int i = 0; i < jl.size(); i++) {
+                vs.add(Boolean.valueOf(jl.getBoolean(i)));
+            }
+            ListBoolOuterClass.ListBool.Builder builder = ListBoolOuterClass.ListBool.newBuilder();
+            builder.addAllValue(vs);
+            ListBoolOuterClass.ListBool od = builder.build();
+            byte[] pb = od.toByteArray();
+
+
+            ListBoolOuterClass.ListBool pbOd = ListBoolOuterClass.ListBool.parseFrom(pb);
+
+            ListBoolNoAccess ListBool = ProtoBuf.toObject(pb, ListBoolNoAccess.class);
+            Field fieldF = ClazzUtil.getDeclaredField(ListBoolNoAccess.class, "values");
+            fieldF.setAccessible(true);
+
+            assertEquals(pbOd.getValueList().size(), ((List)fieldF.get(ListBool)).size());
+        } catch (Exception e) {
+            fail(e);
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "[true,false,true,true,false]",
+            "[true,true,false,true,false]"
+    })
+    void testDecodeArrayNoAccess(String jlist) {
+
+        try {
+            List<Boolean> vs = new ArrayList<>();
+            JSONArray jl = JSONArray.parseArray(jlist);
+            for (int i = 0; i < jl.size(); i++) {
+                vs.add(Boolean.valueOf(jl.getBoolean(i)));
+            }
+            ListBoolOuterClass.ListBool.Builder builder = ListBoolOuterClass.ListBool.newBuilder();
+            builder.addAllValue(vs);
+            ListBoolOuterClass.ListBool od = builder.build();
+            byte[] pb = od.toByteArray();
+
+
+            ListBoolOuterClass.ListBool pbOd = ListBoolOuterClass.ListBool.parseFrom(pb);
+
+            ArrayBoolNoAccess arrayBool = ProtoBuf.toObject(pb, ArrayBoolNoAccess.class);
+            Field fieldF = ClazzUtil.getDeclaredField(ArrayBoolNoAccess.class, "values");
+            fieldF.setAccessible(true);
+
+            assertEquals(pbOd.getValueList().size(), ((Boolean[])fieldF.get(arrayBool)).length);
+        } catch (Exception e) {
+            fail(e);
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "[true,false,true,true,false]",
+            "[true,true,false,true,false]"
+    })
+    void testDecodeArrayUnboxedNoAccess(String jlist) {
+
+        try {
+            List<Boolean> vs = new ArrayList<>();
+            JSONArray jl = JSONArray.parseArray(jlist);
+            for (int i = 0; i < jl.size(); i++) {
+                vs.add(Boolean.valueOf(jl.getBoolean(i)));
+            }
+            ListBoolOuterClass.ListBool.Builder builder = ListBoolOuterClass.ListBool.newBuilder();
+            builder.addAllValue(vs);
+            ListBoolOuterClass.ListBool od = builder.build();
+            byte[] pb = od.toByteArray();
+
+
+            ListBoolOuterClass.ListBool pbOd = ListBoolOuterClass.ListBool.parseFrom(pb);
+
+            ArrayBoolUnboxedNoAccess arrayBool = ProtoBuf.toObject(pb, ArrayBoolUnboxedNoAccess.class);
+            Field fieldF = ClazzUtil.getDeclaredField(ArrayBoolUnboxedNoAccess.class, "values");
+            fieldF.setAccessible(true);
+
+            assertEquals(pbOd.getValueList().size(), ((boolean[])fieldF.get(arrayBool)).length);
         } catch (Exception e) {
             fail(e);
         }

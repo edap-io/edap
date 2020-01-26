@@ -19,7 +19,7 @@ package io.edap.protobuf.test.message.v3;
 import java.util.Map;
 
 /**
- * @date : 2020/1/6
+ * 一个map类型
  */
 public class OneMap {
     private Map<String, Project> value;

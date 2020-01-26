@@ -16,6 +16,9 @@
 
 package io.edap.protobuf.test.message.v3;
 
+/**
+ * 一个byte[]数组
+ */
 public class OneBytes {
 
     private byte[] value;

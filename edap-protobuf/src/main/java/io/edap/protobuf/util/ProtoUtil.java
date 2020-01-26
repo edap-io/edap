@@ -16,7 +16,6 @@
 
 package io.edap.protobuf.util;
 
-import io.edap.protobuf.ProtoBuf;
 import io.edap.protobuf.ProtoBuf.ProtoFieldInfo;
 import io.edap.protobuf.annotation.ProtoField;
 import io.edap.protobuf.wire.Field.Cardinality;
@@ -58,7 +57,7 @@ public class ProtoUtil {
         return pfi.protoField.type().packable();
     }
 
-    public static List<ProtoBuf.ProtoFieldInfo> getProtoFields(Class pojoClass) {
+    public static List<ProtoFieldInfo> getProtoFields(Class pojoClass) {
         List<ProtoFieldInfo> profields = new ArrayList<>();
         List<Field> fields = getClassFields(pojoClass);
         List<Method> methods = getClassMethods(pojoClass);
@@ -73,11 +72,13 @@ public class ProtoUtil {
                 ProtoFieldInfo pfi = new ProtoFieldInfo();
                 pfi.field = f;
                 Method em = getAccessMethod(f, aMethod);
-                pfi.method = em;
+                pfi.getMethod = em;
                 Method setMethod = getSetMethod(f, aMethod);
                 if (setMethod != null) {
                     pfi.setMethod = setMethod;
                 }
+                pfi.hasGetAccessed = Modifier.isPublic(f.getModifiers()) || pfi.getMethod != null;
+                pfi.hasSetAccessed = Modifier.isPublic(f.getModifiers()) || pfi.setMethod != null;
                 ProtoField pf = getProtoAnnotation(f, em);
                 if (pf != null) {
                     pfi.protoField = pf;

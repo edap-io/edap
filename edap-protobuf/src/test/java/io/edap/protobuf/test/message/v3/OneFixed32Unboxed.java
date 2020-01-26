@@ -20,8 +20,7 @@ import io.edap.protobuf.annotation.ProtoField;
 import io.edap.protobuf.wire.Field;
 
 /**
- * @author : luysh@yonyou.com
- * @date : 2020/1/8
+ * 一个fixed32
  */
 public class OneFixed32Unboxed {
 

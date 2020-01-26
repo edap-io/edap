@@ -19,6 +19,9 @@ package io.edap.protobuf.test.message.v3;
 import io.edap.protobuf.annotation.ProtoField;
 import io.edap.protobuf.wire.Field;
 
+/**
+ * 一个枚举类型
+ */
 public class OneEnum {
 
     @ProtoField(tag = 1, type = Field.Type.ENUM)

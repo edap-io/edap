@@ -17,13 +17,18 @@
 package io.edap.protobuf.test.v3;
 
 import com.google.protobuf.InvalidProtocolBufferException;
+import io.edap.protobuf.EncodeException;
 import io.edap.protobuf.ProtoBuf;
 import io.edap.protobuf.ProtoBufException;
 import io.edap.protobuf.test.message.v3.Corpus;
 import io.edap.protobuf.test.message.v3.OneEnum;
+import io.edap.protobuf.test.message.v3.OneEnumNoAccess;
 import io.edap.protobuf.test.message.v3.OneEnumOuterClass;
+import io.edap.util.ClazzUtil;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+
+import java.lang.reflect.Field;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -40,7 +45,7 @@ public class TestOneEnum {
             "PRODUCTS",
             "VIDEO"
     })
-    void testEncode(String v) {
+    void testEncode(String v) throws EncodeException {
         OneEnumOuterClass.OneEnum.Builder builder = OneEnumOuterClass.OneEnum.newBuilder();
         builder.setCorpus(OneEnumOuterClass.Corpus.valueOf(v));
         OneEnumOuterClass.OneEnum od = builder.build();
@@ -79,4 +84,56 @@ public class TestOneEnum {
 
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "UNIVERSAL",
+            "WEB",
+            "IMAGES",
+            "LOCAL",
+            "NEWS",
+            "PRODUCTS",
+            "VIDEO"
+    })
+    void testEncodeNoAccess(String v) throws EncodeException, NoSuchFieldException, IllegalAccessException {
+        OneEnumOuterClass.OneEnum.Builder builder = OneEnumOuterClass.OneEnum.newBuilder();
+        builder.setCorpus(OneEnumOuterClass.Corpus.valueOf(v));
+        OneEnumOuterClass.OneEnum od = builder.build();
+        byte[] pb = od.toByteArray();
+
+        Field fieldF = ClazzUtil.getDeclaredField(OneEnumNoAccess.class, "corpus");
+        fieldF.setAccessible(true);
+
+        OneEnumNoAccess oneEnum = new OneEnumNoAccess();
+        fieldF.set(oneEnum, Corpus.valueOf(v));
+        byte[] epb = ProtoBuf.toByteArray(oneEnum);
+        assertArrayEquals(pb, epb);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "UNIVERSAL",
+            "WEB",
+            "IMAGES",
+            "LOCAL",
+            "NEWS",
+            "PRODUCTS",
+            "VIDEO"
+    })
+    void testDecodeNoAccess(String v) throws InvalidProtocolBufferException, ProtoBufException, NoSuchFieldException, IllegalAccessException {
+
+        OneEnumOuterClass.OneEnum.Builder builder = OneEnumOuterClass.OneEnum.newBuilder();
+        builder.setCorpus(OneEnumOuterClass.Corpus.valueOf(v));
+        OneEnumOuterClass.OneEnum od = builder.build();
+        byte[] pb = od.toByteArray();
+
+
+        OneEnumOuterClass.OneEnum pbOd = OneEnumOuterClass.OneEnum.parseFrom(pb);
+
+        OneEnumNoAccess oneEnum = ProtoBuf.toObject(pb, OneEnumNoAccess.class);
+        Field fieldF =ClazzUtil.getDeclaredField(OneEnumNoAccess.class, "corpus");
+        fieldF.setAccessible(true);
+        Corpus corpus = (Corpus)fieldF.get(oneEnum);
+        assertEquals(pbOd.getCorpus().name(), corpus == null ?Corpus.UNIVERSAL.name():corpus.name());
+
+    }
 }

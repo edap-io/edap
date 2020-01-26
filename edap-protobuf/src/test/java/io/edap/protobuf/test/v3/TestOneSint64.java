@@ -17,13 +17,15 @@
 package io.edap.protobuf.test.v3;
 
 import com.google.protobuf.InvalidProtocolBufferException;
+import io.edap.protobuf.EncodeException;
 import io.edap.protobuf.ProtoBuf;
 import io.edap.protobuf.ProtoBufException;
-import io.edap.protobuf.test.message.v3.OneSint64;
-import io.edap.protobuf.test.message.v3.OneSint64OuterClass;
-import io.edap.protobuf.test.message.v3.OneSint64Unboxed;
+import io.edap.protobuf.test.message.v3.*;
+import io.edap.util.ClazzUtil;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+
+import java.lang.reflect.Field;
 
 import static io.edap.protobuf.test.TestUtil.conver2HexStr;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
@@ -37,7 +39,7 @@ public class TestOneSint64 {
             128,
             5671506337319861524L
     })
-    void testEncode(long value) {
+    void testEncode(long value) throws EncodeException {
 
         OneSint64OuterClass.OneSint64.Builder builder = OneSint64OuterClass.OneSint64.newBuilder();
         builder.setValue(value);
@@ -84,7 +86,7 @@ public class TestOneSint64 {
             128,
             5671506337319861524L
     })
-    void testEncodeUnboxed(long value) {
+    void testEncodeUnboxed(long value) throws EncodeException {
 
         OneSint64OuterClass.OneSint64.Builder builder = OneSint64OuterClass.OneSint64.newBuilder();
         builder.setValue(value);
@@ -122,6 +124,110 @@ public class TestOneSint64 {
 
 
         assertEquals(pbOf.getValue(), oneSint64.value);
+
+    }
+
+    @ParameterizedTest
+    @ValueSource(longs = {
+            1,
+            128,
+            5671506337319861524L
+    })
+    void testEncodeNoAccess(long value) throws EncodeException, NoSuchFieldException, IllegalAccessException {
+
+        OneSint64OuterClass.OneSint64.Builder builder = OneSint64OuterClass.OneSint64.newBuilder();
+        builder.setValue(value);
+        OneSint64OuterClass.OneSint64 oi64 = builder.build();
+        byte[] pb = oi64.toByteArray();
+
+        System.out.println("+--------------------+");
+        System.out.println(conver2HexStr(pb));
+        System.out.println("+--------------------+");
+
+        Field fieldF = ClazzUtil.getDeclaredField(OneSint64NoAccess.class, "value");
+        fieldF.setAccessible(true);
+
+        OneSint64NoAccess oneSint64 = new OneSint64NoAccess();
+        fieldF.set(oneSint64, value);
+        byte[] epb = ProtoBuf.toByteArray(oneSint64);
+
+
+        assertArrayEquals(pb, epb);
+    }
+
+    @ParameterizedTest
+    @ValueSource(longs = {
+            1,
+            128,
+            5671506337319861524L
+    })
+    void testEncodeUnboxedNoAccess(long value) throws EncodeException, NoSuchFieldException, IllegalAccessException {
+
+        OneSint64OuterClass.OneSint64.Builder builder = OneSint64OuterClass.OneSint64.newBuilder();
+        builder.setValue(value);
+        OneSint64OuterClass.OneSint64 oi64 = builder.build();
+        byte[] pb = oi64.toByteArray();
+
+        System.out.println("+--------------------+");
+        System.out.println(conver2HexStr(pb));
+        System.out.println("+--------------------+");
+
+        Field fieldF = ClazzUtil.getDeclaredField(OneSint64UnboxedNoAccess.class, "value");
+        fieldF.setAccessible(true);
+
+        OneSint64UnboxedNoAccess oneSint64 = new OneSint64UnboxedNoAccess();
+        fieldF.set(oneSint64, value);
+        byte[] epb = ProtoBuf.toByteArray(oneSint64);
+
+
+        assertArrayEquals(pb, epb);
+    }
+
+    @ParameterizedTest
+    @ValueSource(longs = {
+            1,
+            128,
+            2147483648L
+    })
+    void testDecodeNoAccess(long value) throws InvalidProtocolBufferException, ProtoBufException, NoSuchFieldException, IllegalAccessException {
+
+        OneSint64OuterClass.OneSint64.Builder builder = OneSint64OuterClass.OneSint64.newBuilder();
+        builder.setValue(value);
+        OneSint64OuterClass.OneSint64 oint64 = builder.build();
+        byte[] pb = oint64.toByteArray();
+
+
+        OneSint64OuterClass.OneSint64 pbOf = OneSint64OuterClass.OneSint64.parseFrom(pb);
+
+        OneSint64NoAccess oneSint64 = ProtoBuf.toObject(pb, OneSint64NoAccess.class);
+        Field fieldF = ClazzUtil.getDeclaredField(OneSint64NoAccess.class, "value");
+        fieldF.setAccessible(true);
+
+        assertEquals(pbOf.getValue(), (long)fieldF.get(oneSint64));
+
+    }
+
+    @ParameterizedTest
+    @ValueSource(longs = {
+            1,
+            128,
+            2147483648L
+    })
+    void testDecodeUnboxedNoAccess(long value) throws InvalidProtocolBufferException, ProtoBufException, NoSuchFieldException, IllegalAccessException {
+
+        OneSint64OuterClass.OneSint64.Builder builder = OneSint64OuterClass.OneSint64.newBuilder();
+        builder.setValue(value);
+        OneSint64OuterClass.OneSint64 oint64 = builder.build();
+        byte[] pb = oint64.toByteArray();
+
+
+        OneSint64OuterClass.OneSint64 pbOf = OneSint64OuterClass.OneSint64.parseFrom(pb);
+
+        OneSint64UnboxedNoAccess oneSint64 = ProtoBuf.toObject(pb, OneSint64UnboxedNoAccess.class);
+        Field fieldF = ClazzUtil.getDeclaredField(OneSint64UnboxedNoAccess.class, "value");
+        fieldF.setAccessible(true);
+
+        assertEquals(pbOf.getValue(), (long)fieldF.get(oneSint64));
 
     }
 }

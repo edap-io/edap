@@ -18,15 +18,15 @@ package io.edap.protobuf.test.v3;
 
 import com.alibaba.fastjson.JSONArray;
 import com.google.protobuf.InvalidProtocolBufferException;
+import io.edap.protobuf.EncodeException;
 import io.edap.protobuf.ProtoBuf;
 import io.edap.protobuf.ProtoBufException;
-import io.edap.protobuf.test.message.v3.ArraySfixed32;
-import io.edap.protobuf.test.message.v3.ArraySfixed32Unboxed;
-import io.edap.protobuf.test.message.v3.ListSfixed32;
-import io.edap.protobuf.test.message.v3.ListSfixed32OuterClass;
+import io.edap.protobuf.test.message.v3.*;
+import io.edap.util.ClazzUtil;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
+import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -42,7 +42,7 @@ public class TestListSfixed32 {
             "[1,128,-1,-129]",
             "[-1,1,128,-129]"
     })
-    void testEncode(String v) {
+    void testEncode(String v) throws EncodeException {
         List<Integer> vs = new ArrayList<>();
         List<Integer> pvs = new ArrayList<>();
         JSONArray jvs = JSONArray.parseArray(v);
@@ -104,7 +104,7 @@ public class TestListSfixed32 {
             "[1,128,-1,-129]",
             "[-1,1,128,-129]"
     })
-    void testEncodeArray(String v) {
+    void testEncodeArray(String v) throws EncodeException {
 
         List<Integer> pvs = new ArrayList<>();
         JSONArray jvs = JSONArray.parseArray(v);
@@ -165,7 +165,7 @@ public class TestListSfixed32 {
             "[1,128,-1,-129]",
             "[-1,1,128,-129]"
     })
-    void testEncodeArrayUnboxed(String v) {
+    void testEncodeArrayUnboxed(String v) throws EncodeException {
 
         List<Integer> pvs = new ArrayList<>();
         JSONArray jvs = JSONArray.parseArray(v);
@@ -217,6 +217,209 @@ public class TestListSfixed32 {
         assertEquals(pbOd.getValueList().size(), arraySfixed32.list.length);
         for (int i=0;i<pbOd.getValueList().size();i++) {
             assertEquals(pbOd.getValueList().get(i).intValue(), arraySfixed32.list[i]);
+        }
+
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "[1,128,-1,-129]",
+            "[-1,1,128,-129]"
+    })
+    void testEncodeNoAccess(String v) throws EncodeException, NoSuchFieldException, IllegalAccessException {
+        List<Integer> vs = new ArrayList<>();
+        List<Integer> pvs = new ArrayList<>();
+        JSONArray jvs = JSONArray.parseArray(v);
+        for (int i=0;i<jvs.size();i++) {
+            vs.add(jvs.getIntValue(i));
+            pvs.add(jvs.getIntValue(i));
+        }
+
+        ListSfixed32OuterClass.ListSfixed32.Builder builder = ListSfixed32OuterClass.ListSfixed32.newBuilder();
+        builder.addAllValue(pvs);
+        ListSfixed32OuterClass.ListSfixed32 od = builder.build();
+        byte[] pb = od.toByteArray();
+
+        System.out.println(conver2HexStr(pb));
+
+        Field field1F = ClazzUtil.getDeclaredField(ListSfixed32NoAccess.class, "list");
+        field1F.setAccessible(true);
+
+        ListSfixed32NoAccess listSfixed32 = new ListSfixed32NoAccess();
+        field1F.set(listSfixed32, vs);
+        byte[] epb = ProtoBuf.toByteArray(listSfixed32);
+        System.out.println(conver2HexStr(epb));
+
+        assertArrayEquals(pb, epb);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "[1,128,-1,-129]",
+            "[-1,1,128,-129]"
+    })
+    void testEncodeArrayNoAccess(String v) throws EncodeException, NoSuchFieldException, IllegalAccessException {
+
+        List<Integer> pvs = new ArrayList<>();
+        JSONArray jvs = JSONArray.parseArray(v);
+        Integer[] vs = new Integer[jvs.size()];
+        for (int i=0;i<jvs.size();i++) {
+            vs[i] = jvs.getIntValue(i);
+            pvs.add(jvs.getIntValue(i));
+        }
+
+        ListSfixed32OuterClass.ListSfixed32.Builder builder = ListSfixed32OuterClass.ListSfixed32.newBuilder();
+        builder.addAllValue(pvs);
+        ListSfixed32OuterClass.ListSfixed32 od = builder.build();
+        byte[] pb = od.toByteArray();
+
+        System.out.println(conver2HexStr(pb));
+
+        Field field1F = ClazzUtil.getDeclaredField(ArraySfixed32NoAccess.class, "list");
+        field1F.setAccessible(true);
+
+        ArraySfixed32NoAccess arraySfixed32 = new ArraySfixed32NoAccess();
+        field1F.set(arraySfixed32, vs);
+        byte[] epb = ProtoBuf.toByteArray(arraySfixed32);
+        System.out.println(conver2HexStr(epb));
+
+        assertArrayEquals(pb, epb);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "[1,128,-1,-129]",
+            "[-1,1,128,-129]"
+    })
+    void testEncodeArrayUnboxedNoAccess(String v) throws EncodeException, NoSuchFieldException, IllegalAccessException {
+
+        List<Integer> pvs = new ArrayList<>();
+        JSONArray jvs = JSONArray.parseArray(v);
+        int[] vs = new int[jvs.size()];
+        for (int i=0;i<jvs.size();i++) {
+            vs[i] = jvs.getIntValue(i);
+            pvs.add(jvs.getIntValue(i));
+        }
+
+        ListSfixed32OuterClass.ListSfixed32.Builder builder = ListSfixed32OuterClass.ListSfixed32.newBuilder();
+        builder.addAllValue(pvs);
+        ListSfixed32OuterClass.ListSfixed32 od = builder.build();
+        byte[] pb = od.toByteArray();
+
+        System.out.println(conver2HexStr(pb));
+
+        Field field1F = ClazzUtil.getDeclaredField(ArraySfixed32UnboxedNoAccess.class, "list");
+        field1F.setAccessible(true);
+
+        ArraySfixed32UnboxedNoAccess arraySfixed32 = new ArraySfixed32UnboxedNoAccess();
+        field1F.set(arraySfixed32, vs);
+        byte[] epb = ProtoBuf.toByteArray(arraySfixed32);
+        System.out.println(conver2HexStr(epb));
+
+        assertArrayEquals(pb, epb);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "[1,31.415926]",
+            "[31.415926,1]"
+    })
+    void testDecodeNoAccess(String v) throws InvalidProtocolBufferException, ProtoBufException, NoSuchFieldException, IllegalAccessException {
+
+        List<Integer> vs = new ArrayList<>();
+        List<Integer> pvs = new ArrayList<>();
+        JSONArray jvs = JSONArray.parseArray(v);
+        for (int i=0;i<jvs.size();i++) {
+            vs.add(jvs.getIntValue(i));
+            pvs.add(jvs.getIntValue(i));
+        }
+
+        ListSfixed32OuterClass.ListSfixed32.Builder builder = ListSfixed32OuterClass.ListSfixed32.newBuilder();
+        builder.addAllValue(pvs);
+        ListSfixed32OuterClass.ListSfixed32 od = builder.build();
+        byte[] pb = od.toByteArray();
+
+
+        ListSfixed32OuterClass.ListSfixed32 pbOd = ListSfixed32OuterClass.ListSfixed32.parseFrom(pb);
+
+        ListSfixed32NoAccess ListSfixed32 = ProtoBuf.toObject(pb, ListSfixed32NoAccess.class);
+        Field fieldF = ClazzUtil.getDeclaredField(ListSfixed32NoAccess.class, "list");
+        fieldF.setAccessible(true);
+
+        List<Integer> list = (List<Integer>)fieldF.get(ListSfixed32);
+        assertEquals(pbOd.getValueList().size(), list.size());
+        for (int i=0;i<pbOd.getValueList().size();i++) {
+            assertEquals(pbOd.getValueList().get(i), list.get(i));
+        }
+
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "[1,31.415926]",
+            "[31.415926,1]"
+    })
+    void testDecodeArrayNoAccess(String v) throws InvalidProtocolBufferException, ProtoBufException, NoSuchFieldException, IllegalAccessException {
+
+        List<Integer> vs = new ArrayList<>();
+        List<Integer> pvs = new ArrayList<>();
+        JSONArray jvs = JSONArray.parseArray(v);
+        for (int i=0;i<jvs.size();i++) {
+            vs.add(jvs.getIntValue(i));
+            pvs.add(jvs.getIntValue(i));
+        }
+
+        ListSfixed32OuterClass.ListSfixed32.Builder builder = ListSfixed32OuterClass.ListSfixed32.newBuilder();
+        builder.addAllValue(pvs);
+        ListSfixed32OuterClass.ListSfixed32 od = builder.build();
+        byte[] pb = od.toByteArray();
+
+
+        ListSfixed32OuterClass.ListSfixed32 pbOd = ListSfixed32OuterClass.ListSfixed32.parseFrom(pb);
+
+        ArraySfixed32NoAccess ListSfixed32 = ProtoBuf.toObject(pb, ArraySfixed32NoAccess.class);
+        Field fieldF = ClazzUtil.getDeclaredField(ArraySfixed32NoAccess.class, "list");
+        fieldF.setAccessible(true);
+
+        Integer[] list = (Integer[])fieldF.get(ListSfixed32);
+        assertEquals(pbOd.getValueList().size(), list.length);
+        for (int i=0;i<pbOd.getValueList().size();i++) {
+            assertEquals(pbOd.getValueList().get(i), list[i]);
+        }
+
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "[1,31.415926]",
+            "[31.415926,1]"
+    })
+    void testDecodeArrayUnboxedNoAccess(String v) throws InvalidProtocolBufferException, ProtoBufException, NoSuchFieldException, IllegalAccessException {
+
+        List<Integer> vs = new ArrayList<>();
+        List<Integer> pvs = new ArrayList<>();
+        JSONArray jvs = JSONArray.parseArray(v);
+        for (int i=0;i<jvs.size();i++) {
+            vs.add(jvs.getIntValue(i));
+            pvs.add(jvs.getIntValue(i));
+        }
+
+        ListSfixed32OuterClass.ListSfixed32.Builder builder = ListSfixed32OuterClass.ListSfixed32.newBuilder();
+        builder.addAllValue(pvs);
+        ListSfixed32OuterClass.ListSfixed32 od = builder.build();
+        byte[] pb = od.toByteArray();
+
+
+        ListSfixed32OuterClass.ListSfixed32 pbOd = ListSfixed32OuterClass.ListSfixed32.parseFrom(pb);
+
+        ArraySfixed32UnboxedNoAccess ListSfixed32 = ProtoBuf.toObject(pb, ArraySfixed32UnboxedNoAccess.class);
+        Field fieldF = ClazzUtil.getDeclaredField(ArraySfixed32UnboxedNoAccess.class, "list");
+        fieldF.setAccessible(true);
+
+        int[] list = (int[])fieldF.get(ListSfixed32);
+        assertEquals(pbOd.getValueList().size(), list.length);
+        for (int i=0;i<pbOd.getValueList().size();i++) {
+            assertEquals(pbOd.getValueList().get(i), list[i]);
         }
 
     }

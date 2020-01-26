@@ -16,6 +16,9 @@
 
 package io.edap.protobuf.test.message.v3;
 
+/**
+ * 一个bool类型
+ */
 public class OneBool {
 
     private Boolean value;

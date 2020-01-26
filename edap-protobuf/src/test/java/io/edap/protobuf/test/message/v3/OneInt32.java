@@ -16,6 +16,9 @@
 
 package io.edap.protobuf.test.message.v3;
 
+/**
+ * 一个int32
+ */
 public class OneInt32 {
     private Integer value;
 

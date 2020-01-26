@@ -22,7 +22,7 @@ import io.edap.protobuf.wire.Field;
 import java.util.Map;
 
 /**
- * @date : 2020/1/9
+ * 支持所有的类型没有装箱的类型
  */
 public class AllTypeUnboxed {
 

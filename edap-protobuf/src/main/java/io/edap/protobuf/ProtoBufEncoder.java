@@ -26,6 +26,7 @@ public interface ProtoBufEncoder<T> {
      * 将Java的POJO对象做ProtoBuf编码写到BufOut中
      * @param writer 写入byte[]的BufOut的对象
      * @param t java的POJO对象
+     * @throws EncodeException 编码异常
      */
-    void encode(ProtoBufWriter writer, T t);
+    void encode(ProtoBufWriter writer, T t) throws EncodeException;
 }

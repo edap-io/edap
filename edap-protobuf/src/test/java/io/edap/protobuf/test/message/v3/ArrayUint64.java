@@ -19,6 +19,9 @@ package io.edap.protobuf.test.message.v3;
 import io.edap.protobuf.annotation.ProtoField;
 import io.edap.protobuf.wire.Field;
 
+/**
+ * uint64数组
+ */
 public class ArrayUint64 {
 
     @ProtoField(tag = 1, type = Field.Type.UINT64, cardinality = Field.Cardinality.REPEATED)

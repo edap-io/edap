@@ -16,6 +16,7 @@
 
 package io.edap.protobuf.test.v3;
 
+import io.edap.protobuf.EncodeException;
 import io.edap.protobuf.ProtoBuf;
 import org.junit.jupiter.api.Test;
 
@@ -24,7 +25,7 @@ import static org.junit.jupiter.api.Assertions.*;
 public class TestProtoBuf {
 
     @Test
-    void testEncodeNull() {
+    void testEncodeNull() throws EncodeException {
 
         byte[] bs = ProtoBuf.toByteArray(null);
 

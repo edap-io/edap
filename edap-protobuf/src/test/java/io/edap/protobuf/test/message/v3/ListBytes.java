@@ -18,6 +18,9 @@ package io.edap.protobuf.test.message.v3;
 
 import java.util.List;
 
+/**
+ * byte[]的list对象
+ */
 public class ListBytes {
     public List<byte[]> value;
 }

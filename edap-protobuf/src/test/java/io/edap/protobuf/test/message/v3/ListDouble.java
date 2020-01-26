@@ -18,6 +18,9 @@ package io.edap.protobuf.test.message.v3;
 
 import java.util.List;
 
+/**
+ * Double的list对象
+ */
 public class ListDouble {
     public List<Double> list;
 }

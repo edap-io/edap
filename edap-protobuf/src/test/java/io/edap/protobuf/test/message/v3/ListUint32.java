@@ -22,7 +22,7 @@ import io.edap.protobuf.wire.Field;
 import java.util.List;
 
 /**
- * @date : 2020/1/7
+ * uint32的list对象
  */
 public class ListUint32 {
 

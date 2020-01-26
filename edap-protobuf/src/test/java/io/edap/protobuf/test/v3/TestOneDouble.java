@@ -17,13 +17,15 @@
 package io.edap.protobuf.test.v3;
 
 import com.google.protobuf.InvalidProtocolBufferException;
+import io.edap.protobuf.EncodeException;
 import io.edap.protobuf.ProtoBuf;
 import io.edap.protobuf.ProtoBufException;
-import io.edap.protobuf.test.message.v3.OneDouble;
-import io.edap.protobuf.test.message.v3.OneDoubleOuterClass;
-import io.edap.protobuf.test.message.v3.OneDoubleUnboxed;
+import io.edap.protobuf.test.message.v3.*;
+import io.edap.util.ClazzUtil;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+
+import java.lang.reflect.Field;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -38,7 +40,7 @@ public class TestOneDouble {
             1,
             31.415926
     })
-    void testEncode(double value) {
+    void testEncode(double value) throws EncodeException {
 
         OneDoubleOuterClass.OneDouble.Builder builder = OneDoubleOuterClass.OneDouble.newBuilder();
         builder.setD(value);
@@ -80,7 +82,7 @@ public class TestOneDouble {
             1,
             31.415926
     })
-    void testEncodeUnboxed(double value) {
+    void testEncodeUnboxed(double value) throws EncodeException {
 
         OneDoubleOuterClass.OneDouble.Builder builder = OneDoubleOuterClass.OneDouble.newBuilder();
         builder.setD(value);
@@ -114,6 +116,100 @@ public class TestOneDouble {
 
 
         assertEquals(pbOd.getD(), oneDouble.value);
+
+    }
+
+    @ParameterizedTest
+    @ValueSource(doubles = {
+            1,
+            31.415926
+    })
+    void testEncodeNoAccess(double value) throws EncodeException, NoSuchFieldException, IllegalAccessException {
+
+        OneDoubleOuterClass.OneDouble.Builder builder = OneDoubleOuterClass.OneDouble.newBuilder();
+        builder.setD(value);
+        OneDoubleOuterClass.OneDouble od = builder.build();
+        byte[] pb = od.toByteArray();
+
+        Field fieldF = ClazzUtil.getDeclaredField(OneDoubleNoAccess.class, "d");
+        fieldF.setAccessible(true);
+
+        OneDoubleNoAccess oneDouble = new OneDoubleNoAccess();
+        fieldF.set(oneDouble, value);
+        byte[] epb = ProtoBuf.toByteArray(oneDouble);
+
+
+        assertArrayEquals(pb, epb);
+    }
+
+    @ParameterizedTest
+    @ValueSource(doubles = {
+            1,
+            31.415926
+    })
+    void testEncodeUnboxedNoAccess(double value) throws EncodeException, NoSuchFieldException, IllegalAccessException {
+
+        OneDoubleOuterClass.OneDouble.Builder builder = OneDoubleOuterClass.OneDouble.newBuilder();
+        builder.setD(value);
+        OneDoubleOuterClass.OneDouble od = builder.build();
+        byte[] pb = od.toByteArray();
+
+        Field fieldF = ClazzUtil.getDeclaredField(OneDoubleUnboxedNoAccess.class, "value");
+        fieldF.setAccessible(true);
+
+        OneDoubleUnboxedNoAccess oneDouble = new OneDoubleUnboxedNoAccess();
+        fieldF.set(oneDouble, value);
+        byte[] epb = ProtoBuf.toByteArray(oneDouble);
+
+
+        assertArrayEquals(pb, epb);
+    }
+
+    @ParameterizedTest
+    @ValueSource(doubles = {
+            1,
+            31.415926
+    })
+    void testDecodeNoAccess(double value) throws InvalidProtocolBufferException, ProtoBufException, NoSuchFieldException, IllegalAccessException {
+
+        OneDoubleOuterClass.OneDouble.Builder builder = OneDoubleOuterClass.OneDouble.newBuilder();
+        builder.setD(value);
+        OneDoubleOuterClass.OneDouble od = builder.build();
+        byte[] pb = od.toByteArray();
+
+
+        OneDoubleOuterClass.OneDouble pbOd = OneDoubleOuterClass.OneDouble.parseFrom(pb);
+
+        OneDoubleNoAccess oneDouble = ProtoBuf.toObject(pb, OneDoubleNoAccess.class);
+
+        Field fieldF = ClazzUtil.getDeclaredField(OneDoubleNoAccess.class, "d");
+        fieldF.setAccessible(true);
+
+        assertEquals(pbOd.getD(), (Double) fieldF.get(oneDouble));
+
+    }
+
+    @ParameterizedTest
+    @ValueSource(doubles = {
+            1,
+            31.415926
+    })
+    void testDecodeUnboxedNoAccess(double value) throws InvalidProtocolBufferException, ProtoBufException, NoSuchFieldException, IllegalAccessException {
+
+        OneDoubleOuterClass.OneDouble.Builder builder = OneDoubleOuterClass.OneDouble.newBuilder();
+        builder.setD(value);
+        OneDoubleOuterClass.OneDouble od = builder.build();
+        byte[] pb = od.toByteArray();
+
+
+        OneDoubleOuterClass.OneDouble pbOd = OneDoubleOuterClass.OneDouble.parseFrom(pb);
+
+        OneDoubleUnboxedNoAccess oneDouble = ProtoBuf.toObject(pb, OneDoubleUnboxedNoAccess.class);
+
+        Field fieldF = ClazzUtil.getDeclaredField(OneDoubleUnboxedNoAccess.class, "value");
+        fieldF.setAccessible(true);
+
+        assertEquals(pbOd.getD(), (double) fieldF.get(oneDouble));
 
     }
 }

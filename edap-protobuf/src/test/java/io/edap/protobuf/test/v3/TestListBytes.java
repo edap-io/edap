@@ -19,14 +19,18 @@ package io.edap.protobuf.test.v3;
 import com.alibaba.fastjson.JSONArray;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.InvalidProtocolBufferException;
+import io.edap.protobuf.EncodeException;
 import io.edap.protobuf.ProtoBuf;
 import io.edap.protobuf.ProtoBufException;
 import io.edap.protobuf.test.message.v3.ListBytes;
+import io.edap.protobuf.test.message.v3.ListBytesNoAccess;
 import io.edap.protobuf.test.message.v3.ListBytesOuterClass;
+import io.edap.util.ClazzUtil;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
 import java.io.UnsupportedEncodingException;
+import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -40,7 +44,7 @@ public class TestListBytes {
             "[\"abcdefghijklmn\",\"中文内容\"]",
             "[\"中文内容\",\"abcdefghijklmn\"]"
     })
-    void testEncode(String v) throws UnsupportedEncodingException {
+    void testEncode(String v) throws UnsupportedEncodingException, EncodeException {
         List<byte[]> vs = new ArrayList<>();
         List<ByteString> pvs = new ArrayList<>();
         JSONArray jvs = JSONArray.parseArray(v);
@@ -92,6 +96,72 @@ public class TestListBytes {
         assertEquals(pbOd.getValueList().size(), listBytes.value.size());
         for (int i=0;i<pbOd.getValueList().size();i++) {
             assertArrayEquals(pbOd.getValueList().get(i).toByteArray(), listBytes.value.get(i));
+        }
+
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "[\"abcdefghijklmn\",\"中文内容\"]",
+            "[\"中文内容\",\"abcdefghijklmn\"]"
+    })
+    void testEncodeNoAccess(String v) throws UnsupportedEncodingException, EncodeException, NoSuchFieldException, IllegalAccessException {
+        List<byte[]> vs = new ArrayList<>();
+        List<ByteString> pvs = new ArrayList<>();
+        JSONArray jvs = JSONArray.parseArray(v);
+        for (int i=0;i<jvs.size();i++) {
+            byte[] bv = jvs.getString(i).getBytes("utf-8");
+            vs.add(bv);
+            pvs.add(ByteString.copyFrom(bv));
+        }
+
+        ListBytesOuterClass.ListBytes.Builder builder = ListBytesOuterClass.ListBytes.newBuilder();
+        builder.addAllValue(pvs);
+        ListBytesOuterClass.ListBytes od = builder.build();
+        byte[] pb = od.toByteArray();
+
+        Field field1F = ClazzUtil.getDeclaredField(ListBytesNoAccess.class, "value");
+        field1F.setAccessible(true);
+
+        ListBytesNoAccess ListBytes = new ListBytesNoAccess();
+        field1F.set(ListBytes, vs);
+        byte[] epb = ProtoBuf.toByteArray(ListBytes);
+
+        assertArrayEquals(pb, epb);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "[\"abcdefghijklmn\",\"中文内容\"]",
+            "[\"中文内容\",\"abcdefghijklmn\"]"
+    })
+    void testDecodeNoAccess(String v) throws InvalidProtocolBufferException, ProtoBufException, UnsupportedEncodingException, NoSuchFieldException, IllegalAccessException {
+
+        List<byte[]> vs = new ArrayList<>();
+        List<ByteString> pvs = new ArrayList<>();
+        JSONArray jvs = JSONArray.parseArray(v);
+        for (int i=0;i<jvs.size();i++) {
+            byte[] bv = jvs.getString(i).getBytes("utf-8");
+            vs.add(bv);
+            pvs.add(ByteString.copyFrom(bv));
+        }
+
+        ListBytesOuterClass.ListBytes.Builder builder = ListBytesOuterClass.ListBytes.newBuilder();
+        builder.addAllValue(pvs);
+        ListBytesOuterClass.ListBytes od = builder.build();
+        byte[] pb = od.toByteArray();
+
+
+        ListBytesOuterClass.ListBytes pbOd = ListBytesOuterClass.ListBytes.parseFrom(pb);
+
+        ListBytesNoAccess listBytes = ProtoBuf.toObject(pb, ListBytesNoAccess.class);
+        Field fieldF = ClazzUtil.getDeclaredField(ListBytesNoAccess.class, "value");
+        fieldF.setAccessible(true);
+
+        List<byte[]> values = (List)fieldF.get(listBytes);
+        assertEquals(pbOd.getValueList().size(), values.size());
+        for (int i=0;i<pbOd.getValueList().size();i++) {
+            assertArrayEquals(pbOd.getValueList().get(i).toByteArray(), values.get(i));
         }
 
     }

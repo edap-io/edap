@@ -17,6 +17,7 @@
 package io.edap.protobuf.writer;
 
 import io.edap.io.BufOut;
+import io.edap.protobuf.EncodeException;
 import io.edap.protobuf.ProtoBufEncoder;
 import io.edap.protobuf.ProtoBufWriter;
 import io.edap.protobuf.internal.ProtoBufOut;
@@ -539,14 +540,14 @@ public class StandardProtoBufWriter extends AbstractWriter {
     }
 
     @Override
-    public <T> void writeMessage(byte[] fieldData, int tag, T v, ProtoBufEncoder<T> codec) {
+    public <T> void writeMessage(byte[] fieldData, int tag, T v, ProtoBufEncoder<T> codec) throws EncodeException {
         if (v == null) {
             return;
         }
         writeMessage0(fieldData, tag, v, codec);
     }
 
-    public <T> void writeMessage0(byte[] fieldData, int tag, T v, ProtoBufEncoder<T> codec) {
+    public <T> void writeMessage0(byte[] fieldData, int tag, T v, ProtoBufEncoder<T> codec) throws EncodeException {
         int len;
         expand(MAX_VARINT_SIZE);
         writeFieldData(fieldData);
@@ -561,7 +562,7 @@ public class StandardProtoBufWriter extends AbstractWriter {
     }
 
     @Override
-    public <T> void writeMessages(byte[] fieldData, int tag, T[] vs, ProtoBufEncoder<T> codec) {
+    public <T> void writeMessages(byte[] fieldData, int tag, T[] vs, ProtoBufEncoder<T> codec) throws EncodeException {
         int size = vs.length;
         for (int i=0;i<size;i++) {
             //for (T v : vs) {
@@ -571,7 +572,7 @@ public class StandardProtoBufWriter extends AbstractWriter {
     }
 
     @Override
-    public <T> void writeMessages(byte[] fieldData, int tag, List<T> vs, ProtoBufEncoder<T> codec) {
+    public <T> void writeMessages(byte[] fieldData, int tag, List<T> vs, ProtoBufEncoder<T> codec) throws EncodeException {
         int size = vs.size();
         int len;
         for (int i=0;i<size;i++) {

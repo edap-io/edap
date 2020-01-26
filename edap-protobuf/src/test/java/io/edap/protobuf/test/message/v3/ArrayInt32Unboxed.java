@@ -17,7 +17,7 @@
 package io.edap.protobuf.test.message.v3;
 
 /**
- * @date : 2020/1/8
+ * int32数组，int为基础类型
  */
 public class ArrayInt32Unboxed {
     public int[] list;

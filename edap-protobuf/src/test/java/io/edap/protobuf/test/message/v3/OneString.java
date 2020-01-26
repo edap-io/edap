@@ -16,6 +16,9 @@
 
 package io.edap.protobuf.test.message.v3;
 
+/**
+ * 一个string类型
+ */
 public class OneString {
 
     private String value;

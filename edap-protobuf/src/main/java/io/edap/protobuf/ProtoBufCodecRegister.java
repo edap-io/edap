@@ -109,7 +109,7 @@ public enum ProtoBufCodecRegister {
             MapEntryGenerator meg = new MapEntryGenerator(
                     toInternalName(mapEntryName), mapType);
             byte[] bs = meg.getEntryBytes();
-            //saveJavaFile("./" + toInternalName(mapEntryName), bs);
+            saveJavaFile("./" + toInternalName(mapEntryName), bs);
             mapEntryCls = encoderLoader.define(mapEntryName, bs, 0, bs.length);
             if (mapEntryCls != null) {
                 mapEncoders.put(mapType, mapEntryCls);
@@ -171,7 +171,7 @@ public enum ProtoBufCodecRegister {
             ProtoBufEncoderGenerator generator = new ProtoBufEncoderGenerator(cls, ProtoBuf.EncodeType.STANDARD);
             GeneratorClassInfo gci = generator.getClassInfo();
             byte[] bs = gci.clazzBytes;
-            //saveJavaFile("./" + gci.clazzName + ".class", bs);
+            saveJavaFile("./" + gci.clazzName + ".class", bs);
             encoderCls = encoderLoader.define(encoderName, bs, 0, bs.length);
             if (!isEmpty(gci.inners)) {
                 for (GeneratorClassInfo inner : gci.inners) {
@@ -219,7 +219,7 @@ public enum ProtoBufCodecRegister {
             ProtoBufDecoderGenerator generator = new ProtoBufDecoderGenerator(cls, EncodeType.STANDARD);
             GeneratorClassInfo gci = generator.getClassInfo();
             byte[] bs = gci.clazzBytes;
-            //saveJavaFile("./" + gci.clazzName + ".class", bs);
+            saveJavaFile("./" + gci.clazzName + ".class", bs);
             decoderCls = encoderLoader.define(decoderName, bs, 0, bs.length);
             if (!isEmpty(gci.inners)) {
                 for (GeneratorClassInfo inner : gci.inners) {

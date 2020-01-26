@@ -22,7 +22,7 @@ import io.edap.protobuf.wire.Field;
 import java.util.List;
 
 /**
- * @date : 2020/1/7
+ * string的list对象
  */
 public class ListString {
 

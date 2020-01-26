@@ -20,7 +20,7 @@ import io.edap.protobuf.annotation.ProtoField;
 import io.edap.protobuf.wire.Field;
 
 /**
- * @date : 2020/1/8
+ * Fixed64的数组，属性为long基础类型
  */
 public class ArrayFixed64Unboxed {
 

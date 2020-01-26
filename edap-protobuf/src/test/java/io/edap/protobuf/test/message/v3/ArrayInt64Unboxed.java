@@ -17,7 +17,7 @@
 package io.edap.protobuf.test.message.v3;
 
 /**
- * @date : 2020/1/8
+ * int64的数组，数据类型为long基础类型
  */
 public class ArrayInt64Unboxed {
 

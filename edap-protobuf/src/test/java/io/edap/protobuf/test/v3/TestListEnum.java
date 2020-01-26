@@ -18,13 +18,16 @@ package io.edap.protobuf.test.v3;
 
 import com.alibaba.fastjson.JSONArray;
 import com.google.protobuf.InvalidProtocolBufferException;
+import io.edap.protobuf.EncodeException;
 import io.edap.protobuf.ProtoBuf;
 import io.edap.protobuf.ProtoBufException;
 import io.edap.protobuf.test.message.v3.*;
+import io.edap.util.ClazzUtil;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
+import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -40,7 +43,7 @@ public class TestListEnum {
             "[\"UNIVERSAL\",\"WEB\",\"IMAGES\",\"LOCAL\",\"NEWS\",\"PRODUCTS\",\"VIDEO\"]",
             "[\"UNIVERSAL\",\"VIDEO\",\"NEWS\"]"
     })
-    void testEncode(String v) {
+    void testEncode(String v) throws EncodeException {
         List<Corpus> vs = new ArrayList<>();
         List<OneEnumOuterClass.Corpus> pvs = new ArrayList<>();
         JSONArray jvs = JSONArray.parseArray(v);
@@ -102,7 +105,7 @@ public class TestListEnum {
             "[\"UNIVERSAL\",\"WEB\",\"IMAGES\",\"LOCAL\",\"NEWS\",\"PRODUCTS\",\"VIDEO\"]",
             "[\"UNIVERSAL\",\"VIDEO\",\"NEWS\"]"
     })
-    void testEncodeArray(String v) {
+    void testEncodeArray(String v) throws EncodeException {
 
         List<OneEnumOuterClass.Corpus> pvs = new ArrayList<>();
         JSONArray jvs = JSONArray.parseArray(v);
@@ -128,7 +131,7 @@ public class TestListEnum {
     }
 
     @Test
-    void testEncodeArrayNull() {
+    void testEncodeArrayNull() throws EncodeException {
         ArrayEnum arrayEnum = new ArrayEnum();
         byte[] epb = ProtoBuf.toByteArray(arrayEnum);
 
@@ -136,7 +139,7 @@ public class TestListEnum {
     }
 
     @Test
-    void testEncodeArrayEmpty() {
+    void testEncodeArrayEmpty() throws EncodeException {
         ArrayEnum arrayEnum = new ArrayEnum();
         arrayEnum.values = new Corpus[0];
         byte[] epb = ProtoBuf.toByteArray(arrayEnum);
@@ -173,6 +176,141 @@ public class TestListEnum {
         assertEquals(pbOd.getCorpusList().size(), listEnum.values.length);
         for (int i=0;i<pbOd.getCorpusList().size();i++) {
             assertEquals(pbOd.getCorpusList().get(i).name(), listEnum.values[i].name());
+        }
+
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "[\"UNIVERSAL\",\"WEB\",\"IMAGES\",\"LOCAL\",\"NEWS\",\"PRODUCTS\",\"VIDEO\"]",
+            "[\"UNIVERSAL\",\"VIDEO\",\"NEWS\"]"
+    })
+    void testEncodeNoAccess(String v) throws EncodeException, NoSuchFieldException, IllegalAccessException {
+        List<Corpus> vs = new ArrayList<>();
+        List<OneEnumOuterClass.Corpus> pvs = new ArrayList<>();
+        JSONArray jvs = JSONArray.parseArray(v);
+        for (int i=0;i<jvs.size();i++) {
+            vs.add(Corpus.valueOf(jvs.getString(i)));
+            pvs.add(OneEnumOuterClass.Corpus.valueOf(jvs.getString(i)));
+        }
+
+        ListEnumOuterClass.ListEnum.Builder builder = ListEnumOuterClass.ListEnum.newBuilder();
+        builder.addAllCorpus(pvs);
+        ListEnumOuterClass.ListEnum od = builder.build();
+        byte[] pb = od.toByteArray();
+
+        System.out.println(conver2HexStr(pb));
+
+        Field field1F = ClazzUtil.getDeclaredField(ListEnumNoAccess.class, "list");
+        field1F.setAccessible(true);
+
+        ListEnumNoAccess ListEnum = new ListEnumNoAccess();
+        field1F.set(ListEnum, vs);
+        byte[] epb = ProtoBuf.toByteArray(ListEnum);
+        System.out.println(conver2HexStr(epb));
+
+        assertArrayEquals(pb, epb);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "[\"UNIVERSAL\",\"WEB\",\"IMAGES\",\"LOCAL\",\"NEWS\",\"PRODUCTS\",\"VIDEO\"]",
+            "[\"UNIVERSAL\",\"VIDEO\",\"NEWS\"]"
+    })
+    void testEncodeArrayNoAccess(String v) throws EncodeException, NoSuchFieldException, IllegalAccessException {
+
+        List<OneEnumOuterClass.Corpus> pvs = new ArrayList<>();
+        JSONArray jvs = JSONArray.parseArray(v);
+        Corpus[] vs = new Corpus[jvs.size()];
+        for (int i=0;i<jvs.size();i++) {
+            vs[i] = Corpus.valueOf(jvs.getString(i));
+            pvs.add(OneEnumOuterClass.Corpus.valueOf(jvs.getString(i)));
+        }
+
+        ListEnumOuterClass.ListEnum.Builder builder = ListEnumOuterClass.ListEnum.newBuilder();
+        builder.addAllCorpus(pvs);
+        ListEnumOuterClass.ListEnum od = builder.build();
+        byte[] pb = od.toByteArray();
+
+        System.out.println(conver2HexStr(pb));
+
+        Field field1F = ClazzUtil.getDeclaredField(ArrayEnumNoAccess.class, "values");
+        field1F.setAccessible(true);
+
+        ArrayEnumNoAccess arrayEnum = new ArrayEnumNoAccess();
+        field1F.set(arrayEnum, vs);
+        byte[] epb = ProtoBuf.toByteArray(arrayEnum);
+        System.out.println(conver2HexStr(epb));
+
+        assertArrayEquals(pb, epb);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "[\"UNIVERSAL\",\"WEB\",\"IMAGES\",\"LOCAL\",\"NEWS\",\"PRODUCTS\",\"VIDEO\"]",
+            "[\"UNIVERSAL\",\"VIDEO\",\"NEWS\"]"
+    })
+    void testDecodeNoAccess(String v) throws InvalidProtocolBufferException, ProtoBufException, NoSuchFieldException, IllegalAccessException {
+
+        List<Corpus> vs = new ArrayList<>();
+        List<OneEnumOuterClass.Corpus> pvs = new ArrayList<>();
+        JSONArray jvs = JSONArray.parseArray(v);
+        for (int i=0;i<jvs.size();i++) {
+            vs.add(Corpus.valueOf(jvs.getString(i)));
+            pvs.add(OneEnumOuterClass.Corpus.valueOf(jvs.getString(i)));
+        }
+
+        ListEnumOuterClass.ListEnum.Builder builder = ListEnumOuterClass.ListEnum.newBuilder();
+        builder.addAllCorpus(pvs);
+        ListEnumOuterClass.ListEnum od = builder.build();
+        byte[] pb = od.toByteArray();
+
+
+        ListEnumOuterClass.ListEnum pbOd = ListEnumOuterClass.ListEnum.parseFrom(pb);
+
+        ListEnumNoAccess listEnum = ProtoBuf.toObject(pb, ListEnumNoAccess.class);
+        Field fieldF = ClazzUtil.getDeclaredField(ListEnumNoAccess.class, "list");
+        fieldF.setAccessible(true);
+
+        List<Corpus> list = (List<Corpus>)fieldF.get(listEnum);
+        assertEquals(pbOd.getCorpusList().size(), list.size());
+        for (int i=0;i<pbOd.getCorpusList().size();i++) {
+            assertEquals(pbOd.getCorpusList().get(i).name(), list.get(i).name());
+        }
+
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "[\"UNIVERSAL\",\"WEB\",\"IMAGES\",\"LOCAL\",\"NEWS\",\"PRODUCTS\",\"VIDEO\"]",
+            "[\"UNIVERSAL\",\"VIDEO\",\"NEWS\"]"
+    })
+    void testDecodeArrayNoAccess(String v) throws InvalidProtocolBufferException, ProtoBufException, NoSuchFieldException, IllegalAccessException {
+
+        List<Corpus> vs = new ArrayList<>();
+        List<OneEnumOuterClass.Corpus> pvs = new ArrayList<>();
+        JSONArray jvs = JSONArray.parseArray(v);
+        for (int i=0;i<jvs.size();i++) {
+            vs.add(Corpus.valueOf(jvs.getString(i)));
+            pvs.add(OneEnumOuterClass.Corpus.valueOf(jvs.getString(i)));
+        }
+
+        ListEnumOuterClass.ListEnum.Builder builder = ListEnumOuterClass.ListEnum.newBuilder();
+        builder.addAllCorpus(pvs);
+        ListEnumOuterClass.ListEnum od = builder.build();
+        byte[] pb = od.toByteArray();
+
+
+        ListEnumOuterClass.ListEnum pbOd = ListEnumOuterClass.ListEnum.parseFrom(pb);
+
+        ArrayEnumNoAccess listEnum = ProtoBuf.toObject(pb, ArrayEnumNoAccess.class);
+        Field fieldF = ClazzUtil.getDeclaredField(ArrayEnumNoAccess.class, "values");
+        fieldF.setAccessible(true);
+
+        Corpus[] values = (Corpus[])fieldF.get(listEnum);
+        assertEquals(pbOd.getCorpusList().size(), values.length);
+        for (int i=0;i<pbOd.getCorpusList().size();i++) {
+            assertEquals(pbOd.getCorpusList().get(i).name(), values[i].name());
         }
 
     }
