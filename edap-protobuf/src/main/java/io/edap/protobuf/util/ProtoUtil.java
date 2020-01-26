@@ -18,6 +18,7 @@ package io.edap.protobuf.util;
 
 import io.edap.protobuf.ProtoBuf.ProtoFieldInfo;
 import io.edap.protobuf.annotation.ProtoField;
+import io.edap.protobuf.internal.PbField;
 import io.edap.protobuf.wire.Field.Cardinality;
 import io.edap.protobuf.wire.Field.Type;
 import io.edap.protobuf.wire.Syntax;
@@ -70,7 +71,7 @@ public class ProtoUtil {
         for (Field f : fields) {
             if (needEncode(f)) {
                 ProtoFieldInfo pfi = new ProtoFieldInfo();
-                pfi.field = f;
+                pfi.field = PbField.from(f);
                 Method em = getAccessMethod(f, aMethod);
                 pfi.getMethod = em;
                 Method setMethod = getSetMethod(f, aMethod);
@@ -203,7 +204,7 @@ public class ProtoUtil {
         }
     }
 
-    private static ProtoField buildProtoFieldAnnotation(final int tag, final Field field) {
+    private static ProtoField buildProtoFieldAnnotation(final int tag, final PbField field) {
         Cardinality cardinality = Cardinality.OPTIONAL;
         if (isList(field.getGenericType())
                 || isSet(field.getGenericType())

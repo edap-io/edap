@@ -18,11 +18,11 @@ package io.edap.protobuf;
 
 import io.edap.io.BufOut;
 import io.edap.protobuf.annotation.ProtoField;
+import io.edap.protobuf.internal.PbField;
 import io.edap.protobuf.internal.ProtoBufOut;
 import io.edap.protobuf.reader.ByteArrayReader;
 import io.edap.protobuf.writer.StandardProtoBufWriter;
 
-import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 
 public class ProtoBuf {
@@ -33,7 +33,7 @@ public class ProtoBuf {
     }
 
     public static class ProtoFieldInfo {
-        public Field field;
+        public PbField field;
         /**
          * 是否有Get方法或者Field是public，可以直接获取Field的值
          */
