@@ -36,7 +36,7 @@ public abstract class AbstractEncoder {
             return;
         }
         int len = values.length * FIXED_32_SIZE;
-        writer.writeByteArray(fieldData, 0, fieldData.length);
+        writer.writeBytes(fieldData);
         writer.writeUInt32(len);
         for (float v : values) {
             writer.writeFixed32(Float.floatToRawIntBits(v));
@@ -48,7 +48,7 @@ public abstract class AbstractEncoder {
             return;
         }
         int len = values.length * FIXED_32_SIZE;
-        writer.writeByteArray(fieldData, 0, fieldData.length);
+        writer.writeBytes(fieldData);
         writer.writeUInt32(len);
         for (float v : values) {
             writer.writeFixed32(Float.floatToRawIntBits(v));
@@ -60,7 +60,7 @@ public abstract class AbstractEncoder {
             return;
         }
         int len = values.length * FIXED_64_SIZE;
-        writer.writeByteArray(fieldData, 0, fieldData.length);
+        writer.writeBytes(fieldData);
         writer.writeUInt32(len);
         for (double v : values) {
             writer.writeFixed64(Double.doubleToRawLongBits(v));
@@ -72,7 +72,7 @@ public abstract class AbstractEncoder {
             return;
         }
         int len = values.length * FIXED_64_SIZE;
-        writer.writeByteArray(fieldData, 0, fieldData.length);
+        writer.writeBytes(fieldData);
         writer.writeUInt32(len);
         for (double v : values) {
             writer.writeFixed64(Double.doubleToRawLongBits(v));
@@ -85,7 +85,7 @@ public abstract class AbstractEncoder {
             return;
         }
         int len = values.length;
-        writer.writeByteArray(fieldData, 0, fieldData.length);
+        writer.writeBytes(fieldData);
         writer.writeUInt32(len);
         for (boolean v : values) {
             writer.writeInt32(v?1:0);
@@ -97,7 +97,7 @@ public abstract class AbstractEncoder {
             return;
         }
         int len = values.length;
-        writer.writeByteArray(fieldData, 0, fieldData.length);
+        writer.writeBytes(fieldData);
         writer.writeUInt32(len);
         for (boolean v : values) {
             writer.writeInt32(v?1:0);
@@ -143,7 +143,7 @@ public abstract class AbstractEncoder {
         for (E v : vs) {
             len += computeRawVarint32Size(v.ordinal());
         }
-        writer.writeByteArray(fieldData, 0, fieldData.length);
+        writer.writeBytes(fieldData);
         writer.writeUInt32(len);
         for (E v : vs) {
             writer.writeUInt32(v.ordinal());

@@ -43,7 +43,11 @@ public enum WireType {
     /**
      * 定长32位
      */
-    FIXED32         (5);
+    FIXED32         (5),
+    /**
+     * OBJECT类型，可以包含任何类型的数据由OBJECT编解码器进行编解码
+     */
+    OBJECT          (6);
 
     WireType(int value) {
         this.value = value;
@@ -69,6 +73,8 @@ public enum WireType {
                 return END_GROUP;
             case 5:
                 return FIXED32;
+            case 6:
+                return OBJECT;
             default:
                 throw new IllegalArgumentException(
                         "no enum value WireType " + value);

@@ -14,19 +14,21 @@
  * under the License.
  */
 
-package io.edap.protobuf;
+package io.edap.protobuf.test.message.ext;
 
-public class EncodeException extends Exception {
+/**
+ * 拥有Object属性的测试类
+ */
+public class FieldObject {
 
-    public EncodeException() {
-        super();
+    //@ProtoField(tag = 1, type = Field.Type.ANY, cardinality = Field.Cardinality.OPTIONAL)
+    private Object obj;
+
+    public Object getObj() {
+        return obj;
     }
 
-    public EncodeException(String msg, Exception e) {
-        super(msg, e);
-    }
-
-    public EncodeException(Exception e) {
-        super(e);
+    public void setObj(Object obj) {
+        this.obj = obj;
     }
 }

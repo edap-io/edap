@@ -14,19 +14,14 @@
  * under the License.
  */
 
-package io.edap.protobuf;
+package io.edap.protobuf.ext;
 
-public class EncodeException extends Exception {
+import io.edap.protobuf.ProtoBufDecoder;
+import io.edap.protobuf.ProtoBufEncoder;
 
-    public EncodeException() {
-        super();
-    }
+/**
+ * 扩展数据类型的编解码器接口
+ */
+public interface ExtCodec<T> extends ProtoBufEncoder<T>, ProtoBufDecoder<T> {
 
-    public EncodeException(String msg, Exception e) {
-        super(msg, e);
-    }
-
-    public EncodeException(Exception e) {
-        super(e);
-    }
 }

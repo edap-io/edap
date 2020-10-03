@@ -117,9 +117,10 @@ public class WireFormat {
         DOUBLE ("Double",  0D),
         BOOLEAN("Boolean", false),
         STRING ("String",  ""),
-        BYTES  ("byte[]",  EMPTY_BYTES),
+        BYTES  ("byte[]",   EMPTY_BYTES),
         ENUM   ("enum",    null),
         MESSAGE("",        null),
+        OBJECT ("Object",  null),
         MAP    ("Map",     null);
 
         JavaType(final String typeString, final Object defaultValue) {

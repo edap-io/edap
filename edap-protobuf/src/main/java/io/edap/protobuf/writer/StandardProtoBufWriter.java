@@ -20,6 +20,7 @@ import io.edap.io.BufOut;
 import io.edap.protobuf.EncodeException;
 import io.edap.protobuf.ProtoBufEncoder;
 import io.edap.protobuf.ProtoBufWriter;
+import io.edap.protobuf.ext.AnyCodec;
 import io.edap.protobuf.internal.ProtoBufOut;
 import io.edap.protobuf.wire.Field;
 
@@ -334,6 +335,20 @@ public class StandardProtoBufWriter extends AbstractWriter {
     }
 
     @Override
+    public void writePackedFloats(byte[] fieldData, Float[] values) {
+        if (values == null || values.length == 0) {
+            return;
+        }
+        int len = values.length << 2;
+        expand(MAX_VARINT_SIZE << 1 + len);
+        writeFieldData(fieldData);
+        writeUInt32_0(len);
+        for (float value : values) {
+            writeFixed32_0(Float.floatToRawIntBits(value));
+        }
+    }
+
+    @Override
     public void writePackedFloats(byte[] fieldData, List<Float> values) {
         if (isEmpty(values)) {
             return;
@@ -349,6 +364,19 @@ public class StandardProtoBufWriter extends AbstractWriter {
 
     @Override
     public void writePackedBooleans(byte[] fieldData, boolean[] values) {
+        if (values == null || values.length == 0) {
+            return;
+        }
+        expand(MAX_VARINT_SIZE + values.length);
+        writeFieldData(fieldData);
+        writeUInt32(values.length);
+        for (boolean value : values) {
+            writeUInt32_0(value?1:0);
+        }
+    }
+
+    @Override
+    public void writePackedBooleans(byte[] fieldData, Boolean[] values) {
         if (values == null || values.length == 0) {
             return;
         }
@@ -526,6 +554,21 @@ public class StandardProtoBufWriter extends AbstractWriter {
     }
 
     @Override
+    public void writePackedDoubles(byte[] fieldData, Double[] values) {
+        if (values == null || values.length == 0) {
+            return;
+        }
+        int len = values.length << 3;
+        expand(MAX_VARINT_SIZE << 1 + len);
+        writeFieldData(fieldData);
+        writeUInt32_0(len);
+        for (Double value : values) {
+            double d = value==null?0:value.doubleValue();
+            writeFixed64_0(Double.doubleToLongBits(d));
+        }
+    }
+
+    @Override
     public void writePackedDoubles(byte[] fieldData, List<Double> values) {
         if (isEmpty(values)) {
             return;
@@ -537,6 +580,91 @@ public class StandardProtoBufWriter extends AbstractWriter {
         for (Double value : values) {
             writeFixed64_0(Double.doubleToLongBits(value));
         }
+    }
+
+    @Override
+    public <E extends Enum<E>> void writeArrayEnum(byte[] fieldData, E[] values) {
+        int size = values.length;
+        int len = size * 5;
+        expand((MAX_VARLONG_SIZE << 1) + len);
+        writeFieldData(fieldData);
+        int start = pos;
+
+        pos += 5;
+        int i = 0;
+        writeInt32_0(values[i++].ordinal());
+        if (size > 1) {
+            writeInt32_0(values[i++].ordinal());
+        }
+        if (size > 2) {
+            writeInt32_0(values[i++].ordinal());
+        }
+        if (size > 3) {
+            writeInt32_0(values[i++].ordinal());
+        }
+        if (size > 4) {
+            writeInt32_0(values[i++].ordinal());
+        }
+        if (size > 5) {
+            writeInt32_0(values[i++].ordinal());
+        }
+        if (size > 6) {
+            writeInt32_0(values[i++].ordinal());
+        }
+        if (size > 7) {
+            writeUInt32_0(values[i++].ordinal());
+        }
+        if (size > 8) {
+            writeInt32_0(values[i++].ordinal());
+        }
+        if (size > 9) {
+            writeInt32_0(values[i++].ordinal());
+        }
+        if (size > 10) {
+            for (i=10;i<size;i++) {
+                writeInt32_0(values[i].ordinal());
+            }
+        }
+
+        len = pos - start - 5;
+        pos = start;
+        writeUInt32_0(len);
+        //System.arraycopy(bs, start + 5, bs, pos, len);writeInt32
+        moveForwardBytes(bs, start + 5, len, 5 - (pos-start));
+        pos += len;
+    }
+
+    @Override
+    public void writeObject(byte[] fieldData, Object v) throws EncodeException {
+        if (null == v) {
+            return;
+        }
+        expand(MAX_VARINT_SIZE);
+        writeFieldData(fieldData);
+        AnyCodec.encode(this, v);
+    }
+
+    @Override
+    public void writeObject(Object v) throws EncodeException {
+        if (null == v) {
+            return;
+        }
+        int len;
+//        int oldPos = pos;
+//        pos += 5;
+        AnyCodec.encode(this, v);
+    }
+
+    @Override
+    public <T> void writeMessage(T v, ProtoBufEncoder<T> codec) throws EncodeException {
+        int oldPos = pos;
+        pos += 5;
+        codec.encode(this, v);
+        int len = pos - oldPos - 5;
+        pos = oldPos;
+        writeUInt32_0(len);
+        moveForwardBytes(bs, oldPos + 5, len, oldPos + 5 - pos);
+        pos += len;
     }
 
     @Override

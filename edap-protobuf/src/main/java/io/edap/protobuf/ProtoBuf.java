@@ -18,11 +18,14 @@ package io.edap.protobuf;
 
 import io.edap.io.BufOut;
 import io.edap.protobuf.annotation.ProtoField;
-import io.edap.protobuf.internal.PbField;
+import io.edap.protobuf.ext.AnyCodec;
 import io.edap.protobuf.internal.ProtoBufOut;
 import io.edap.protobuf.reader.ByteArrayReader;
+import io.edap.protobuf.ProtoBufWriter.WriteOrder;
 import io.edap.protobuf.writer.StandardProtoBufWriter;
+import io.edap.protobuf.writer.StandardReverseWriter;
 
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 
 public class ProtoBuf {
@@ -33,7 +36,7 @@ public class ProtoBuf {
     }
 
     public static class ProtoFieldInfo {
-        public PbField field;
+        public Field field;
         /**
          * 是否有Get方法或者Field是public，可以直接获取Field的值
          */
@@ -57,10 +60,21 @@ public class ProtoBuf {
      */
     private static final ThreadLocal<ProtoBufWriter> THREAD_WRITER;
 
+    /**
+     * 本地线程的ProtoBuf的Writer减少内存分配次数
+     */
+    private static final ThreadLocal<ProtoBufWriter> THREAD_REVERSE_WRITER;
+
     static {
         THREAD_WRITER = ThreadLocal.withInitial(() -> {
             BufOut out    = new ProtoBufOut();
             ProtoBufWriter writer = new StandardProtoBufWriter(out);
+            return writer;
+        });
+
+        THREAD_REVERSE_WRITER = ThreadLocal.withInitial(() -> {
+            BufOut out    = new ProtoBufOut();
+            ProtoBufWriter writer = new StandardReverseWriter(out);
             return writer;
         });
     }
@@ -70,7 +84,7 @@ public class ProtoBuf {
      * @param obj 需要序列化的java对象
      * @return 返回序列化后的字节数组，如果对象为null则返回null
      */
-    public static byte [] toByteArray(Object obj) throws EncodeException  {
+    public static byte [] toByteArray(Object obj) {
         if (obj == null) {
             return null;
         }
@@ -79,18 +93,144 @@ public class ProtoBuf {
         writer.reset();
         BufOut out = writer.getBufOut();
         out.reset();
-
         byte[] bs;
         try {
             codec.encode(writer, obj);
             int len = writer.getPos();
             bs = new byte[len];
             System.arraycopy(out.getWriteBuf().bs, 0, bs, 0, len);
-            out.reset();
+            return bs;
+        } catch (EncodeException e) {
+            //throw e;
         } finally {
             THREAD_WRITER.set(writer);
         }
-        return bs;
+        return null;
+    }
+
+    public static void main(String[] args) throws EncodeException, ProtoBufException {
+        ProtoBufWriter writer = THREAD_REVERSE_WRITER.get();
+        writer.reset();
+        BufOut out = writer.getBufOut();
+        out.reset();
+        AnyCodec.encode(writer, 125);
+
+        int len = out.getWriteBuf().len - writer.getPos();
+        byte[] bs = new byte[len];
+        System.arraycopy(out.getWriteBuf().bs, writer.getPos(), bs, 0, len);
+
+        System.out.println(conver2HexStr(bs));
+
+        ByteArrayReader reader = new ByteArrayReader(bs);
+        System.out.println((Integer) AnyCodec.decode(reader));
+
+        out.reset();
+        writer.reset();
+        AnyCodec.encode(writer, "abc");
+
+        len = out.getWriteBuf().len - writer.getPos();
+        bs = new byte[len];
+        System.arraycopy(out.getWriteBuf().bs, writer.getPos(), bs, 0, len);
+
+        System.out.println(conver2HexStr(bs));
+
+        reader = new ByteArrayReader(bs);
+        System.out.println(AnyCodec.decode(reader));
+
+    }
+
+    public static String conver2HexStr(byte[] b) {
+        if (b == null || b.length == 0) {
+            return "";
+        }
+        StringBuffer result = new StringBuffer();
+        for (int i = 0; i < b.length; i++) {
+            result.append(Long.toString(b[i] & 0xff, 16) + ",");
+        }
+        return result.toString().substring(0, result.length() - 1);
+    }
+
+    /**
+     * 将java对象序列化为Protobuf的字节数组
+     * @param obj 需要序列化的java对象
+     * @return 返回序列化后的字节数组，如果对象为null则返回null
+     */
+    public static byte [] toByteArray(Object obj, WriteOrder writeOrder) {
+        if (obj == null) {
+            return null;
+        }
+        if (writeOrder == WriteOrder.SEQUENTIAL) {
+            return toByteArray(obj);
+        }
+        ProtoBufEncoder codec = REGISTER.getEncoder(obj.getClass(), writeOrder);
+        ProtoBufWriter writer = THREAD_REVERSE_WRITER.get();
+        writer.reset();
+        BufOut out = writer.getBufOut();
+        byte[] bs;
+        try {
+            codec.encode(writer, obj);
+            int len = out.getWriteBuf().len - writer.getPos();
+            bs = new byte[len];
+            System.arraycopy(out.getWriteBuf().bs, writer.getPos(), bs, 0, len);
+            writer.reset();
+            return bs;
+        } catch (EncodeException e) {
+            //throw e;
+        } finally {
+            THREAD_REVERSE_WRITER.set(writer);
+        }
+        return null;
+    }
+
+    public static byte [] ser(Object obj) throws EncodeException {
+        ProtoBufWriter writer = THREAD_WRITER.get();
+        writer.reset();
+        BufOut out = writer.getBufOut();
+        out.reset();
+        byte[] bs;
+        try {
+            AnyCodec.encode(writer, obj);
+            int len = writer.getPos();
+            bs = new byte[len];
+            System.arraycopy(out.getWriteBuf().bs, 0, bs, 0, len);
+            out.reset();
+            return bs;
+        } catch (EncodeException e) {
+            throw e;
+        } finally {
+            THREAD_WRITER.set(writer);
+        }
+    }
+
+    public static byte [] ser(Object obj, WriteOrder writeOrder) throws EncodeException {
+        if (obj == null) {
+            return null;
+        }
+        if (writeOrder == WriteOrder.SEQUENTIAL) {
+            return ser(obj);
+        }
+        ProtoBufWriter writer = THREAD_REVERSE_WRITER.get();
+        writer.reset();
+        BufOut out = writer.getBufOut();
+        out.reset();
+        byte[] bs;
+        try {
+            AnyCodec.encode(writer, obj);
+            int len = out.getWriteBuf().len - writer.getPos();
+            bs = new byte[len];
+            System.arraycopy(out.getWriteBuf().bs, writer.getPos(), bs, 0, len);
+            out.reset();
+            return bs;
+        } catch (EncodeException e) {
+            throw e;
+        } finally {
+            THREAD_REVERSE_WRITER.set(writer);
+        }
+    }
+
+    public static Object der(byte[] data) throws ProtoBufException {
+        ByteArrayReader reader = new ByteArrayReader(data);
+        return AnyCodec.decode(reader);
     }
 
     /**
@@ -100,10 +240,14 @@ public class ProtoBuf {
      * @param bs 自己数组
      * @param cls 给定的java对象的class
      * @return 返回java对象
-     * @throws ProtoBufException
      */
-    public static <T> T toObject(byte [] bs, Class<T> cls) throws ProtoBufException {
-        return toObject(bs, 0, bs.length, cls);
+    public static <T> T toObject(byte [] bs, Class<T> cls) {
+        try {
+            return toObject(bs, 0, bs.length, cls);
+        } catch (Exception e) {
+
+        }
+        return null;
     }
 
     /**

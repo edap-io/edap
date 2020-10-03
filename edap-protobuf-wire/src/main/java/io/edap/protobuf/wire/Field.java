@@ -84,6 +84,10 @@ public class Field {
             @Override
             public boolean packable() {return false;}
         },
+        OBJECT  ("OBJECT",   WireFormat.JavaType.OBJECT, WireType.LENGTH_DELIMITED) {
+            @Override
+            public boolean packable() {return false;}
+        },
         GROUP   ("group",    WireFormat.JavaType.MESSAGE, WireType.START_GROUP     ) {
             @Override
             public boolean packable() {return false;}

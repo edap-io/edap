@@ -21,6 +21,9 @@ public class TestUtil {
     private TestUtil() {}
 
     public static String conver2HexStr(byte[] b) {
+        if (b == null || b.length == 0) {
+            return "";
+        }
         StringBuffer result = new StringBuffer();
         for (int i = 0; i < b.length; i++) {
             result.append(Long.toString(b[i] & 0xff, 16) + ",");

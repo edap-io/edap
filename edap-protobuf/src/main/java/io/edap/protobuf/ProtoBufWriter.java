@@ -25,11 +25,32 @@ import java.util.List;
  * Protocol buffer协议的序列化writer接口负责按协议写入数据
  */
 public interface ProtoBufWriter {
+
+    /**
+     * 写入顺序，由于protobuf协议有些定长的数据写入前可能不知道长度，所以采用序的方式写入可以方便的计算长度
+     */
+    enum WriteOrder {
+        /**
+         * 顺序写入
+         */
+        SEQUENTIAL,
+        /**
+         * 倒序的写入，从后往前的方式写数据
+         */
+        REVERSE
+    }
+
     BufOut getBufOut();
 
     void reset();
 
     int getPos();
+
+    /**
+     * 获取数据的写入方式
+     * @return
+     */
+    WriteOrder getWriteOrder();
 
     void writeBool(byte[] fieldData, Boolean value);
     void writeBool(byte[] fieldData, boolean value);
@@ -53,8 +74,10 @@ public interface ProtoBufWriter {
     void writePackedInts(byte[] fieldData, Integer[] values, Type type);
     void writePackedInts(byte[] fieldData, List<Integer> value, Type type);
     void writePackedFloats(byte[] fieldData, float[] values);
+    void writePackedFloats(byte[] fieldData, Float[] values);
     void writePackedFloats(byte[] fieldData, List<Float> values);
     void writePackedBooleans(byte[] fieldData, boolean[] values);
+    void writePackedBooleans(byte[] fieldData, Boolean[] values);
     void writePackedBooleans(byte[] fieldData, List<Boolean> values);
 
     void writeLong(byte[] fieldData, Long value);
@@ -74,25 +97,35 @@ public interface ProtoBufWriter {
     void writePackedLongs(byte[] fieldData, long[] values, Type type);
     void writePackedLongs(byte[] fieldData, List<Long> values, Type type);
     void writePackedDoubles(byte[] fieldData, double[] values);
+    void writePackedDoubles(byte[] fieldData, Double[] values);
     void writePackedDoubles(byte[] fieldData, List<Double> values);
 
     void writeEnum(byte[] fieldData, Integer value);
+    <E extends Enum<E>> void writeArrayEnum(byte[] fieldData, E[] vs);
     <E extends Enum<E>> void writeListEnum(byte[] fieldData, List<E> vs);
     <E extends ProtoBufEnum> void writeListProtoEnum(byte[] fieldData, List<E> vs);
 
+    void writeString(String value);
+    void writeStringUtf8(String value, int len);
     void writeString(byte[] fieldData, String value);
     void writeBytes(byte[] fieldData, byte[] value);
     void writeByteArray(byte[] fieldData, byte[] value, int offset, int length);
     void writeByteArray(byte[] value, int offset, int length);
+    void writeBytes(byte[] bs);
+    void writeByte(byte b);
 
     void writeInt32(int value);
+    void writeInt32(int value, boolean needEncodeZero);
     void writeUInt32(int value);
     void writeFixed32(int value);
     void writeFixed64(long value);
     void writeUInt64(long value);
 
-    <T> void writeMessage(byte[] fieldData, int tag, T msg, ProtoBufEncoder<T> encoder) throws EncodeException;
+    void writeObject(byte[] fieldData, Object v) throws EncodeException;
+    void writeObject(Object v) throws EncodeException;
 
+    <T> void writeMessage(T msg, ProtoBufEncoder<T> encoder) throws EncodeException;
+    <T> void writeMessage(byte[] fieldData, int tag, T msg, ProtoBufEncoder<T> encoder) throws EncodeException;
     <T> void writeMessages(byte[] fieldData, int tag, T[] msg, ProtoBufEncoder<T> encoder) throws EncodeException;
     <T> void writeMessages(byte[] fieldData, int tag, List<T> msg, ProtoBufEncoder<T> encoder) throws EncodeException;
 

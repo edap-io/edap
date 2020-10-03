@@ -18,6 +18,8 @@ package io.edap.protobuf;
 
 import io.edap.protobuf.internal.GeneratorClassInfo;
 import io.edap.protobuf.ProtoBuf.EncodeType;
+import io.edap.protobuf.ProtoBufWriter.WriteOrder;
+import io.edap.util.CollectionUtils;
 
 import java.io.File;
 import java.io.IOException;
@@ -35,20 +37,28 @@ import static io.edap.util.AsmUtil.toInternalName;
 import static io.edap.util.AsmUtil.toLangName;
 import static io.edap.util.CollectionUtils.isEmpty;
 
+/**
+ * ProtoBuf编解码器的注册器，负责统一注册和获取指定Class的编解码等功能
+ */
 public enum ProtoBufCodecRegister {
 
     INSTANCE;
 
-    private final Map<Type, ProtoBufEncoder> encoders =
-            new HashMap<>();
-    private final Map<Type, ProtoBufDecoder> decoders =
-            new HashMap<>();
-    private final Map<Type, Class> mapEncoders = new HashMap<>();
-    private final List<Type> mapEncoderTypes = new ArrayList<>();
-    private final ProtoCodecLoader encoderLoader = new ProtoCodecLoader(this.getClass().getClassLoader());
-    private final ReentrantLock lock = new ReentrantLock();
+    private final Map<Class, ProtoBufEncoder> encoders  = new HashMap<>();
+    private final Map<Class, ProtoBufEncoder> rencoders = new HashMap<>();
+    private final Map<Type, ProtoBufDecoder>  decoders  = new HashMap<>();
+    private final Map<Type, Class> mapEncoders     = new HashMap<>();
+    private final List<Type>       mapEncoderTypes = new ArrayList<>();
+    private final ProtoCodecLoader encoderLoader   = new ProtoCodecLoader(this.getClass().getClassLoader());
+    private final ReentrantLock    lock            = new ReentrantLock();
 
-    public  ProtoBufEncoder getEncoder(Class msgCls) {
+    /**
+     * 获取指定Class的ProtoBuf的编码器实现，ProtoBufWrite的实现为默认实现，写入数据是从前向后顺序写。该方式在编码 length+data
+     * 这类的编码时，由于需要先写data后才能确认长度，所以需要多一次的内存copy效率一般。
+     * @param msgCls 给定需要编码的JavaBean的Class对象
+     * @return
+     */
+    public ProtoBufEncoder getEncoder(Class msgCls) {
         ProtoBufEncoder encoder = encoders.get(msgCls);
         if (encoder != null) {
             return encoder;
@@ -57,13 +67,12 @@ public enum ProtoBufCodecRegister {
             lock.lock();
             encoder = encoders.get(msgCls);
             if (encoder == null) {
-                encoder = generateEncoder(msgCls);
+                encoder = generateEncoder(msgCls, WriteOrder.SEQUENTIAL);
                 if (encoder != null) {
                     encoders.put(msgCls, encoder);
                 }
             }
         } catch (Exception e) {
-            e.printStackTrace();
             throw new RuntimeException("generateEncoder " + msgCls.getName()
                     + " error", e);
         } finally {
@@ -72,7 +81,34 @@ public enum ProtoBufCodecRegister {
         return encoder;
     }
 
-    public  ProtoBufDecoder getDecoder(Class msgCls) {
+    public ProtoBufEncoder getEncoder(Class msgCls, WriteOrder writeOrder) {
+        ProtoBufEncoder encoder;
+        if (writeOrder == WriteOrder.SEQUENTIAL) {
+            return getEncoder(msgCls);
+        }
+        encoder = rencoders.get(msgCls);
+        if (encoder != null) {
+            return encoder;
+        }
+        try {
+            lock.lock();
+            encoder = rencoders.get(msgCls);
+            if (encoder == null) {
+                encoder = generateEncoder(msgCls, WriteOrder.REVERSE);
+                if (encoder != null) {
+                    rencoders.put(msgCls, encoder);
+                }
+            }
+        } catch (Exception e) {
+            throw new RuntimeException("generateEncoder " + msgCls.getName()
+                    + " error", e);
+        } finally {
+            lock.unlock();
+        }
+        return encoder;
+    }
+
+    public ProtoBufDecoder getDecoder(Class msgCls) {
         ProtoBufDecoder decoder = decoders.get(msgCls);
         if (decoder != null) {
             return decoder;
@@ -136,9 +172,9 @@ public enum ProtoBufCodecRegister {
     }
 
 
-    private ProtoBufEncoder generateEncoder(Class cls) {
+    private ProtoBufEncoder generateEncoder(Class cls, WriteOrder writeOrder) {
         ProtoBufEncoder codec = null;
-        Class encoderCls = generateEncoderClass(cls);
+        Class encoderCls = generateEncoderClass(cls, writeOrder);
         if (encoderCls != null) {
             try {
                 codec = (ProtoBufEncoder)encoderCls.newInstance();
@@ -164,16 +200,16 @@ public enum ProtoBufCodecRegister {
         return codec;
     }
 
-    private Class generateEncoderClass(Class cls) {
+    private Class generateEncoderClass(Class cls, WriteOrder writeOrder) {
         Class encoderCls;
-        String encoderName = ProtoBufEncoderGenerator.getEncoderName(cls, ProtoBuf.EncodeType.STANDARD);
+        String encoderName = ProtoBufEncoderGenerator.getEncoderName(cls, EncodeType.STANDARD, writeOrder);
         try {
-            ProtoBufEncoderGenerator generator = new ProtoBufEncoderGenerator(cls, ProtoBuf.EncodeType.STANDARD);
+            ProtoBufEncoderGenerator generator = new ProtoBufEncoderGenerator(cls, EncodeType.STANDARD, writeOrder);
             GeneratorClassInfo gci = generator.getClassInfo();
             byte[] bs = gci.clazzBytes;
             //saveJavaFile("./" + gci.clazzName + ".class", bs);
             encoderCls = encoderLoader.define(encoderName, bs, 0, bs.length);
-            if (!isEmpty(gci.inners)) {
+            if (!CollectionUtils.isEmpty(gci.inners)) {
                 for (GeneratorClassInfo inner : gci.inners) {
                     bs = inner.clazzBytes;
                     String innerName = toLangName(inner.clazzName);
@@ -181,7 +217,6 @@ public enum ProtoBufCodecRegister {
                 }
             }
         } catch (Exception e) {
-            e.printStackTrace();
             try {
                 if (encoderLoader.loadClass(encoderName) != null) {
                     return encoderLoader.loadClass(encoderName);

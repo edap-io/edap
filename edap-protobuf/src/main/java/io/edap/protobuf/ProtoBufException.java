@@ -28,6 +28,10 @@ public class ProtoBufException extends IOException {
         super(e.getMessage(), e);
     }
 
+    public ProtoBufException(Exception e) {
+        super(e.getMessage(), e);
+    }
+
     public ProtoBufException(final String description, IOException e) {
         super(description, e);
     }

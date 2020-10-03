@@ -28,10 +28,7 @@ import io.edap.util.AsmUtil;
 import org.objectweb.asm.MethodVisitor;
 
 import java.lang.annotation.Annotation;
-import java.lang.reflect.Field;
-import java.lang.reflect.Method;
-import java.lang.reflect.Modifier;
-import java.lang.reflect.ParameterizedType;
+import java.lang.reflect.*;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -71,7 +68,7 @@ public class ProtoUtil {
         for (Field f : fields) {
             if (needEncode(f)) {
                 ProtoFieldInfo pfi = new ProtoFieldInfo();
-                pfi.field = PbField.from(f);
+                pfi.field = f;
                 Method em = getAccessMethod(f, aMethod);
                 pfi.getMethod = em;
                 Method setMethod = getSetMethod(f, aMethod);
@@ -99,7 +96,7 @@ public class ProtoUtil {
         return buildFieldData(tag, type, cardinality, Syntax.PROTO_3, null);
     }
 
-    public static byte[] buildFieldData(int tag, Type type, Cardinality cardinality, Syntax syntax) {
+    public static byte[] buildbuildFieldDataFieldData(int tag, Type type, Cardinality cardinality, Syntax syntax) {
         return buildFieldData(tag, type, cardinality, syntax, null);
     }
 
@@ -153,6 +150,9 @@ public class ProtoUtil {
             case GROUP:
                 wireType = WireType.START_GROUP;
                 break;
+            case OBJECT:
+                wireType = WireType.OBJECT;
+                break;
             default:
                 wireType = WireType.LENGTH_DELIMITED;
         }
@@ -204,10 +204,10 @@ public class ProtoUtil {
         }
     }
 
-    private static ProtoField buildProtoFieldAnnotation(final int tag, final PbField field) {
+    private static ProtoField buildProtoFieldAnnotation(final int tag, final Field field) {
         Cardinality cardinality = Cardinality.OPTIONAL;
-        if (isList(field.getGenericType())
-                || isSet(field.getGenericType())
+        if (AsmUtil.isList(field.getGenericType())
+                || AsmUtil.isSet(field.getGenericType())
                 || AsmUtil.isArray(field.getGenericType())) {
             cardinality = Cardinality.REPEATED;
         }
@@ -261,6 +261,10 @@ public class ProtoUtil {
 
     public static Type javaToProtoType(java.lang.reflect.Type javaType) {
         Type type = Type.BYTES;
+        if (javaType.getTypeName().equals("java.lang.Object") || javaType.getTypeName().startsWith("java.lang.Class")
+                || javaType instanceof TypeVariable) {
+            return Type.OBJECT;
+        }
         if (AsmUtil.isMap(javaType)) {
             return Type.MAP;
         }

@@ -28,6 +28,12 @@ public interface ProtoBufReader {
 
     public static final Charset CHARSET_UTF8 = Charset.forName("utf-8");
 
+    byte getByte(int pos);
+
+    int getPos();
+
+    byte getByte();
+
     /**
      * 读取一个boolean的值
      * @return
@@ -214,6 +220,21 @@ public interface ProtoBufReader {
      * @throws ProtoBufException
      */
     String readString() throws ProtoBufException;
+
+    /**
+     * 读取指定长度的字符串
+     * @param len
+     * @return
+     * @throws ProtoBufException
+     */
+    String readString(int len) throws ProtoBufException;
+
+    /**
+     * 读取Any的值
+     * @return
+     * @throws ProtoBufException
+     */
+    Object readObject() throws ProtoBufException;
 
     /**
      * 读取一个Message的对象

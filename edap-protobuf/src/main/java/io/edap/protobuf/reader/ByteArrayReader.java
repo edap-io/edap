@@ -18,6 +18,7 @@ package io.edap.protobuf.reader;
 
 import io.edap.protobuf.ProtoBufDecoder;
 import io.edap.protobuf.ProtoBufException;
+import io.edap.protobuf.ext.AnyCodec;
 import io.edap.protobuf.wire.Field.Type;
 
 import java.util.ArrayList;
@@ -45,6 +46,21 @@ public class ByteArrayReader extends AbstractReader {
         this.limit = offset + len;
         this.pos   = offset;
         this.originalLimit = limit;
+    }
+
+    @Override
+    public byte getByte(int p) {
+        return buf[p];
+    }
+
+    @Override
+    public byte getByte() {
+        return buf[pos++];
+    }
+
+    @Override
+    public int getPos() {
+        return this.pos;
     }
 
     @Override
@@ -313,6 +329,9 @@ public class ByteArrayReader extends AbstractReader {
     @Override
     public String readString() throws ProtoBufException {
         int len = readRawVarint32();
+        if (len < 0) {
+            return null;
+        }
         char[] cs = null;
         if (len < 4096 && tmp == null) {
             tmp = LOCAL_TMP_CHAR_ARRAY.get();
@@ -363,6 +382,61 @@ public class ByteArrayReader extends AbstractReader {
         //String s = new String(buf, pos, len, CHARSET_UTF8);
         pos += len;
         return s;
+    }
+
+    @Override
+    public String readString(int charLen) throws ProtoBufException {
+        if (charLen < 0) {
+            return null;
+        } else if (charLen == 0) {
+            return "";
+        }
+        //char[] cs = new char[charLen];
+        int count = 0;
+        int oldPos = pos;
+        int tmpPos = pos;
+        byte[] _tmp = buf;
+        while (count < charLen) {
+            int b = _tmp[tmpPos++];
+            if ((b & 0x80) == 0) {
+                count++;
+            } else {
+                byte b2 = _tmp[tmpPos++];
+                if ((b & 0xE0) == 0xC0) {
+                    count++;
+                } else {
+                    byte b3 = _tmp[tmpPos++];
+                    if ((b & 0xF0) == 0xE0) {
+                        count++;
+                    } else {
+                        byte b4 = _tmp[tmpPos++];
+                        if ((b & 0xF8) == 0xF0) {
+                            b = ((b & 0x07) << 18) + ((b2 & 0x3F) << 12)
+                                    + ((b3 & 0x3F) << 6) + (b4 & 0x3F);
+                        } else {
+                            throw new RuntimeException();
+                        }
+                        if (b >= 0x10000) {
+                            if (b >= 0x110000) {
+                                throw new RuntimeException();
+                            }
+                            int sup = b - 0x10000;
+                            count++;
+                            count++;
+                        }
+                    }
+                }
+            }
+        }
+        String s = new String(_tmp, oldPos, tmpPos - oldPos, CHARSET_UTF8);
+        pos = tmpPos;
+        //String s = new String(buf, pos, len, CHARSET_UTF8);
+        return s;
+    }
+
+    @Override
+    public Object readObject() throws ProtoBufException {
+        return AnyCodec.decode(this);
     }
 
     @Override
@@ -535,6 +609,8 @@ public class ByteArrayReader extends AbstractReader {
                 | ((buf[pos++] & 0xFF) << 16)
                 | ((buf[pos++] & 0xFF) << 24));
     }
+
+
 
     @Override
     public int readTag() throws ProtoBufException {
