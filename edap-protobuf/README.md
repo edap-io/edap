@@ -85,7 +85,7 @@ edap-protobuf 为protocol buffer协议的实现框架，可以直接序列化反
     option java_package = "io.edap.protobuf.test.message.v3";
     //option java_outer_classname = "MessageOuter";
     
-    message OneInt64 {
+    message User {
         int64 uid = 1;
         string username = 2;
     }
