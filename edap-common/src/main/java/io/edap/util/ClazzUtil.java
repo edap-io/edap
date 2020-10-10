@@ -16,10 +16,7 @@
 
 package io.edap.util;
 
-import java.lang.reflect.Field;
-import java.lang.reflect.Method;
-import java.lang.reflect.ParameterizedType;
-import java.lang.reflect.Type;
+import java.lang.reflect.*;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -32,6 +29,10 @@ public class ClazzUtil {
         StringBuilder sb = new StringBuilder();
         if (type instanceof ParameterizedType) {
             ParameterizedType ptype = (ParameterizedType)type;
+            if ("java.lang.Class".equals(ptype.getRawType().getTypeName())) {
+                sb.append("Ljava/lang/Class;");
+                return sb.toString();
+            }
             sb.append(getDescriptor((Class)ptype.getRawType()));
             Type[] args = ptype.getActualTypeArguments();
             if (args != null) {
@@ -42,6 +43,18 @@ public class ClazzUtil {
                 v.append(">");
                 sb.insert(sb.length() - 1, v);
             }
+        } else if (type instanceof TypeVariable) {
+            TypeVariable tv = (TypeVariable)type;
+            if (tv.getBounds() != null && tv.getBounds().length > 0) {
+                sb.append(getDescriptor(tv.getBounds()[0]));
+            } else {
+                sb.append(getDescriptor(Object.class));
+            }
+        } else if (type instanceof GenericArrayType) {
+            GenericArrayType gat = (GenericArrayType)type;
+            sb.append(getDescriptor(gat.getGenericComponentType()));
+        } else if (type instanceof WildcardType) {
+            sb.append("?");
         } else {
             sb.append(getDescriptor((Class)type));
         }
@@ -139,7 +152,6 @@ public class ClazzUtil {
                 }
             }
             pClass = pClass.getSuperclass();
-            System.out.println("pClass=" + pClass);
         }
     }
 
