@@ -585,13 +585,13 @@ public class ProtoParser {
                 addCommentLines(CommentType.INLINE, Arrays.asList(comment));
                 nextLine();
             } else if ("rpc".equals(token)) {
-                service.addMethod(parseMethod(ServiceType.RPC));
+                service.addMethod(parseMethod(ServiceType.UNARY));
             } else {
                 trim();
                 char c = data[pos];
                 if (c == '(') {
                     pos = pos - token.length() - 1;
-                    service.addMethod(parseMethod(ServiceType.RPC));
+                    service.addMethod(parseMethod(ServiceType.UNARY));
                 } else {
                     throw new ProtoParseException(ROW_MSG + row + "] service "
                             + "method define error");
@@ -621,10 +621,13 @@ public class ProtoParser {
             comments.forEach(c -> tmpComments.addAll(c.getLines()));
             comments.clear();
         }
+        boolean clientStream = false;
+        boolean serverStream = false;
         List<String> params = parseMethodVars();
         String request = "";
         if (!params.isEmpty()) {
-            request = params.get(0);
+            request = params.get(0).trim();
+            clientStream = isStream(request);
         }
         trim();
         String response = "";
@@ -635,7 +638,8 @@ public class ProtoParser {
             trim();
             params = parseMethodVars();
             if (!params.isEmpty()) {
-                response = params.get(0);
+                response = params.get(0).trim();
+                serverStream = isStream(response);
             }
         }
         boolean isEnd = isServiceMethodEnd();
@@ -648,12 +652,33 @@ public class ProtoParser {
                 method.setComment(readSingleLineComment());
             }
         }
+        if (clientStream && serverStream) {
+            serviceType = ServiceType.BIDIRECTIONAL;
+        } else {
+            if (clientStream) {
+                serviceType = ServiceType.CLIENT_STREAM;
+            }
+            if (serverStream) {
+                serviceType = ServiceType.SERVER_STREAM;
+            }
+        }
         method.setName(name);
         method.setType(serviceType);
         method.setRequest(request);
         method.setResponse(response);
         method.setComments(tmpComments);
         return method;
+    }
+
+    private boolean isStream(String param) {
+        param = param.trim();
+        if (param.indexOf(" ") == -1) {
+            return false;
+        }
+        if ("stream".equalsIgnoreCase(param.substring(0, param.indexOf(" ")))) {
+            return true;
+        }
+        return false;
     }
 
     private boolean isServiceMethodEnd() {
@@ -714,7 +739,7 @@ public class ProtoParser {
                     }
                     return params;
                 default:  //如果是空格则判断为类型和参数名
-
+                    param += " " +  readToken();
             }
 
             trim();
@@ -942,7 +967,7 @@ public class ProtoParser {
                     comment.append(data, start, pos-start);
                 }
                 String cmt = comment.toString();
-                if (cmt.charAt(0) == ' ') {
+                if (cmt != null && cmt.length() > 0 && cmt.charAt(0) == ' ') {
                     return cmt.substring(1);
                 }
                 return cmt;

@@ -28,7 +28,11 @@ public class Service {
      * 服务类型
      */
     public enum ServiceType {
-        RPC("rpc");
+        UNARY("unary"),
+        SERVER_STREAM("server_stream"),
+        CLIENT_STREAM("client_stream"),
+        BIDIRECTIONAL("Bidirectional")
+        ;
 
         private final String value;
 

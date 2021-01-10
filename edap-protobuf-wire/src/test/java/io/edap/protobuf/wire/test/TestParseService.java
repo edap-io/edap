@@ -71,8 +71,8 @@ public class TestParseService {
             assertEquals(1, methods.size());
             ServiceMethod method = methods.get(0);
             assertEquals("Search", method.getName());
-            Assertions.assertEquals(Service.ServiceType.RPC, method.getType());
-            Assertions.assertEquals("rpc", method.getType().getValue());
+            Assertions.assertEquals(Service.ServiceType.UNARY, method.getType());
+            Assertions.assertEquals("unary", method.getType().getValue());
             assertEquals("SearchRequest", method.getRequest());
             assertEquals("SearchResponse", method.getResponse());
 
@@ -102,6 +102,85 @@ public class TestParseService {
             "syntax=\"proto3\";\n" +
                     "//服务的说明\nservice SearchService {\n" +
                     "// 服务方法说明\n" +
+                    "  rpc Search (stream Request) returns (SearchResponse) {}\n" +
+                    "}",
+
+    })
+    void testParseWellServiceClientStream(String protoStr) {
+        ProtoParser parser = new ProtoParser(protoStr);
+        try {
+            Proto proto = parser.parse();
+            assertEquals(Syntax.PROTO_3, proto.getSyntax());
+
+            List<Service> services = proto.getServices();
+            assertEquals(1, services.size());
+
+            Service service = services.get(0);
+            ServiceMethod serviceMethod = service.getMethods().get(0);
+            assertEquals(Service.ServiceType.CLIENT_STREAM, serviceMethod.getType());
+        } catch (ProtoParseException e) {
+            e.printStackTrace();
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "syntax=\"proto3\";\n" +
+                    "//服务的说明\nservice SearchService {\n" +
+                    "// 服务方法说明\n" +
+                    "  rpc Search (Request) returns (stream SearchResponse) {}\n" +
+                    "}",
+
+    })
+    void testParseWellServiceServerStream(String protoStr) {
+        ProtoParser parser = new ProtoParser(protoStr);
+        try {
+            Proto proto = parser.parse();
+            assertEquals(Syntax.PROTO_3, proto.getSyntax());
+
+            List<Service> services = proto.getServices();
+            assertEquals(1, services.size());
+
+            Service service = services.get(0);
+            ServiceMethod serviceMethod = service.getMethods().get(0);
+            assertEquals(Service.ServiceType.SERVER_STREAM, serviceMethod.getType());
+        } catch (ProtoParseException e) {
+            e.printStackTrace();
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "syntax=\"proto3\";\n" +
+                    "//服务的说明\nservice SearchService {\n" +
+                    "// 服务方法说明\n" +
+                    "  rpc Search (stream Request) returns (stream SearchResponse) {}\n" +
+                    "}",
+
+    })
+    void testParseWellServiceBidirectional(String protoStr) {
+        ProtoParser parser = new ProtoParser(protoStr);
+        try {
+            Proto proto = parser.parse();
+            assertEquals(Syntax.PROTO_3, proto.getSyntax());
+
+            List<Service> services = proto.getServices();
+            assertEquals(1, services.size());
+
+            Service service = services.get(0);
+            ServiceMethod serviceMethod = service.getMethods().get(0);
+            assertEquals(Service.ServiceType.BIDIRECTIONAL, serviceMethod.getType());
+        } catch (ProtoParseException e) {
+            e.printStackTrace();
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "syntax=\"proto3\";\n" +
+                    "//服务的说明\nservice SearchService {\n" +
+                    "// 服务方法说明\n" +
+                    "//\n" +
                     "  rpc Search (SearchRequest, param2, taram3) returns (SearchResponse) {}\n" +
                     "}",
 
@@ -167,8 +246,8 @@ public class TestParseService {
             assertEquals(1, methods.size());
             ServiceMethod method = methods.get(0);
             assertEquals("Search", method.getName());
-            Assertions.assertEquals(Service.ServiceType.RPC, method.getType());
-            Assertions.assertEquals("rpc", method.getType().getValue());
+            Assertions.assertEquals(Service.ServiceType.UNARY, method.getType());
+            Assertions.assertEquals("unary", method.getType().getValue());
             assertEquals("SearchRequest", method.getRequest());
             assertEquals("SearchResponse", method.getResponse());
 
