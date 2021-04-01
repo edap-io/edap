@@ -27,8 +27,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 import java.lang.reflect.Field;
 
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * 基础类型double的编解码逻辑测试
@@ -37,6 +36,7 @@ public class TestOneDouble {
 
     @ParameterizedTest
     @ValueSource(doubles = {
+            0,
             1,
             31.415926
     })
@@ -57,6 +57,7 @@ public class TestOneDouble {
 
     @ParameterizedTest
     @ValueSource(doubles = {
+            0,
             1,
             31.415926
     })
@@ -72,13 +73,17 @@ public class TestOneDouble {
 
         OneDouble oneDouble = ProtoBuf.toObject(pb, OneDouble.class);
 
-
-        assertEquals(pbOd.getD(), oneDouble.getD());
+        if (value == 0) {
+            assertNull(oneDouble.getD());
+        } else {
+            assertEquals(pbOd.getD(), oneDouble.getD());
+        }
 
     }
 
     @ParameterizedTest
     @ValueSource(doubles = {
+            0,
             1,
             31.415926
     })
@@ -99,6 +104,7 @@ public class TestOneDouble {
 
     @ParameterizedTest
     @ValueSource(doubles = {
+            0,
             1,
             31.415926
     })
@@ -121,6 +127,7 @@ public class TestOneDouble {
 
     @ParameterizedTest
     @ValueSource(doubles = {
+            0,
             1,
             31.415926
     })
@@ -144,6 +151,7 @@ public class TestOneDouble {
 
     @ParameterizedTest
     @ValueSource(doubles = {
+            0,
             1,
             31.415926
     })
@@ -167,6 +175,7 @@ public class TestOneDouble {
 
     @ParameterizedTest
     @ValueSource(doubles = {
+            0,
             1,
             31.415926
     })
@@ -185,12 +194,17 @@ public class TestOneDouble {
         Field fieldF = ClazzUtil.getDeclaredField(OneDoubleNoAccess.class, "d");
         fieldF.setAccessible(true);
 
-        assertEquals(pbOd.getD(), (Double) fieldF.get(oneDouble));
+        if (value == 0) {
+            assertNull(fieldF.get(oneDouble));
+        } else {
+            assertEquals(pbOd.getD(), (Double) fieldF.get(oneDouble));
+        }
 
     }
 
     @ParameterizedTest
     @ValueSource(doubles = {
+            0,
             1,
             31.415926
     })

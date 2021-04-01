@@ -27,8 +27,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 import java.lang.reflect.Field;
 
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * 基础类型float的编解码逻辑测试
@@ -37,6 +36,7 @@ public class TestOneFloat {
 
     @ParameterizedTest
     @ValueSource(floats = {
+            0f,
             1f,
             31.415926f
     })
@@ -57,6 +57,7 @@ public class TestOneFloat {
 
     @ParameterizedTest
     @ValueSource(floats = {
+            0f,
             1f,
             31.415926f
     })
@@ -72,13 +73,17 @@ public class TestOneFloat {
 
         OneFloat oneFloat = ProtoBuf.toObject(pb, OneFloat.class);
 
-
-        assertEquals(pbOf.getF(), oneFloat.getF());
+        if (value == 0) {
+            assertNull(oneFloat.getF());
+        } else {
+            assertEquals(pbOf.getF(), oneFloat.getF());
+        }
 
     }
 
     @ParameterizedTest
     @ValueSource(floats = {
+            0f,
             1f,
             31.415926f
     })
@@ -99,6 +104,7 @@ public class TestOneFloat {
 
     @ParameterizedTest
     @ValueSource(floats = {
+            0f,
             1f,
             31.415926f
     })
@@ -121,6 +127,7 @@ public class TestOneFloat {
 
     @ParameterizedTest
     @ValueSource(floats = {
+            0f,
             1f,
             31.415926f
     })
@@ -144,6 +151,7 @@ public class TestOneFloat {
 
     @ParameterizedTest
     @ValueSource(floats = {
+            0f,
             1f,
             31.415926f
     })
@@ -167,6 +175,7 @@ public class TestOneFloat {
 
     @ParameterizedTest
     @ValueSource(floats = {
+            0f,
             1f,
             31.415926f
     })
@@ -184,12 +193,17 @@ public class TestOneFloat {
         Field fieldF = ClazzUtil.getDeclaredField(OneFloatNoAccess.class, "f");
         fieldF.setAccessible(true);
 
-        assertEquals(pbOf.getF(), (float)fieldF.get(oneFloat));
+        if (value == 0) {
+            assertNull(fieldF.get(oneFloat));
+        } else {
+            assertEquals(pbOf.getF(), (float) fieldF.get(oneFloat));
+        }
 
     }
 
     @ParameterizedTest
     @ValueSource(floats = {
+            0f,
             1f,
             31.415926f
     })

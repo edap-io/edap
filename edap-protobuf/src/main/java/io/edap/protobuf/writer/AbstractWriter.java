@@ -16,13 +16,17 @@
 
 package io.edap.protobuf.writer;
 
+import io.edap.buffer.FastBuf;
 import io.edap.io.BufOut;
 import io.edap.protobuf.ProtoBufEnum;
 import io.edap.protobuf.ProtoBufWriter;
 import io.edap.protobuf.wire.Field;
 import io.edap.util.CollectionUtils;
+import io.edap.util.StringUtil;
 import io.edap.util.UnsafeUtil;
 
+import java.io.IOException;
+import java.io.OutputStream;
 import java.util.List;
 
 import static io.edap.protobuf.ProtoBufWriter.encodeZigZag32;
@@ -30,6 +34,8 @@ import static io.edap.protobuf.ProtoBufWriter.encodeZigZag64;
 import static io.edap.protobuf.util.ProtoUtil.moveForwardBytes;
 import static io.edap.protobuf.wire.WireFormat.*;
 import static io.edap.util.CollectionUtils.isEmpty;
+import static io.edap.util.StringUtil.IS_BYTE_ARRAY;
+import static io.edap.util.StringUtil.isLatin1;
 
 
 public abstract class AbstractWriter implements ProtoBufWriter {
@@ -58,6 +64,11 @@ public abstract class AbstractWriter implements ProtoBufWriter {
         return WriteOrder.SEQUENTIAL;
     }
 
+    @Override
+    public int size() {
+        return pos;
+    }
+
     public int getPos() {
         return pos;
     }
@@ -65,6 +76,18 @@ public abstract class AbstractWriter implements ProtoBufWriter {
     @Override
     public BufOut getBufOut() {
         return out;
+    }
+
+    @Override
+    public void toStream(OutputStream stream) throws IOException {
+        stream.write(bs, 0, pos);
+    }
+
+    @Override
+    public byte[] toByteArray() {
+        byte[] data = new byte[pos];
+        System.arraycopy(bs, 0, data, 0, pos);
+        return data;
     }
 
     public void writeFieldData(final byte[] fieldData) {
@@ -136,7 +159,10 @@ public abstract class AbstractWriter implements ProtoBufWriter {
 
     @Override
     public void writeInt32(final byte[] fieldData, final int value) {
-        if (value >= 0) {
+        if (value == 0) {
+            return;
+        }
+        if (value > 0) {
             expand(MAX_VARLONG_SIZE);
             writeFieldData(fieldData);
             writeUInt32_0(value);
@@ -157,6 +183,9 @@ public abstract class AbstractWriter implements ProtoBufWriter {
 
     @Override
     public void writeUInt32(final byte[] fieldData, final int value) {
+        if (value == 0) {
+            return;
+        }
         expand(MAX_VARLONG_SIZE);
         writeFieldData(fieldData);
         writeUInt32_0(value);
@@ -203,7 +232,7 @@ public abstract class AbstractWriter implements ProtoBufWriter {
 
     @Override
     public void writeSInt32(final byte[] fieldData, final Integer value) {
-        if (value == null) {
+        if (value == null || value == 0) {
             return;
         }
         expand(MAX_VARLONG_SIZE);
@@ -213,6 +242,9 @@ public abstract class AbstractWriter implements ProtoBufWriter {
 
     @Override
     public void writeSInt32(final byte[] fieldData, final int value) {
+        if (value == 0) {
+            return;
+        }
         expand(MAX_VARLONG_SIZE);
         writeFieldData(fieldData);
         writeUInt32_0(encodeZigZag32(value));
@@ -220,7 +252,7 @@ public abstract class AbstractWriter implements ProtoBufWriter {
 
     @Override
     public void writeFixed32(final byte[] fieldData, final Integer value) {
-        if (value == null) {
+        if (value == null || value.intValue() == 0) {
             return;
         }
         expand(fieldData.length + FIXED_32_SIZE);
@@ -230,6 +262,9 @@ public abstract class AbstractWriter implements ProtoBufWriter {
 
     @Override
     public void writeFixed32(final byte[] fieldData, final int value) {
+        if (value == 0) {
+            return;
+        }
         expand(fieldData.length + FIXED_32_SIZE);
         writeFieldData(fieldData);
         writeFixed32_0(value);
@@ -268,7 +303,7 @@ public abstract class AbstractWriter implements ProtoBufWriter {
 
     @Override
     public void writeUInt64(final byte[] fieldData, final Long value) {
-        if (value == null) {
+        if (value == null || value.longValue() == 0) {
             return;
         }
         expand(MAX_VARINT_SIZE + MAX_VARLONG_SIZE);
@@ -278,6 +313,9 @@ public abstract class AbstractWriter implements ProtoBufWriter {
 
     @Override
     public void writeUInt64(final byte[] fieldData, final long value) {
+        if (value == 0) {
+            return;
+        }
         expand(MAX_VARINT_SIZE + MAX_VARLONG_SIZE);
         writeFieldData(fieldData);
         writeUInt64_0(value);
@@ -318,6 +356,9 @@ public abstract class AbstractWriter implements ProtoBufWriter {
 
     @Override
     public void writeFixed64(final byte[] fieldData, final long value) {
+        if (value == 0) {
+            return;
+        }
         expand(MAX_VARINT_SIZE + FIXED_64_SIZE);
         writeFieldData(fieldData);
         writeFixed64_0(value);
@@ -635,94 +676,72 @@ public abstract class AbstractWriter implements ProtoBufWriter {
             writeInt32(0, true);
             return;
         }
-        if (charLen > 10) {
-            writeString0(value);
+        if (IS_BYTE_ARRAY && isLatin1(value) && charLen > 5) {
+            byte[] data = StringUtil.getValue(value);
+            writeByteArray(data, 0, charLen);
             return;
         }
-        /*
-        byte[] buf = LOCAL_TMP_BYTE_ARRAY.get();
-        if (buf.length < charLen * 4) {
-            buf = new byte[charLen * 4];
-            LOCAL_TMP_BYTE_ARRAY.set(buf);
-        }
-        int start = 0;
-        for (int i=0;i<charLen;i++) {
-            char c = value.charAt(i);
-            if (c < 128) {
-               buf[start++] = (byte) c;
-            } else if (c < 0x800) {
-                buf[start++] = (byte) ((0xF << 6) | (c >>> 6));
-                buf[start++] = (byte) (0x80 | (0x3F & c));
-            } else if (c < Character.MIN_SURROGATE || Character.MAX_SURROGATE < c) {
-                buf[start++] = (byte) ((0xF << 5) | (c >>> 12));
-                buf[start++] = (byte) (0x80 | (0x3F & (c >>> 6)));
-                buf[start++] = (byte) (0x80 | (0x3F & c));
-            } else {
-                buf[start++] = (byte) (0xF0 | ((c >> 18) & 0x07));
-                buf[start++] = (byte) (0x80 | ((c >> 12) & 0x3F));
-                buf[start++] = (byte) (0x80 | ((c >>  6) & 0x3F));
-                buf[start++] = (byte) (0x80 | (        c & 0x3F));
-            }
-        }
-        */
-        int start = computeUTF8Size(value, 0, charLen);
-        //int start = charLen;
-        /**/
-        expand(start + MAX_VARINT_SIZE);
-        writeUInt32(start);
 
-        int p = pos;
-        byte[] bs = this.bs;
+        //如果字符串utf8编码后有可能超过127时
+        if (charLen > 42) {
+            char[] cs = value.toCharArray();
+            writeString0(cs);
+            return;
+        }
+        int old = pos;
+        int p = pos+1;
+        byte[] _bs = this.bs;
         for (int i=0;i<charLen;i++) {
             char c = value.charAt(i);
             if (c < 128) {
-                bs[p++] = (byte) c;
+                _bs[p++] = (byte) c;
             } else if (c < 0x800) {
-                bs[p++] = (byte) ((0xF << 6) | (c >>> 6));
-                bs[p++] = (byte) (0x80 | (0x3F & c));
+                _bs[p++] = (byte) ((0xF << 6) | (c >>> 6));
+                _bs[p++] = (byte) (0x80 | (0x3F & c));
             } else if (Character.isHighSurrogate(c) && i+1<charLen
                     && Character.isLowSurrogate(value.charAt(i+1))) {
                 int codePoint = Character.toCodePoint((char) c, (char) value.charAt(i+1));
-                bs[p++] = (byte) (0xF0 | ((codePoint >> 18) & 0x07));
-                bs[p++] = (byte) (0x80 | ((codePoint >> 12) & 0x3F));
-                bs[p++] = (byte) (0x80 | ((codePoint >>  6) & 0x3F));
-                bs[p++] = (byte) (0x80 | ( codePoint        & 0x3F));
+                _bs[p++] = (byte) (0xF0 | ((codePoint >> 18) & 0x07));
+                _bs[p++] = (byte) (0x80 | ((codePoint >> 12) & 0x3F));
+                _bs[p++] = (byte) (0x80 | ((codePoint >>  6) & 0x3F));
+                _bs[p++] = (byte) (0x80 | ( codePoint        & 0x3F));
                 i++;
             } else {
-                bs[p++] = (byte) ((0xF << 5) | (c >>> 12));
-                bs[p++] = (byte) (0x80 | (0x3F & (c >>> 6)));
-                bs[p++] = (byte) (0x80 | (0x3F & c));
+                _bs[p++] = (byte) ((0xF << 5) | (c >>> 12));
+                _bs[p++] = (byte) (0x80 | (0x3F & (c >>> 6)));
+                _bs[p++] = (byte) (0x80 | (0x3F & c));
             }
         }
+        _bs[old] = (byte)(p - old - 1);
         pos = p;
     }
 
-    public final void writeString0(final String value) {
+    public final void writeString0(final char[] value) {
         //char[] cs = (char[])UnsafeMemory.getValue(value, StringUtil.STRING_VALUE_OFFSET);
-        int charLen = value.length();
+        int charLen = value.length;
         if (charLen == 0) {
             writeUInt32(0);
             return;
         }
         /**/
         byte[] buf = LOCAL_TMP_BYTE_ARRAY.get();
-        if (buf.length < charLen * 4) {
-            buf = new byte[charLen * 4];
+        if (buf.length < charLen * 3) {
+            buf = new byte[charLen * 3];
             LOCAL_TMP_BYTE_ARRAY.set(buf);
         }
         /**/
         //byte[] buf = new byte[charLen*4];
         int start = 0;
         for (int i=0;i<charLen;i++) {
-            char c = value.charAt(i);
+            char c = value[i];
             if (c < 128) {
                 buf[start++] = (byte) c;
             } else if (c < 0x800) {
                 buf[start++] = (byte) ((0xF << 6) | (c >>> 6));
                 buf[start++] = (byte) (0x80 | (0x3F & c));
             } else if (Character.isHighSurrogate(c) && i+1<charLen
-                    && Character.isLowSurrogate(value.charAt(i+1))) {
-                int codePoint = Character.toCodePoint((char) c, (char) value.charAt(i+1));
+                    && Character.isLowSurrogate(value[i+1])) {
+                int codePoint = Character.toCodePoint((char) c, (char) value[i+1]);
                 buf[start++] = (byte) (0xF0 | ((codePoint >> 18) & 0x07));
                 buf[start++] = (byte) (0x80 | ((codePoint >> 12) & 0x3F));
                 buf[start++] = (byte) (0x80 | ((codePoint >>  6) & 0x3F));
@@ -785,6 +804,58 @@ public abstract class AbstractWriter implements ProtoBufWriter {
     protected void writeByteArray_0(final byte[] value, int offset, int length) {
         System.arraycopy(value, offset, bs, pos, length);
         pos += length;
+    }
+
+    protected int writeLenMoveBytes(byte[] bs, int p, int len) {
+        if ((len & ~0x7F) == 0) {
+            bs[p] = (byte) len;
+            return 0;
+        } else {
+            byte[] _bs = bs;
+            int value = len;
+            _bs[p++] = (byte) ((value & 0x7F) | 0x80);
+            value >>>= 7;
+            if ((value & ~0x7F) == 0) {
+                expand(1);
+                System.arraycopy(_bs, p, _bs, p+1, len);
+                _bs[p++] = (byte) len;
+                return 1;
+            } else {
+                byte b2 = (byte) ((value & 0x7F) | 0x80);
+                value >>>= 7;
+                if ((value & ~0x7F) == 0) {
+                    expand(2);
+                    System.arraycopy(_bs, p, _bs, p+2, len);
+                    _bs[p++] = b2;
+                    _bs[p++] = (byte) value;
+                    return 2;
+                } else {
+                    byte b3 = (byte) ((value & 0x7F) | 0x80);
+                    value >>>= 7;
+                    if ((value & ~0x7F) == 0) {
+                        expand(3);
+                        System.arraycopy(_bs, p, _bs, p+3, len);
+                        _bs[p++] = b2;
+                        _bs[p++] = b3;
+                        _bs[p++] = (byte) value;
+                        return 3;
+                    } else {
+                        byte b4 = (byte) ((value & 0x7F) | 0x80);
+                        value >>>= 7;
+                        if ((value & ~0x7F) == 0) {
+                            expand(4);
+                            System.arraycopy(_bs, p, _bs, p+4, len);
+                            _bs[p++] = b2;
+                            _bs[p++] = b3;
+                            _bs[p++] = b4;
+                            _bs[p++] = (byte) value;
+                            return 4;
+                        }
+                    }
+                }
+            }
+        }
+        return 0;
     }
 
     /**
@@ -930,5 +1001,22 @@ public abstract class AbstractWriter implements ProtoBufWriter {
 
     public void reset() {
         pos = 0;
+        wpos = 0;
+    }
+
+    @Override
+    public void setWPos(int wpos) {
+        this.wpos = 0;
+    }
+
+    /**
+     * 写入FastBuf的下标
+     */
+    private int wpos = 0;
+    @Override
+    public int toFastBuf(FastBuf buf) {
+        int len = buf.write(bs, wpos, pos);
+        wpos += len;
+        return len;
     }
 }

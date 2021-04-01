@@ -16,11 +16,95 @@
 
 package io.edap.util;
 
+import io.edap.log.Logger;
+import io.edap.log.LoggerManager;
+
+import java.lang.reflect.Field;
+import java.nio.charset.Charset;
+
 /**
  * 字符串常用的操作函数
  */
 public class StringUtil {
+
+    static Logger LOG = LoggerManager.getLogger(StringUtil.class);
+
+    /**
+     * String中value是否是byte[]
+     */
+    public static final boolean IS_BYTE_ARRAY;
+    /**
+     * String中value的Field用来反射String的Value值
+     */
+    public static final Field VALUE_FIELD;
+    /**
+     * String中coder的Field用来反射String的编码类型
+     */
+    public static final Field LATIN1_FIELD;
+    /**
+     * utf8编码的charset实例
+     */
+    public static final Charset UTF8_CHARSET = Charset.forName("utf-8");
+
+
+    static {
+        Field   valueField;
+        Field   coderField  = null;
+        boolean isByteArray = false;
+        try {
+            valueField = String.class.getDeclaredField("value");
+            valueField.setAccessible(true);
+
+            isByteArray  = valueField.get("a").getClass().getName().equals("[B");
+            if (isByteArray) {
+                coderField = String.class.getDeclaredField("coder");
+                coderField.setAccessible(true);
+            }
+        } catch (NoSuchFieldException | IllegalAccessException e) {
+            e.printStackTrace();
+            valueField = null;
+            coderField = null;
+        }
+
+        VALUE_FIELD   = valueField;
+        IS_BYTE_ARRAY = isByteArray;
+        LATIN1_FIELD  = coderField;
+    }
+
     private StringUtil() {}
+
+    /**
+     * jdk版本高于9时获取String中value的byte[]
+     * @param s
+     * @return
+     */
+    public static byte[] getValue(String s) {
+        if (s == null) {
+            return null;
+        }
+        if (IS_BYTE_ARRAY) {
+            try {
+                return (byte[])VALUE_FIELD.get(s);
+            } catch (IllegalAccessException e) {
+                LOG.warn("", e);
+            }
+        }
+        return s.getBytes(UTF8_CHARSET);
+    }
+
+    /**
+     * jdk版本高于jdk9时判断String是否是Latin1编码
+     * @param s
+     * @return
+     */
+    public static boolean isLatin1(String s) {
+        try {
+            return LATIN1_FIELD.getByte(s) == 0;
+        } catch (IllegalAccessException e) {
+            e.printStackTrace();
+        }
+        return false;
+    }
 
     /**
      * 判断字符串的对象是否为空，如果字符串时空指针或者字符串为空均为true

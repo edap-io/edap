@@ -28,13 +28,13 @@ import org.junit.jupiter.params.provider.ValueSource;
 import java.lang.reflect.Field;
 
 import static io.edap.protobuf.test.TestUtil.conver2HexStr;
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class TestOneInt64 {
 
     @ParameterizedTest
     @ValueSource(longs = {
+            0,
             1,
             128,
             -1,
@@ -61,6 +61,7 @@ public class TestOneInt64 {
 
     @ParameterizedTest
     @ValueSource(longs = {
+            0,
             1,
             128,
             -1,
@@ -79,13 +80,17 @@ public class TestOneInt64 {
 
         OneInt64 oneInt64 = ProtoBuf.toObject(pb, OneInt64.class);
 
-
-        assertEquals(pbOf.getValue(), oneInt64.getValue());
+        if (value == 0) {
+            assertNull(oneInt64.getValue());
+        } else {
+            assertEquals(pbOf.getValue(), oneInt64.getValue());
+        }
 
     }
 
     @ParameterizedTest
     @ValueSource(longs = {
+            0,
             1,
             128,
             -1,
@@ -112,6 +117,7 @@ public class TestOneInt64 {
 
     @ParameterizedTest
     @ValueSource(longs = {
+            0,
             1,
             128,
             -1,
@@ -137,6 +143,7 @@ public class TestOneInt64 {
 
     @ParameterizedTest
     @ValueSource(longs = {
+            0,
             1,
             128,
             -1,
@@ -167,6 +174,7 @@ public class TestOneInt64 {
 
     @ParameterizedTest
     @ValueSource(longs = {
+            0,
             1,
             128,
             -1,
@@ -197,6 +205,7 @@ public class TestOneInt64 {
 
     @ParameterizedTest
     @ValueSource(longs = {
+            0,
             1,
             128,
             -1,
@@ -217,12 +226,17 @@ public class TestOneInt64 {
         Field fieldF = ClazzUtil.getDeclaredField(OneInt64NoAccess.class, "value");
         fieldF.setAccessible(true);
 
-        assertEquals(pbOf.getValue(), (Long)fieldF.get(oneInt64));
+        if (value == 0) {
+            assertNull(fieldF.get(oneInt64));
+        } else {
+            assertEquals(pbOf.getValue(), (Long) fieldF.get(oneInt64));
+        }
 
     }
 
     @ParameterizedTest
     @ValueSource(longs = {
+            0,
             1,
             128,
             -1,

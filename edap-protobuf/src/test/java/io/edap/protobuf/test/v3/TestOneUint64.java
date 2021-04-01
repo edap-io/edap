@@ -28,13 +28,13 @@ import org.junit.jupiter.params.provider.ValueSource;
 import java.lang.reflect.Field;
 
 import static io.edap.protobuf.test.TestUtil.conver2HexStr;
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class TestOneUint64 {
 
     @ParameterizedTest
     @ValueSource(longs = {
+            0,
             1,
             128,
             2147483648L
@@ -59,6 +59,7 @@ public class TestOneUint64 {
 
     @ParameterizedTest
     @ValueSource(longs = {
+            0,
             1,
             128,
             2147483648L
@@ -75,13 +76,17 @@ public class TestOneUint64 {
 
         OneUint64 oneUint64 = ProtoBuf.toObject(pb, OneUint64.class);
 
-
-        assertEquals(pbOf.getValue(), oneUint64.getValue());
+        if (value == 0) {
+            assertNull(oneUint64.getValue());
+        } else {
+            assertEquals(pbOf.getValue(), oneUint64.getValue());
+        }
 
     }
 
     @ParameterizedTest
     @ValueSource(longs = {
+            0,
             1,
             128,
             2147483648L
@@ -106,6 +111,7 @@ public class TestOneUint64 {
 
     @ParameterizedTest
     @ValueSource(longs = {
+            0,
             1,
             128,
             2147483648L
@@ -129,6 +135,7 @@ public class TestOneUint64 {
 
     @ParameterizedTest
     @ValueSource(longs = {
+            0,
             1,
             128,
             2147483648L
@@ -157,6 +164,7 @@ public class TestOneUint64 {
 
     @ParameterizedTest
     @ValueSource(longs = {
+            0,
             1,
             128,
             2147483648L
@@ -179,12 +187,12 @@ public class TestOneUint64 {
         fieldF.set(oneUint64, value);
         byte[] epb = ProtoBuf.toByteArray(oneUint64);
 
-
         assertArrayEquals(pb, epb);
     }
 
     @ParameterizedTest
     @ValueSource(longs = {
+            0,
             1,
             128,
             2147483648L
@@ -203,12 +211,17 @@ public class TestOneUint64 {
         Field fieldF = ClazzUtil.getDeclaredField(OneUint64NoAccess.class, "value");
         fieldF.setAccessible(true);
 
-        assertEquals(pbOf.getValue(), (Long)fieldF.get(oneUint64));
+        if (value == 0) {
+            assertNull(fieldF.get(oneUint64));
+        } else {
+            assertEquals(pbOf.getValue(), (Long) fieldF.get(oneUint64));
+        }
 
     }
 
     @ParameterizedTest
     @ValueSource(longs = {
+            0,
             1,
             128,
             2147483648L

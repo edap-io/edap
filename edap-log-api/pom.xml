@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  ~ Copyright 2020 The edap Project
+  ~ Copyright 2021 The edap Project
   ~
   ~ The Netty Project licenses this file to you under the Apache License,
   ~ version 2.0 (the "License"); you may not use this file except in compliance
@@ -25,16 +25,11 @@
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
-    <artifactId>edap-common</artifactId>
+    <artifactId>edap-log-api</artifactId>
 
-    <dependencies>
-        <dependency>
-            <groupId>io.edap</groupId>
-            <artifactId>edap-log-api</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.ow2.asm</groupId>
-            <artifactId>asm-all</artifactId>
-        </dependency>
-    </dependencies>
+    <properties>
+        <maven.compiler.source>8</maven.compiler.source>
+        <maven.compiler.target>8</maven.compiler.target>
+    </properties>
+
 </project>
