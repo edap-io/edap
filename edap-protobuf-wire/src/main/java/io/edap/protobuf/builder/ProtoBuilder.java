@@ -333,7 +333,7 @@ public abstract class ProtoBuilder {
             level = depth;
         }
         CodeBuilder cb = new CodeBuilder();
-        cb.t(depth-1).e("enum $name$ {").ln();
+        cb.t(depth-1).e("enum $name$ {").arg(protoEnum.getName()).ln();
         List<ProtoEnum.EnumEntry> entries = protoEnum.getEntries();
         if (entries != null && !entries.isEmpty()) {
             Optional<ProtoEnum.EnumEntry> maxName = entries.stream()
