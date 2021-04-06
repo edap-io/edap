@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 The edap Project
+ * Copyright 2021 The edap Project
  *
  * The Netty Project licenses this file to you under the Apache License,
  * version 2.0 (the "License"); you may not use this file except in compliance
@@ -14,22 +14,16 @@
  * under the License.
  */
 
-package io.edap.buffer;
+package io.edap.log;
 
-import io.edap.util.UnsafeUtil;
+public class LogLevel {
+    public static final int OFF   = 0x700;   // highest conceivable level, used to turn off logging
+    public static final int ERROR = 0x600;
+    public static final int WARN  = 0x500;
+    public static final int INFO  = 0x400;
+    public static final int CONF  = 0x300;
+    public static final int DEBUG = 0x200;
+    public static final int TRACE = 0x100;
 
-public class FastBuf {
-
-    private long endAddress;
-    private long writePos;
-
-    public int write(byte[] bs, int offset, int len) {
-        int remain = (int)(endAddress - writePos);
-        if (len > remain) {
-            len = remain;
-        }
-        UnsafeUtil.copyMemory(bs, offset, writePos, len);
-        writePos += len;
-        return len;
-    }
+    private LogLevel() {}
 }

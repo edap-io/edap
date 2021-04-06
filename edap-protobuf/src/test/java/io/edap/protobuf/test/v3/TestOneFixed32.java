@@ -28,12 +28,12 @@ import org.junit.jupiter.params.provider.ValueSource;
 import java.lang.reflect.Field;
 
 import static io.edap.protobuf.test.TestUtil.conver2HexStr;
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class TestOneFixed32 {
     @ParameterizedTest
     @ValueSource(ints = {
+            0,
             1,
             128,
             -1,
@@ -59,6 +59,7 @@ public class TestOneFixed32 {
 
     @ParameterizedTest
     @ValueSource(ints = {
+            0,
             1,
             128,
             -1,
@@ -76,13 +77,17 @@ public class TestOneFixed32 {
 
         OneFixed32 oneFixed32 = ProtoBuf.toObject(pb, OneFixed32.class);
 
-
-        assertEquals(pbOf.getValue(), oneFixed32.getValue());
+        if (value == 0) {
+            assertNull(oneFixed32.getValue());
+        } else {
+            assertEquals(pbOf.getValue(), oneFixed32.getValue());
+        }
 
     }
 
     @ParameterizedTest
     @ValueSource(ints = {
+            0,
             1,
             128,
             -1,
@@ -108,6 +113,7 @@ public class TestOneFixed32 {
 
     @ParameterizedTest
     @ValueSource(ints = {
+            0,
             1,
             128,
             -1,
@@ -132,6 +138,7 @@ public class TestOneFixed32 {
 
     @ParameterizedTest
     @ValueSource(ints = {
+            0,
             1,
             128,
             -1,
@@ -161,6 +168,7 @@ public class TestOneFixed32 {
 
     @ParameterizedTest
     @ValueSource(ints = {
+            0,
             1,
             128,
             -1,
@@ -190,6 +198,7 @@ public class TestOneFixed32 {
 
     @ParameterizedTest
     @ValueSource(ints = {
+            0,
             1,
             128,
             -1,
@@ -209,12 +218,17 @@ public class TestOneFixed32 {
         Field fieldF = ClazzUtil.getDeclaredField(OneFixed32NoAccess.class, "value");
         fieldF.setAccessible(true);
 
-        assertEquals(pbOf.getValue(), (Integer)fieldF.get(oneFixed32));
+        if (value == 0) {
+            assertNull(fieldF.get(oneFixed32));
+        } else {
+            assertEquals(pbOf.getValue(), (Integer) fieldF.get(oneFixed32));
+        }
 
     }
 
     @ParameterizedTest
     @ValueSource(ints = {
+            0,
             1,
             128,
             -1,

@@ -39,6 +39,7 @@
         <module>edap-protobuf-wire</module>
         <module>edap-protobuf</module>
         <module>edap-common</module>
+        <module>edap-log-api</module>
 
     </modules>
 
@@ -48,6 +49,11 @@
             <dependency>
                 <groupId>io.edap</groupId>
                 <artifactId>edap-common</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.edap</groupId>
+                <artifactId>edap-log-api</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>

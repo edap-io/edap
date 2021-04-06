@@ -28,13 +28,13 @@ import org.junit.jupiter.params.provider.ValueSource;
 import java.lang.reflect.Field;
 
 import static io.edap.protobuf.test.TestUtil.conver2HexStr;
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class TestOneSint32 {
 
     @ParameterizedTest
     @ValueSource(ints = {
+            0,
             1,
             128,
             -1,
@@ -60,6 +60,7 @@ public class TestOneSint32 {
 
     @ParameterizedTest
     @ValueSource(ints = {
+            0,
             1,
             128,
             -1,
@@ -77,13 +78,17 @@ public class TestOneSint32 {
 
         OneSint32 oneSint32 = ProtoBuf.toObject(pb, OneSint32.class);
 
-
-        assertEquals(pbOf.getValue(), oneSint32.getValue());
+        if (value == 0) {
+            assertNull(oneSint32.getValue());
+        } else {
+            assertEquals(pbOf.getValue(), oneSint32.getValue());
+        }
 
     }
 
     @ParameterizedTest
     @ValueSource(ints = {
+            0,
             1,
             128,
             -1,
@@ -109,6 +114,7 @@ public class TestOneSint32 {
 
     @ParameterizedTest
     @ValueSource(ints = {
+            0,
             1,
             128,
             -1,
@@ -133,6 +139,7 @@ public class TestOneSint32 {
 
     @ParameterizedTest
     @ValueSource(ints = {
+            0,
             1,
             128,
             -1,
@@ -162,6 +169,7 @@ public class TestOneSint32 {
 
     @ParameterizedTest
     @ValueSource(ints = {
+            0,
             1,
             128,
             -1,
@@ -191,6 +199,7 @@ public class TestOneSint32 {
 
     @ParameterizedTest
     @ValueSource(ints = {
+            0,
             1,
             128,
             -1,
@@ -210,12 +219,17 @@ public class TestOneSint32 {
         Field fieldF = ClazzUtil.getDeclaredField(OneSint32NoAccess.class, "value");
         fieldF.setAccessible(true);
 
-        assertEquals(pbOf.getValue(), (Integer)fieldF.get(oneSint32));
+        if (value == 0) {
+            assertNull(fieldF.get(oneSint32));
+        } else {
+            assertEquals(pbOf.getValue(), (Integer) fieldF.get(oneSint32));
+        }
 
     }
 
     @ParameterizedTest
     @ValueSource(ints = {
+            0,
             1,
             128,
             -1,

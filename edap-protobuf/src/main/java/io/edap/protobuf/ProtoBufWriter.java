@@ -17,6 +17,7 @@
 package io.edap.protobuf;
 
 import io.edap.io.BufOut;
+import io.edap.io.BufWriter;
 import io.edap.protobuf.wire.Field.Type;
 
 import java.util.List;
@@ -24,7 +25,7 @@ import java.util.List;
 /**
  * Protocol buffer协议的序列化writer接口负责按协议写入数据
  */
-public interface ProtoBufWriter {
+public interface ProtoBufWriter extends BufWriter {
 
     /**
      * 写入顺序，由于protobuf协议有些定长的数据写入前可能不知道长度，所以采用序的方式写入可以方便的计算长度

@@ -38,6 +38,7 @@ public class TestOneString {
 
     @ParameterizedTest
     @ValueSource(strings = {
+            "",
             "a",
             "abcdefgh",
             "中文内容"
@@ -81,6 +82,7 @@ public class TestOneString {
 
     @ParameterizedTest
     @ValueSource(strings = {
+            "",
             "a",
             "abcdefgh",
             "中文内容"
@@ -104,6 +106,7 @@ public class TestOneString {
 
     @ParameterizedTest
     @ValueSource(strings = {
+            "",
             "a",
             "abcdefgh",
             "中文内容"
@@ -132,6 +135,7 @@ public class TestOneString {
 
     @ParameterizedTest
     @ValueSource(strings = {
+            "",
             "a",
             "abcdefgh",
             "中文内容"
