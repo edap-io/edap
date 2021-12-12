@@ -45,7 +45,9 @@ public interface ProtoBufWriter extends BufWriter {
 
     void reset();
 
-    int getPos();
+    void setPos(int pos);
+
+    void expand(int minLength);
 
     /**
      * 获取数据的写入方式
@@ -117,6 +119,7 @@ public interface ProtoBufWriter extends BufWriter {
 
     void writeInt32(int value);
     void writeInt32(int value, boolean needEncodeZero);
+    void writeSInt32(int value, boolean needEncoeZero);
     void writeUInt32(int value);
     void writeFixed32(int value);
     void writeFixed64(long value);

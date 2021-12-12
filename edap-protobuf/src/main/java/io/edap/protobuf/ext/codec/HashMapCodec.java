@@ -53,7 +53,7 @@ public class HashMapCodec implements ExtCodec<HashMap<Object, Object>> {
         } else {
             len = size.intValue();
         }
-        map = new HashMap(size);
+        map = new HashMap(len);
         for (int i=0;i<len;i++) {
             //reader.readInt32();
             Object key = reader.readObject();

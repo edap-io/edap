@@ -17,18 +17,26 @@
 package io.edap.protobuf.util;
 
 import io.edap.protobuf.ProtoBuf.ProtoFieldInfo;
+import io.edap.protobuf.ProtoBufCodecRegister;
+import io.edap.protobuf.ProtoPersister;
 import io.edap.protobuf.annotation.ProtoField;
+import io.edap.protobuf.builder.ProtoV2Builder;
+import io.edap.protobuf.builder.ProtoV3Builder;
 import io.edap.protobuf.internal.PbField;
+import io.edap.protobuf.wire.*;
 import io.edap.protobuf.wire.Field.Cardinality;
 import io.edap.protobuf.wire.Field.Type;
-import io.edap.protobuf.wire.Syntax;
-import io.edap.protobuf.wire.WireFormat;
-import io.edap.protobuf.wire.WireType;
+import io.edap.protobuf.wire.exceptions.ProtoParseException;
+import io.edap.protobuf.wire.parser.ProtoParser;
 import io.edap.util.AsmUtil;
+import io.edap.util.CollectionUtils;
+import io.edap.util.StringUtil;
 import org.objectweb.asm.MethodVisitor;
 
+import java.io.IOException;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.*;
+import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -36,6 +44,7 @@ import java.util.Map;
 
 import static io.edap.util.AsmUtil.*;
 import static io.edap.util.ClazzUtil.*;
+import static java.lang.reflect.Modifier.isPublic;
 
 public class ProtoUtil {
 
@@ -55,7 +64,7 @@ public class ProtoUtil {
         return pfi.protoField.type().packable();
     }
 
-    public static List<ProtoFieldInfo> getProtoFields(Class pojoClass) {
+    public static List<ProtoFieldInfo> getProtoFields(Class pojoClass) throws IOException {
         List<ProtoFieldInfo> profields = new ArrayList<>();
         List<Field> fields = getClassFields(pojoClass);
         List<Method> methods = getClassMethods(pojoClass);
@@ -86,7 +95,7 @@ public class ProtoUtil {
             }
         }
         if (!hasProtoAnn) {
-            generateProtoField(profields);
+            generateProtoField(pojoClass, profields);
         }
 
         return profields;
@@ -193,15 +202,234 @@ public class ProtoUtil {
         return bs;
     }
 
-    private static void generateProtoField(List<ProtoFieldInfo> profields) {
+    private static void generateProtoField(Class pojoClass, List<ProtoFieldInfo> profields) throws IOException {
+        // 如果有proto文件持久化器，则查询是否有该class的持久化proto文件，如果有则进行相应的兼容处理
+        Proto proto = null;
+        ProtoPersister protoPersister = ProtoBufCodecRegister.INSTANCE.getProtoPersister();
+        if (protoPersister != null) {
+            String protoData = protoPersister.getProto(pojoClass.getName());
+            if (!StringUtil.isEmpty(protoData)) {
+                try {
+                    proto = new ProtoParser(protoData).parse();
+                } catch (ProtoParseException e) {
+
+                }
+            }
+        }
+
+        Map<String, io.edap.protobuf.wire.Field> protoFields = new HashMap<>();
+        if (proto != null) {
+            List<Message> msgs = proto.getMessages();
+            Message msg = null;
+            if (CollectionUtils.isEmpty(msgs)) {
+                for (Message m : msgs) {
+                    if (m.getName().equals(pojoClass.getSimpleName())) {
+                        msg = m;
+                        break;
+                    }
+                }
+            }
+            if (msg != null && !CollectionUtils.isEmpty(msg.getFields())) {
+                msg.getFields().forEach(f -> protoFields.put(f.getName(), f));
+            }
+        }
         List<String> fieldNames = new ArrayList<>();
         profields.forEach(e -> fieldNames.add(e.field.getName()));
+        int maxTag = 0;
+        if (!CollectionUtils.isEmpty(protoFields)) {
+            for (int i=0;i<profields.size();i++) {
+                ProtoFieldInfo pfi = profields.get(i);
+                io.edap.protobuf.wire.Field field = protoFields.get(pfi.field.getName());
+                if (field != null) {
+                    if (maxTag < field.getTag()) {
+                        maxTag = field.getTag();
+                    }
+                    pfi.protoField = buildProtoFieldAnnotation(field);
+                }
+            }
+        }
+        maxTag++;
+        int old = maxTag;
         for (int i=0;i<profields.size();i++) {
             ProtoFieldInfo pfi = profields.get(i);
-            int tag = i + 1;
-            ProtoField pf = buildProtoFieldAnnotation(tag, pfi.field);
+            if (pfi.protoField != null) {
+                continue;
+            }
+            ProtoField pf = buildProtoFieldAnnotation(maxTag++, pfi.field);
             pfi.protoField = pf;
         }
+        if (protoPersister != null && old != maxTag) {
+            Proto nproto = buildProto(pojoClass, profields);
+            if (nproto.getSyntax() == Syntax.PROTO_3) {
+                ProtoV3Builder builder = new ProtoV3Builder(nproto);
+                protoPersister.persist(pojoClass.getName(), builder.toProtoString());
+            } else if (nproto.getSyntax() == Syntax.PROTO_2) {
+                ProtoV2Builder builder = new ProtoV2Builder(nproto);
+                protoPersister.persist(pojoClass.getName(), builder.toProtoString());
+            }
+        }
+    }
+
+    private static ProtoField buildProtoFieldAnnotation(io.edap.protobuf.wire.Field field) {
+        ProtoField pf = new ProtoField() {
+            @Override
+            public Cardinality cardinality() {
+                return field.getCardinality();
+            }
+
+            @Override
+            public int tag() {
+                return field.getTag();
+            }
+
+            @Override
+            public Type type() {
+                return Type.valueOf(field.getType());
+            }
+
+            @Override
+            public String[] options() {
+                List<Option> options = field.getOptions();
+                if (CollectionUtils.isEmpty(options)) {
+                    return null;
+                }
+                String[] ops = new String[options.size()];
+                Option o;
+                for (int i=0;i<options.size();i++) {
+                    o = options.get(i);
+                    ops[i] = o.getName() + "=" + o.getValue();
+                }
+                return ops;
+            }
+
+            @Override
+            public String comment() {
+                return "";
+            }
+
+            @Override
+            public Class<? extends Annotation> annotationType() {
+                return null;
+            }
+        };
+        return pf;
+    }
+
+    private static Proto buildProto(Class pojoClass, List<ProtoFieldInfo> profields) throws IOException {
+        Proto proto = new Proto();
+        proto.setSyntax(Syntax.PROTO_3);
+        proto.setProtoPackage(pojoClass.getPackage().getName());
+
+        List<Message> msgs = new ArrayList<>();
+        Message msg = new Message();
+        msg.setName(pojoClass.getSimpleName());
+        if (!CollectionUtils.isEmpty(profields)) {
+            for (ProtoFieldInfo pfi : profields) {
+                io.edap.protobuf.wire.Field f = new io.edap.protobuf.wire.Field();
+                f.setName(pfi.field.getName());
+                f.setCardinality(pfi.protoField.cardinality());
+                f.setTag(pfi.protoField.tag());
+                if (!CollectionUtils.isEmpty(pfi.protoField.options())) {
+                    List<Option> options = new ArrayList<>();
+                    for (String ovalue : pfi.protoField.options()) {
+                        int index = ovalue.indexOf("=");
+                        if (index == -1) {
+                            Option option = new Option();
+                            option.setName(ovalue);
+                            option.setValue(ovalue);
+                            options.add(option);
+                        } else {
+                            Option option = new Option();
+                            option.setName(ovalue.substring(0, index));
+                            option.setValue(ovalue.substring(index + 1));
+                            options.add(option);
+                        }
+                    }
+                    f.setOptions(options);
+                }
+                String type = pfi.protoField.type().value();
+                if (pfi.protoField.type() == Type.ENUM) {
+                    type = pfi.field.getType().getSimpleName();
+                    proto.addImport(toInternalName(pfi.field.getType().getName()) + ".proto");
+                    ProtoEnum protoEnum = getEnumProto(pfi.field.getType());
+                } else if (pfi.protoField.type() == Type.MESSAGE) {
+                    proto.addImport(toInternalName(pfi.field.getType().getName()) + ".proto");
+                    type = pfi.field.getType().getSimpleName();
+                }
+                f.setType(type);
+                msg.addField(f);
+            }
+        }
+        msgs.add(msg);
+        proto.setMessages(msgs);
+        return proto;
+    }
+
+    public static ProtoEnum getEnumProto(Class javaEnum) throws IOException {
+        ProtoEnum protoEnum = new ProtoEnum();
+        protoEnum.setName(javaEnum.getSimpleName());
+        Object[] values = javaEnum.getEnumConstants();
+        List<ProtoEnum.EnumEntry> entries = new ArrayList<>();
+        Method[] eMethods = javaEnum.getDeclaredMethods();
+        Method valueMethod = null;
+        List<String> valueNames = new ArrayList<>();
+        valueNames.add("getNumber");
+        valueNames.add("getValue");
+        Map<String, Method> vMethods = new HashMap<>();
+        for (Method m : eMethods) {
+            if (isPublic(m.getModifiers()) && m.getParameterCount() == 0 && "int".equals(m.getReturnType().getName())) {
+                vMethods.put(m.getName(), m);
+            }
+        }
+        for (String name : valueNames) {
+            if (vMethods.containsKey(name)) {
+                valueMethod = vMethods.get(name);
+                break;
+            }
+        }
+        if (valueMethod == null && !CollectionUtils.isEmpty(vMethods)) {
+            for (Method m : vMethods.values()) {
+                valueMethod = m;
+            }
+        }
+
+        Object[] params = new Object[0];
+        for (int i=0;i<values.length;i++) {
+            Object v = values[i];
+            System.out.println("v=" + v);
+            ProtoEnum.EnumEntry entry = new ProtoEnum.EnumEntry();
+            entry.setLabel(v.toString());
+            int value = i;
+            if (valueMethod != null) {
+                try {
+                    value = (int)valueMethod.invoke(v, params);
+                } catch (IllegalAccessException e) {
+                    e.printStackTrace();
+                } catch (InvocationTargetException e) {
+                    e.printStackTrace();
+                }
+            }
+            entry.setValue(value);
+            entries.add(entry);
+        }
+        protoEnum.setEntries(entries);
+
+        ProtoPersister persister = ProtoBufCodecRegister.INSTANCE.getProtoPersister();
+        if (persister != null) {
+            Proto eproto = new Proto();
+            eproto.setSyntax(Syntax.PROTO_3);
+            eproto.setProtoPackage(javaEnum.getPackage().getName());
+            eproto.addEnum(protoEnum);
+
+            if (eproto.getSyntax() == Syntax.PROTO_3) {
+                ProtoV3Builder builder = new ProtoV3Builder(eproto);
+                persister.persist(javaEnum.getName(), builder.toProtoString());
+            } else if (eproto.getSyntax() == Syntax.PROTO_2) {
+                ProtoV2Builder builder = new ProtoV2Builder(eproto);
+                persister.persist(javaEnum.getName(), builder.toProtoString());
+            }
+        }
+        return protoEnum;
     }
 
     private static ProtoField buildProtoFieldAnnotation(final int tag, final Field field) {
@@ -268,7 +496,7 @@ public class ProtoUtil {
         if (AsmUtil.isMap(javaType)) {
             return Type.MAP;
         }
-        if (isPojo(javaType)) {
+        if (AsmUtil.isPojo(javaType)) {
             return Type.MESSAGE;
         }
         if (AsmUtil.isArray(javaType)) {
@@ -279,12 +507,28 @@ public class ProtoUtil {
                 ParameterizedType pType = (ParameterizedType)javaType;
                 java.lang.reflect.Type[] types = pType.getActualTypeArguments();
                 if (types != null && types.length > 0) {
-                    return javaToProtoType((Class)types[0]);
+                    java.lang.reflect.Type itemType = types[0];
+                    if (itemType instanceof TypeVariable) {
+                        return Type.OBJECT;
+                    } else if (itemType instanceof Class) {
+                        return javaToProtoType((Class)types[0]);
+                    }
                 }
             }
         }
         if (javaType instanceof ParameterizedType) {
             return type;
+        }
+        if (javaType instanceof GenericArrayType) {
+            GenericArrayType gat = (GenericArrayType)javaType;
+            if (gat.getGenericComponentType() instanceof ParameterizedType) {
+                ParameterizedType pType = (ParameterizedType)gat.getGenericComponentType();
+                java.lang.reflect.Type[] types = pType.getActualTypeArguments();
+                if (pType.getRawType() instanceof Class) {
+                    Class cls = (Class)pType.getRawType();
+                    return javaToProtoType(cls);
+                }
+            }
         }
         return javaToProtoType((Class)javaType);
     }
@@ -324,17 +568,6 @@ public class ProtoUtil {
             }
         };
         return pf;
-    }
-
-    public static void moveForwardBytes(byte[] bs, int pos, int len, int movePos) {
-        if (len < 5) {
-            int p = pos - movePos;
-            for (int i=0;i<len;i++) {
-                bs[p++] = bs[pos++];
-            }
-        } else {
-            System.arraycopy(bs, pos, bs, pos - movePos, len);
-        }
     }
 
     private static boolean needEncode(Field field) {

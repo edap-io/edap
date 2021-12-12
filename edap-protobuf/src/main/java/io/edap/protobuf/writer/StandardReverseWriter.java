@@ -117,6 +117,10 @@ public class StandardReverseWriter extends AbstractWriter {
      */
     @Override
     protected void writeUInt32_0(int value) {
+        if (value < 0) {
+            writeUInt64_0(value);
+            return;
+        }
         /**/
         byte[] _bs = this.bs;
         int p = pos;
@@ -892,7 +896,7 @@ public class StandardReverseWriter extends AbstractWriter {
     @Override
     public void writeString(final String value) {
         if (value == null) {
-            expand(1);
+            expand(10);
             writeUInt32_0(-1);
             return;
         }
@@ -903,10 +907,11 @@ public class StandardReverseWriter extends AbstractWriter {
             return;
         }
 
-        int oldPos = pos;
+
         //int start = charLen;
         /**/
         expand(charLen * 3 + MAX_VARINT_SIZE);
+        int oldPos = pos;
         int p = pos;
         byte[] bs = this.bs;
         int i = charLen - 1;
@@ -942,6 +947,7 @@ public class StandardReverseWriter extends AbstractWriter {
             }
         }
         pos = p;
+
         writeUInt32_0(oldPos - p);
     }
 
@@ -1064,5 +1070,13 @@ public class StandardReverseWriter extends AbstractWriter {
     @Override
     public void reset() {
         pos = wbuf.len;
+    }
+
+    @Override
+    public byte[] toByteArray() {
+        int len = bs.length - pos;
+        byte[] data = new byte[len];
+        System.arraycopy(bs, pos, data, 0, len);
+        return data;
     }
 }

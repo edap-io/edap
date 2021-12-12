@@ -24,6 +24,7 @@ import io.edap.protobuf.ProtoBufException;
 import io.edap.protobuf.ProtoBufWriter;
 import io.edap.protobuf.ProtoBufWriter.WriteOrder;
 import io.edap.protobuf.test.message.ext.FieldObject;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
@@ -39,8 +40,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.*;
 
 import static io.edap.protobuf.test.TestUtil.conver2HexStr;
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * 属性为Object的单元测试
@@ -55,7 +55,8 @@ public class TestFieldObject {
             "a😁文c",
             "😁a文c",
             "a文c😁",
-            "a😿文c😁"
+            "a😿文c😁",
+            "abcdefgh，中文内容，a😁文c，a文c😁，abcdefgh，中文内容，a😁文c，a文c😁"
     })
     void testStringCodec(String value) throws EncodeException, ProtoBufException {
         FieldObject fo = new FieldObject();
@@ -822,7 +823,11 @@ public class TestFieldObject {
 
     @ParameterizedTest
     @ValueSource(strings = {
-            "byte",
+            "{\"name\":\"louis\"}",
+            "{\"name1\":\"louis\",\"name2\":\"louis\",\"name3\":\"louis\",\"name4\":\"louis\","
+                    + "\"name5\":\"louis\",\"name6\":\"louis\",\"name7\":\"louis\",\"name8\":\"louis\","
+                    + "\"name9\":\"louis\",\"name10\":\"louis\",\"name11\":\"louis\",\"name12\":\"louis\","
+                    + "\"name13\":\"louis\",\"name14\":\"louis\",\"name15\":\"louis\",\"name16\":\"louis\"}"
     })
     void testMapCodec(String value) throws EncodeException, ProtoBufException {
 
@@ -870,6 +875,19 @@ public class TestFieldObject {
         ilist.add(3);
         ilist.add(128);
         ilist.add(-1);
+        ilist.add(-2);
+        ilist.add(-3);
+        ilist.add(-4);
+        ilist.add(-5);
+        ilist.add(-6);
+        ilist.add(-7);
+        ilist.add(128);
+        ilist.add(129);
+        ilist.add(130);
+        ilist.add(131);
+        ilist.add(132);
+        ilist.add(133);
+        ilist.add(134);
 
         fo = new FieldObject();
         fo.setObj(ilist);
@@ -882,5 +900,76 @@ public class TestFieldObject {
         nfo = ProtoBuf.toObject(epb, FieldObject.class);
         System.out.println(JSON.toJSONString(nfo.getObj()));
         assertEquals(nfo.getObj(), ilist);
+
+        fo = new FieldObject();
+        fo.setObj(ilist);
+        epb = ProtoBuf.toByteArray(fo);
+        System.out.println(conver2HexStr(epb));
+
+        epb = ProtoBuf.toByteArray(fo, ProtoBufWriter.WriteOrder.REVERSE);
+        System.out.println(conver2HexStr(epb));
+
+        nfo = ProtoBuf.toObject(epb, FieldObject.class);
+        System.out.println(JSON.toJSONString(nfo.getObj()));
+        assertEquals(nfo.getObj(), ilist);
+    }
+
+    @Test
+    void testEncodecNull() throws EncodeException, ProtoBufException {
+        byte[] data = new byte[]{109};
+        byte[] edata = ProtoBuf.ser(null);
+        System.out.println("data");
+        System.out.println(conver2HexStr(data));
+        System.out.println("edata");
+        System.out.println(conver2HexStr(edata));
+        assertArrayEquals(data, edata);
+
+        Object v = ProtoBuf.der(edata);
+        System.out.println("decode value = " + v);
+        assertNull(v);
+    }
+
+    @Test
+    void testObjectListCodec() {
+        Object[] objs = new Object[]{1, 1.0, "123"};
+
+        FieldObject fo = new FieldObject();
+        fo.setObj(objs);
+        byte[] epb = ProtoBuf.toByteArray(fo);
+        System.out.println(conver2HexStr(epb));
+
+        epb = ProtoBuf.toByteArray(fo, ProtoBufWriter.WriteOrder.REVERSE);
+        System.out.println(conver2HexStr(epb));
+
+        FieldObject nfo = ProtoBuf.toObject(epb, FieldObject.class);
+        System.out.println(JSON.toJSONString(nfo.getObj()));
+        assertArrayEquals((Object[])nfo.getObj(), objs);
+
+        epb = ProtoBuf.toByteArray(fo, ProtoBufWriter.WriteOrder.SEQUENTIAL);
+        System.out.println(conver2HexStr(epb));
+
+        nfo = ProtoBuf.toObject(epb, FieldObject.class);
+        System.out.println(JSON.toJSONString(nfo.getObj()));
+        assertArrayEquals((Object[])nfo.getObj(), objs);
+
+        objs = new Object[0];
+
+        fo.setObj(objs);
+        epb = ProtoBuf.toByteArray(fo);
+        System.out.println(conver2HexStr(epb));
+
+        epb = ProtoBuf.toByteArray(fo, ProtoBufWriter.WriteOrder.REVERSE);
+        System.out.println(conver2HexStr(epb));
+
+        nfo = ProtoBuf.toObject(epb, FieldObject.class);
+        System.out.println(JSON.toJSONString(nfo.getObj()));
+        assertArrayEquals((Object[])nfo.getObj(), objs);
+
+        epb = ProtoBuf.toByteArray(fo, ProtoBufWriter.WriteOrder.SEQUENTIAL);
+        System.out.println(conver2HexStr(epb));
+
+        nfo = ProtoBuf.toObject(epb, FieldObject.class);
+        System.out.println(JSON.toJSONString(nfo.getObj()));
+        assertArrayEquals((Object[])nfo.getObj(), objs);
     }
 }

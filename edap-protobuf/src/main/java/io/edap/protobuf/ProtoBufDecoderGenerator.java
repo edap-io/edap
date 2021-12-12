@@ -22,16 +22,15 @@ import io.edap.protobuf.ProtoBuf.ProtoFieldInfo;
 import io.edap.protobuf.util.ProtoUtil;
 import io.edap.protobuf.wire.Field;
 import io.edap.protobuf.wire.Field.Type;
-import io.edap.util.AsmUtil;
-import io.edap.util.ClazzUtil;
-import io.edap.util.CollectionUtils;
-import io.edap.util.StringUtil;
+import io.edap.util.*;
 import org.objectweb.asm.*;
 
+import java.io.IOException;
 import java.lang.reflect.ParameterizedType;
 import java.util.*;
 
 import static io.edap.protobuf.ProtoBufEncoderGenerator.CLAZZ_UTIL_NAME;
+import static io.edap.protobuf.util.ProtoAsmUtil.visitGetFieldValue;
 import static io.edap.protobuf.util.ProtoUtil.*;
 import static io.edap.util.AsmUtil.*;
 import static io.edap.util.ClazzUtil.getDescriptor;
@@ -60,6 +59,7 @@ public class ProtoBufDecoderGenerator {
     private final List<ProtoBuf.ProtoFieldInfo> arrayFields = new ArrayList<>();
     private final List<ProtoBuf.ProtoFieldInfo> listFields = new ArrayList<>();
     private final List<ProtoBuf.ProtoFieldInfo> mapFields = new ArrayList<>();
+    private final List<ProtoBuf.ProtoFieldInfo> stringFields = new ArrayList<>();
 
     private final List<String> listMethods = new ArrayList<>();
     private final List<String> arrayMethods = new ArrayList<>();
@@ -70,7 +70,7 @@ public class ProtoBufDecoderGenerator {
         this.encodeType = encodeType;
     }
 
-    public GeneratorClassInfo getClassInfo() {
+    public GeneratorClassInfo getClassInfo() throws IOException {
         GeneratorClassInfo gci = new GeneratorClassInfo();
         inners = new ArrayList<>();
         pojoName = toInternalName(pojoCls.getName());
@@ -88,6 +88,9 @@ public class ProtoBufDecoderGenerator {
         List<ProtoFieldInfo> fields = ProtoUtil.getProtoFields(pojoCls);
         List<java.lang.reflect.Type> pojoTypes = new ArrayList<>();
         for (ProtoFieldInfo pfi : fields) {
+            if (pfi.field.getType().getName().equals("java.lang.String")) {
+                stringFields.add(pfi);
+            }
             if (isPojo(pfi.field.getGenericType())
                     && !pojoTypes.contains(pfi.field.getGenericType())) {
                 pojoTypes.add(pfi.field.getGenericType());
@@ -520,51 +523,29 @@ public class ProtoBufDecoderGenerator {
                     mv.visitInsn(POP);
                 }
             } else {
-//                boolean isListField = isListField(pfi.field.getGenericType());
-//                if (isListField) {
-//                    ParameterizedType ptype = (ParameterizedType)pfi.field.getGenericType();
-//                    java.lang.reflect.Type itemType = ptype.getActualTypeArguments()[0];
-//                    String itemName = getTypeName(itemType);
-//                    varSwitchPre++;
-//                    mv.visitTypeInsn(NEW, "java/util/ArrayList");
-//                    mv.visitInsn(DUP);
-//                    mv.visitMethodInsn(INVOKESPECIAL, "java/util/ArrayList", "<init>", "()V", false);
-//                    mv.visitVarInsn(ASTORE, varSwitchPre);
-//                    mv.visitVarInsn(ALOAD, 1);
-//                    mv.visitVarInsn(ALOAD, varSwitchPre);
-//                    String readPackedName = "readPackedInt64";
-//                    if ("java.lang.Long".equals(itemName)) {
-//                        readPackedName = "readPackedInt64";
-//                    } else if ("java.lang.Integer".equals(itemName)) {
-//                        readPackedName = "readPackedInt32";
-//                    }
-//                    mv.visitFieldInsn(GETSTATIC, FIELD_TYPE_NAME,
-//                            pfi.protoField.type().name(), "L" + FIELD_TYPE_NAME + ";");
-//                    mv.visitMethodInsn(INVOKEINTERFACE, READER_NAME, readPackedName,
-//                            "(Ljava/util/List;L" + FIELD_TYPE_NAME + ";)V", true);
-//                    mv.visitVarInsn(ALOAD, 2);
-//                    mv.visitVarInsn(ALOAD, varSwitchPre);
-//                    visitSetValueOpcode(mv, pfi);
-//                    if (pfi.setMethod != null
-//                            && !"V".equals(getDescriptor(pfi.setMethod.getGenericReturnType()))) {
-//                        mv.visitInsn(POP);
-//                    }
-//                } else {
                 if (!pfi.hasSetAccessed) {
                     mv.visitVarInsn(ALOAD, 0);
                     mv.visitFieldInsn(GETFIELD, pojoCodecName, pfi.field.getName() + "F", "Ljava/lang/reflect/Field;");
                 }
+                String timeUtil = toInternalName(TimeUtil.class.getName());
                 mv.visitVarInsn(ALOAD, 2);
                 mv.visitVarInsn(ALOAD, 1);
                 visitMethod(mv, INVOKEINTERFACE, READER_NAME, readMethod.method,
                         "()" + readMethod.returnType, true);
-                visitBoxOpcode(mv, pfi);
+                if ("java.util.Date".equals(pfi.field.getType().getName())) {
+                    mv.visitMethodInsn(INVOKESTATIC, timeUtil, "toDate", "(J)Ljava/util/Date;", false);
+                } else if ("java.util.Calendar".equals(pfi.field.getType().getName())) {
+                    mv.visitMethodInsn(INVOKESTATIC, timeUtil, "toCalendar", "(J)Ljava/util/Calendar;", false);
+                } else if ("java.time.LocalDateTime".equals(pfi.field.getType().getName())) {
+                    mv.visitMethodInsn(INVOKESTATIC, timeUtil, "toLocalDateTime", "(J)Ljava/time/LocalDateTime;", false);
+                } else {
+                    visitBoxOpcode(mv, pfi);
+                }
                 visitSetValueOpcode(mv, pfi);
                 if (pfi.setMethod != null
                         && !"V".equals(getDescriptor(pfi.setMethod.getGenericReturnType()))) {
                     mv.visitInsn(POP);
                 }
-                //}
             }
             mv.visitJumpInsn(GOTO, finishLabel);
         }
@@ -622,17 +603,10 @@ public class ProtoBufDecoderGenerator {
         for (int i=0;i<arrayFields.size();i++) {
             ProtoFieldInfo pfi = arrayFields.get(i);
             String fname = "ARR_TPL_" + i;
-            Label nextLabel;
-            if (i == arrayFields.size() - 1) {
-                //nextLabel = l1;
-            } else {
-                nextLabel = new Label();
-            }
 
             mv.visitVarInsn(ALOAD, aArrayTag.get(pfi.protoField.tag()));
             visitMethod(mv, INVOKESTATIC, COLLECTION_UTIL, "isEmpty",
                     "(Ljava/util/Collection;)Z", false);
-            //mv.visitJumpInsn(IFNE, nextLabel);
             if (!pfi.hasSetAccessed) {
                 mv.visitVarInsn(ALOAD, 0);
                 mv.visitFieldInsn(GETFIELD, pojoCodecName, pfi.field.getName() + "F", "Ljava/lang/reflect/Field;");
@@ -647,6 +621,32 @@ public class ProtoBufDecoderGenerator {
             visitSetValueOpcode(mv, pfi);
 
         }
+
+        // 为String类型增加默认值""
+        System.out.println("stringFields.size=" + stringFields.size());
+        for (int i=0;i<stringFields.size();i++) {
+            ProtoFieldInfo pfi = stringFields.get(i);
+//            mv.visitVarInsn(ALOAD, varPojo);
+//            mv.visitFieldInsn(GETFIELD, "io/edap/x/protobuf/tutorial/OneString", "field1", "Ljava/lang/String;");
+            String rType = "Ljava/lang/String;";
+            visitGetFieldValue(mv, pfi, pojoName, pojoCodecName, varPojo, rType);
+            Label l6 = new Label();
+            mv.visitJumpInsn(IFNONNULL, l6);
+//            mv.visitVarInsn(ALOAD, varPojo);
+//            mv.visitLdcInsn("");
+//            mv.visitFieldInsn(PUTFIELD, pojoCodecName, stringFields.get(i).field.getName(), "Ljava/lang/String;");
+            if (!pfi.hasSetAccessed) {
+                mv.visitVarInsn(ALOAD, 0);
+                mv.visitFieldInsn(GETFIELD, pojoCodecName, pfi.field.getName() + "F", "Ljava/lang/reflect/Field;");
+            }
+            mv.visitVarInsn(ALOAD, varPojo);
+            mv.visitLdcInsn("");
+            visitSetValueOpcode(mv, pfi);
+//            mv.visitMethodInsn(INVOKEVIRTUAL, "io/edap/x/protobuf/tutorial/OneString", "setField1", "(Ljava/lang/String;)V", false);
+//            mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/reflect/Field", "set", "(Ljava/lang/Object;Ljava/lang/Object;)V", false);
+            mv.visitLabel(l6);
+        }
+
         mv.visitVarInsn(ALOAD, varPojo);
         mv.visitInsn(ARETURN);
         mv.visitMaxs(3, 9);

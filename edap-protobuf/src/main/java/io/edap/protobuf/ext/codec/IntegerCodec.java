@@ -45,7 +45,7 @@ public class IntegerCodec implements ExtCodec<Integer> {
         if (null != val) {
             return val;
         }
-        return reader.readInt32();
+        return reader.readSInt32();
     }
 
     @Override
@@ -56,9 +56,9 @@ public class IntegerCodec implements ExtCodec<Integer> {
         }
         if (writer.getWriteOrder() == ProtoBufWriter.WriteOrder.SEQUENTIAL) {
             writer.writeInt32(RANGE_INT_END);
-            writer.writeInt32(v, true);
+            writer.writeSInt32(v, true);
         } else {
-            writer.writeInt32(v, true);
+            writer.writeSInt32(v, true);
             writer.writeInt32(RANGE_INT_END);
         }
     }

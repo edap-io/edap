@@ -21,6 +21,7 @@ import io.edap.log.LoggerManager;
 
 import java.lang.reflect.Field;
 import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 
 /**
  * 字符串常用的操作函数
@@ -28,6 +29,8 @@ import java.nio.charset.Charset;
 public class StringUtil {
 
     static Logger LOG = LoggerManager.getLogger(StringUtil.class);
+
+    public static Long VALUE_OFFSET = UnsafeUtil.fieldOffset(UnsafeUtil.field(String.class, "value"));
 
     /**
      * String中value是否是byte[]
@@ -44,17 +47,16 @@ public class StringUtil {
     /**
      * utf8编码的charset实例
      */
-    public static final Charset UTF8_CHARSET = Charset.forName("utf-8");
+    public static final Charset UTF8_CHARSET = StandardCharsets.UTF_8;
 
 
     static {
         Field   valueField;
-        Field   coderField  = null;
+        Field   coderField = null;
         boolean isByteArray = false;
         try {
             valueField = String.class.getDeclaredField("value");
             valueField.setAccessible(true);
-
             isByteArray  = valueField.get("a").getClass().getName().equals("[B");
             if (isByteArray) {
                 coderField = String.class.getDeclaredField("coder");

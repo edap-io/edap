@@ -99,7 +99,7 @@ public class UnsafeUtil {
         copyMemory0(src, UNSAFE.ARRAY_BYTE_BASE_OFFSET + offset, dst, UNSAFE.ARRAY_BYTE_BASE_OFFSET + toOffset, length);
     }
 
-    private static Field field(Class<?> clazz, String fieldName) {
+    public static Field field(Class<?> clazz, String fieldName) {
         Field field;
         try {
             field = clazz.getDeclaredField(fieldName);

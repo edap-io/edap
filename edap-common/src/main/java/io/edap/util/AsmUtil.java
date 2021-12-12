@@ -18,10 +18,11 @@ package io.edap.util;
 
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Opcodes;
-import sun.reflect.generics.reflectiveObjects.ParameterizedTypeImpl;
 
+import java.lang.reflect.GenericArrayType;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
+import java.lang.reflect.TypeVariable;
 
 import static org.objectweb.asm.Opcodes.*;
 
@@ -61,6 +62,12 @@ public class AsmUtil {
             return false;
         }
         if (type instanceof ParameterizedType) {
+            return false;
+        }
+        if (type instanceof TypeVariable) {
+            return false;
+        }
+        if (type instanceof GenericArrayType) {
             return false;
         }
         Class tClass = (Class)type;
@@ -180,8 +187,24 @@ public class AsmUtil {
         }
     }
 
-    public static Type buildType(Class rawType, Type[] actualTypes) {
-        return ParameterizedTypeImpl.make(rawType, actualTypes, null);
+    public static Type buildType(Class rawType, final Type[] actualTypes) {
+        Type parameterizedType = new ParameterizedType() {
+            @Override
+            public Type[] getActualTypeArguments() {
+                return actualTypes;
+            }
+
+            @Override
+            public Type getRawType() {
+                return rawType;
+            }
+
+            @Override
+            public Type getOwnerType() {
+                return null;
+            }
+        };
+        return parameterizedType;
     }
 
     public static int getStoreNum(String type) {

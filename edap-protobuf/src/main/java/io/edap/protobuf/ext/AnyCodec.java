@@ -28,9 +28,10 @@ import java.util.HashMap;
  */
 public class AnyCodec {
 
-    static ProtoBufDecoder[] DECODERS = new ProtoBufDecoder[2048];
+    static ProtoBufDecoder[] DECODERS = new ProtoBufDecoder[256];
     static HashMap<String, ProtoBufDecoder> MSG_DECODERS = new HashMap<>();
     static HashMap<String, ProtoBufEncoder> MSG_ENCODERS = new HashMap<>();
+    static NullCodec       NULL_CODEC = new NullCodec();
     static ProtoBufEncoder MSG_ENCODER;
     static ProtoBufDecoder MSG_DECODER;
 
@@ -79,6 +80,7 @@ public class AnyCodec {
     public static final int RANGE_ARRAY_BOOL       = 106;
     public static final int RANGE_ARRAY_BOOL_OBJ   = 107;
     public static final int RANGE_ARRAY_OBJECT     = 108;
+    public static final int RANGE_NULL             = 109;
 
 
     static {
@@ -202,12 +204,13 @@ public class AnyCodec {
         DECODERS[RANGE_ARRAY_BOOL]       = arrayBoolCodec;
         DECODERS[RANGE_ARRAY_BOOL_OBJ]   = arrayBoolObjCodec;
         DECODERS[RANGE_ARRAY_OBJECT]     = arrayObjectCodec;
-
+        DECODERS[RANGE_NULL]             = NULL_CODEC;
 
     }
 
     public static void encode(ProtoBufWriter writer, Object v) throws EncodeException {
         if (null == v) {
+            NULL_CODEC.encode(writer, v);
             return;
         }
         String encoderKey;
@@ -220,11 +223,7 @@ public class AnyCodec {
         if (null == encoder) {
             encoder = MSG_ENCODER;
         }
-        if (null != encoder) {
-            encoder.encode(writer, v);
-        } else {
-            throw new EncodeException(v.getClass() + " hasn't ProtoBufEncoder", null);
-        }
+        encoder.encode(writer, v);
     }
 
     public static Object decode(ProtoBufReader reader) throws ProtoBufException {
@@ -240,5 +239,4 @@ public class AnyCodec {
             throw new ProtoBufException(e);
         }
     }
-
 }
