@@ -286,7 +286,7 @@ public abstract class AbstractWriter implements ProtoBufWriter {
 
     @Override
     public void writeSFixed32(final byte[] fieldData, final Integer value) {
-        if (value == null) {
+        if (value == null || value.intValue() == 0) {
             return;
         }
         writeFixed32(fieldData, value);
@@ -299,7 +299,7 @@ public abstract class AbstractWriter implements ProtoBufWriter {
 
     @Override
     public void writeLong(byte[] fieldData, Long value) {
-        if (value == null) {
+        if (value == null || value.longValue() == 0) {
             return;
         }
         writeLong(fieldData, value.longValue());
@@ -337,7 +337,7 @@ public abstract class AbstractWriter implements ProtoBufWriter {
 
     @Override
     public final void writeSInt64(final byte[] fieldData, final Long value) {
-        if (value == null) {
+        if (value == null || value.longValue() == 0) {
             return;
         }
         writeUInt64(fieldData, encodeZigZag64(value.longValue()));
