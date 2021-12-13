@@ -128,6 +128,32 @@ public class TestParseService {
             "syntax=\"proto3\";\n" +
                     "//服务的说明\nservice SearchService {\n" +
                     "// 服务方法说明\n" +
+                    "  rpc Search (asyn Request) returns (SearchResponse) {}\n" +
+                    "}",
+
+    })
+    void testParseWellServiceNotClientStream(String protoStr) {
+        ProtoParser parser = new ProtoParser(protoStr);
+        try {
+            Proto proto = parser.parse();
+            assertEquals(Syntax.PROTO_3, proto.getSyntax());
+
+            List<Service> services = proto.getServices();
+            assertEquals(1, services.size());
+
+            Service service = services.get(0);
+            ServiceMethod serviceMethod = service.getMethods().get(0);
+            assertEquals(Service.ServiceType.UNARY, serviceMethod.getType());
+        } catch (ProtoParseException e) {
+            e.printStackTrace();
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "syntax=\"proto3\";\n" +
+                    "//服务的说明\nservice SearchService {\n" +
+                    "// 服务方法说明\n" +
                     "  rpc Search (Request) returns (stream SearchResponse) {}\n" +
                     "}",
 
