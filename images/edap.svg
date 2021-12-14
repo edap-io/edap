@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
-<svg xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns="http://www.w3.org/2000/svg" version="1.1" xmlns:xl="http://www.w3.org/1999/xlink" viewBox="54 42 964 645" width="964" height="645">
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xl="http://www.w3.org/1999/xlink" version="1.1" xmlns:dc="http://purl.org/dc/elements/1.1/" viewBox="54 42 964 645" width="964" height="645">
   <defs>
     <font-face font-family="Arial" font-size="24" panose-1="2 11 6 4 2 2 2 2 2 4" units-per-em="1000" underline-position="-105.95703" underline-thickness="73.24219" slope="0" x-height="518.5547" cap-height="716.3086" ascent="905.2734" descent="-211.91406" font-weight="400">
       <font-face-src>
@@ -108,9 +108,10 @@
       </g>
     </marker>
   </defs>
-  <g id="版面___3" fill="none" stroke="none" fill-opacity="1" stroke-dasharray="none" stroke-opacity="1">
+  <g id="edap" stroke-dasharray="none" stroke="none" fill-opacity="1" fill="none" stroke-opacity="1">
     <title>edap</title>
-    <g id="版面___3: Layer 1">
+    <rect fill="white" x="54" y="42" width="964" height="645"/>
+    <g id="edap: Layer 1">
       <title>Layer 1</title>
       <g id="Line_1612">
         <path d="M 298.3047 454.125 L 305.3047 454.125 L 320.13564 454.0365" stroke="#ff9300" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="2.0,2.0" stroke-width="1"/>
@@ -118,8 +119,8 @@
       <g id="Group_1490">
         <g id="Group_1492">
           <g id="Graphic_1494">
-            <text transform="translate(388.5 52.97555)" fill="#919191">
-              <tspan font-family="Arial" font-size="24" font-weight="400" fill="#919191" x="2.0058255" y="22">e</tspan>
+            <text transform="translate(388.5 53.08297)" fill="#919191">
+              <tspan font-family="Arial" font-size="24" font-weight="400" fill="#919191" x="2.005826" y="22">e</tspan>
             </text>
           </g>
           <g id="Graphic_1493">
@@ -135,8 +136,8 @@
       <g id="Group_1495">
         <g id="Group_1497">
           <g id="Graphic_1499">
-            <text transform="translate(512.5 52.97555)" fill="#919191">
-              <tspan font-family="Arial" font-size="24" font-weight="400" fill="#919191" x="2.0058255" y="22">e</tspan>
+            <text transform="translate(512.5 53.08297)" fill="#919191">
+              <tspan font-family="Arial" font-size="24" font-weight="400" fill="#919191" x="2.005826" y="22">e</tspan>
             </text>
           </g>
           <g id="Graphic_1498">
@@ -152,8 +153,8 @@
       <g id="Group_1525">
         <g id="Group_1527">
           <g id="Graphic_1529">
-            <text transform="translate(643.5 52.97555)" fill="#919191">
-              <tspan font-family="Arial" font-size="24" font-weight="400" fill="#919191" x="2.0058255" y="22">e</tspan>
+            <text transform="translate(643.5 53.08297)" fill="#919191">
+              <tspan font-family="Arial" font-size="24" font-weight="400" fill="#919191" x="2.005826" y="22">e</tspan>
             </text>
           </g>
           <g id="Graphic_1528">
@@ -169,8 +170,8 @@
       <g id="Group_1530">
         <g id="Group_1532">
           <g id="Graphic_1534">
-            <text transform="translate(772 52.97555)" fill="#919191">
-              <tspan font-family="Arial" font-size="24" font-weight="400" fill="#919191" x="2.0058255" y="22">e</tspan>
+            <text transform="translate(772 53.08297)" fill="#919191">
+              <tspan font-family="Arial" font-size="24" font-weight="400" fill="#919191" x="2.005826" y="22">e</tspan>
             </text>
           </g>
           <g id="Graphic_1533">
@@ -194,7 +195,7 @@
         <g id="Group_1543">
           <g id="Graphic_1545">
             <text transform="translate(509 600)" fill="#919191">
-              <tspan font-family="Arial" font-size="24" font-weight="400" fill="#919191" x="1.6017851" y="22">e</tspan>
+              <tspan font-family="Arial" font-size="24" font-weight="400" fill="#919191" x="1.6017847" y="22">e</tspan>
             </text>
           </g>
           <g id="Graphic_1544">
@@ -211,7 +212,7 @@
         <g id="Group_1548">
           <g id="Graphic_1550">
             <text transform="translate(775.5 453)" fill="#919191">
-              <tspan font-family="Arial" font-size="24" font-weight="400" fill="#919191" x="1.6017851" y="22">e</tspan>
+              <tspan font-family="Arial" font-size="24" font-weight="400" fill="#919191" x="1.6017847" y="22">e</tspan>
             </text>
           </g>
           <g id="Graphic_1549">
@@ -228,7 +229,7 @@
         <g id="Group_1553">
           <g id="Graphic_1555">
             <text transform="translate(317.5 249.5)" fill="#919191">
-              <tspan font-family="Arial" font-size="24" font-weight="400" fill="#919191" x="1.6017851" y="22">e</tspan>
+              <tspan font-family="Arial" font-size="24" font-weight="400" fill="#919191" x="1.6017847" y="22">e</tspan>
             </text>
           </g>
           <g id="Graphic_1554">
@@ -245,7 +246,7 @@
         <g id="Group_1558">
           <g id="Graphic_1560">
             <text transform="translate(318 411)" fill="#919191">
-              <tspan font-family="Arial" font-size="24" font-weight="400" fill="#919191" x="1.6017851" y="22">e</tspan>
+              <tspan font-family="Arial" font-size="24" font-weight="400" fill="#919191" x="1.6017847" y="22">e</tspan>
             </text>
           </g>
           <g id="Graphic_1559">
@@ -364,13 +365,13 @@
       <g id="Group_1481">
         <g id="Graphic_1483">
           <text transform="translate(120.5 577.5)" fill="#919191">
-            <tspan font-family="Arial" font-size="24" font-weight="400" fill="#919191" x="6.10395" y="22">e</tspan>
+            <tspan font-family="Arial" font-size="24" font-weight="400" fill="#919191" x="6.1039495" y="22">e</tspan>
           </text>
         </g>
         <g id="Graphic_1482">
           <path d="M 133.075 586.6 L 265.51944 586.6 C 268.83315 586.6 271.51944 589.2863 271.51944 592.6 L 271.51944 627.6 C 271.51944 630.9137 268.83315 633.6 265.51944 633.6 L 133.075 633.6 C 129.76129 633.6 127.075 630.9137 127.075 627.6 L 127.075 592.6 C 127.075 589.2863 129.76129 586.6 133.075 586.6 C 133.075 586.6 133.075 586.6 133.075 586.6 Z" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
           <text transform="translate(132.075 600.6)" fill="black">
-            <tspan font-family="Helvetica" font-size="16" font-weight="700" fill="black" x="7.21441" y="15">System Monitor</tspan>
+            <tspan font-family="Helvetica" font-size="16" font-weight="700" fill="black" x="7.214409" y="15">System Monitor</tspan>
           </text>
         </g>
       </g>
