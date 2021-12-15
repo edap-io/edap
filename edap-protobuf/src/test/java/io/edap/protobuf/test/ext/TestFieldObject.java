@@ -18,6 +18,7 @@ package io.edap.protobuf.test.ext;
 
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONArray;
+import com.alibaba.fastjson.TypeReference;
 import io.edap.protobuf.EncodeException;
 import io.edap.protobuf.ProtoBuf;
 import io.edap.protobuf.ProtoBufException;
@@ -831,8 +832,7 @@ public class TestFieldObject {
     })
     void testMapCodec(String value) throws EncodeException, ProtoBufException {
 
-        Map<String, Object> map = new HashMap<>();
-        map.put("name", "louis");
+        Map<String, Object> map = JSON.parseObject(value, new TypeReference<HashMap<String, Object>>(){});
 
         FieldObject fo = new FieldObject();
         fo.setObj(map);
@@ -867,6 +867,20 @@ public class TestFieldObject {
         System.out.println(conver2HexStr(epb));
 
         FieldObject nfo = ProtoBuf.toObject(epb, FieldObject.class);
+        System.out.println(JSON.toJSONString(nfo.getObj()));
+        assertEquals(nfo.getObj(), list);
+
+        list = new ArrayList<>();
+
+        fo = new FieldObject();
+        fo.setObj(list);
+        epb = ProtoBuf.toByteArray(fo);
+        System.out.println(conver2HexStr(epb));
+
+        epb = ProtoBuf.toByteArray(fo, ProtoBufWriter.WriteOrder.REVERSE);
+        System.out.println(conver2HexStr(epb));
+
+        nfo = ProtoBuf.toObject(epb, FieldObject.class);
         System.out.println(JSON.toJSONString(nfo.getObj()));
         assertEquals(nfo.getObj(), list);
 
