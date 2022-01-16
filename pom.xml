@@ -31,7 +31,7 @@
         <maven.compiler.target>1.8</maven.compiler.target>
         <junit.jupiter.version>5.5.2</junit.jupiter.version>
         <asm.version>5.1</asm.version>
-        <protobuf.java.verson>3.11.0</protobuf.java.verson>
+        <protobuf.java.verson>3.16.1</protobuf.java.verson>
         <fastjson.version>1.2.52.sec06</fastjson.version>
     </properties>
 
