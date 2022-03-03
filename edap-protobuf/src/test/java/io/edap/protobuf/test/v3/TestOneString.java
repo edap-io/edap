@@ -41,7 +41,9 @@ public class TestOneString {
             "",
             "a",
             "abcdefgh",
-            "中文内容"
+            "中文内容",
+            "🐶头",
+            "\u0080"
     })
     void testEncode(String value) throws EncodeException {
 
@@ -147,6 +149,9 @@ public class TestOneString {
         OneStringOuterClass.OneString oint32 = builder.build();
         byte[] pb = oint32.toByteArray();
 
+        System.out.println("+--------------------+");
+        System.out.println(conver2HexStr(pb));
+        System.out.println("+--------------------+");
 
         OneStringOuterClass.OneString pbOf = OneStringOuterClass.OneString.parseFrom(pb);
 

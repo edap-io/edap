@@ -55,9 +55,9 @@ public class StandardProtoBufWriter extends AbstractWriter {
                 len = size * 5;
                 expand((MAX_VARLONG_SIZE << 1) + len);
                 writeFieldData(fieldData);
-                int start = pos;
+                int oldPos = pos;
 
-                pos += 5;
+                pos += 1;
                 int i = 0;
                 writeInt32_0(values[i++]);
                 if (size > 1) {
@@ -92,25 +92,24 @@ public class StandardProtoBufWriter extends AbstractWriter {
                         writeInt32_0(values[i]);
                     }
                 }
-
-                len = pos - start - 5;
-                pos = start;
-                writeUInt32_0(len);
-                //System.arraycopy(bs, start + 5, bs, pos, len);writeInt32
-                moveForwardBytes(bs, start + 5, len, 5 - (pos-start));
-                pos += len;
+                len = pos - oldPos - 1;
+                pos += writeLenMoveBytes(bs, oldPos, len);
                 return;
             case SINT32:
                 len = 0;
                 for (i=0;i<size;i++) {
                     len += computeRawVarint32Size(encodeZigZag32(values[i]));
                 }
-                expand(MAX_VARINT_SIZE << 1 + len);
+                expand(MAX_VARINT_SIZE << 1 + len*MAX_VARINT_SIZE);
                 writeFieldData(fieldData);
-                writeUInt32_0(len);
+                oldPos = pos;
+                pos++;
+                //writeUInt32_0(len);
                 for (i=0;i<size;i++) {
                     writeUInt32_0(encodeZigZag32(values[i]));
                 }
+                len = pos - oldPos - 1;
+                pos += writeLenMoveBytes(bs, oldPos, len);
                 return;
             case FIXED32:
             case SFIXED32:
@@ -136,12 +135,12 @@ public class StandardProtoBufWriter extends AbstractWriter {
             case INT32:
             case UINT32:
                 size = values.length;
-                len = size * 5;
-                expand((MAX_VARLONG_SIZE << 1) + len);
+                len = size * MAX_VARINT_SIZE;
+                expand((MAX_VARINT_SIZE << 1) + len);
                 writeFieldData(fieldData);
-                int start = pos;
+                int oldPos = pos;
 
-                pos += 5;
+                pos += 1;
                 int i = 0;
                 writeInt32_0(values[i++]);
                 if (size > 1) {
@@ -177,24 +176,20 @@ public class StandardProtoBufWriter extends AbstractWriter {
                     }
                 }
 
-                len = pos - start - 5;
-                pos = start;
-                writeUInt32_0(len);
-                //System.arraycopy(bs, start + 5, bs, pos, len);writeInt32
-                moveForwardBytes(bs, start + 5, len, 5 - (pos-start));
-                pos += len;
+                len = pos - oldPos - 1;
+                pos += writeLenMoveBytes(bs, oldPos, len);
                 return;
             case SINT32:
-                len = 0;
-                for (i=0;i<size;i++) {
-                    len += computeRawVarint32Size(encodeZigZag32(values[i]));
-                }
+                len = size * MAX_VARINT_SIZE;
                 expand(MAX_VARINT_SIZE << 1 + len);
                 writeFieldData(fieldData);
-                writeUInt32_0(len);
+                oldPos = pos;
+                pos++;
                 for (i=0;i<size;i++) {
                     writeUInt32_0(encodeZigZag32(values[i]));
                 }
+                len = pos - oldPos - 1;
+                pos += writeLenMoveBytes(bs, oldPos, len);
                 return;
             case FIXED32:
             case SFIXED32:
@@ -235,9 +230,9 @@ public class StandardProtoBufWriter extends AbstractWriter {
                 len = size * 5;
                 expand((MAX_VARLONG_SIZE << 1) + len);
                 writeFieldData(fieldData);
-                int start = pos;
+                int oldPos = pos;
 
-                pos += 5;
+                pos += 1;
                 int i = 0;
                 writeInt32_0(values.get(i++));
                 if (size > 1) {
@@ -273,12 +268,8 @@ public class StandardProtoBufWriter extends AbstractWriter {
                     }
                 }
 
-                len = pos - start - 5;
-                pos = start;
-                writeUInt32_0(len);
-                //System.arraycopy(bs, start + 5, bs, pos, len);writeInt32
-                moveForwardBytes(bs, start + 5, len, 5 - (pos-start));
-                pos += len;
+                len = pos - oldPos - 1;
+                pos += writeLenMoveBytes(bs, oldPos, len);
 
 //                ProtoBufWriter twriter = getLocalWriter();
 //                try {
@@ -295,16 +286,16 @@ public class StandardProtoBufWriter extends AbstractWriter {
 //                }
                 return;
             case SINT32:
-                len = 0;
-                for (Integer v : values) {
-                    len += computeRawVarint32Size(encodeZigZag32(v));
-                }
+                len = values.size() * MAX_VARINT_SIZE;
                 expand(MAX_VARINT_SIZE << 1 + len);
                 writeFieldData(fieldData);
-                writeUInt32_0(len);
+                oldPos = pos;
+                pos++;
                 for (Integer v : values) {
                     writeUInt32_0(encodeZigZag32(v));
                 }
+                len = pos - oldPos - 1;
+                pos += writeLenMoveBytes(bs, oldPos, len);
                 return;
             case FIXED32:
             case SFIXED32:
@@ -588,9 +579,9 @@ public class StandardProtoBufWriter extends AbstractWriter {
         int len = size * 5;
         expand((MAX_VARLONG_SIZE << 1) + len);
         writeFieldData(fieldData);
-        int start = pos;
+        int oldPos = pos;
 
-        pos += 5;
+        pos += 1;
         int i = 0;
         writeInt32_0(values[i++].ordinal());
         if (size > 1) {
@@ -625,13 +616,8 @@ public class StandardProtoBufWriter extends AbstractWriter {
                 writeInt32_0(values[i].ordinal());
             }
         }
-
-        len = pos - start - 5;
-        pos = start;
-        writeUInt32_0(len);
-        //System.arraycopy(bs, start + 5, bs, pos, len);writeInt32
-        moveForwardBytes(bs, start + 5, len, 5 - (pos-start));
-        pos += len;
+        len = pos - oldPos - 1;
+        pos += writeLenMoveBytes(bs, oldPos, len);
     }
 
     @Override
@@ -658,13 +644,10 @@ public class StandardProtoBufWriter extends AbstractWriter {
     @Override
     public <T> void writeMessage(T v, ProtoBufEncoder<T> codec) throws EncodeException {
         int oldPos = pos;
-        pos += 5;
+        pos += 1;
         codec.encode(this, v);
-        int len = pos - oldPos - 5;
-        pos = oldPos;
-        writeUInt32_0(len);
-        moveForwardBytes(bs, oldPos + 5, len, oldPos + 5 - pos);
-        pos += len;
+        int len = pos - oldPos - 1;
+        pos += writeLenMoveBytes(bs, oldPos, len);
     }
 
     @Override
@@ -680,13 +663,10 @@ public class StandardProtoBufWriter extends AbstractWriter {
         expand(MAX_VARINT_SIZE);
         writeFieldData(fieldData);
         int oldPos = pos;
-        pos += 5;
+        pos += 1;
         codec.encode(this, v);
-        len = pos - oldPos - 5;
-        pos = oldPos;
-        writeUInt32_0(len);
-        moveForwardBytes(bs, oldPos + 5, len, oldPos + 5 - pos);
-        pos += len;
+        len = pos - oldPos - 1;
+        pos += writeLenMoveBytes(bs, oldPos, len);
     }
 
     @Override

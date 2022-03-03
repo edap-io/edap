@@ -96,7 +96,7 @@ public class ProtoBuf {
         byte[] bs;
         try {
             codec.encode(writer, obj);
-            int len = writer.getPos();
+            int len = writer.size();
             bs = new byte[len];
             System.arraycopy(out.getWriteBuf().bs, 0, bs, 0, len);
             return bs;
@@ -115,22 +115,22 @@ public class ProtoBuf {
         out.reset();
         AnyCodec.encode(writer, 125);
 
-        int len = out.getWriteBuf().len - writer.getPos();
+        int len = out.getWriteBuf().len - writer.size();
         byte[] bs = new byte[len];
-        System.arraycopy(out.getWriteBuf().bs, writer.getPos(), bs, 0, len);
+        System.arraycopy(out.getWriteBuf().bs, writer.size(), bs, 0, len);
 
         System.out.println(conver2HexStr(bs));
 
         ByteArrayReader reader = new ByteArrayReader(bs);
-        System.out.println((Integer) AnyCodec.decode(reader));
+        System.out.println((Integer)AnyCodec.decode(reader));
 
         out.reset();
         writer.reset();
         AnyCodec.encode(writer, "abc");
 
-        len = out.getWriteBuf().len - writer.getPos();
+        len = out.getWriteBuf().len - writer.size();
         bs = new byte[len];
-        System.arraycopy(out.getWriteBuf().bs, writer.getPos(), bs, 0, len);
+        System.arraycopy(out.getWriteBuf().bs, writer.size(), bs, 0, len);
 
         System.out.println(conver2HexStr(bs));
 
@@ -169,9 +169,9 @@ public class ProtoBuf {
         byte[] bs;
         try {
             codec.encode(writer, obj);
-            int len = out.getWriteBuf().len - writer.getPos();
+            int len = out.getWriteBuf().len - writer.size();
             bs = new byte[len];
-            System.arraycopy(out.getWriteBuf().bs, writer.getPos(), bs, 0, len);
+            System.arraycopy(out.getWriteBuf().bs, writer.size(), bs, 0, len);
             writer.reset();
             return bs;
         } catch (EncodeException e) {
@@ -190,7 +190,7 @@ public class ProtoBuf {
         byte[] bs;
         try {
             AnyCodec.encode(writer, obj);
-            int len = writer.getPos();
+            int len = writer.size();
             bs = new byte[len];
             System.arraycopy(out.getWriteBuf().bs, 0, bs, 0, len);
             out.reset();
@@ -216,9 +216,9 @@ public class ProtoBuf {
         byte[] bs;
         try {
             AnyCodec.encode(writer, obj);
-            int len = out.getWriteBuf().len - writer.getPos();
+            int len = out.getWriteBuf().len - writer.size();
             bs = new byte[len];
-            System.arraycopy(out.getWriteBuf().bs, writer.getPos(), bs, 0, len);
+            System.arraycopy(out.getWriteBuf().bs, writer.size(), bs, 0, len);
             out.reset();
             return bs;
         } catch (EncodeException e) {

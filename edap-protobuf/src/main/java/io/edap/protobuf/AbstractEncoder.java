@@ -18,6 +18,7 @@ package io.edap.protobuf;
 
 import io.edap.protobuf.wire.Field;
 import io.edap.protobuf.wire.Field.Type;
+import io.edap.util.CollectionUtils;
 
 import static io.edap.protobuf.util.ProtoUtil.computeRawVarint32Size;
 import static io.edap.protobuf.wire.WireFormat.FIXED_32_SIZE;
@@ -81,27 +82,14 @@ public abstract class AbstractEncoder {
 
 
     protected void writeArrayBoolean(ProtoBufWriter writer, byte[] fieldData, boolean[] values) {
-        if (values == null || values.length == 0) {
-            return;
-        }
-        int len = values.length;
-        writer.writeBytes(fieldData);
-        writer.writeUInt32(len);
-        for (boolean v : values) {
-            writer.writeInt32(v?1:0);
-        }
+        writer.writePackedBooleans(fieldData, values);
     }
 
     protected void writeArrayBoolean(ProtoBufWriter writer, byte[] fieldData, Boolean[] values) {
-        if (isEmpty(values)) {
+        if (CollectionUtils.isEmpty(values)) {
             return;
         }
-        int len = values.length;
-        writer.writeBytes(fieldData);
-        writer.writeUInt32(len);
-        for (boolean v : values) {
-            writer.writeInt32(v?1:0);
-        }
+        writer.writePackedBooleans(fieldData, values);
     }
 
 

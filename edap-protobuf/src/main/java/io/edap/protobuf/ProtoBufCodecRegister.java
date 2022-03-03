@@ -52,6 +52,16 @@ public enum ProtoBufCodecRegister {
     private final ProtoCodecLoader encoderLoader   = new ProtoCodecLoader(this.getClass().getClassLoader());
     private final ReentrantLock    lock            = new ReentrantLock();
 
+    private ProtoPersister protoPersister;
+
+    public void setProtoPersister(ProtoPersister protoPersister) {
+        this.protoPersister = protoPersister;
+    }
+
+    public ProtoPersister getProtoPersister() {
+        return this.protoPersister;
+    }
+
     /**
      * 获取指定Class的ProtoBuf的编码器实现，ProtoBufWrite的实现为默认实现，写入数据是从前向后顺序写。该方式在编码 length+data
      * 这类的编码时，由于需要先写data后才能确认长度，所以需要多一次的内存copy效率一般。

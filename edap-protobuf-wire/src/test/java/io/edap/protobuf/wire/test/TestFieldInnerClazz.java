@@ -125,6 +125,11 @@ public class TestFieldInnerClazz {
         assertEquals(WireFormat.JavaType.LONG, uint64Type.javaType());
         assertEquals(WireType.VARINT, uint64Type.wireType());
         assertTrue(uint64Type.packable());
+
+        Field.Type anyType = Field.Type.OBJECT;
+        assertEquals(WireFormat.JavaType.OBJECT, anyType.javaType());
+        assertEquals(WireType.LENGTH_DELIMITED, anyType.wireType());
+        assertFalse(anyType.packable());
     }
 
     @Test

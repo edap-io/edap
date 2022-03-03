@@ -56,7 +56,7 @@ public class ArrayListCodec implements ExtCodec<ArrayList> {
             return EMPTY_LIST;
         }
         ArrayList list = new ArrayList(len);
-        for (int i=0;i<size;i++) {
+        for (int i=0;i<len;i++) {
             list.add(reader.readObject());
         }
         return list;
@@ -67,7 +67,7 @@ public class ArrayListCodec implements ExtCodec<ArrayList> {
         int len = arrayList.size();
         if (writer.getWriteOrder() == ProtoBufWriter.WriteOrder.SEQUENTIAL) {
             if (len > RANGE_ARRAYLIST_END - RANGE_ARRAYLIST_START) {
-                writer.writeInt32(RANGE_ARRAYLIST_START);
+                writer.writeInt32(RANGE_ARRAYLIST_END);
                 writer.writeInt32(len, true);
             } else {
                 writer.writeInt32(RANGE_ARRAYLIST_START + len);
