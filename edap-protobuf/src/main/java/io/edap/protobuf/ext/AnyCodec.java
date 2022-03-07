@@ -213,13 +213,7 @@ public class AnyCodec {
             NULL_CODEC.encode(writer, v);
             return;
         }
-        String encoderKey;
-        if (v instanceof HashMap) {
-            encoderKey = "java.util.HashMap";
-        } else {
-            encoderKey = v.getClass().getName();
-        }
-        ProtoBufEncoder encoder = MSG_ENCODERS.get(encoderKey);
+        ProtoBufEncoder encoder = MSG_ENCODERS.get(v.getClass().getName());
         if (null == encoder) {
             encoder = MSG_ENCODER;
         }

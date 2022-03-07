@@ -25,6 +25,8 @@ import io.edap.protobuf.ProtoBufWriter.WriteOrder;
 import io.edap.protobuf.writer.StandardProtoBufWriter;
 import io.edap.protobuf.writer.StandardReverseWriter;
 
+import java.io.IOException;
+import java.io.OutputStream;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 
@@ -202,6 +204,26 @@ public class ProtoBuf {
         }
     }
 
+    public static void ser(OutputStream output, Object obj) throws EncodeException {
+        ProtoBufWriter writer = THREAD_WRITER.get();
+        writer.reset();
+        BufOut out = writer.getBufOut();
+        out.reset();
+        byte[] bs;
+        try {
+            AnyCodec.encode(writer, obj);
+            int len = writer.size();
+
+            writer.toStream(output);
+            out.reset();
+            return;
+        } catch (EncodeException | IOException e) {
+            throw new EncodeException(e);
+        } finally {
+            THREAD_WRITER.set(writer);
+        }
+    }
+
     public static byte [] ser(Object obj, WriteOrder writeOrder) throws EncodeException {
         if (obj == null) {
             return null;
@@ -230,6 +252,11 @@ public class ProtoBuf {
 
     public static Object der(byte[] data) throws ProtoBufException {
         ByteArrayReader reader = new ByteArrayReader(data);
+        return AnyCodec.decode(reader);
+    }
+
+    public static Object der(byte[] data, int offset, int len) throws ProtoBufException {
+        ByteArrayReader reader = new ByteArrayReader(data, offset, len);
         return AnyCodec.decode(reader);
     }
 
