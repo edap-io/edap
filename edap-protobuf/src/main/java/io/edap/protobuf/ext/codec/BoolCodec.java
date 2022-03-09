@@ -48,9 +48,9 @@ public class BoolCodec implements ExtCodec<Boolean> {
     @Override
     public void encode(ProtoBufWriter writer, Boolean v) throws EncodeException {
         if (null == v || !v) {
-            writer.writeInt32(RANGE_BOOL_FALSE);
+            writer.writeByte((byte)RANGE_BOOL_FALSE);
         } else {
-            writer.writeInt32(RANGE_BOOL_TRUE);
+            writer.writeByte((byte)RANGE_BOOL_TRUE);
         }
     }
 }

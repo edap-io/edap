@@ -55,11 +55,11 @@ public class IntegerCodec implements ExtCodec<Integer> {
             return;
         }
         if (writer.getWriteOrder() == ProtoBufWriter.WriteOrder.SEQUENTIAL) {
-            writer.writeInt32(RANGE_INT_END);
+            writer.writeByte((byte)RANGE_INT_END);
             writer.writeSInt32(v, true);
         } else {
             writer.writeSInt32(v, true);
-            writer.writeInt32(RANGE_INT_END);
+            writer.writeByte((byte)RANGE_INT_END);
         }
     }
 }

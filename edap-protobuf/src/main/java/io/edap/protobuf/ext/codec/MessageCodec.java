@@ -59,13 +59,13 @@ public class MessageCodec implements ExtCodec<Object> {
         ProtoBufWriter.WriteOrder wo = writer.getWriteOrder();
         ProtoBufEncoder<Object> encoder = ProtoBufCodecRegister.INSTANCE.getEncoder(t.getClass(), wo);
         if (wo == ProtoBufWriter.WriteOrder.SEQUENTIAL) {
-            writer.writeInt32(RANGE_MESSAGE);
+            writer.writeByte((byte)RANGE_MESSAGE);
             writer.writeString(t.getClass().getName());
             writer.writeMessage(t, encoder);
         } else {
             writer.writeMessage(t, encoder);
             writer.writeString(t.getClass().getName());
-            writer.writeInt32(RANGE_MESSAGE);
+            writer.writeByte((byte)RANGE_MESSAGE);
         }
     }
 }

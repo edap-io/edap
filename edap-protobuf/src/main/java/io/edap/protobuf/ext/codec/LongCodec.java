@@ -37,11 +37,11 @@ public class LongCodec implements ExtCodec<Long> {
     @Override
     public void encode(ProtoBufWriter writer, Long v) throws EncodeException {
         if (writer.getWriteOrder() == ProtoBufWriter.WriteOrder.SEQUENTIAL) {
-            writer.writeInt32(RANGE_LONG);
+            writer.writeByte((byte)RANGE_LONG);
             writer.writeUInt64(v);
         } else {
             writer.writeUInt64(v);
-            writer.writeInt32(RANGE_LONG);
+            writer.writeByte((byte)RANGE_LONG);
         }
     }
 }

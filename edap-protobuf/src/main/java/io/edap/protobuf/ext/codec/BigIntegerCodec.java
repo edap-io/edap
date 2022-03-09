@@ -51,21 +51,21 @@ public class BigIntegerCodec implements ExtCodec<BigInteger> {
     public void encode(ProtoBufWriter writer, BigInteger v) throws EncodeException {
         if (writer.getWriteOrder() == ProtoBufWriter.WriteOrder.SEQUENTIAL) {
             if (v == BigInteger.ZERO) {
-                writer.writeInt32(RANGE_BIGINTEGER);
+                writer.writeByte((byte)RANGE_BIGINTEGER);
                 writer.writeByteArray(new byte[]{0}, 0, 1);
             } else {
                 byte[] bs = v.toByteArray();
-                writer.writeInt32(RANGE_BIGINTEGER);
+                writer.writeByte((byte)RANGE_BIGINTEGER);
                 writer.writeByteArray(bs, 0, bs.length);
             }
         } else {
             if (v == BigInteger.ZERO) {
                 writer.writeByteArray(new byte[]{0}, 0, 1);
-                writer.writeInt32(RANGE_BIGINTEGER);
+                writer.writeByte((byte)RANGE_BIGINTEGER);
             } else {
                 byte[] bs = v.toByteArray();
                 writer.writeByteArray(bs, 0, bs.length);
-                writer.writeInt32(RANGE_BIGINTEGER);
+                writer.writeByte((byte)RANGE_BIGINTEGER);
             }
         }
     }

@@ -41,11 +41,11 @@ public class LocalDateTimeCodec implements ExtCodec<LocalDateTime> {
     @Override
     public void encode(ProtoBufWriter writer, LocalDateTime v) throws EncodeException {
         if (writer.getWriteOrder() == ProtoBufWriter.WriteOrder.SEQUENTIAL) {
-            writer.writeInt32(RANGE_LOCALDATETIME);
+            writer.writeByte((byte)RANGE_LOCALDATETIME);
             writer.writeUInt64(v.toInstant(ZoneOffset.UTC).toEpochMilli());
         } else {
             writer.writeUInt64(v.toInstant(ZoneOffset.UTC).toEpochMilli());
-            writer.writeInt32(RANGE_LOCALDATETIME);
+            writer.writeByte((byte)RANGE_LOCALDATETIME);
         }
     }
 }

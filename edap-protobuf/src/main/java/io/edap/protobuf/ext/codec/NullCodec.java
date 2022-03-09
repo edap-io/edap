@@ -38,6 +38,6 @@ public class NullCodec implements ExtCodec<Object> {
         if (o != null) {
             throw new EncodeException("Object is not null", null);
         }
-        writer.writeInt32(RANGE_NULL);
+        writer.writeByte((byte)RANGE_NULL);
     }
 }

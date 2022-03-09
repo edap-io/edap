@@ -39,48 +39,48 @@ public class AnyCodec {
      * 整数编码开始的值
      */
     public static final int RANGE_INT_START       = 0;
-    public static final int RANGE_INT_END         = 15;
+    public static final int RANGE_INT_END         = RANGE_INT_START + 15;
 
-    public static final int RANGE_STRING_START    = 16;
-    public static final int RANGE_STRING_END      = 47;
+    public static final int RANGE_STRING_START    = RANGE_INT_END + 1; //16;
+    public static final int RANGE_STRING_END      = RANGE_STRING_START + 64; //47;
 
-    public static final int RANGE_HASHMAP_START   = 48;
-    public static final int RANGE_HASHMAP_END     = 63;
+    public static final int RANGE_HASHMAP_START   = RANGE_STRING_END + 1; //48;
+    public static final int RANGE_HASHMAP_END     = RANGE_HASHMAP_START + 15;//63;
 
-    public static final int RANGE_LONG            = 64;
-    public static final int RANGE_BOOL_FALSE      = 65;
-    public static final int RANGE_BOOL_TRUE       = 66;
-    public static final int RANGE_DOUBLE          = 67;
-    public static final int RANGE_FLOAT           = 68;
-    public static final int RANGE_DATE            = 69;
-    public static final int RANGE_LOCALDATE       = 70;
-    public static final int RANGE_LOCALTIME       = 71;
-    public static final int RANGE_LOCALDATETIME   = 72;
-    public static final int RANGE_CALENDAR        = 73;
-    public static final int RANGE_BIGINTEGER      = 74;
-    public static final int RANGE_BIGDDECIMAL     = 75;
-    public static final int RANGE_CLASS           = 76;
+    public static final int RANGE_LONG            = RANGE_HASHMAP_END + 1; //64;
+    public static final int RANGE_BOOL_FALSE      = RANGE_LONG + 1; //65;
+    public static final int RANGE_BOOL_TRUE       = RANGE_BOOL_FALSE + 1; //66;
+    public static final int RANGE_DOUBLE          = RANGE_BOOL_TRUE + 1; //67;
+    public static final int RANGE_FLOAT           = RANGE_DOUBLE + 1; //68;
+    public static final int RANGE_DATE            = RANGE_FLOAT + 1; //69;
+    public static final int RANGE_LOCALDATE       = RANGE_DATE + 1; //70;
+    public static final int RANGE_LOCALTIME       = RANGE_LOCALDATE + 1; //71;
+    public static final int RANGE_LOCALDATETIME   = RANGE_LOCALTIME + 1; //72;
+    public static final int RANGE_CALENDAR        = RANGE_LOCALDATETIME + 1; //73;
+    public static final int RANGE_BIGINTEGER      = RANGE_CALENDAR + 1; //74;
+    public static final int RANGE_BIGDDECIMAL     = RANGE_BIGINTEGER + 1; //75;
+    public static final int RANGE_CLASS           = RANGE_BIGDDECIMAL + 1; //76;
 
-    public static final int RANGE_ARRAYLIST_START = 77;
-    public static final int RANGE_ARRAYLIST_END   = 93;
+    public static final int RANGE_ARRAYLIST_START = RANGE_CLASS + 1; //77;
+    public static final int RANGE_ARRAYLIST_END   = RANGE_ARRAYLIST_START + 16; //93;
 
-    public static final int RANGE_MESSAGE         = 94;
+    public static final int RANGE_MESSAGE         = RANGE_ARRAYLIST_END + 1; //94;
 
-    public static final int RANGE_ARRAY_BYTE       = 95;
-    public static final int RANGE_ARRAY_CHAR       = 96;
-    public static final int RANGE_ARRAY_INT        = 97;
-    public static final int RANGE_ARRAY_INTEGER    = 98;
-    public static final int RANGE_ARRAY_LONG       = 99;
-    public static final int RANGE_ARRAY_LONG_OBJ   = 100;
-    public static final int RANGE_ARRAY_FLOAT      = 101;
-    public static final int RANGE_ARRAY_FLOAT_OBJ  = 102;
-    public static final int RANGE_ARRAY_DOUBLE     = 103;
-    public static final int RANGE_ARRAY_DOUBLE_OBJ = 104;
-    public static final int RANGE_ARRAY_STRING     = 105;
-    public static final int RANGE_ARRAY_BOOL       = 106;
-    public static final int RANGE_ARRAY_BOOL_OBJ   = 107;
-    public static final int RANGE_ARRAY_OBJECT     = 108;
-    public static final int RANGE_NULL             = 109;
+    public static final int RANGE_ARRAY_BYTE       = RANGE_MESSAGE + 1; //95;
+    public static final int RANGE_ARRAY_CHAR       = RANGE_ARRAY_BYTE + 1; //96;
+    public static final int RANGE_ARRAY_INT        = RANGE_ARRAY_CHAR + 1; //97;
+    public static final int RANGE_ARRAY_INTEGER    = RANGE_ARRAY_INT + 1; //98;
+    public static final int RANGE_ARRAY_LONG       = RANGE_ARRAY_INTEGER + 1; //99;
+    public static final int RANGE_ARRAY_LONG_OBJ   = RANGE_ARRAY_LONG + 1; //100;
+    public static final int RANGE_ARRAY_FLOAT      = RANGE_ARRAY_LONG_OBJ + 1; //101;
+    public static final int RANGE_ARRAY_FLOAT_OBJ  = RANGE_ARRAY_FLOAT + 1; //102;
+    public static final int RANGE_ARRAY_DOUBLE     = RANGE_ARRAY_FLOAT_OBJ + 1; //103;
+    public static final int RANGE_ARRAY_DOUBLE_OBJ = RANGE_ARRAY_DOUBLE + 1; //104;
+    public static final int RANGE_ARRAY_STRING     = RANGE_ARRAY_DOUBLE_OBJ + 1; //105;
+    public static final int RANGE_ARRAY_BOOL       = RANGE_ARRAY_STRING + 1; //106;
+    public static final int RANGE_ARRAY_BOOL_OBJ   = RANGE_ARRAY_BOOL + 1; //107;
+    public static final int RANGE_ARRAY_OBJECT     = RANGE_ARRAY_BOOL_OBJ + 1; //108;
+    public static final int RANGE_NULL             = RANGE_ARRAY_OBJECT + 1; //109;
 
 
     static {

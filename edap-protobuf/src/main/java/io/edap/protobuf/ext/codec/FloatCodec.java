@@ -37,11 +37,11 @@ public class FloatCodec implements ExtCodec<Float> {
     @Override
     public void encode(ProtoBufWriter writer, Float v) throws EncodeException {
         if (writer.getWriteOrder() == ProtoBufWriter.WriteOrder.SEQUENTIAL) {
-            writer.writeInt32(RANGE_FLOAT);
+            writer.writeByte((byte)RANGE_FLOAT);
             writer.writeFixed32(Float.floatToRawIntBits(v));
         } else {
             writer.writeFixed32(Float.floatToRawIntBits(v));
-            writer.writeInt32(RANGE_FLOAT);
+            writer.writeByte((byte)RANGE_FLOAT);
         }
     }
 }

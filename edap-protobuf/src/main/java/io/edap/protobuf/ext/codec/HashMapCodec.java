@@ -68,10 +68,10 @@ public class HashMapCodec implements ExtCodec<HashMap<Object, Object>> {
     public void encode(ProtoBufWriter writer, HashMap<Object, Object> map) throws EncodeException {
         if (writer.getWriteOrder() == ProtoBufWriter.WriteOrder.SEQUENTIAL) {
             if (map.size() > RANGE_HASHMAP_END - RANGE_HASHMAP_START) {
-                writer.writeInt32(RANGE_HASHMAP_END);
+                writer.writeByte((byte)RANGE_HASHMAP_END);
                 writer.writeInt32(map.size(), true);
             } else {
-                writer.writeInt32(RANGE_HASHMAP_START + map.size());
+                writer.writeByte((byte)(RANGE_HASHMAP_START + map.size()));
             }
             for (Map.Entry entry : map.entrySet()) {
                 writeMapEntry(writer, entry, writer.getWriteOrder());
@@ -82,9 +82,9 @@ public class HashMapCodec implements ExtCodec<HashMap<Object, Object>> {
             }
             if (map.size() > RANGE_HASHMAP_END - RANGE_HASHMAP_START) {
                 writer.writeInt32(map.size(), true);
-                writer.writeInt32(RANGE_HASHMAP_END);
+                writer.writeByte((byte)RANGE_HASHMAP_END);
             } else {
-                writer.writeInt32(RANGE_HASHMAP_START + map.size());
+                writer.writeByte((byte)(RANGE_HASHMAP_START + map.size()));
             }
         }
     }

@@ -39,11 +39,11 @@ public class DateCodec implements ExtCodec<Date> {
     @Override
     public void encode(ProtoBufWriter writer, Date v) throws EncodeException {
         if (writer.getWriteOrder() == ProtoBufWriter.WriteOrder.SEQUENTIAL) {
-            writer.writeInt32(RANGE_DATE);
+            writer.writeByte((byte)RANGE_DATE);
             writer.writeUInt64(v.getTime());
         } else {
             writer.writeUInt64(v.getTime());
-            writer.writeInt32(RANGE_DATE);
+            writer.writeByte((byte)RANGE_DATE);
         }
     }
 }

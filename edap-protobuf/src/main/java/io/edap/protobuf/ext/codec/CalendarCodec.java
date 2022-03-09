@@ -41,11 +41,11 @@ public class CalendarCodec implements ExtCodec<Calendar> {
     @Override
     public void encode(ProtoBufWriter writer, Calendar v) throws EncodeException {
         if (writer.getWriteOrder() == ProtoBufWriter.WriteOrder.SEQUENTIAL) {
-            writer.writeInt32(RANGE_CALENDAR);
+            writer.writeByte((byte)RANGE_CALENDAR);
             writer.writeUInt64(v.getTimeInMillis());
         } else {
             writer.writeUInt64(v.getTimeInMillis());
-            writer.writeInt32(RANGE_CALENDAR);
+            writer.writeByte((byte)RANGE_CALENDAR);
         }
     }
 

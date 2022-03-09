@@ -40,6 +40,7 @@ import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 
+import static io.edap.protobuf.ext.AnyCodec.RANGE_NULL;
 import static io.edap.protobuf.test.TestUtil.conver2HexStr;
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -930,7 +931,7 @@ public class TestFieldObject {
 
     @Test
     void testEncodecNull() throws EncodeException, ProtoBufException {
-        byte[] data = new byte[]{109};
+        byte[] data = new byte[]{(byte)RANGE_NULL};
         byte[] edata = ProtoBuf.ser(null);
         System.out.println("data");
         System.out.println(conver2HexStr(data));

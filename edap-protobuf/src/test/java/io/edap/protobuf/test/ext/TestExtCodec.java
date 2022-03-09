@@ -29,6 +29,8 @@ import io.edap.protobuf.writer.StandardProtoBufWriter;
 import io.edap.protobuf.writer.StandardReverseWriter;
 import org.junit.jupiter.api.Test;
 
+import static io.edap.protobuf.ext.AnyCodec.RANGE_CLASS;
+import static io.edap.protobuf.ext.AnyCodec.RANGE_NULL;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -81,7 +83,7 @@ public class TestExtCodec {
 
         ProtoBufWriter writer = new StandardProtoBufWriter(new ProtoBufOut());
         ClassCodec codec = new ClassCodec();
-        byte[] clsNullData = new byte[]{76,-1,-1,-1,-1,-1,-1,-1,-1,-1,1};
+        byte[] clsNullData = new byte[]{RANGE_CLASS,-1,-1,-1,-1,-1,-1,-1,-1,-1,1};
         try {
             codec.encode(writer, cls);
 
@@ -133,7 +135,7 @@ public class TestExtCodec {
 
     @Test
     void testAnyCodec() {
-        byte[] data = new byte[]{127,106,97,118,97,46,117,116,105,108,46,84,114,101,101,77,97,112};
+        byte[] data = new byte[]{(byte)(RANGE_NULL + 1),106,97,118,97,46,117,116,105,108,46,84,114,101,101,77,97,112};
         ByteArrayReader reader = new ByteArrayReader(data);
 
         ProtoBufException thrown = assertThrows(ProtoBufException.class,
