@@ -391,23 +391,28 @@ public class ByteArrayReader extends AbstractReader {
         } else if (charLen == 0) {
             return "";
         }
-        //char[] cs = new char[charLen];
-        int count = 0;
-        int oldPos = pos;
+        char[] cs;
+        if (charLen <= 4096) {
+            cs = LOCAL_TMP_CHAR_ARRAY.get();
+        } else {
+            cs = new char[charLen];
+        }
+        int index = 0;
         int tmpPos = pos;
         byte[] _tmp = buf;
-        while (count < charLen) {
+        while (index<charLen) {
             int b = _tmp[tmpPos++];
             if ((b & 0x80) == 0) {
-                count++;
+                cs[index++] = (char)b;
             } else {
                 byte b2 = _tmp[tmpPos++];
                 if ((b & 0xE0) == 0xC0) {
-                    count++;
+                    cs[index++] = (char)(((b & 0x1F) << 6) + (b2 & 0x3F));
                 } else {
                     byte b3 = _tmp[tmpPos++];
                     if ((b & 0xF0) == 0xE0) {
-                        count++;
+                        cs[index++] = (char)(((b & 0x0F) << 12)
+                                + ((b2 & 0x3F) << 6) + (b3 & 0x3F));
                     } else {
                         byte b4 = _tmp[tmpPos++];
                         if ((b & 0xF8) == 0xF0) {
@@ -421,16 +426,15 @@ public class ByteArrayReader extends AbstractReader {
                                 throw new RuntimeException();
                             }
                             int sup = b - 0x10000;
-                            count++;
-                            count++;
+                            cs[index++] = (char)((sup >>> 10) + 0xd800);
+                            cs[index++] = (char)((sup & 0x3ff) + 0xdc00);
                         }
                     }
                 }
             }
         }
-        String s = new String(_tmp, oldPos, tmpPos - oldPos, CHARSET_UTF8);
+        String s = new String(cs, 0, charLen);
         pos = tmpPos;
-        //String s = new String(buf, pos, len, CHARSET_UTF8);
         return s;
     }
 
