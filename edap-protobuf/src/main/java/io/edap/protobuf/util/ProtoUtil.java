@@ -44,6 +44,7 @@ import java.util.Map;
 
 import static io.edap.util.AsmUtil.*;
 import static io.edap.util.ClazzUtil.*;
+import static io.edap.util.CryptUtil.md5;
 import static java.lang.reflect.Modifier.isPublic;
 
 public class ProtoUtil {
@@ -570,7 +571,36 @@ public class ProtoUtil {
         return pf;
     }
 
+    public static String buildMapEncodeName(java.lang.reflect.Type mapType) {
+        StringBuilder name = new StringBuilder("io.edap.protobuf.mapencoder.MapEncoder_");
+        if (mapType instanceof ParameterizedType) {
+            ParameterizedType ptype = (ParameterizedType)mapType;
+            java.lang.reflect.Type[] types = ptype.getActualTypeArguments();
+            StringBuilder codes = new StringBuilder();
+            for (int i=0;i<types.length;i++) {
+                if (i > 0) {
+                    codes.append("_");
+                }
+                codes.append(types[i].getTypeName());
+            }
+            name.append(md5(codes.toString()));
+        } else if (mapType instanceof Class) {
+            Class mapClazz = (Class)mapType;
+            if (isMap(mapClazz)) {
+                name.append(md5("java.lang.Object_java.lang.Object"));
+            } else {
+                throw  new RuntimeException("mapType [" + mapType.getTypeName() + "] is not map");
+            }
+        } else {
+            throw  new RuntimeException("mapType [" + mapType.getTypeName() + "] is not map");
+        }
+        return name.toString();
+    }
+
     private static boolean needEncode(Field field) {
+        if ("org.slf4j.Logger".equals(field.getType().getName())) {
+            return false;
+        }
         int mod = field.getModifiers();
         return !Modifier.isStatic(mod) && !Modifier.isTransient(mod);
     }

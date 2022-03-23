@@ -19,10 +19,7 @@ package io.edap.util;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Opcodes;
 
-import java.lang.reflect.GenericArrayType;
-import java.lang.reflect.ParameterizedType;
-import java.lang.reflect.Type;
-import java.lang.reflect.TypeVariable;
+import java.lang.reflect.*;
 
 import static org.objectweb.asm.Opcodes.*;
 
@@ -68,6 +65,9 @@ public class AsmUtil {
             return false;
         }
         if (type instanceof GenericArrayType) {
+            return false;
+        }
+        if (type instanceof WildcardType) {
             return false;
         }
         Class tClass = (Class)type;
@@ -350,6 +350,9 @@ public class AsmUtil {
             ParameterizedType ptype = (ParameterizedType)type;
             Class tclass = (Class)ptype.getRawType();
             return isMap(tclass);
+        } else if (type instanceof Class) {
+            Class clazz = (Class)type;
+            return isMap(clazz);
         }
         return false;
     }
