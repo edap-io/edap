@@ -26,13 +26,12 @@ import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.lang.reflect.Type;
 import java.nio.file.Files;
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.locks.ReentrantLock;
 
 
+import static io.edap.protobuf.util.ProtoUtil.buildMapEncodeName;
 import static io.edap.util.AsmUtil.toInternalName;
 import static io.edap.util.AsmUtil.toLangName;
 import static io.edap.util.CollectionUtils.isEmpty;
@@ -48,7 +47,6 @@ public enum ProtoBufCodecRegister {
     private final Map<Class, ProtoBufEncoder> rencoders = new HashMap<>();
     private final Map<Type, ProtoBufDecoder>  decoders  = new HashMap<>();
     private final Map<Type, Class> mapEncoders     = new HashMap<>();
-    private final List<Type>       mapEncoderTypes = new ArrayList<>();
     private final ProtoCodecLoader encoderLoader   = new ProtoCodecLoader(this.getClass().getClassLoader());
     private final ReentrantLock    lock            = new ReentrantLock();
 
@@ -150,23 +148,20 @@ public enum ProtoBufCodecRegister {
         String mapEntryName = "";
         try {
             lock.lock();
-            int index = mapEncoderTypes.size();
-            mapEntryName = "io.edap.protobuf.encoder.mapentry.MapEntry_" + index;
+            mapEntryName = buildMapEncodeName(mapType);
             MapEntryGenerator meg = new MapEntryGenerator(
                     toInternalName(mapEntryName), mapType);
             byte[] bs = meg.getEntryBytes();
-            //saveJavaFile("./" + toInternalName(mapEntryName), bs);
+            //saveJavaFile("./" + toInternalName(mapEntryName) + ".class", bs);
             mapEntryCls = encoderLoader.define(mapEntryName, bs, 0, bs.length);
             if (mapEntryCls != null) {
                 mapEncoders.put(mapType, mapEntryCls);
-                mapEncoderTypes.add(mapType);
             }
         } catch (Exception e) {
             try {
                 mapEntryCls = encoderLoader.loadClass(mapEntryName);
                 if (mapEntryCls != null) {
                     mapEncoders.put(mapType, mapEntryCls);
-                    mapEncoderTypes.add(mapType);
                     return mapEntryCls;
                 }
             } catch (ClassNotFoundException ex) {
