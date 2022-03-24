@@ -28,6 +28,7 @@ import java.lang.reflect.Type;
 
 import static io.edap.protobuf.util.ProtoUtil.javaToProtoType;
 import static io.edap.protobuf.util.ProtoUtil.visitMethod;
+import static io.edap.util.AsmUtil.isMap;
 import static io.edap.util.ClazzUtil.getDescriptor;
 import static org.objectweb.asm.Opcodes.*;
 
@@ -58,8 +59,21 @@ public class MapEntryGenerator {
             } else {
                 throw new RuntimeException("MapType define error");
             }
+        }  else if (mapType instanceof Class) {
+            Class clazz = (Class)mapType;
+            if (isMap(clazz)) {
+                keyType = Object.class;
+                valType = Object.class;
+            } else {
+                throw new RuntimeException("MapType [" + mapType + "] not Map");
+            }
         } else {
-            throw new RuntimeException("MapType define error");
+            if (isMap(mapType)) {
+                keyType = Object.class;
+                valType = Object.class;
+            } else {
+                throw new RuntimeException("MapType define error");
+            }
         }
     }
 

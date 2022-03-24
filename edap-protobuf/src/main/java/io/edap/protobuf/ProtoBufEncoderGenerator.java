@@ -143,7 +143,7 @@ public class ProtoBufEncoderGenerator {
         }
         visitClinitMethod(fields);
         visitInitMethod(pojoTypes, fields);
-
+        visitGetEncoderMethods(pojoTypes);
 
         visitEncodeMethod(fields);
 
@@ -187,8 +187,11 @@ public class ProtoBufEncoderGenerator {
                 visitGetFieldValue(mv, pfi, pojoName, pojoCodecName, 2, rType);
                 String itemCodec = getPojoEncoderName(pfi.field.getGenericType());
                 mv.visitVarInsn(ALOAD, 0);
-                mv.visitFieldInsn(GETFIELD, pojoCodecName, itemCodec,
-                        "L" + IFACE_NAME + ";");
+//                mv.visitFieldInsn(GETFIELD, pojoCodecName, itemCodec,
+//                        "L" + IFACE_NAME + ";");
+                String codecName = getPojoEncoderName(pfi.field.getGenericType());
+                String getEncoderName = "get" + codecName.substring(0, 1).toUpperCase(Locale.ENGLISH) + codecName.substring(1);
+                mv.visitMethodInsn(INVOKESPECIAL, pojoCodecName, getEncoderName, "()L" + IFACE_NAME + ";", false);
                 visitMethod(mv, INVOKEINTERFACE, WRITER_NAME, "writeMessage",
                         "([BILjava/lang/Object;L" + IFACE_NAME + ";)V", true);
             } else {
@@ -421,8 +424,11 @@ public class ProtoBufEncoderGenerator {
             visitTagOpcode(mv, pfi.protoField.tag());
             rType = visitGetFieldValue(mv, pfi, pojoName, pojoCodecName, 2, rType);
             mv.visitVarInsn(ALOAD, 0);
-            mv.visitFieldInsn(GETFIELD, pojoCodecName, codecName,
-                    "L" + IFACE_NAME +  ";");
+//            mv.visitFieldInsn(GETFIELD, pojoCodecName, codecName,
+//                    "L" + IFACE_NAME +  ";");
+            String itemCodecName = getPojoEncoderName(itemType);
+            String getEncoderName = "get" + itemCodecName.substring(0, 1).toUpperCase(Locale.ENGLISH) + itemCodecName.substring(1);
+            mv.visitMethodInsn(INVOKESPECIAL, pojoCodecName, getEncoderName, "()L" + IFACE_NAME + ";", false);
             mv.visitMethodInsn(INVOKEINTERFACE, WRITER_NAME, "writeMessages",
                     "([BI[Ljava/lang/Object;L" + IFACE_NAME + ";)V", true);
             return;
@@ -514,8 +520,11 @@ public class ProtoBufEncoderGenerator {
             String listDescriptor = getDescriptor(pfi.field.getType());
             String encoderName = toInternalName(getEncoderName((Class)itemType, encodeType, writeOrder));
             if (!encoderName.equals(pojoCodecName)) {
-                mv.visitFieldInsn(GETFIELD, pojoCodecName, codecName,
-                        "L" + IFACE_NAME + ";");
+//                mv.visitFieldInsn(GETFIELD, pojoCodecName, codecName,
+//                        "L" + IFACE_NAME + ";");
+                String itemCodecName = getPojoEncoderName(itemType);
+                String getEncoderName = "get" + itemCodecName.substring(0, 1).toUpperCase(Locale.ENGLISH) + itemCodecName.substring(1);
+                mv.visitMethodInsn(INVOKESPECIAL, pojoCodecName, getEncoderName, "()L" + IFACE_NAME + ";", false);
             }
             visitMethod(mv, INVOKEINTERFACE, WRITER_NAME, "writeMessages",
                     "([BI" + listDescriptor
@@ -908,6 +917,40 @@ public class ProtoBufEncoderGenerator {
 
     private String getMapCodecName(Class mapCls) {
         return "encoderMap" + mapCls.getSimpleName();
+    }
+
+    private void visitGetEncoderMethods(List<java.lang.reflect.Type> pojoTypes) {
+        if (CollectionUtils.isEmpty(pojoTypes)) {
+            return;
+        }
+        for (java.lang.reflect.Type type : pojoTypes) {
+            visitGetEncoderMethod(type);
+        }
+    }
+
+    private void visitGetEncoderMethod(java.lang.reflect.Type type) {
+        String itemType = toInternalName(((Class)type).getName());
+        String codecName = getPojoEncoderName(type);
+        String methodName = codecName.substring(0, 1).toUpperCase(Locale.ENGLISH) + codecName.substring(1);
+        MethodVisitor mv = cw.visitMethod(ACC_PRIVATE, "get" + methodName, "()L" + IFACE_NAME + ";",
+                "()L" + IFACE_NAME + "<L" + itemType + ";>;", null);
+        mv.visitCode();
+        mv.visitVarInsn(ALOAD, 0);
+        mv.visitFieldInsn(GETFIELD, pojoCodecName, codecName, "L" + IFACE_NAME + ";");
+        Label l0 = new Label();
+        mv.visitJumpInsn(IFNONNULL, l0);
+        mv.visitVarInsn(ALOAD, 0);
+        mv.visitFieldInsn(GETSTATIC, REGISTER_NAME, "INSTANCE", "L" + REGISTER_NAME + ";");
+        mv.visitLdcInsn(org.objectweb.asm.Type.getType("L" + itemType + ";"));
+        mv.visitMethodInsn(INVOKEVIRTUAL, REGISTER_NAME, "getEncoder", "(Ljava/lang/Class;)L" + IFACE_NAME + ";", false);
+        mv.visitFieldInsn(PUTFIELD, pojoCodecName, codecName, "L" + IFACE_NAME + ";");
+        mv.visitLabel(l0);
+        mv.visitFrame(Opcodes.F_SAME, 0, null, 0, null);
+        mv.visitVarInsn(ALOAD, 0);
+        mv.visitFieldInsn(GETFIELD, pojoCodecName, codecName, "L" + IFACE_NAME + ";");
+        mv.visitInsn(ARETURN);
+        mv.visitMaxs(3, 1);
+        mv.visitEnd();
     }
 
     private void visitInitMethod(List<java.lang.reflect.Type> pojoTypes, List<ProtoFieldInfo> fields) {
