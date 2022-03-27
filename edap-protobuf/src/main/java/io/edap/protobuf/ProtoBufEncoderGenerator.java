@@ -718,6 +718,8 @@ public class ProtoBufEncoderGenerator {
         mv.visitInsn(RETURN);
         mv.visitMaxs(5, 6);
         mv.visitEnd();
+
+        listMethods.add(name);
     }
 
     private void visitInnerArrayMethod(java.lang.reflect.Type type,
@@ -984,22 +986,22 @@ public class ProtoBufEncoderGenerator {
         visitMethod(mv, INVOKESPECIAL, parentName, "<init>", "()V", false);
 
         String getCodecName = "getEncoder";
-        for (java.lang.reflect.Type type : pojoTypes) {
-            String codecName = getPojoEncoderName(type);
-            String encoderName = toInternalName(getEncoderName((Class)type, encodeType, writeOrder));
-            if (!encoderName.equals(pojoCodecName)) {
-                mv.visitVarInsn(ALOAD, 0);
-                mv.visitFieldInsn(GETSTATIC, REGISTER_NAME,
-                        "INSTANCE", "L" + REGISTER_NAME + ";");
-                String tdescriptor = getDescriptor(type);
-                mv.visitLdcInsn(org.objectweb.asm.Type.getType(tdescriptor));
-                mv.visitFieldInsn(GETSTATIC, WRITE_ORDER_NAME, writeOrder.name(), "L" + WRITE_ORDER_NAME + ";");
-                visitMethod(mv, INVOKEVIRTUAL, REGISTER_NAME, getCodecName,
-                        "(Ljava/lang/Class;L" + WRITE_ORDER_NAME + ";)L" + IFACE_NAME + ";", false);
-                mv.visitFieldInsn(PUTFIELD, pojoCodecName,
-                        codecName, "L" + IFACE_NAME + ";");
-            }
-        }
+//        for (java.lang.reflect.Type type : pojoTypes) {
+//            String codecName = getPojoEncoderName(type);
+//            String encoderName = toInternalName(getEncoderName((Class)type, encodeType, writeOrder));
+//            if (!encoderName.equals(pojoCodecName)) {
+//                mv.visitVarInsn(ALOAD, 0);
+//                mv.visitFieldInsn(GETSTATIC, REGISTER_NAME,
+//                        "INSTANCE", "L" + REGISTER_NAME + ";");
+//                String tdescriptor = getDescriptor(type);
+//                mv.visitLdcInsn(org.objectweb.asm.Type.getType(tdescriptor));
+//                mv.visitFieldInsn(GETSTATIC, WRITE_ORDER_NAME, writeOrder.name(), "L" + WRITE_ORDER_NAME + ";");
+//                visitMethod(mv, INVOKEVIRTUAL, REGISTER_NAME, getCodecName,
+//                        "(Ljava/lang/Class;L" + WRITE_ORDER_NAME + ";)L" + IFACE_NAME + ";", false);
+//                mv.visitFieldInsn(PUTFIELD, pojoCodecName,
+//                        codecName, "L" + IFACE_NAME + ";");
+//            }
+//        }
         for (Map.Entry<String, String> mapFields : mapNames.entrySet()) {
             mv.visitVarInsn(ALOAD, 0);
             mv.visitFieldInsn(GETSTATIC, REGISTER_NAME,

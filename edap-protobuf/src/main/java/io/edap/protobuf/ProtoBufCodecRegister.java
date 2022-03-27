@@ -80,7 +80,7 @@ public enum ProtoBufCodecRegister {
                     encoders.put(msgCls, encoder);
                 }
             }
-        } catch (Exception e) {
+        } catch (Throwable e) {
             throw new RuntimeException("generateEncoder " + msgCls.getName()
                     + " error", e);
         } finally {
@@ -107,7 +107,7 @@ public enum ProtoBufCodecRegister {
                     rencoders.put(msgCls, encoder);
                 }
             }
-        } catch (Exception e) {
+        } catch (Throwable e) {
             throw new RuntimeException("generateEncoder " + msgCls.getName()
                     + " error", e);
         } finally {
@@ -130,7 +130,7 @@ public enum ProtoBufCodecRegister {
                     decoders.put(msgCls, decoder);
                 }
             }
-        } catch (Exception e) {
+        } catch (Throwable e) {
             e.printStackTrace();
             throw new RuntimeException("generateDecoder " + msgCls.getName()
                     + " error", e);
@@ -157,7 +157,7 @@ public enum ProtoBufCodecRegister {
             if (mapEntryCls != null) {
                 mapEncoders.put(mapType, mapEntryCls);
             }
-        } catch (Exception e) {
+        } catch (Throwable e) {
             try {
                 mapEntryCls = encoderLoader.loadClass(mapEntryName);
                 if (mapEntryCls != null) {
@@ -221,7 +221,7 @@ public enum ProtoBufCodecRegister {
                     encoderLoader.define(innerName, bs, 0, bs.length);
                 }
             }
-        } catch (Exception e) {
+        } catch (Throwable e) {
             try {
                 if (encoderLoader.loadClass(encoderName) != null) {
                     return encoderLoader.loadClass(encoderName);
@@ -269,8 +269,7 @@ public enum ProtoBufCodecRegister {
                     encoderLoader.define(innerName, bs, 0, bs.length);
                 }
             }
-        } catch (Exception e) {
-            e.printStackTrace();
+        } catch (Throwable e) {
             try {
                 if (encoderLoader.loadClass(decoderName) != null) {
                     return encoderLoader.loadClass(decoderName);
