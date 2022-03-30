@@ -80,6 +80,9 @@ public class ProtoUtil {
                 ProtoFieldInfo pfi = new ProtoFieldInfo();
                 pfi.field = f;
                 Method em = getAccessMethod(f, aMethod);
+                if (isIgnore(f, em)) {
+                    continue;
+                }
                 pfi.getMethod = em;
                 Method setMethod = getSetMethod(f, aMethod);
                 if (setMethod != null) {
@@ -100,6 +103,63 @@ public class ProtoUtil {
         }
 
         return profields;
+    }
+
+    private static boolean isIgnore(Field f, Method getMethod) {
+        Annotation[] anns = f.getDeclaredAnnotations();
+        if (isIgnore(anns)) {
+            return true;
+        }
+        if (getMethod == null) {
+            return false;
+        }
+        anns = getMethod.getDeclaredAnnotations();
+        if (isIgnore(anns)) {
+            return true;
+        }
+        return false;
+    }
+
+    private static boolean isIgnore(Annotation[] anns) {
+        if (anns == null) {
+            return false;
+        }
+        Object value;
+        for (Annotation ann : anns) {
+            Map<String, Object> valueMap = getAnnotationValueMap(ann);
+            switch (ann.annotationType().getName()) {
+                case "com.fasterxml.jackson.annotation.JsonIgnore":
+                    value = valueMap.get("value");
+                    if (value != null && value instanceof Boolean) {
+                        return ((Boolean)value).booleanValue();
+                    }
+                    break;
+                case "com.alibaba.fastjson.annotation.JSONField":
+                    value = valueMap.get("serialize");
+                    if (value != null && value instanceof Boolean) {
+                        return !((Boolean)value).booleanValue();
+                    }
+                    break;
+                default:
+                    break;
+            }
+        }
+        return false;
+    }
+
+    private static Map<String, Object> getAnnotationValueMap(Annotation ann) {
+        if (ann == null) {
+            return new HashMap<>();
+        }
+        try {
+            InvocationHandler invocationhdl = Proxy.getInvocationHandler(ann);
+            Field memField = invocationhdl.getClass().getDeclaredField("memberValues");
+            memField.setAccessible(true);
+            return (Map) memField.get(invocationhdl);
+        } catch (Throwable t) {
+
+        }
+        return new HashMap<>();
     }
 
     public static byte[] buildFieldData(int tag, io.edap.protobuf.wire.Field.Type type, io.edap.protobuf.wire.Field.Cardinality cardinality) {
@@ -437,7 +497,8 @@ public class ProtoUtil {
         Cardinality cardinality = Cardinality.OPTIONAL;
         if (AsmUtil.isList(field.getGenericType())
                 || AsmUtil.isSet(field.getGenericType())
-                || AsmUtil.isArray(field.getGenericType())) {
+                || AsmUtil.isArray(field.getGenericType())
+                || isIterable(field.getGenericType())) {
             cardinality = Cardinality.REPEATED;
         }
         Type type = javaToProtoType(field.getGenericType());
@@ -503,7 +564,7 @@ public class ProtoUtil {
         if (AsmUtil.isArray(javaType)) {
             return javaToProtoType(((Class)javaType).getComponentType());
         }
-        if (isList(javaType) || isSet(javaType)) {
+        if (isList(javaType) || isSet(javaType) || isIterable(javaType)) {
             if (javaType instanceof ParameterizedType) {
                 ParameterizedType pType = (ParameterizedType)javaType;
                 java.lang.reflect.Type[] types = pType.getActualTypeArguments();
@@ -515,6 +576,8 @@ public class ProtoUtil {
                         return javaToProtoType((Class)types[0]);
                     }
                 }
+            } else if (javaType instanceof Class) {
+                return Type.OBJECT;
             }
         }
         if (javaType instanceof ParameterizedType) {

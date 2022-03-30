@@ -228,6 +228,58 @@ public class AsmUtil {
         }
     }
 
+    public static boolean isIterable(Type type) {
+        if (type instanceof ParameterizedType) {
+            ParameterizedType ptype = (ParameterizedType)type;
+            Class tclass = (Class)ptype.getRawType();
+            return isIterable(tclass);
+        } else if (type instanceof Class) {
+            return isIterable((Class)type);
+        }
+        return false;
+    }
+
+    public static boolean isIterable(Class cls) {
+        if (cls.getName().equals("java.lang.Iterable")) {
+            return true;
+        }
+        Class[] ifaces = cls.getInterfaces();
+        for (Class c : ifaces) {
+            if (isIterableInterface(c)) {
+                return true;
+            }
+        }
+        Class pCls = cls.getSuperclass();
+        while (pCls != null) {
+            //System.out.println("pCls=" + pCls.getName());
+            if (pCls.getName().equals("java.lang.Iterable")) {
+                return true;
+            }
+            pCls = pCls.getSuperclass();
+        }
+        return false;
+    }
+
+    public static boolean isIterableInterface(Class cls) {
+        if (cls.getName().equals("java.lang.Iterable")) {
+            return true;
+        }
+        Class[] ifaces = cls.getInterfaces();
+        for (Class c : ifaces) {
+            if (c.getName().equals("java.lang.Iterable")) {
+                return true;
+            }
+        }
+        Class pCls = cls.getSuperclass();
+        while (pCls != null) {
+            if (pCls.getName().equals("java.lang.Iterable")) {
+                return true;
+            }
+            pCls = pCls.getSuperclass();
+        }
+        return false;
+    }
+
     public static boolean isSet(Type type) {
         if (type instanceof ParameterizedType) {
             ParameterizedType ptype = (ParameterizedType)type;

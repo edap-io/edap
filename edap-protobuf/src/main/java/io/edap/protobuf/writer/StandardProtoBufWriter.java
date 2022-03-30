@@ -23,6 +23,7 @@ import io.edap.protobuf.ProtoBufWriter;
 import io.edap.protobuf.ext.AnyCodec;
 import io.edap.protobuf.internal.ProtoBufOut;
 import io.edap.protobuf.wire.Field;
+import io.edap.util.CollectionUtils;
 
 import java.util.ArrayDeque;
 import java.util.List;
@@ -671,6 +672,9 @@ public class StandardProtoBufWriter extends AbstractWriter {
 
     @Override
     public <T> void writeMessages(byte[] fieldData, int tag, T[] vs, ProtoBufEncoder<T> codec) throws EncodeException {
+        if (vs == null) {
+            return;
+        }
         int size = vs.length;
         for (int i=0;i<size;i++) {
             //for (T v : vs) {
@@ -681,6 +685,9 @@ public class StandardProtoBufWriter extends AbstractWriter {
 
     @Override
     public <T> void writeMessages(byte[] fieldData, int tag, List<T> vs, ProtoBufEncoder<T> codec) throws EncodeException {
+        if (CollectionUtils.isEmpty(vs)) {
+            return;
+        }
         int size = vs.size();
         int len;
         for (int i=0;i<size;i++) {
