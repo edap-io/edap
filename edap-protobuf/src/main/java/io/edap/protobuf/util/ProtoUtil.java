@@ -65,13 +65,38 @@ public class ProtoUtil {
         return pfi.protoField.type().packable();
     }
 
+    /**
+     * 判断一个Class的是否是Map的子类，如果是返回Map的类型信息，否则返回null
+     * @param clazz
+     * @return
+     */
+    public static java.lang.reflect.Type parentMapType(Class clazz) {
+        Class pclazz = clazz.getSuperclass();
+        Class cclazz = clazz;
+        while (pclazz != null) {
+            if (isMap(pclazz)) {
+                return cclazz.getGenericSuperclass();
+            }
+            cclazz = pclazz;
+            pclazz = pclazz.getSuperclass();
+
+        }
+        return null;
+    }
+
     public static List<ProtoFieldInfo> getProtoFields(Class pojoClass) throws IOException {
         List<ProtoFieldInfo> profields = new ArrayList<>();
-        List<Field> fields = getClassFields(pojoClass);
+        List<Field> allfields = getClassFields(pojoClass);
         List<Method> methods = getClassMethods(pojoClass);
         Map<String, Method> aMethod = new HashMap<>();
         for (Method m : methods) {
             aMethod.put(m.getName(), m);
+        }
+        List<Field> fields = new ArrayList<>(allfields.size());
+        for (Field f : allfields) {
+            if (!f.getDeclaringClass().getName().startsWith("java.")) {
+                fields.add(f);
+            }
         }
 
         boolean hasProtoAnn = false;

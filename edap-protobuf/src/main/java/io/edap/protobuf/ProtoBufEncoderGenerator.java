@@ -24,6 +24,7 @@ import io.edap.protobuf.util.ProtoTagComparator;
 import io.edap.protobuf.util.ProtoUtil;
 import io.edap.protobuf.wire.Field;
 import io.edap.protobuf.wire.Field.Type;
+import io.edap.protobuf.wire.WireFormat;
 import io.edap.util.AsmUtil;
 import io.edap.util.ClazzUtil;
 import io.edap.util.CollectionUtils;
@@ -79,10 +80,13 @@ public class ProtoBufEncoderGenerator {
     private final List<String> mapMethods = new ArrayList<>();
     private final List<String> iteratorMethods = new ArrayList<>();
 
+    private final java.lang.reflect.Type parentMapType;
+
     public ProtoBufEncoderGenerator(Class pojoCls, EncodeType encodeType, WriteOrder writeOrder) {
         this.pojoCls = pojoCls;
         this.encodeType = encodeType;
         this.writeOrder = writeOrder;
+        this.parentMapType = ProtoUtil.parentMapType(pojoCls);
     }
 
     public GeneratorClassInfo getClassInfo() throws IOException {
@@ -173,7 +177,7 @@ public class ProtoBufEncoderGenerator {
         MethodVisitor mv;
 
         mv = cw.visitMethod(ACC_PUBLIC, "encode",
-                "(L" + WRITER_NAME + ";L" + pojoName + ";)V", null, null);
+                "(L" + WRITER_NAME + ";L" + pojoName + ";)V", null, new String[] { ENCODE_EX_NAME });
         mv.visitCode();
 //        mv.visitVarInsn(ALOAD, 0);
 //        //visitMethod(mv, INVOKESPECIAL, PROTO_WRITER, "<init>",
@@ -184,98 +188,146 @@ public class ProtoBufEncoderGenerator {
 //        mv.visitVarInsn(ALOAD, 1);
 //        visitMethod(mv, INVOKEVIRTUAL, ABSTRACT_WRITER_NAME, "setBufOut", "(" + OUT_IFACE + ")V", false);
 
-        Label l000 = new Label();
-        Label l100 = new Label();
-        Label l200 = new Label();
-        mv.visitTryCatchBlock(l000, l100, l200, "java/lang/Exception");
-        mv.visitLabel(l000);
+        if (!CollectionUtils.isEmpty(fields) || parentMapType != null) {
+            Label l000 = new Label();
+            Label l100 = new Label();
+            Label l200 = new Label();
+            mv.visitTryCatchBlock(l000, l100, l200, "java/lang/Exception");
+            mv.visitLabel(l000);
 
-        for (ProtoFieldInfo pfi : fields) {
-            String rType = getDescriptor(pfi.field.getType());
+            for (ProtoFieldInfo pfi : fields) {
+                String rType = getDescriptor(pfi.field.getType());
 
-            if (isPojo(pfi.field.getGenericType())) {
-                mv.visitVarInsn(ALOAD, 1);
-                mv.visitFieldInsn(GETSTATIC, pojoCodecName, "tag" + pfi.protoField.tag(), "[B");
-                visitTagOpcode(mv, pfi.protoField.tag());
-                visitGetFieldValue(mv, pfi, pojoName, pojoCodecName, 2, rType);
-                String itemCodec = getPojoEncoderName(pfi.field.getGenericType());
-                mv.visitVarInsn(ALOAD, 0);
+                if (isPojo(pfi.field.getGenericType())) {
+                    mv.visitVarInsn(ALOAD, 1);
+                    mv.visitFieldInsn(GETSTATIC, pojoCodecName, "tag" + pfi.protoField.tag(), "[B");
+                    visitTagOpcode(mv, pfi.protoField.tag());
+                    visitGetFieldValue(mv, pfi, pojoName, pojoCodecName, 2, rType);
+                    String itemCodec = getPojoEncoderName(pfi.field.getGenericType());
+                    mv.visitVarInsn(ALOAD, 0);
 //                mv.visitFieldInsn(GETFIELD, pojoCodecName, itemCodec,
 //                        "L" + IFACE_NAME + ";");
-                if (!pfi.field.getType().getName().equals(pojoCls.getName())) {
-                    String codecName = getPojoEncoderName(pfi.field.getGenericType());
-                    String getEncoderName = "get" + codecName.substring(0, 1).toUpperCase(Locale.ENGLISH) + codecName.substring(1);
-                    mv.visitMethodInsn(INVOKESPECIAL, pojoCodecName, getEncoderName, "()L" + IFACE_NAME + ";", false);
-                }
-                visitMethod(mv, INVOKEINTERFACE, WRITER_NAME, "writeMessage",
-                        "([BILjava/lang/Object;L" + IFACE_NAME + ";)V", true);
-            } else {
-                String writeMethod = getWriteMethod(pfi.protoField.type());
-                if ("writeEnum".equals(writeMethod) && !isList(pfi.field.getGenericType()) &&
-                        !isArray(pfi.field.getType())) {
-                    mv.visitVarInsn(ALOAD, 1);
-                    mv.visitFieldInsn(GETSTATIC, pojoCodecName, "tag" + pfi.protoField.tag(), "[B");
-                    //rType = "Ljava/lang/Enum;";
-                    visitGetFieldValue(mv, pfi, pojoName, pojoCodecName, 2, rType);
-                    Label l0 = new Label();
-                    mv.visitJumpInsn(IFNULL, l0);
-                    visitGetFieldValue(mv, pfi, pojoName, pojoCodecName, 2, rType);
-                    if (implInterface(pfi.field.getType(), ProtoBufEnum.class)) {
-                        visitMethod(mv, INVOKEVIRTUAL, rType.substring(1, rType.length()-1), "getValue", "()I", false);
-                    } else {
-                        visitMethod(mv, INVOKEVIRTUAL, rType.substring(1, rType.length()-1), "ordinal", "()I", false);
+                    if (!pfi.field.getType().getName().equals(pojoCls.getName())) {
+                        String codecName = getPojoEncoderName(pfi.field.getGenericType());
+                        String getEncoderName = "get" + codecName.substring(0, 1).toUpperCase(Locale.ENGLISH) + codecName.substring(1);
+                        mv.visitMethodInsn(INVOKESPECIAL, pojoCodecName, getEncoderName, "()L" + IFACE_NAME + ";", false);
                     }
-                    mv.visitMethodInsn(INVOKESTATIC, "java/lang/Integer", "valueOf", "(I)Ljava/lang/Integer;", false);
-
-                    Label l1 = new Label();
-                    mv.visitJumpInsn(GOTO, l1);
-                    mv.visitLabel(l0);
-                    mv.visitFrame(Opcodes.F_FULL, 3, new Object[] {pojoCodecName, WRITER_NAME, pojoName}, 2,
-                            new Object[] {WRITER_NAME, "[B"});
-                    mv.visitInsn(ACONST_NULL);
-                    mv.visitLabel(l1);
-                    mv.visitFrame(Opcodes.F_FULL, 3, new Object[] {pojoCodecName, WRITER_NAME, pojoName}, 3,
-                            new Object[] {WRITER_NAME, "[B", "java/lang/Integer"});
-
-                    visitMethod(mv, INVOKEINTERFACE, WRITER_NAME, writeMethod, "([BLjava/lang/Integer;)V", true);
-                } else if (isArray(pfi.field.getType())) {
-                    visitArrayOpcodes(mv, pfi);
-                } else if (isList(pfi.field.getGenericType())) {
-                    visitListOpcodes(mv, pfi);
-                } else if (isIterable(pfi.field.getGenericType())) {
-                    visitIterableOpcodes(mv, pfi);
-                } else if (AsmUtil.isMap(pfi.field.getGenericType())) {
-                    visitMapOpcodes(mv, pfi);
+                    visitMethod(mv, INVOKEINTERFACE, WRITER_NAME, "writeMessage",
+                            "([BILjava/lang/Object;L" + IFACE_NAME + ";)V", true);
                 } else {
-                    mv.visitVarInsn(ALOAD, 1);
-                    mv.visitFieldInsn(GETSTATIC, pojoCodecName, "tag" + pfi.protoField.tag(), "[B");
-                    rType = visitGetFieldValue(mv, pfi, pojoName, pojoCodecName, 2, rType);
-                    if (writeMethod.equals("writeObject")) {
-                        rType = "Ljava/lang/Object;";
+                    String writeMethod = getWriteMethod(pfi.protoField.type());
+                    if ("writeEnum".equals(writeMethod) && !isList(pfi.field.getGenericType()) &&
+                            !isArray(pfi.field.getType())) {
+                        mv.visitVarInsn(ALOAD, 1);
+                        mv.visitFieldInsn(GETSTATIC, pojoCodecName, "tag" + pfi.protoField.tag(), "[B");
+                        //rType = "Ljava/lang/Enum;";
+                        visitGetFieldValue(mv, pfi, pojoName, pojoCodecName, 2, rType);
+                        Label l0 = new Label();
+                        mv.visitJumpInsn(IFNULL, l0);
+                        visitGetFieldValue(mv, pfi, pojoName, pojoCodecName, 2, rType);
+                        if (implInterface(pfi.field.getType(), ProtoBufEnum.class)) {
+                            visitMethod(mv, INVOKEVIRTUAL, rType.substring(1, rType.length() - 1), "getValue", "()I", false);
+                        } else {
+                            visitMethod(mv, INVOKEVIRTUAL, rType.substring(1, rType.length() - 1), "ordinal", "()I", false);
+                        }
+                        mv.visitMethodInsn(INVOKESTATIC, "java/lang/Integer", "valueOf", "(I)Ljava/lang/Integer;", false);
+
+                        Label l1 = new Label();
+                        mv.visitJumpInsn(GOTO, l1);
+                        mv.visitLabel(l0);
+                        mv.visitFrame(Opcodes.F_FULL, 3, new Object[]{pojoCodecName, WRITER_NAME, pojoName}, 2,
+                                new Object[]{WRITER_NAME, "[B"});
+                        mv.visitInsn(ACONST_NULL);
+                        mv.visitLabel(l1);
+                        mv.visitFrame(Opcodes.F_FULL, 3, new Object[]{pojoCodecName, WRITER_NAME, pojoName}, 3,
+                                new Object[]{WRITER_NAME, "[B", "java/lang/Integer"});
+
+                        visitMethod(mv, INVOKEINTERFACE, WRITER_NAME, writeMethod, "([BLjava/lang/Integer;)V", true);
+                    } else if (isArray(pfi.field.getType())) {
+                        visitArrayOpcodes(mv, pfi);
+                    } else if (isList(pfi.field.getGenericType())) {
+                        visitListOpcodes(mv, pfi);
+                    } else if (isIterable(pfi.field.getGenericType())) {
+                        visitIterableOpcodes(mv, pfi);
+                    } else if (AsmUtil.isMap(pfi.field.getGenericType())) {
+                        visitMapOpcodes(mv, pfi);
+                    } else {
+                        mv.visitVarInsn(ALOAD, 1);
+                        mv.visitFieldInsn(GETSTATIC, pojoCodecName, "tag" + pfi.protoField.tag(), "[B");
+                        rType = visitGetFieldValue(mv, pfi, pojoName, pojoCodecName, 2, rType);
+                        if (writeMethod.equals("writeObject")) {
+                            rType = "Ljava/lang/Object;";
+                        }
+                        visitMethod(mv, INVOKEINTERFACE, WRITER_NAME, writeMethod,
+                                "([B" + rType + ")V", true);
                     }
-                    visitMethod(mv, INVOKEINTERFACE, WRITER_NAME, writeMethod,
-                            "([B" + rType + ")V", true);
                 }
             }
+            if (parentMapType != null) {
+                visitSelfMapOpcodes(mv);
+            }
+
+            mv.visitLabel(l100);
+            Label l300 = new Label();
+            mv.visitJumpInsn(GOTO, l300);
+            mv.visitLabel(l200);
+            mv.visitFrame(Opcodes.F_SAME1, 0, null, 1, new Object[]{"java/lang/Exception"});
+            mv.visitVarInsn(ASTORE, 3);
+            mv.visitTypeInsn(NEW, ENCODE_EX_NAME);
+            mv.visitInsn(DUP);
+            mv.visitVarInsn(ALOAD, 3);
+            mv.visitMethodInsn(INVOKESPECIAL, ENCODE_EX_NAME, "<init>", "(Ljava/lang/Exception;)V", false);
+            mv.visitInsn(ATHROW);
+            mv.visitLabel(l300);
+            mv.visitFrame(Opcodes.F_SAME, 0, null, 0, null);
         }
-
-        mv.visitLabel(l100);
-        Label l300 = new Label();
-        mv.visitJumpInsn(GOTO, l300);
-        mv.visitLabel(l200);
-        mv.visitFrame(Opcodes.F_SAME1, 0, null, 1, new Object[] {"java/lang/Exception"});
-        mv.visitVarInsn(ASTORE, 3);
-        mv.visitTypeInsn(NEW, ENCODE_EX_NAME);
-        mv.visitInsn(DUP);
-        mv.visitVarInsn(ALOAD, 3);
-        mv.visitMethodInsn(INVOKESPECIAL, ENCODE_EX_NAME, "<init>", "(Ljava/lang/Exception;)V", false);
-        mv.visitInsn(ATHROW);
-        mv.visitLabel(l300);
-        mv.visitFrame(Opcodes.F_SAME, 0, null, 0, null);
-
         mv.visitInsn(RETURN);
         mv.visitMaxs(4, 4);
         mv.visitEnd();
+    }
+
+    /**
+     * 如果bean继承了Map，生成将自身的Map做序列化操作
+     * @param mv
+     */
+    private void visitSelfMapOpcodes(MethodVisitor mv) {
+        String rType = getDescriptor(parentMapType);
+        String rClazzDesc;
+        if (parentMapType instanceof ParameterizedType) {
+            ParameterizedType ptype = (ParameterizedType)parentMapType;
+            rClazzDesc = getDescriptor((Class)ptype.getRawType());
+        } else if (parentMapType instanceof Class) {
+            rClazzDesc = getDescriptor((Class)parentMapType);
+        } else {
+            int kindex = rType.indexOf("<");
+            if (kindex == -1) {
+                rClazzDesc = rType;
+            } else {
+                rClazzDesc = rType.substring(0, kindex);
+                if (rClazzDesc.startsWith("L")) {
+                    rClazzDesc += ";";
+                }
+            }
+        }
+        Class mapEntryCls = ProtoBufCodecRegister.INSTANCE.generateMapEntryClass(parentMapType);
+        int index = mapMethods.indexOf(mapEntryCls.getName());
+        String mapMethod;
+        if (index < 0) {
+            index = mapMethods.size();
+            mapMethod = WRITE_MAP_PREFIX + index;
+            //visitWriteMapMethod(mapMethod, mapEntryCls, pfi);
+            visitWriteSelfMapFastMethod(mapMethod, mapEntryCls);
+            mapMethods.add(mapEntryCls.getName());
+        } else {
+            mapMethod = WRITE_MAP_PREFIX + index;
+        }
+
+        mv.visitVarInsn(ALOAD, 0);
+        mv.visitVarInsn(ALOAD, 1);
+        visitTagOpcode(mv, WireFormat.RESERVED_TAG_VALUE_START);
+        mv.visitVarInsn(ALOAD, 2);
+        visitMethod(mv, INVOKESPECIAL, pojoCodecName, mapMethod,
+                "(L" + WRITER_NAME + ";I" + rClazzDesc + ")V", false);
     }
 
     private void visitMapOpcodes(MethodVisitor mv, ProtoFieldInfo pfi) {
@@ -300,6 +352,110 @@ public class ProtoBufEncoderGenerator {
         visitGetFieldValue(mv, pfi, pojoName, pojoCodecName, 2, rType);
         visitMethod(mv, INVOKESPECIAL, pojoCodecName, mapMethod,
                 "(L" + WRITER_NAME + ";I" + rType + ")V", false);
+    }
+
+    private void visitWriteSelfMapFastMethod(String methodName, Class mapEntryCls) {
+
+        String mapName = toInternalName(parentMapType.getTypeName());
+        String rType = getDescriptor(parentMapType);
+        String itemTypeName = toInternalName(mapEntryCls.getName());
+        String itemTypeDesc = getDescriptor(mapEntryCls);
+
+        java.lang.reflect.Type mapType = parentMapType;
+        String keyTypeName = "java/lang/Object";
+        String valTypeName = "java/lang/Object";
+        if (mapType instanceof ParameterizedType) {
+            ParameterizedType ptype = (ParameterizedType)mapType;
+            if (ptype.getActualTypeArguments() != null
+                    && ptype.getActualTypeArguments().length == 2) {
+                keyTypeName = toInternalName(
+                        getTypeName(ptype.getActualTypeArguments()[0]));
+                valTypeName = toInternalName(
+                        getTypeName(ptype.getActualTypeArguments()[1]));
+            }
+        }
+        MethodVisitor mv;
+        mv = cw.visitMethod(ACC_PRIVATE, methodName,
+                "(L" + WRITER_NAME + ";IL" + mapName + ";)V",
+                "(L" + WRITER_NAME + ";I" + rType + ")V", new String[] { ENCODE_EX_NAME });
+
+        mv.visitCode();
+        mv.visitVarInsn(ALOAD, 3);
+        Label lbNull = new Label();
+        mv.visitJumpInsn(IFNULL, lbNull);
+
+        mv.visitVarInsn(ALOAD, 3);
+        visitMethod(mv, INVOKEINTERFACE, "java/util/Map", "isEmpty", "()Z", true);
+        Label lbNotEmpty = new Label();
+        mv.visitJumpInsn(IFEQ, lbNotEmpty);
+
+        mv.visitLabel(lbNull);
+        mv.visitFrame(Opcodes.F_SAME, 0, null, 0, null);
+        mv.visitInsn(RETURN);
+        mv.visitLabel(lbNotEmpty);
+        mv.visitFrame(Opcodes.F_SAME, 0, null, 0, null);
+
+        mv.visitTypeInsn(NEW, itemTypeName);
+        mv.visitInsn(DUP);
+        visitMethod(mv, INVOKESPECIAL, itemTypeName, "<init>", "()V", false);
+        mv.visitVarInsn(ASTORE, 4);
+        mv.visitFieldInsn(GETSTATIC, REGISTER_NAME,
+                "INSTANCE", "L" + REGISTER_NAME + ";");
+        mv.visitLdcInsn(org.objectweb.asm.Type.getType(itemTypeDesc));
+        mv.visitFieldInsn(GETSTATIC, WRITE_ORDER_NAME, writeOrder.name(), "L" + WRITE_ORDER_NAME + ";");
+        visitMethod(mv, INVOKEVIRTUAL, REGISTER_NAME,
+                "getEncoder", "(Ljava/lang/Class;L" + WRITE_ORDER_NAME + ";)L" + IFACE_NAME + ";",
+                false);
+        mv.visitVarInsn(ASTORE, 5);
+        mv.visitVarInsn(ALOAD, 3);
+        visitMethod(mv, INVOKEINTERFACE, "java/util/Map", "entrySet",
+                "()Ljava/util/Set;", true);
+        visitMethod(mv, INVOKEINTERFACE, "java/util/Set", "iterator",
+                "()Ljava/util/Iterator;", true);
+        mv.visitVarInsn(ASTORE, 6);
+        Label l0 = new Label();
+        mv.visitLabel(l0);
+        mv.visitFrame(F_APPEND,3, new Object[] {
+                itemTypeName, IFACE_NAME, "java/util/Iterator"}, 0, null);
+        mv.visitVarInsn(ALOAD, 6);
+        visitMethod(mv, INVOKEINTERFACE, "java/util/Iterator", "hasNext",
+                "()Z", true);
+        Label l1 = new Label();
+        mv.visitJumpInsn(IFEQ, l1);
+        mv.visitVarInsn(ALOAD, 6);
+        visitMethod(mv, INVOKEINTERFACE, "java/util/Iterator", "next",
+                "()Ljava/lang/Object;", true);
+        mv.visitTypeInsn(CHECKCAST, "java/util/Map$Entry");
+        mv.visitVarInsn(ASTORE, 7);
+        mv.visitVarInsn(ALOAD, 4);
+        mv.visitVarInsn(ALOAD, 7);
+        visitMethod(mv, INVOKEINTERFACE, "java/util/Map$Entry", "getKey",
+                "()Ljava/lang/Object;", true);
+        if (!"java/lang/Object".equals(keyTypeName)) {
+            mv.visitTypeInsn(CHECKCAST, keyTypeName);
+        }
+        mv.visitFieldInsn(PUTFIELD, itemTypeName, "key", "L" + keyTypeName + ";");
+        mv.visitVarInsn(ALOAD, 4);
+        mv.visitVarInsn(ALOAD, 7);
+        visitMethod(mv, INVOKEINTERFACE, "java/util/Map$Entry", "getValue",
+                "()Ljava/lang/Object;", true);
+        if (!"java/lang/Object".equals(valTypeName)) {
+            mv.visitTypeInsn(CHECKCAST, valTypeName);
+        }
+        mv.visitFieldInsn(PUTFIELD, itemTypeName, "value", "L" + valTypeName + ";");
+        mv.visitVarInsn(ALOAD, 1);
+        mv.visitFieldInsn(GETSTATIC, pojoCodecName, "tag" + WireFormat.RESERVED_TAG_VALUE_START, "[B");
+        mv.visitVarInsn(ILOAD, 2);
+        mv.visitVarInsn(ALOAD, 4);
+        mv.visitVarInsn(ALOAD, 5);
+        visitMethod(mv, INVOKEINTERFACE, WRITER_NAME, "writeMessage",
+                "([BILjava/lang/Object;L" + IFACE_NAME + ";)V", true);
+        mv.visitJumpInsn(GOTO, l0);
+        mv.visitLabel(l1);
+        mv.visitFrame(F_CHOP,1, null, 0, null);
+        mv.visitInsn(RETURN);
+        mv.visitMaxs(5, 8);
+        mv.visitEnd();
     }
 
     private void visitWriteMapFastMethod(String methodName, Class mapEntryCls,
@@ -1292,6 +1448,17 @@ public class ProtoBufEncoderGenerator {
             visitMethod(mv, INVOKESTATIC, PROTOUTIL_NAME, "buildFieldData",
                     "(IL" + FIELD_TYPE_NAME + ";L" + CARDINALITY_NAME + ";)[B", false);
             mv.visitFieldInsn(PUTSTATIC, pojoCodecName, "tag" + pfi.protoField.tag(), "[B");
+        }
+        // 如果父类是Map类型初始化tag为
+        if (parentMapType != null) {
+            fv = cw.visitField(ACC_PRIVATE + ACC_FINAL + ACC_STATIC, "tag" + WireFormat.RESERVED_TAG_VALUE_START, "[B", null, null);
+            fv.visitEnd();
+            visitTagOpcode(mv, WireFormat.RESERVED_TAG_VALUE_START);
+            mv.visitFieldInsn(GETSTATIC, FIELD_TYPE_NAME, "MAP", "L" + FIELD_TYPE_NAME + ";");
+            mv.visitFieldInsn(GETSTATIC, CARDINALITY_NAME, "OPTIONAL", "L" + CARDINALITY_NAME + ";");
+            visitMethod(mv, INVOKESTATIC, PROTOUTIL_NAME, "buildFieldData",
+                    "(IL" + FIELD_TYPE_NAME + ";L" + CARDINALITY_NAME + ";)[B", false);
+            mv.visitFieldInsn(PUTSTATIC, pojoCodecName, "tag" + WireFormat.RESERVED_TAG_VALUE_START, "[B");
         }
     }
 
