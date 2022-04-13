@@ -22,6 +22,7 @@ import io.edap.protobuf.ProtoBuf.ProtoFieldInfo;
 import io.edap.protobuf.util.ProtoUtil;
 import io.edap.protobuf.wire.Field;
 import io.edap.protobuf.wire.Field.Type;
+import io.edap.protobuf.wire.WireFormat;
 import io.edap.util.*;
 import org.objectweb.asm.*;
 
@@ -65,9 +66,12 @@ public class ProtoBufDecoderGenerator {
     private final List<String> arrayMethods = new ArrayList<>();
     private final List<String> mapMethods = new ArrayList<>();
 
+    private final java.lang.reflect.Type parentMapType;
+
     public ProtoBufDecoderGenerator(Class pojoCls, ProtoBuf.EncodeType encodeType) {
         this.pojoCls = pojoCls;
         this.encodeType = encodeType;
+        this.parentMapType = ProtoUtil.parentMapType(pojoCls);
     }
 
     public GeneratorClassInfo getClassInfo() throws IOException {
@@ -234,8 +238,15 @@ public class ProtoBufDecoderGenerator {
 
         //switch tag逻辑
         int fieldCount = fields.size();
-        int[] tagArray = new int[fieldCount+1];
-        Label[] labels = new Label[fieldCount+1];
+        int[] tagArray;
+        Label[] labels;
+        if (parentMapType != null) {
+            tagArray = new int[fieldCount + 2];
+            labels   = new Label[fieldCount + 2];
+        } else {
+            tagArray = new int[fieldCount + 1];
+            labels   = new Label[fieldCount + 1];
+        }
 
         List<ProtoFieldInfo> sortFields = new ArrayList<>();
         sortFields.addAll(fields);
@@ -259,6 +270,10 @@ public class ProtoBufDecoderGenerator {
             tagArray[i+1] = buildFieldValue(pfi.tag(), pfi.type(), pfi.cardinality());
             //tagArray[i] = pfi.tag();
             labels[i+1] = new Label();
+        }
+        if (parentMapType != null) {
+            tagArray[fieldCount+1] = buildFieldValue(WireFormat.RESERVED_TAG_VALUE_START, Type.MAP, Field.Cardinality.OPTIONAL);
+            labels[fieldCount+1] = new Label();
         }
 
         Label dfltLabel = new Label();
@@ -547,6 +562,39 @@ public class ProtoBufDecoderGenerator {
                     mv.visitInsn(POP);
                 }
             }
+            mv.visitJumpInsn(GOTO, finishLabel);
+        }
+        if (parentMapType != null) {
+            mv.visitLabel(labels[fieldCount+1]);
+            String keyTypeDesc = "Ljava/lang/Object;";
+            String valTypeDesc = "Ljava/lang/Object;";
+            if (parentMapType instanceof ParameterizedType) {
+                ParameterizedType ptype = (ParameterizedType) parentMapType;
+                keyTypeDesc = getDescriptor(ptype.getActualTypeArguments()[0]);
+                valTypeDesc = getDescriptor(ptype.getActualTypeArguments()[1]);
+            }
+            Class mapEntryCls = ProtoBufCodecRegister.INSTANCE
+                    .generateMapEntryClass(parentMapType);
+            String codecName = getMapCodecName(mapEntryCls);
+            String mapTypeName = toInternalName(mapEntryCls.getName());
+
+            mv.visitVarInsn(ALOAD, 1);
+            mv.visitVarInsn(ALOAD, 0);
+            mv.visitFieldInsn(GETFIELD, pojoCodecName, codecName,
+                    "L" + IFACE_NAME + ";");
+            visitMethod(mv, INVOKEINTERFACE, READER_NAME, "readMessage",
+                    "(L" + IFACE_NAME + ";)Ljava/lang/Object;", true);
+            mv.visitTypeInsn(CHECKCAST, mapTypeName);
+            varSwitchPre++;
+            mv.visitVarInsn(ASTORE, varSwitchPre);
+            mv.visitVarInsn(ALOAD, 2);
+            mv.visitVarInsn(ALOAD, varSwitchPre);
+            mv.visitFieldInsn(GETFIELD, mapTypeName, "key", keyTypeDesc);
+            mv.visitVarInsn(ALOAD, varSwitchPre);
+            mv.visitFieldInsn(GETFIELD, mapTypeName, "value", valTypeDesc);
+            visitMethod(mv, INVOKEVIRTUAL, pojoName, "put",
+                    "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;", false);
+            mv.visitInsn(POP);
             mv.visitJumpInsn(GOTO, finishLabel);
         }
 
@@ -1247,6 +1295,19 @@ public class ProtoBufDecoderGenerator {
                 mapNames.put(codecName, typeName);
             }
         }
+        if (parentMapType != null) {
+            Class mapCls = ProtoBufCodecRegister.INSTANCE
+                    .generateMapEntryClass(parentMapType);
+            String codecName = getMapCodecName(mapCls);
+            if (!mapNames.containsKey(codecName)) {
+                String itemType = toInternalName(mapCls.getName());
+                cw.visitField(ACC_PRIVATE, codecName, "L" + IFACE_NAME + ";",
+                        "L" + IFACE_NAME + "<L" + itemType + ";>;", null);
+                String typeName = getDescriptor(mapCls);
+                mapNames.put(codecName, typeName);
+            }
+        }
+
         MethodVisitor mv;
         mv = cw.visitMethod(ACC_PUBLIC, "<init>", "()V", null, null);
         mv.visitCode();
@@ -1283,6 +1344,23 @@ public class ProtoBufDecoderGenerator {
                     "(Ljava/lang/Class;)L" + IFACE_NAME + ";", false);
             mv.visitFieldInsn(PUTFIELD, pojoCodecName,
                     mapFields.getKey(), "L" + IFACE_NAME + ";");
+        }
+        if (parentMapType != null) {
+            Class mapCls = ProtoBufCodecRegister.INSTANCE
+                    .generateMapEntryClass(parentMapType);
+            String codecName = getMapCodecName(mapCls);
+            String itemType = toInternalName(mapCls.getName());
+            if (!mapNames.containsKey(codecName)) {
+                cw.visitField(ACC_PRIVATE, codecName, "L" + IFACE_NAME + ";",
+                        "L" + IFACE_NAME + "<L" + itemType + ";>;", null);
+                String typeName = getDescriptor(mapCls);
+                mapNames.put(codecName, typeName);
+            }
+            mv.visitVarInsn(ALOAD, 0);
+            mv.visitFieldInsn(GETSTATIC, REGISTER_NAME, "INSTANCE", "L" + REGISTER_NAME + ";");
+            mv.visitLdcInsn(org.objectweb.asm.Type.getType("L" + itemType + ";"));
+            mv.visitMethodInsn(INVOKEVIRTUAL, REGISTER_NAME, "getDecoder", "(Ljava/lang/Class;)L" + IFACE_NAME + ";", false);
+            mv.visitFieldInsn(PUTFIELD, pojoCodecName, codecName, "L" + IFACE_NAME + ";");
         }
 
         visitReflectField(mv, fields);
