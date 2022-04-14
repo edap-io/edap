@@ -19,7 +19,11 @@ package io.edap.util;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Opcodes;
 
+import java.io.File;
+import java.io.IOException;
+import java.io.RandomAccessFile;
 import java.lang.reflect.*;
+import java.nio.file.Files;
 
 import static org.objectweb.asm.Opcodes.*;
 
@@ -27,6 +31,22 @@ import static org.objectweb.asm.Opcodes.*;
 public class AsmUtil {
 
     private AsmUtil() {}
+
+    public static void saveJavaFile(String javaFilePath, byte[] data)
+            throws IOException {
+        File f = new File(javaFilePath);
+        if (f.exists()) {
+            Files.delete(f.toPath());
+        } else {
+            if (!f.getParentFile().exists()) {
+                f.getParentFile().mkdirs();
+            }
+        }
+
+        try (RandomAccessFile java = new RandomAccessFile(javaFilePath, "rw")) {
+            java.write(data);
+        }
+    }
 
     public static boolean isArray(Type type) {
         if (type instanceof Class) {
@@ -109,6 +129,11 @@ public class AsmUtil {
         }
         sb.append(sourceName.substring(start));
         return sb.toString();
+    }
+
+    public static void visitMethod(MethodVisitor mv, int type, String clsName,
+                                   String methodName, String desc, boolean isType) {
+        mv.visitMethodInsn(type, clsName, methodName, desc, isType);
     }
 
     public static String toLangName(String internalName) {
