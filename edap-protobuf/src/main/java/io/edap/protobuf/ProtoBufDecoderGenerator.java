@@ -671,7 +671,6 @@ public class ProtoBufDecoderGenerator {
         }
 
         // 为String类型增加默认值""
-        System.out.println("stringFields.size=" + stringFields.size());
         for (int i=0;i<stringFields.size();i++) {
             ProtoFieldInfo pfi = stringFields.get(i);
 //            mv.visitVarInsn(ALOAD, varPojo);
