@@ -358,6 +358,24 @@ public class ProtoBufEncoderGenerator {
 
         String mapName = toInternalName(parentMapType.getTypeName());
         String rType = getDescriptor(parentMapType);
+        String rClazzDesc;
+        if (parentMapType instanceof ParameterizedType) {
+            ParameterizedType ptype = (ParameterizedType)parentMapType;
+            rClazzDesc = getDescriptor((Class)ptype.getRawType());
+        } else if (parentMapType instanceof Class) {
+            rClazzDesc = getDescriptor((Class)parentMapType);
+        } else {
+            int kindex = rType.indexOf("<");
+            if (kindex == -1) {
+                rClazzDesc = rType;
+            } else {
+                rClazzDesc = rType.substring(0, kindex);
+                if (rClazzDesc.startsWith("L")) {
+                    rClazzDesc += ";";
+                }
+            }
+        }
+
         String itemTypeName = toInternalName(mapEntryCls.getName());
         String itemTypeDesc = getDescriptor(mapEntryCls);
 
@@ -376,7 +394,7 @@ public class ProtoBufEncoderGenerator {
         }
         MethodVisitor mv;
         mv = cw.visitMethod(ACC_PRIVATE, methodName,
-                "(L" + WRITER_NAME + ";IL" + mapName + ";)V",
+                "(L" + WRITER_NAME + ";I" + rClazzDesc + ")V",
                 "(L" + WRITER_NAME + ";I" + rType + ")V", new String[] { ENCODE_EX_NAME });
 
         mv.visitCode();

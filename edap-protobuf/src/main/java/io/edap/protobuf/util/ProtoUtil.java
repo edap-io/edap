@@ -783,11 +783,6 @@ public class ProtoUtil {
         return null;
     }
 
-    public static void visitMethod(MethodVisitor mv, int type, String clsName,
-                                   String methodName, String desc, boolean isType) {
-        mv.visitMethodInsn(type, clsName, methodName, desc, isType);
-    }
-
     public static List<java.lang.reflect.Type> getAllPojoTypes(
             java.lang.reflect.Type genericType) {
         List<java.lang.reflect.Type> types = new ArrayList<>();

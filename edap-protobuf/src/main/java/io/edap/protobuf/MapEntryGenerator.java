@@ -27,8 +27,8 @@ import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 
 import static io.edap.protobuf.util.ProtoUtil.javaToProtoType;
-import static io.edap.protobuf.util.ProtoUtil.visitMethod;
 import static io.edap.util.AsmUtil.isMap;
+import static io.edap.util.AsmUtil.visitMethod;
 import static io.edap.util.ClazzUtil.getDescriptor;
 import static org.objectweb.asm.Opcodes.*;
 

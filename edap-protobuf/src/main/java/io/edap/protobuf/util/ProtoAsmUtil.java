@@ -20,8 +20,8 @@ import io.edap.protobuf.ProtoBuf;
 import io.edap.util.TimeUtil;
 import org.objectweb.asm.MethodVisitor;
 
-import static io.edap.protobuf.util.ProtoUtil.visitMethod;
 import static io.edap.util.AsmUtil.toInternalName;
+import static io.edap.util.AsmUtil.visitMethod;
 import static org.objectweb.asm.Opcodes.*;
 
 public class ProtoAsmUtil {
