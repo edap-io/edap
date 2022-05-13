@@ -40,6 +40,7 @@ public class ConvertorGenerator {
 
     static String PARENT_ANME = AbstractConvertor.class.getName();
     static String REGISTER_NAME = toInternalName(ConvertorRegister.class.getName());
+    static String MAPPER_NAME = toInternalName(MapperRegister.class.getName());
     static String IFACE_NAME = toInternalName(Convertor.class.getName());
     static String CONVERTOR_REGISTER_NAME = toInternalName(ConvertorRegister.class.getName());
 
@@ -77,16 +78,16 @@ public class ConvertorGenerator {
         Map<String, ConvertFieldInfo> orignalFields = getConvertFields(orignalCls);
         Map<String, ConvertFieldInfo> destFields = getConvertFields(destCls);
         Map<String, MapperConfig> mapperConfigs = new HashMap<>();
-        if (!CollectionUtils.isEmpty(configs)) {
-            for (MapperConfig config : configs) {
-                mapperConfigs.put(config.getOriginalName(), config);
+        MapperInfo mapperInfo = MapperRegister.instance().getMapperInfo(orignalCls, destCls);
+        List<MapperConfig> mcs = MapperRegister.instance().getParentMapperConfigs(orignalCls, destCls);
+        if (!CollectionUtils.isEmpty(mcs)) {
+            for (MapperConfig mc : mcs) {
+                mapperConfigs.put(mc.getOriginalName(), mc);
             }
-        } else {
-            MapperInfo mapperInfo = MapperRegister.instance().getMapperInfo(orignalCls, destCls);
-            if (mapperInfo != null && !CollectionUtils.isEmpty(mapperInfo.getConfigList())) {
-                for (MapperConfig config : mapperInfo.getConfigList()) {
-                    mapperConfigs.put(config.getOriginalName(), config);
-                }
+        }
+        if (mapperInfo != null && !CollectionUtils.isEmpty(mapperInfo.getConfigList())) {
+            for (MapperConfig config : mapperInfo.getConfigList()) {
+                mapperConfigs.put(config.getOriginalName(), config);
             }
         }
 
@@ -285,6 +286,7 @@ public class ConvertorGenerator {
         ConvertFieldInfo destInfo = cinfo.destInfo;
 
         String rType = getDescriptor(orignalInfo.field.getType());
+        int varInt = 3;
         if (cinfo.config != null) {
             if (cinfo.config.getConvertor() != null) {
                 String fieldConvertorName = getFieldConvertorName(orignalInfo.field.getName());
@@ -322,14 +324,19 @@ public class ConvertorGenerator {
             visitGetFieldValue(mv, orignalCls, orignalInfo, rType);
             switch (orignalInfo.field.getType().getName()) {
                 case "boolean":
-                case "byte":
-                case "short":
                 case "char":
                 case "int":
                 case "long":
                 case "float":
                 case "double":
                     mv.visitMethodInsn(INVOKESTATIC, "java/lang/String", "valueOf", "(" + rType + ")Ljava/lang/String;", false);
+                    break;
+                case "byte":
+                case "short":
+                    mv.visitVarInsn(ISTORE, varInt);
+                    mv.visitVarInsn(ILOAD, varInt);
+                    varInt++;
+                    mv.visitMethodInsn(INVOKESTATIC, "java/lang/String", "valueOf", "(I)Ljava/lang/String;", false);
                     break;
                 default:
                     mv.visitMethodInsn(INVOKESTATIC, "java/lang/String", "valueOf", "(Ljava/lang/Object;)Ljava/lang/String;", false);
@@ -410,11 +417,21 @@ public class ConvertorGenerator {
                 visitMethod(mv, INVOKEVIRTUAL, toInternalName(beanClass.getName()), pfi.setMethod.getName(),
                         "(" + valType + ")" + rtnDesc, false);
             } else {
+                if (isBoxedType(orignalInfo.field.getType().getName(), pfi.field.getType().getName())) {
+                    String boxedName = toInternalName(pfi.field.getType().getName());
+                    String unboxedName = getDescriptor(orignalInfo.field.getGenericType());
+                    mv.visitMethodInsn(INVOKESTATIC, boxedName, "valueOf", "(" + unboxedName + ")L" + boxedName + ";", false);
+                } else if (isBoxedType(pfi.field.getType().getName(), orignalInfo.field.getType().getName())) {
+                    UnboxInfo unboxInfo = getUnboxInfo(pfi.field.getType().getName());
+                    if (unboxInfo != null) {
+                        mv.visitMethodInsn(INVOKESTATIC, toInternalName(ConvertUtil.class.getName()), unboxInfo.method,
+                                "(L" + toInternalName(unboxInfo.boxedName) + ";)" + unboxInfo.baseName, false);
+                    }
+                }
                 mv.visitFieldInsn(PUTFIELD, toInternalName(beanClass.getName()), pfi.field.getName(),
                         valType);
             }
         } else {
-            System.out.println(pfi.field.getType().getName());
             switch (pfi.field.getType().getName()) {
                 case "boolean":
                     visitMethod(mv, INVOKESTATIC, "java/lang/Boolean",
@@ -542,10 +559,19 @@ public class ConvertorGenerator {
             return;
         }
         List<ConvertInfo> needCinits = new ArrayList<>();
+        MapperInfo mi = MapperRegister.instance().getMapperInfo(orignalCls, destCls);
+        Map<String, MapperConfig> mcs = new HashMap<>();
+        if (mi != null) {
+            for (MapperConfig mc : mi.getConfigList()) {
+                mcs.put(mc.getOriginalName(), mc);
+            }
+        }
         for (ConvertInfo cinfo : convertInfos) {
             if (isSameType(cinfo.orignalInfo.field, cinfo.destInfo.field)) {
                 continue;
-            } else if ("java.lang.String".equals(cinfo.destInfo.field.getType().getName())) {
+            } else if ("java.lang.String".equals(cinfo.destInfo.field.getType().getName())
+                    && (!mcs.containsKey(cinfo.orignalInfo.field.getName())
+                    || (mcs.containsKey(cinfo.orignalInfo.field.getName()) && mcs.get(cinfo.orignalInfo.field.getName()).getConvertor() == null))) {
                 if (cinfo.orignalInfo.field.getType().isPrimitive() || isPojo(cinfo.orignalInfo.field.getGenericType())
                         || cinfo.orignalInfo.field.getType().isEnum()) {
                     continue;
@@ -564,20 +590,27 @@ public class ConvertorGenerator {
         mv.visitCode();
 
         for (ConvertInfo cinfo : needCinits) {
+            MapperConfig mc = mcs.get(cinfo.orignalInfo.field.getName());
             String fieldConvertorName = getFieldConvertorName(cinfo.orignalInfo.field.getName());
             String orignalType = toInternalName(cinfo.orignalInfo.field.getType().getName());
-            if (cinfo.orignalInfo.field.getType().isEnum()) {
-                orignalType = toInternalName(Enum.class.getName());
-            }
+            //if (cinfo.orignalInfo.field.getType().isEnum()) {
+            //    orignalType = toInternalName(Enum.class.getName());
+            //}
             String ifaceDesc = "L" + IFACE_NAME + "<L" + orignalType + ";L"
                     + toInternalName(cinfo.destInfo.field.getType().getName()) + ";>;";
             fv = cw.visitField(ACC_PRIVATE + ACC_FINAL + ACC_STATIC, fieldConvertorName, "L" + IFACE_NAME + ";", ifaceDesc, null);
             fv.visitEnd();
-
-            mv.visitMethodInsn(INVOKESTATIC, CONVERTOR_REGISTER_NAME, "instance", "()L" + CONVERTOR_REGISTER_NAME + ";", false);
-            mv.visitLdcInsn(Type.getType("L" + orignalType + ";"));
-            mv.visitLdcInsn(Type.getType("L" + toInternalName(cinfo.destInfo.field.getType().getName()) + ";"));
-            mv.visitMethodInsn(INVOKEVIRTUAL, CONVERTOR_REGISTER_NAME, "getConvertor", "(Ljava/lang/Class;Ljava/lang/Class;)L" + toInternalName(PARENT_ANME) + ";", false);
+            if (mc == null || mc.getConvertor() == null) {
+                mv.visitMethodInsn(INVOKESTATIC, CONVERTOR_REGISTER_NAME, "instance", "()L" + CONVERTOR_REGISTER_NAME + ";", false);
+                mv.visitLdcInsn(Type.getType("L" + orignalType + ";"));
+                mv.visitLdcInsn(Type.getType("L" + toInternalName(cinfo.destInfo.field.getType().getName()) + ";"));
+                mv.visitMethodInsn(INVOKEVIRTUAL, CONVERTOR_REGISTER_NAME, "getConvertor", "(Ljava/lang/Class;Ljava/lang/Class;)L" + toInternalName(PARENT_ANME) + ";", false);
+            } else {
+                mv.visitMethodInsn(INVOKESTATIC, MAPPER_NAME, "instance", "()L" + MAPPER_NAME + ";", false);
+                mv.visitLdcInsn(orignalCls.getName());
+                mv.visitLdcInsn(cinfo.orignalInfo.field.getName());
+                mv.visitMethodInsn(INVOKEVIRTUAL, MAPPER_NAME, "getConvertor", "(Ljava/lang/String;Ljava/lang/String;)L" + toInternalName(IFACE_NAME) + ";", false);
+            }
             mv.visitFieldInsn(PUTSTATIC, toInternalName(convertorName), fieldConvertorName, "L" + IFACE_NAME + ";");
         }
 

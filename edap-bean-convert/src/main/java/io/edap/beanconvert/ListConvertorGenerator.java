@@ -143,7 +143,7 @@ public class ListConvertorGenerator {
 
     private void visitInitMethod() {
         MethodVisitor mv;
-        mv = cw.visitMethod(ACC_PRIVATE, "<init>", "()V", null, null);
+        mv = cw.visitMethod(ACC_PUBLIC, "<init>", "()V", null, null);
         mv.visitCode();
         mv.visitVarInsn(ALOAD, 0);
         mv.visitMethodInsn(INVOKESPECIAL, "java/lang/Object", "<init>", "()V", false);

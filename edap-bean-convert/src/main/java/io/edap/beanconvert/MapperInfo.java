@@ -38,8 +38,11 @@ public class MapperInfo {
 
     public static MapperInfo mi(Class orignalClazz, Class destClazz, MapperConfig... configs) {
         List<MapperConfig> list = null;
-        if (configs.length > 0) {
+        if (configs != null && configs.length > 0) {
             list = new ArrayList<>(configs.length);
+            for (MapperConfig mc : configs) {
+                list.add(mc);
+            }
         }
         return new MapperInfo(orignalClazz, destClazz, list);
     }

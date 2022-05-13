@@ -20,6 +20,7 @@ import io.edap.util.CryptUtil;
 import io.edap.util.internal.GeneratorClassInfo;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantLock;
@@ -98,6 +99,13 @@ public class ConvertorRegister {
         }
     }
 
+    public AbstractConvertor getConvertor(Class<?> orignalClass, Class<?> destlClass, MapperConfig... mapperConfigs) {
+        if (mapperConfigs != null && mapperConfigs.length > 0) {
+            MapperRegister.instance().addMapper(orignalClass, destlClass, Arrays.asList(mapperConfigs));
+        }
+        return getConvertor(orignalClass, destlClass);
+    }
+
     public AbstractConvertor getConvertor(Class<?> orignalClass, Class<?> destlClass) {
         String key = getConvertorName(orignalClass, destlClass);
         AbstractConvertor convertor = CONVERTORS.get(key);
@@ -128,7 +136,7 @@ public class ConvertorRegister {
         try {
             GeneratorClassInfo gci = generator.getClassInfo();
             byte[] bs = gci.clazzBytes;
-            //saveJavaFile("./" + gci.clazzName + ".class", bs);
+            saveJavaFile("./" + gci.clazzName + ".class", bs);
             convertorLoader.define(codecName, bs, 0, bs.length);
             return codecName;
         } catch (Exception e) {
@@ -161,7 +169,14 @@ public class ConvertorRegister {
     }
 
     private Class generateConvertorClass(Class<?> orignalClass, Class<?> destlClass) {
-        ConvertorGenerator generator = new ConvertorGenerator(orignalClass, destlClass, null);
+        List<MapperConfig> mappers;
+        MapperInfo mapperInfo = MapperRegister.instance().getMapperInfo(orignalClass, destlClass);
+        if (mapperInfo != null) {
+            mappers = mapperInfo.getConfigList();
+        } else {
+            mappers = null;
+        }
+        ConvertorGenerator generator = new ConvertorGenerator(orignalClass, destlClass, mappers);
         String codecName = toLangName(getConvertorName(orignalClass, destlClass));
         Class encoderCls;
         try {

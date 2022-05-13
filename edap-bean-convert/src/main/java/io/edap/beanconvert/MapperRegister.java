@@ -16,7 +16,11 @@
 
 package io.edap.beanconvert;
 
+import io.edap.util.CollectionUtils;
+
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -43,7 +47,7 @@ public class MapperRegister {
     }
 
     public void addMapper(MapperInfo mapperInfo) {
-        String key = mapperInfo.getOrignalClazz().getName() + "_" + mapperInfo.getOrignalClazz().getName();
+        String key = mapperInfo.getOrignalClazz().getName() + "_" + mapperInfo.getDestClazz().getName();
         CONVERTOR_MAPPPER_CONFIGS.put(key, mapperInfo);
         convertorRegister.clearConvertors();
     }
@@ -51,6 +55,42 @@ public class MapperRegister {
     public MapperInfo getMapperInfo(Class orignalClazz, Class destClass) {
         String key = orignalClazz.getName() + "_" + destClass.getName();
         return CONVERTOR_MAPPPER_CONFIGS.get(key);
+    }
+
+    public List<MapperConfig> getParentMapperConfigs(Class orignalClazz, Class destClass) {
+        List<MapperConfig> cs = new ArrayList<>();
+        Class pCls = orignalClazz.getSuperclass();
+        while (pCls != null && pCls != Object.class) {
+            MapperInfo mi = getMapperInfo(pCls, destClass);
+            if (mi != null && !CollectionUtils.isEmpty(mi.getConfigList())) {
+                for (MapperConfig mc : mi.getConfigList()) {
+                    if (!cs.contains(mc)) {
+                        cs.add(mc);
+                    }
+                }
+            }
+            pCls = pCls.getSuperclass();
+        }
+        return cs;
+    }
+
+    public Convertor getConvertor(String orignalClazzName, String fieldName) {
+        Convertor convertor;
+        for (Map.Entry<String, MapperInfo> mi : CONVERTOR_MAPPPER_CONFIGS.entrySet()) {
+            if (!mi.getKey().startsWith(orignalClazzName + "_")) {
+                continue;
+            }
+            List<MapperConfig> mcs = mi.getValue().getConfigList();
+            if (CollectionUtils.isEmpty(mcs)) {
+                continue;
+            }
+            for (MapperConfig mc : mcs) {
+                if (mc.getOriginalName().equals(fieldName)) {
+                    return mc.getConvertor();
+                }
+            }
+        }
+        return null;
     }
 
     public static final MapperRegister instance() {
