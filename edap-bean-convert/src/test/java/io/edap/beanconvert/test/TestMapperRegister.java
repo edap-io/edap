@@ -48,12 +48,19 @@ public class TestMapperRegister {
 
     @Test
     public void testGetConvertor() {
+
         MapperRegister mapperRegister = MapperRegister.instance();
         List<MapperConfig> configList = new ArrayList<>();
+        mapperRegister.addMapper(Car.class, CarDTO.class, configList);
+        Convertor convertor = mapperRegister.getConvertor(Car.class.getName(), "field1");
+        assertNull(convertor);
+
+        mapperRegister = MapperRegister.instance();
+        configList = new ArrayList<>();
         configList.add(MapperConfig.mc("name", "trueName"));
         mapperRegister.addMapper(Car.class, CarDTO.class, configList);
 
-        Convertor convertor = mapperRegister.getConvertor(SportCar.class.getName(), "field1");
+        convertor = mapperRegister.getConvertor(SportCar.class.getName(), "field1");
         assertNull(convertor);
 
         convertor = mapperRegister.getConvertor(Car.class.getName(), "field1");

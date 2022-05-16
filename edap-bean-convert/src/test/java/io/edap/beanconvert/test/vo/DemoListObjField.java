@@ -1,13 +1,11 @@
-package io.edap.beanconvert.test.dto;
-
-import io.edap.beanconvert.test.vo.Car;
-import io.edap.beanconvert.test.vo.SportCar;
+package io.edap.beanconvert.test.vo;
 
 import java.util.List;
 
-public class DemoListExtendFieldDTO {
+public class DemoListObjField {
+
     private String strField;
-    private List<Car> listField;
+    private List listField;
 
     public String getStrField() {
         return strField;
@@ -17,11 +15,11 @@ public class DemoListExtendFieldDTO {
         this.strField = strField;
     }
 
-    public List<Car> getListField() {
+    public List getListField() {
         return listField;
     }
 
-    public void setListField(List<Car> listField) {
+    public void setListField(List listField) {
         this.listField = listField;
     }
 }

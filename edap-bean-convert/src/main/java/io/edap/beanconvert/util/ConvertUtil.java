@@ -45,7 +45,13 @@ public class ConvertUtil {
         List<Method> methods = getClassMethods(beanCls);
         Map<String, Method> aMethod = new HashMap<>();
         for (Method m : methods) {
-            aMethod.put(m.getName(), m);
+            StringBuilder sb = new StringBuilder();
+            if (m.getParameters() != null && m.getParameters().length == 1) {
+                sb.append("(");
+                sb.append(m.getGenericParameterTypes()[0].getTypeName());
+                sb.append(")");
+            }
+            aMethod.put(m.getName() + sb, m);
         }
         int count = fields.size();
         for (int i=0;i<count;i++) {
@@ -77,7 +83,7 @@ public class ConvertUtil {
      * @return
      */
     private static Method getSetMethod(Field f, Map<String, Method> aMethod) {
-        String methodName = "set" + upperCaseFirst(f.getName());
+        String methodName = "set" + upperCaseFirst(f.getName())  + "(" + f.getGenericType().getTypeName() + ")";
         Method m = aMethod.get(methodName);
         if (m != null && m.getParameters().length == 1) {
             String fd = getDescriptor(f.getGenericType());
@@ -88,7 +94,8 @@ public class ConvertUtil {
         }
         if (f.getType().getName().equals("java.lang.Boolean")
                 || f.getType().getName().equals("boolean")) {
-            methodName = "set" + upperCaseFirst(f.getName().substring(2));
+            methodName = "set" + upperCaseFirst(f.getName().substring(2))
+                    + "(" + f.getGenericType().getTypeName() + ")";
         }
         m = aMethod.get(methodName);
         if (m != null && m.getParameters().length == 1) {
@@ -99,7 +106,7 @@ public class ConvertUtil {
             }
         }
         methodName = f.getName();
-        m = aMethod.get(methodName);
+        m = aMethod.get(methodName + "(" + f.getGenericType().getTypeName() + ")");
         if (m != null && m.getParameters().length == 1) {
             String fd = getDescriptor(f.getGenericType());
             String md = getDescriptor(m.getGenericParameterTypes()[0]);

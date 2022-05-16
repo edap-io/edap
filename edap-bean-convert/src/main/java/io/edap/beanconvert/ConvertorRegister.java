@@ -68,10 +68,11 @@ public class ConvertorRegister {
     }
 
     public String createListConvert(Class<?> orignalClass, Class<?> destlClass) {
+        list_lock.lock();
+        String converorName;
         try {
-            list_lock.lock();
             String name = getListConvertorName(orignalClass, destlClass);
-            String converorName = LIST_CONVERTORS.get(name);
+            converorName = LIST_CONVERTORS.get(name);
             if (converorName != null) {
                 return converorName;
             }
@@ -82,18 +83,19 @@ public class ConvertorRegister {
                     LIST_CONVERTORS.put(name, converorName);
                 }
             }
-            return converorName;
         } finally {
             list_lock.unlock();
         }
+        return converorName;
     }
 
     public String getListConvertorName(Class<?> orignalClass, Class<?> destlClass) {
         String key = orignalClass.getName() + "->" + destlClass.getName();
         int index = LIST_CONVERTOR_NAMES.indexOf(key);
         if (index == -1) {
+            String name = "ebc.io.edap.beanconvert.list.ListConvertor_" + LIST_CONVERTOR_NAMES.size();
             LIST_CONVERTOR_NAMES.add(key);
-            return "ebc.io.edap.beanconvert.list.ListConvertor_" + LIST_CONVERTOR_NAMES.size();
+            return name;
         } else {
             return "ebc.io.edap.beanconvert.list.ListConvertor_" + index;
         }
@@ -160,9 +162,9 @@ public class ConvertorRegister {
         if (convertorCls != null) {
             try {
                 convertor = (AbstractConvertor) convertorCls.newInstance();
-            } catch (InstantiationException | IllegalAccessException ex) {
+            } catch (Throwable t) {
                 throw new RuntimeException("generateEncoder "
-                        + orignalClass.getName() + "->" + destlClass.getName() + " error", ex);
+                        + orignalClass.getName() + "->" + destlClass.getName() + " error", t);
             }
         }
         return convertor;

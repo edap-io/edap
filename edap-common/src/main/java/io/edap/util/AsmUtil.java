@@ -368,6 +368,8 @@ public class AsmUtil {
 //                    return false;
 //            }
             return isL;
+        } else if (type instanceof Class) {
+            return isList((Class)type);
         }
         return false;
     }

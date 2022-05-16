@@ -87,7 +87,6 @@ public class TestConvertGenerator {
         assertEquals(carDto.getType(), "SEDAN");
         assertEquals(carDto.getMake(), "bmw");
         assertEquals(carDto.getSeatCount(), 5);
-
     }
 
     @Test
@@ -464,10 +463,24 @@ public class TestConvertGenerator {
     }
 
     @Test
+    public void testListObjField() {
+        Convertor<DemoListObjField, DemoListObjFieldDTO> convertor = ConvertorRegister.instance().getConvertor(DemoListObjField.class, DemoListObjFieldDTO.class);
+        DemoListObjField demo = new DemoListObjField();
+        demo.setStrField("abcd");
+        demo.setListField(Arrays.asList("1","2","3"));
+
+        DemoListObjFieldDTO demoDto = convertor.convert(demo);
+        assertEquals(demo.getStrField(), demoDto.getStrField());
+        assertNotNull(demoDto.getListField());
+        List<String> list = demoDto.getListField();
+        assertEquals(list.size(), 3);
+        assertEquals(list.get(0), "1");
+        assertEquals(list.get(1), "2");
+        assertEquals(list.get(2), "3");
+    }
+
+    @Test
     public void testListExtendField() {
-        MapperRegister register = MapperRegister.instance();
-        register.addMapper(MapperInfo.mi(Car.class, CarDTO.class,
-                MapperConfig.mc("numberOfSeats","seatCount")));
 
         Convertor<DemoListExtendField, DemoListExtendFieldDTO> convertor = ConvertorRegister.instance().getConvertor(DemoListExtendField.class, DemoListExtendFieldDTO.class);
         DemoListExtendField demo = new DemoListExtendField();
@@ -481,11 +494,42 @@ public class TestConvertGenerator {
         DemoListExtendFieldDTO demoDto = convertor.convert(demo);
         assertEquals(demo.getStrField(), demoDto.getStrField());
         assertNotNull(demoDto.getListField());
-        List<CarDTO> list = demoDto.getListField();
+        List<Car> list = demoDto.getListField();
         assertEquals(list.size(), 1);
-        CarDTO dto = list.get(0);
+        Car dto = list.get(0);
         assertEquals(dto.getMake(), "bmw");
-        assertEquals(dto.getType(), CarType.SEDAN.toString());
-        assertEquals(dto.getSeatCount(), 5);
+        assertEquals(dto.getType(), CarType.SEDAN);
+        assertEquals(dto.getNumberOfSeats(), 5);
+
+
+        Convertor<DemoListExtendThreeLevelField, DemoListExtendFieldDTO> convertor2 = ConvertorRegister.instance().getConvertor(DemoListExtendThreeLevelField.class, DemoListExtendFieldDTO.class);
+        DemoListExtendThreeLevelField demo2 = new DemoListExtendThreeLevelField();
+        demo2.setStrField("abcd");
+        BmwCar bmwCar = new BmwCar();
+        bmwCar.setMake("bmw");
+        bmwCar.setType(CarType.SEDAN);
+        bmwCar.setNumberOfSeats(5);
+        demo2.setListField(Arrays.asList(bmwCar));
+
+        demoDto = convertor2.convert(demo2);
+        assertEquals(demo2.getStrField(), demoDto.getStrField());
+        assertNotNull(demoDto.getListField());
+        list = demoDto.getListField();
+        assertEquals(list.size(), 1);
+        dto = list.get(0);
+        assertEquals(dto.getMake(), "bmw");
+        assertEquals(dto.getType(), CarType.SEDAN);
+        assertEquals(dto.getNumberOfSeats(), 5);
+
+
+        Convertor<DemoListExtendThreeLevelField, DemoListExtendFieldDTO> convertor3 =
+                ConvertorRegister.instance().getConvertor(DemoListExtendThreeLevelField.class, DemoListExtendFieldErrorDTO.class);
+        assertNotNull(convertor3);
+    }
+
+    @Test
+    public void testAbstractConvertor() {
+        AbstractConvertor<Car, CarDTO> convertor = ConvertorRegister.instance().getConvertor(Car.class, CarDTO.class);
+        assertEquals(convertor.getDestClazz(), CarDTO.class);
     }
 }

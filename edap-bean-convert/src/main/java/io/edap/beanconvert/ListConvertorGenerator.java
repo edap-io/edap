@@ -52,7 +52,6 @@ public class ListConvertorGenerator {
         GeneratorClassInfo gci = new GeneratorClassInfo();
         gci.clazzName = convertorName;
 
-        System.out.println("convertorName=" + convertorName);
         //定义编码器名称，继承的虚拟编码器以及实现的接口
         cw = new ClassWriter(ClassWriter.COMPUTE_MAXS | ClassWriter.COMPUTE_FRAMES);
         cw.visit(V1_8, ACC_PUBLIC + ACC_SUPER, convertorName, null, "java/lang/Object", null);
