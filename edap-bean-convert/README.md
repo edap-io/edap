@@ -35,7 +35,7 @@ import io.edap.beanconvert.ConvertorRegister;
 
 public class ConvertDemo {
     public static void main(String[] arg) {
-        Convertor<CarDTO, Car> carConvertor = ConvertorRegister.instance().getConvertor(Car.class, CarDTO.class);
+        Convertor<Car, CarDTO> carConvertor = ConvertorRegister.instance().getConvertor(Car.class, CarDTO.class);
         Car car = new Car();
         car.setMake("BMW");
         car.setSeatCount(5);
@@ -59,7 +59,7 @@ import io.edap.beanconvert.ConvertorRegister;
 
 public class ConvertDemo {
     public static void main(String[] arg) {
-        Convertor<CarDTO, Car> carConvertor = ConvertorRegister.instance().getConvertor(Car.class, CarDTO.class);
+        Convertor<Car, CarDTO> carConvertor = ConvertorRegister.instance().getConvertor(Car.class, CarDTO.class);
         SportCar car = new SportCar();
         car.setMake("BMW");
         car.setSeatCount(2);
