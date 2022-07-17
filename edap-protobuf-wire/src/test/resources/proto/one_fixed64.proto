@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+
+package test.message;
+
+option java_package = "io.edap.protobuf.test.message.v3";
+
+message OneFixed64 {
+    fixed64 value = 1;
+}

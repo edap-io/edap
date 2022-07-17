@@ -69,7 +69,7 @@ public class JavaBuilder {
             if (index == -1) {
                 dir = packName.substring(start);
                 path.append(File.separator).append(dir);
-                return path.toString();
+                break;
             } else {
                 dir = packName.substring(start, index);
                 path.append(File.separator).append(dir);
@@ -92,7 +92,7 @@ public class JavaBuilder {
         return jType;
     }
 
-    public String getJavaType(Field field, List<String> imps) {
+    public String getJavaType(Field field, List<String> imps, JavaBuildOption buildOps) {
         String type = field.getTypeString();
         if (field instanceof MapField) {
             MapField mf = (MapField)field;
@@ -107,7 +107,11 @@ public class JavaBuilder {
         JavaType javaType = null;
         javaType = Type.valueOf(type.toUpperCase(Locale.ENGLISH)).javaType();
         if (javaType != null && javaType.getTypeString() != null) {
-            type = javaType.getTypeString();
+            if (buildOps.isUseBoxed()) {
+                type = javaType.getBoxedType();
+            } else {
+                type = javaType.getTypeString();
+            }
         }
         if ("int64".equals(field.getType()) && jType != null) {
             switch (jType) {
@@ -143,12 +147,17 @@ public class JavaBuilder {
         }
     }
 
-    public String getAnnotationType(Field field) {
+    public String getAnnotationType(Field field, Proto proto, Map<String, ProtoEnum> protoEnums) {
         String type = field.getTypeString();
         if (BASE_TYPES.contains(type.toLowerCase(Locale.ENGLISH))) {
             return "Type." + Type.valueOf(type.toUpperCase(Locale.ENGLISH));
         } else {
-            return "Type." + Type.MESSAGE;
+            String name = getJavaPackage(proto) + "." + type;
+            if (protoEnums.containsKey(name)) {
+                return "Type." + Type.ENUM;
+            } else {
+                return "Type." + Type.MESSAGE;
+            }
         }
     }
 
@@ -318,10 +327,11 @@ public class JavaBuilder {
         return type;
     }
 
-    private void buildMsgImps(Message msg, List<Field> tmp, List<String> imps) {
+    private void buildMsgImps(Message msg, List<Field> tmp, List<String> imps,
+                              JavaBuildOption buildOps) {
         if (msg.getFields() != null) {
             msg.getFields().forEach(e -> {
-                getJavaType(e, imps);
+                getJavaType(e, imps, buildOps);
                 tmp.add(e);
             });
         }
@@ -346,21 +356,63 @@ public class JavaBuilder {
     }
 
     private void buildDocComment(CodeBuilder cb, Comment comment, int level) {
-        cb.t(level).c("/**").ln();
-        if (comment != null && comment.getLines() != null && !comment.getLines().isEmpty()) {
-            comment.getLines().forEach(c -> cb.t(level).c(" * ").c(c).ln());
+        if (comment == null || comment.getLines() == null || comment.getLines().isEmpty()) {
+            return;
         }
+        cb.t(level).c("/**").ln();
+        comment.getLines().forEach(c -> cb.t(level).c(" * ").c(c).ln());
         cb.t(level).c(" */").ln();
     }
 
+    private Map<String, ProtoEnum> getAllProtoEnum(Proto proto, Map<String, Proto> protos) {
+        Map<String, ProtoEnum> allEnums = new HashMap<>();
+        List<ProtoEnum> protoEnums = proto.getEnums();
+        if (protoEnums != null && !protoEnums.isEmpty()) {
+            for (ProtoEnum protoEnum : protoEnums) {
+                String packName = proto.getProtoPackage();
+                String javaPack = getJavaPackage(proto);
+                if (javaPack != null && javaPack.trim().length() > 0) {
+                    packName = javaPack;
+                }
+                allEnums.put(packName + "." + protoEnum.getName(), protoEnum);
+            }
+        }
+        List<String> impProtos = proto.getImports();
+        if (impProtos == null || impProtos.isEmpty()) {
+            return allEnums;
+        }
+        for (String protoName : impProtos) {
+            Proto impProto = protos.get(protoName);
+            if (impProto == null) {
+                continue;
+            }
+            allEnums.putAll(getAllProtoEnum(impProto, protos));
+        }
+        return allEnums;
+    }
+
+    private String getJavaPackage(Proto proto) {
+        if (proto.getOptions() == null || proto.getOptions().isEmpty()) {
+            return EMPTY_STRING;
+        }
+        for (Option option : proto.getOptions()) {
+            if ("java_package".equalsIgnoreCase(option.getName())) {
+                return option.getValue();
+            }
+        }
+        return EMPTY_STRING;
+    }
+
     public String buildMessage(Proto proto, Message msg, int indent,
-                               Map<String, String> defineMsgs, JavaBuildOption buildOps) {
+                               Map<String, String> defineMsgs, JavaBuildOption buildOps,
+                               Map<String, Proto> protos) {
+        Map<String, ProtoEnum> protoEnums = getAllProtoEnum(proto, protos);
         int level = (indent < 1) ? 1 : indent;
         final CodeBuilder cb = new CodeBuilder();
         String javaPackage = buildOps.getJavaPackage();
         List<Field> tmp = new ArrayList<>();
         List<String> imps = new ArrayList<>();
-        buildMsgImps(msg, tmp, imps);
+        buildMsgImps(msg, tmp, imps, buildOps);
         addImport(imps, Proto.class.getPackage().getName() + ".Field.Type");
         addImport(imps, "java.io.Serializable");
 
@@ -377,7 +429,7 @@ public class JavaBuilder {
         }
         cb.ln();
         buildDocComment(cb, msg.getComment(), level-1);
-        cb.t(level-1).e("public class $name$ implements Serializable {").arg(msg.getName()).ln();
+        cb.t(level-1).e("public class $name$ implements Serializable {").arg(msg.getName()).ln(2);
 
         CodeBuilder getCode;
         CodeBuilder setCode;
@@ -394,25 +446,33 @@ public class JavaBuilder {
             getCode = new CodeBuilder();
             setCode = new CodeBuilder();
 
-            String typeName = getAnnotationType(f);
+            String typeName = getAnnotationType(f, proto, protoEnums);
             if (msg.getName().equals("Type")) {
                 typeName = Proto.class.getPackage().getName() + ".wire.Field." + typeName;
             }
             buildDocComment(cb, f.getComment(), level);
             cb.t(level).e("@ProtoField(tag = $tag$, type = $type$)")
                     .arg(String.valueOf(f.getTag()), typeName).ln();
-            String type = getJavaType(f, null);
+            String type = getJavaType(f, null, buildOps);
             String name = f.getName();
             if (f.getCardinality() == Field.Cardinality.REPEATED) {
-                type = "List<" + type + ">";
+                String boxedTypeName = getBoxedTypeName(f, buildOps);
+                type = "List<" + boxedTypeName + ">";
             }
 
             cb.t(level).e("private $type$ $name$;")
                     .arg(type, name).ln();
 
-            String getMethod = "get" +
-                    f.getName().substring(0, 1).toUpperCase(Locale.ENGLISH) +
-                    f.getName().substring(1);
+            String getMethod;
+            if (!"bool".equalsIgnoreCase(f.getType())) {
+                getMethod = "get" +
+                        f.getName().substring(0, 1).toUpperCase(Locale.ENGLISH) +
+                        f.getName().substring(1);
+            } else {
+                getMethod = "is" +
+                        f.getName().substring(0, 1).toUpperCase(Locale.ENGLISH) +
+                        f.getName().substring(1);
+            }
             getCode.t(level).e("public $type$ $getMethod$() {")
                     .arg(type, getMethod).ln();
             getCode.t(level + 1).e("return $name$;").arg(f.getName()).ln();
@@ -447,30 +507,44 @@ public class JavaBuilder {
         }
 
 
-        buildListCode(cb, fields, level);
+        buildListCode(cb, fields, level, buildOps);
 
-        nestMessageMessage(proto, cb, msg.getMessages(), defineMsgs, level);
+        nestMessageMessage(proto, cb, msg.getMessages(), defineMsgs, level, protos);
         nestMessageEnum(cb, msg.getEnums(), level);
 
-        cb.t(level-1).c("}").ln();
+        cb.t(level-1).c("}");
         return cb.toString();
     }
 
-    private void buildListCode(CodeBuilder cb, List<Field> fields, int level) {
+    private String getBoxedTypeName(Field f, JavaBuildOption buildOps) {
+        String type = getJavaType(f, null, buildOps);
+        if (BASE_TYPES.contains(f.getTypeString())) {
+            JavaType javaType = null;
+            javaType = Type.valueOf(f.getTypeString().toUpperCase(Locale.ENGLISH)).javaType();
+            if (javaType != null && javaType.getTypeString() != null) {
+                type = javaType.getBoxedType();
+            }
+        }
+        return type;
+    }
+
+    private void buildListCode(CodeBuilder cb, List<Field> fields, int level, JavaBuildOption buildOps) {
         CodeBuilder listCode = new CodeBuilder();
         for (int i=0;i<fields.size();i++) {
             Field f = fields.get(i);
             String setMethod = "set" +
                     f.getName().substring(0, 1).toUpperCase(Locale.ENGLISH) +
                     f.getName().substring(1);
-            String type = getJavaType(f, null);
+            String type = getJavaType(f, null, buildOps);
             String itemType = type;
             if (f.getCardinality() == Cardinality.REPEATED) {
-                type = "List<" + type + ">";
+                String boxedType = getBoxedTypeName(f, buildOps);
+                type = "List<" + boxedType + ">";
             }
             if (f.getCardinality() == Cardinality.REPEATED) {
                 String methodName = setMethod.substring(3);
                 String itemName = "itemVar";
+                itemType = getBoxedTypeName(f, buildOps);
                 listCode.t(level).e("public void add$itemName$($itemType$ $itemTypeName$) {")
                         .arg(methodName, itemType, itemName).ln();
                 listCode.t(level + 1).e(LIST_IS_NULL_STR).arg(f.getName()).ln();
@@ -531,7 +605,8 @@ public class JavaBuilder {
     }
 
     private void nestMessageMessage(Proto proto, CodeBuilder cb,
-                                    List<Message> msgs, Map<String, String> defineMsgs, int level) {
+                                    List<Message> msgs, Map<String, String> defineMsgs,
+                                    int level, Map<String, Proto> protos) {
         if (msgs == null || msgs.isEmpty()) {
             return;
         }
@@ -539,7 +614,7 @@ public class JavaBuilder {
         JavaBuildOption nestedOps = new JavaBuildOption();
         nestedOps.setIsNested(true);
         msgs.stream().sorted(Comparator.comparing(Message::getName))
-                .forEach(e -> cb.c(buildMessage(proto, e, level + 1, defineMsgs, nestedOps)));
+                .forEach(e -> cb.c(buildMessage(proto, e, level + 1, defineMsgs, nestedOps, protos)));
     }
 
     private void nestMessageEnum(CodeBuilder cb, List<ProtoEnum> enums, int indent) {

@@ -901,4 +901,29 @@ public class TestParseMessage {
                 });
         assertTrue(thrown.getMessage().contains("value not end"));
     }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "syntax = \"proto3\";\n//消息的注释内容\n" +
+                    "message test {\n" +
+                    "  // 第一行的注释\n" +
+                    "  string query = 1;\n" +
+                    "  // 第二行的注释\n" +
+                    "  string query2 = 2;\n" +
+                    "  // 第三行的注释\n" +
+                    "  string query3 = 1;\n" +
+                    "}",
+
+    })
+    void testParseFieldComment(String protoStr) {
+        try {
+            ProtoParser parser = new ProtoParser(protoStr);
+            Proto proto = parser.parse();
+            List<Message> msgs = proto.getMessages();
+            assertEquals(msgs.size(), 1);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+    }
 }

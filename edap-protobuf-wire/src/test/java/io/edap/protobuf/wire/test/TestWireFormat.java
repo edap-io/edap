@@ -31,19 +31,19 @@ public class TestWireFormat {
     void testJavaType() {
 
         WireFormat.JavaType iType = WireFormat.JavaType.INT;
-        assertEquals("Integer", iType.getTypeString());
+        assertEquals("int", iType.getTypeString());
 
         WireFormat.JavaType lType = WireFormat.JavaType.LONG;
-        assertEquals("Long", lType.getTypeString());
+        assertEquals("long", lType.getTypeString());
 
         WireFormat.JavaType fType = WireFormat.JavaType.FLOAT;
-        assertEquals("Float", fType.getTypeString());
+        assertEquals("float", fType.getTypeString());
 
         WireFormat.JavaType dType = WireFormat.JavaType.DOUBLE;
-        assertEquals("Double", dType.getTypeString());
+        assertEquals("double", dType.getTypeString());
 
         WireFormat.JavaType bType = WireFormat.JavaType.BOOLEAN;
-        assertEquals("Boolean", bType.getTypeString());
+        assertEquals("boolean", bType.getTypeString());
 
         WireFormat.JavaType sType = WireFormat.JavaType.STRING;
         assertEquals("String", sType.getTypeString());

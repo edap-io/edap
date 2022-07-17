@@ -111,20 +111,21 @@ public class WireFormat {
      * java的数据类型和protocol buffer的数据类型的对应关系以及默认值
      */
     public enum JavaType {
-        INT    ("Integer", 0),
-        LONG   ("Long",    0L),
-        FLOAT  ("Float",   0F),
-        DOUBLE ("Double",  0D),
-        BOOLEAN("Boolean", false),
-        STRING ("String",  ""),
-        BYTES  ("byte[]",   EMPTY_BYTES),
-        ENUM   ("enum",    null),
-        MESSAGE("",        null),
-        OBJECT ("Object",  null),
-        MAP    ("Map",     null);
+        INT    ("int", "Integer",     0),
+        LONG   ("long",    "Long",    0L),
+        FLOAT  ("float",   "Float",   0F),
+        DOUBLE ("double",  "Double",  0D),
+        BOOLEAN("boolean", "Boolean", false),
+        STRING ("String",  "String",  ""),
+        BYTES  ("byte[]",  "byte[]",   EMPTY_BYTES),
+        ENUM   ("enum",    "enum",    null),
+        MESSAGE("",        "",        null),
+        OBJECT ("Object",  "Object",  null),
+        MAP    ("Map",     "Map",     null);
 
-        JavaType(final String typeString, final Object defaultValue) {
+        JavaType(final String typeString, final String boxedType, final Object defaultValue) {
             this.typeString = typeString;
+            this.boxedType = boxedType;
             this.defaultValue = defaultValue;
         }
 
@@ -135,11 +136,17 @@ public class WireFormat {
         /**
          * The default value for fields of this type, if it's a primitive type.
          */
-        Object defaultValue() {
+        public Object defaultValue() {
             return this.defaultValue;
+        }
+
+        public String getBoxedType() {
+            return this.boxedType;
         }
 
         private final Object defaultValue;
         private final String typeString;
+
+        private final String boxedType;
     }
 }

@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+
+package test.message;
+
+option java_package = "io.edap.protobuf.test.message.v3";
+
+message OneBool {
+  bool value = 1;
+}

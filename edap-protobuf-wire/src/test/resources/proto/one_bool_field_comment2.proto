@@ -1,0 +1,12 @@
+syntax = "proto3";
+
+
+package test.message;
+
+option java_package = "io.edap.protobuf.test.message.v3";
+
+message OneBoolFieldComment2 {
+  // 第一行注释
+  // 第二行注释
+  bool value = 1;
+}

@@ -77,6 +77,12 @@ public class JavaGenerator {
         }
         buildOption.setDtoPrefix(dto);
 
+        boolean useBoxed = false;
+        if (params.containsKey("-useBoxed")) {
+            useBoxed = Boolean.parseBoolean(params.get("-useBoxed"));
+        }
+        buildOption.setUseBoxed(useBoxed);
+
         boolean edapRpc = false;
         System.out.println("params.containsKey(\"-edap\")=" + params.get("-edap"));
         if (params.containsKey("-edap")) {
@@ -200,6 +206,7 @@ public class JavaGenerator {
                 "-proto      proto文件所在路径,该选项优先级高于-proj\n" +
                 "-edap       是否添加edap-rpc框架的注解\"true\",\"false\"\n" +
                 "-service    接口模块的名称，默认名称为模块名 + “-api”\n" +
+                "-useBoxed   基础类型是否使用装箱的类型”\n" +
                 "-chain      DTO的Bean是否采用链式操作，默认是采用链式操作\"true\",\"false\"\n" +
                 "-dto        DTO的Bean是否在接口的包内创建单独的子包的名称\n";
 //        help +=

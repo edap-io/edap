@@ -22,10 +22,7 @@ import io.edap.protobuf.wire.*;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import static io.edap.protobuf.builder.JavaBuilder.formatTypeName;
 import static io.edap.protobuf.builder.JavaBuilder.saveJavaFile;
@@ -46,13 +43,16 @@ public class IfaceGenerator {
 
     public void generate() {
         List<Proto> protos = files;
-        List<String> dtoJavaFiles = new ArrayList<>(16);
+        Map<String, Proto> allProtos = new HashMap<>();
+        for (Proto proto : protos) {
+            allProtos.put(proto.getName(), proto);
+        }
         protos.forEach(p -> {
-            generateProtoItem(p, dtoJavaFiles);
+            generateProtoItem(p, allProtos);
         });
     }
 
-    private void generateProtoItem(Proto proto, List<String> dtoJavaFiles) {
+    private void generateProtoItem(Proto proto, Map<String, Proto> protos) {
 
         List<Option> options = proto.getOptions();
         Map<String, String> protoOptions = new HashMap<>();
@@ -74,13 +74,14 @@ public class IfaceGenerator {
         buildOps.setOuterClassName("");
         buildOps.setChainOper(true);
         buildOps.setEdapRpc(this.buildOption.isEdapRpc());
+        buildOps.setUseBoxed(buildOption.isUseBoxed());
         if (buildOption != null) {
             if (!buildOption.isChainOper()) {
                 buildOps.setChainOper(false);
             }
         }
 
-        generateDtoMessage(proto, buildOps);
+        generateDtoMessage(proto, buildOps, protos);
     }
 
     private static String getDtoSrcPath(String packName, String dto) {
@@ -119,7 +120,7 @@ public class IfaceGenerator {
         return false;
     }
 
-    public void generateDtoMessage(Proto proto, JavaBuildOption buildOps) {
+    public void generateDtoMessage(Proto proto, JavaBuildOption buildOps, Map<String, Proto> protos) {
         JavaBuilder builder = new JavaBuilder();
         buildOps.setDtoPrefix(buildOption.getDtoPrefix());
 
@@ -136,7 +137,7 @@ public class IfaceGenerator {
                     + getDtoSrcPath(buildOps.getJavaPackage(), buildOps.getDtoPrefix());
             checkSrcPath(new File(enumPath));
             enums.stream()
-                    .sorted((e1, e2) -> e1.getName().compareTo(e2.getName()))
+                    .sorted(Comparator.comparing(ProtoEnum::getName))
                     .forEach(e -> {
                                 String code = builder.buildEnum(e, 1, buildOps);
                                 try {
@@ -156,7 +157,7 @@ public class IfaceGenerator {
                     + getDtoSrcPath(buildOps.getJavaPackage(), buildOps.getDtoPrefix());
             checkSrcPath(new File(msgPath));
             msgs.stream()
-                    .sorted((m1, m2) -> m1.getName().compareTo(m2.getName()))
+                    .sorted(Comparator.comparing(Message::getName))
                     .forEach(e -> {
                         StringBuilder mc = new StringBuilder();
                         if (e.getComment() != null) {
@@ -168,7 +169,7 @@ public class IfaceGenerator {
                         }
                         msgComments.put(e.getName(), mc.toString());
 
-                        String code = builder.buildMessage(proto, e, 1, null, buildOps);
+                        String code = builder.buildMessage(proto, e, 1, null, buildOps, protos);
                         try {
                             saveJavaFile(msgPath + File.separator
                                     + formatTypeName(e.getName(), Service.ServiceType.UNARY) + ".java", code);
@@ -191,7 +192,7 @@ public class IfaceGenerator {
                     + getIfaceSrcPath(pack);
             checkSrcPath(new File(servicePath));
             services.stream()
-                    .sorted((s1, s2) -> s1.getName().compareTo(s2.getName()))
+                    .sorted(Comparator.comparing(Service::getName))
                     .forEach(s -> {
                         String code = builder.buildService(s, 1, buildOps, msgComments, proto);
                         try {

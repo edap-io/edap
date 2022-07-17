@@ -26,6 +26,10 @@ public class JavaBuildOption {
     private boolean isMultipleFiles;
     private boolean chainOper;
     private boolean hasDefaultValue;
+    /**
+     * 基本类型是否使用包装类型
+     */
+    private boolean useBoxed;
 
     /**
      * @return the javaPackage
@@ -137,5 +141,16 @@ public class JavaBuildOption {
 
     public void setEdapRpc(boolean edapRpc) {
         this.edapRpc = edapRpc;
+    }
+
+    /**
+     * 基本类型是否使用包装类型
+     */
+    public boolean isUseBoxed() {
+        return useBoxed;
+    }
+
+    public void setUseBoxed(boolean useBoxed) {
+        this.useBoxed = useBoxed;
     }
 }

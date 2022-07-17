@@ -863,6 +863,7 @@ public class ProtoParser {
         if (pv.getOptions() != null && !pv.getOptions().isEmpty()) {
             field.setOptions(pv.getOptions());
         }
+        comments.clear();
         return field;
     }
     /**
