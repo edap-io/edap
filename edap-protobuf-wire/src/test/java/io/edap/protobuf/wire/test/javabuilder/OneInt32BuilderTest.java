@@ -28,6 +28,44 @@ public class OneInt32BuilderTest extends AbstractTest {
         String workPath = getWorkPath();
         String[] args = new String[]{
                 "-proto", workPath + "/resources/proto/one_int32.proto",
+                "-src", workPath + "/tmpsrc/"
+
+        };
+        JavaGenerator.main(args);
+
+        String[] lines = ("package io.edap.protobuf.test.message.v3;\n" +
+                "\n" +
+                "import io.edap.protobuf.annotation.ProtoField;\n" +
+                "import io.edap.protobuf.wire.Field.Type;\n" +
+                "import java.io.Serializable;\n" +
+                "\n" +
+                "public class OneInt32 implements Serializable {\n" +
+                "\n" +
+                "    @ProtoField(tag = 1, type = Type.INT32)\n" +
+                "    private int value;\n" +
+                "\n" +
+                "\n" +
+                "    public int getValue() {\n" +
+                "        return value;\n" +
+                "    }\n" +
+                "\n" +
+                "    public OneInt32 setValue(int value) {\n" +
+                "        this.value = value;\n" +
+                "        return this;\n" +
+                "    }\n" +
+                "\n" +
+                "}").split("\\n");
+
+        String path = workPath + "/tmpsrc/" + packName + "/OneInt32.java";
+        System.out.println(lines.length);
+        assertTrue(codeEquals(path, lines));
+    }
+
+    @Test
+    public void testOneInt32BoxedTest() {
+        String workPath = getWorkPath();
+        String[] args = new String[]{
+                "-proto", workPath + "/resources/proto/one_int32.proto",
                 "-src", workPath + "/tmpsrc/",
                 "-useBoxed", "true"
 
@@ -58,6 +96,44 @@ public class OneInt32BuilderTest extends AbstractTest {
                 "}").split("\\n");
 
         String path = workPath + "/tmpsrc/" + packName + "/OneInt32.java";
+        System.out.println(lines.length);
+        assertTrue(codeEquals(path, lines));
+    }
+
+    @Test
+    public void testOneInt32JavaTypeTest() {
+        String workPath = getWorkPath();
+        String[] args = new String[]{
+                "-proto", workPath + "/resources/proto/one_int32_javatype.proto",
+                "-src", workPath + "/tmpsrc/"
+
+        };
+        JavaGenerator.main(args);
+
+        String[] lines = ("package io.edap.protobuf.test.message.v3;\n" +
+                "\n" +
+                "import io.edap.protobuf.annotation.ProtoField;\n" +
+                "import io.edap.protobuf.wire.Field.Type;\n" +
+                "import java.io.Serializable;\n" +
+                "\n" +
+                "public class OneInt32JavaType implements Serializable {\n" +
+                "\n" +
+                "    @ProtoField(tag = 1, type = Type.INT32)\n" +
+                "    private Integer value;\n" +
+                "\n" +
+                "\n" +
+                "    public Integer getValue() {\n" +
+                "        return value;\n" +
+                "    }\n" +
+                "\n" +
+                "    public OneInt32JavaType setValue(Integer value) {\n" +
+                "        this.value = value;\n" +
+                "        return this;\n" +
+                "    }\n" +
+                "\n" +
+                "}").split("\\n");
+
+        String path = workPath + "/tmpsrc/" + packName + "/OneInt32JavaType.java";
         System.out.println(lines.length);
         assertTrue(codeEquals(path, lines));
     }

@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+
+package test.message;
+
+option java_package = "io.edap.protobuf.test.message.v3";
+
+message OneInt64JavaType {
+    int64 value = 1[java_type = "java.time.LocalDateTime"];
+}

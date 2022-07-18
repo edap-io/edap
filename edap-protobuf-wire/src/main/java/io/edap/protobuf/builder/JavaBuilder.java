@@ -110,7 +110,21 @@ public class JavaBuilder {
             if (buildOps.isUseBoxed()) {
                 type = javaType.getBoxedType();
             } else {
-                type = javaType.getTypeString();
+                String optionJavaType = getOptionJavaType(field.getOptions());
+                if (optionJavaType == null || optionJavaType.isEmpty()) {
+                    type = javaType.getTypeString();
+                } else {
+                    int lastDot = optionJavaType.lastIndexOf(".");
+                    if (lastDot == -1) {
+                        type = optionJavaType;
+                    } else {
+                        if (!imps.contains(optionJavaType)) {
+                            imps.add(optionJavaType);
+                        }
+                        type = optionJavaType.substring(lastDot + 1);
+                    }
+                }
+
             }
         }
         if ("int64".equals(field.getType()) && jType != null) {
@@ -453,7 +467,7 @@ public class JavaBuilder {
             buildDocComment(cb, f.getComment(), level);
             cb.t(level).e("@ProtoField(tag = $tag$, type = $type$)")
                     .arg(String.valueOf(f.getTag()), typeName).ln();
-            String type = getJavaType(f, null, buildOps);
+            String type = getJavaType(f, imps, buildOps);
             String name = f.getName();
             if (f.getCardinality() == Field.Cardinality.REPEATED) {
                 String boxedTypeName = getBoxedTypeName(f, buildOps);
@@ -507,7 +521,7 @@ public class JavaBuilder {
         }
 
 
-        buildListCode(cb, fields, level, buildOps);
+        buildListCode(cb, fields, level, buildOps, imps);
 
         nestMessageMessage(proto, cb, msg.getMessages(), defineMsgs, level, protos);
         nestMessageEnum(cb, msg.getEnums(), level);
@@ -528,14 +542,15 @@ public class JavaBuilder {
         return type;
     }
 
-    private void buildListCode(CodeBuilder cb, List<Field> fields, int level, JavaBuildOption buildOps) {
+    private void buildListCode(CodeBuilder cb, List<Field> fields, int level,
+                               JavaBuildOption buildOps, List<String> imps) {
         CodeBuilder listCode = new CodeBuilder();
         for (int i=0;i<fields.size();i++) {
             Field f = fields.get(i);
             String setMethod = "set" +
                     f.getName().substring(0, 1).toUpperCase(Locale.ENGLISH) +
                     f.getName().substring(1);
-            String type = getJavaType(f, null, buildOps);
+            String type = getJavaType(f, imps, buildOps);
             String itemType = type;
             if (f.getCardinality() == Cardinality.REPEATED) {
                 String boxedType = getBoxedTypeName(f, buildOps);

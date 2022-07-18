@@ -177,4 +177,43 @@ public class OneInt64BuilderTest extends AbstractTest {
         System.out.println(lines.length);
         assertTrue(codeEquals(path, lines));
     }
+
+    @Test
+    public void testOneInt64JavaTypeTest() {
+        String workPath = getWorkPath();
+        String[] args = new String[]{
+                "-proto", workPath + "/resources/proto/one_int64_javatype.proto",
+                "-src", workPath + "/tmpsrc/"
+
+        };
+        JavaGenerator.main(args);
+
+        String[] lines = ("package io.edap.protobuf.test.message.v3;\n" +
+                "\n" +
+                "import io.edap.protobuf.annotation.ProtoField;\n" +
+                "import io.edap.protobuf.wire.Field.Type;\n" +
+                "import java.io.Serializable;\n" +
+                "import java.time.LocalDateTime;\n" +
+                "\n" +
+                "public class OneInt64JavaType implements Serializable {\n" +
+                "\n" +
+                "    @ProtoField(tag = 1, type = Type.INT64)\n" +
+                "    private LocalDateTime value;\n" +
+                "\n" +
+                "\n" +
+                "    public LocalDateTime getValue() {\n" +
+                "        return value;\n" +
+                "    }\n" +
+                "\n" +
+                "    public OneInt64JavaType setValue(LocalDateTime value) {\n" +
+                "        this.value = value;\n" +
+                "        return this;\n" +
+                "    }\n" +
+                "\n" +
+                "}").split("\\n");
+
+        String path = workPath + "/tmpsrc/" + packName + "/OneInt64JavaType.java";
+        System.out.println(lines.length);
+        assertTrue(codeEquals(path, lines));
+    }
 }
