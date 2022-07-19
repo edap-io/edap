@@ -28,6 +28,44 @@ public class OneUint64BuilderTest extends AbstractTest {
         String workPath = getWorkPath();
         String[] args = new String[]{
                 "-proto", workPath + "/resources/proto/one_uint64.proto",
+                "-src", workPath + "/tmpsrc/"
+
+        };
+        JavaGenerator.main(args);
+
+        String[] lines = ("package io.edap.protobuf.test.message.v3;\n" +
+                "\n" +
+                "import io.edap.protobuf.annotation.ProtoField;\n" +
+                "import io.edap.protobuf.wire.Field.Type;\n" +
+                "import java.io.Serializable;\n" +
+                "\n" +
+                "public class OneUint64 implements Serializable {\n" +
+                "\n" +
+                "    @ProtoField(tag = 1, type = Type.UINT64)\n" +
+                "    private long value;\n" +
+                "\n" +
+                "\n" +
+                "    public long getValue() {\n" +
+                "        return value;\n" +
+                "    }\n" +
+                "\n" +
+                "    public OneUint64 setValue(long value) {\n" +
+                "        this.value = value;\n" +
+                "        return this;\n" +
+                "    }\n" +
+                "\n" +
+                "}").split("\\n");
+
+        String path = workPath + "/tmpsrc/" + packName + "/OneUint64.java";
+        System.out.println(lines.length);
+        assertTrue(codeEquals(path, lines));
+    }
+
+    @Test
+    public void testOneUint32BoxedTest() {
+        String workPath = getWorkPath();
+        String[] args = new String[]{
+                "-proto", workPath + "/resources/proto/one_uint64.proto",
                 "-src", workPath + "/tmpsrc/",
                 "-useBoxed", "true"
 
@@ -45,6 +83,49 @@ public class OneUint64BuilderTest extends AbstractTest {
                 "    @ProtoField(tag = 1, type = Type.UINT64)\n" +
                 "    private Long value;\n" +
                 "\n" +
+                "\n" +
+                "    public Long getValue() {\n" +
+                "        return value;\n" +
+                "    }\n" +
+                "\n" +
+                "    public OneUint64 setValue(Long value) {\n" +
+                "        this.value = value;\n" +
+                "        return this;\n" +
+                "    }\n" +
+                "\n" +
+                "}").split("\\n");
+
+        String path = workPath + "/tmpsrc/" + packName + "/OneUint64.java";
+        System.out.println(lines.length);
+        assertTrue(codeEquals(path, lines));
+    }
+
+    @Test
+    public void testOneUint32BoxedDefaultValTest() {
+        String workPath = getWorkPath();
+        String[] args = new String[]{
+                "-proto", workPath + "/resources/proto/one_uint64.proto",
+                "-src", workPath + "/tmpsrc/",
+                "-useBoxed", "true",
+                "-hasDefaultValue", "true"
+
+        };
+        JavaGenerator.main(args);
+
+        String[] lines = ("package io.edap.protobuf.test.message.v3;\n" +
+                "\n" +
+                "import io.edap.protobuf.annotation.ProtoField;\n" +
+                "import io.edap.protobuf.wire.Field.Type;\n" +
+                "import java.io.Serializable;\n" +
+                "\n" +
+                "public class OneUint64 implements Serializable {\n" +
+                "\n" +
+                "    @ProtoField(tag = 1, type = Type.UINT64)\n" +
+                "    private Long value;\n" +
+                "\n" +
+                "    public OneUint64() {\n" +
+                "        this.value = 0L;\n" +
+                "    }\n" +
                 "\n" +
                 "    public Long getValue() {\n" +
                 "        return value;\n" +

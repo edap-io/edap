@@ -28,6 +28,44 @@ public class OneFloatBuilderTest extends AbstractTest {
         String workPath = getWorkPath();
         String[] args = new String[]{
                 "-proto", workPath + "/resources/proto/one_float.proto",
+                "-src", workPath + "/tmpsrc/"
+
+        };
+        JavaGenerator.main(args);
+
+        String[] lines = ("package io.edap.protobuf.test.message.v3;\n" +
+                "\n" +
+                "import io.edap.protobuf.annotation.ProtoField;\n" +
+                "import io.edap.protobuf.wire.Field.Type;\n" +
+                "import java.io.Serializable;\n" +
+                "\n" +
+                "public class OneFloat implements Serializable {\n" +
+                "\n" +
+                "    @ProtoField(tag = 1, type = Type.FLOAT)\n" +
+                "    private float f;\n" +
+                "\n" +
+                "\n" +
+                "    public float getF() {\n" +
+                "        return f;\n" +
+                "    }\n" +
+                "\n" +
+                "    public OneFloat setF(float f) {\n" +
+                "        this.f = f;\n" +
+                "        return this;\n" +
+                "    }\n" +
+                "\n" +
+                "}").split("\\n");
+
+        String path = workPath + "/tmpsrc/" + packName + "/OneFloat.java";
+        System.out.println(lines.length);
+        assertTrue(codeEquals(path, lines));
+    }
+
+    @Test
+    public void testOneFloatBoxedTest() {
+        String workPath = getWorkPath();
+        String[] args = new String[]{
+                "-proto", workPath + "/resources/proto/one_float.proto",
                 "-src", workPath + "/tmpsrc/",
                 "-useBoxed", "true"
 
@@ -45,6 +83,49 @@ public class OneFloatBuilderTest extends AbstractTest {
                 "    @ProtoField(tag = 1, type = Type.FLOAT)\n" +
                 "    private Float f;\n" +
                 "\n" +
+                "\n" +
+                "    public Float getF() {\n" +
+                "        return f;\n" +
+                "    }\n" +
+                "\n" +
+                "    public OneFloat setF(Float f) {\n" +
+                "        this.f = f;\n" +
+                "        return this;\n" +
+                "    }\n" +
+                "\n" +
+                "}").split("\\n");
+
+        String path = workPath + "/tmpsrc/" + packName + "/OneFloat.java";
+        System.out.println(lines.length);
+        assertTrue(codeEquals(path, lines));
+    }
+
+    @Test
+    public void testOneFloatBoxedDefaultValTest() {
+        String workPath = getWorkPath();
+        String[] args = new String[]{
+                "-proto", workPath + "/resources/proto/one_float.proto",
+                "-src", workPath + "/tmpsrc/",
+                "-useBoxed", "true",
+                "-hasDefaultValue", "true"
+
+        };
+        JavaGenerator.main(args);
+
+        String[] lines = ("package io.edap.protobuf.test.message.v3;\n" +
+                "\n" +
+                "import io.edap.protobuf.annotation.ProtoField;\n" +
+                "import io.edap.protobuf.wire.Field.Type;\n" +
+                "import java.io.Serializable;\n" +
+                "\n" +
+                "public class OneFloat implements Serializable {\n" +
+                "\n" +
+                "    @ProtoField(tag = 1, type = Type.FLOAT)\n" +
+                "    private Float f;\n" +
+                "\n" +
+                "    public OneFloat() {\n" +
+                "        this.f = 0F;\n" +
+                "    }\n" +
                 "\n" +
                 "    public Float getF() {\n" +
                 "        return f;\n" +

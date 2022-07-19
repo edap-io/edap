@@ -454,7 +454,7 @@ public class JavaBuilder {
         List<String> setCodes = new ArrayList<>(size);
 
         CodeBuilder cons = new CodeBuilder();
-        buildDefaultValCode(cons, msg, buildOps, level);
+        buildDefaultValCode(cons, msg, buildOps, level, protoEnums, proto);
         for (int i=0;i<size;i++) {
             Field f = fields.get(i);
             getCode = new CodeBuilder();
@@ -589,30 +589,53 @@ public class JavaBuilder {
         cb.ln().c(listCode.toString());
     }
 
-    private void buildDefaultValCode(CodeBuilder cons, Message msg, JavaBuildOption buildOps, int level) {
+    private void buildDefaultValCode(CodeBuilder cons, Message msg, JavaBuildOption buildOps,
+                                     int level, Map<String, ProtoEnum> protoEnums, Proto proto) {
         if (!buildOps.isHasDefaultValue()) {
             return;
         }
         cons.t(level).e("public $name$() {").arg(msg.getName()).ln();
-        List<String> typeInt = Arrays.asList("int32","uint32","sint32");
-        List<String> typeLong = Arrays.asList("int64","uint64","sint64");
+        List<String> typeInt = Arrays.asList("int32","fixed32","uint32","sint32","sfixed32");
+        List<String> typeLong = Arrays.asList("int64","fixed64","uint64","sint64","sfixed64");
         List<Field> fields = msg.getFields();
         for (int i=0;i<fields.size();i++) {
             Field f = fields.get(i);
             if (f.getCardinality() != Cardinality.REPEATED) {
                 String type = f.getType();
-                if (typeInt.contains(type)) {
+                if (typeInt.contains(type) && buildOps.isUseBoxed()) {
                     cons.t(level + 1).e("this.$name$ = 0;")
                             .arg(f.getName()).ln();
-                } else if (typeLong.contains(type)) {
+                } else if (typeLong.contains(type) && buildOps.isUseBoxed()) {
                     cons.t(level + 1).e("this.$name$ = 0L;")
                             .arg(f.getName()).ln();
-                } else if ("bool".equals(type)) {
+                } else if ("double".equalsIgnoreCase(type) && buildOps.isUseBoxed()) {
+                    cons.t(level + 1).e("this.$name$ = 0D;")
+                            .arg(f.getName()).ln();
+                } else if ("float".equalsIgnoreCase(type) && buildOps.isUseBoxed()) {
+                    cons.t(level + 1).e("this.$name$ = 0F;")
+                            .arg(f.getName()).ln();
+                } else if ("bool".equals(type) && buildOps.isUseBoxed()) {
                     cons.t(level + 1).e("this.$name$ = false;")
                             .arg(f.getName()).ln();
                 } else if ("string".equals(type)) {
                     cons.t(level + 1).e("this.$name$ = \"\";")
                             .arg(f.getName()).ln();
+                } else if ("bytes".equals(type)) {
+                    cons.t(level + 1).e("this.$name$ = new byte[0];")
+                            .arg(f.getName()).ln();
+                } else {
+                    String name = getJavaPackage(proto) + "." + type;
+                    if (protoEnums.containsKey(name)) {
+                        String enumDefVal = "";
+                        ProtoEnum protoEnum = protoEnums.get(name);
+                        for (EnumEntry entry : protoEnum.getEntries()) {
+                            if (entry.getValue() == 0) {
+                                enumDefVal = protoEnum.getName() + "." + entry.getLabel();
+                            }
+                        }
+                        cons.t(level + 1).e("this.$name$ = $enum$;")
+                                .arg(f.getName(), enumDefVal).ln();
+                    }
                 }
             }
         }
@@ -712,7 +735,7 @@ public class JavaBuilder {
             cb.c(vsb.toString());
             cb.t(level+2).c("default:").ln();
             cb.t(level+3).e("throw new IllegalArgumentException("
-                    + "\"no enum value $value$ \" + value);")
+                            + "\"no enum value $value$ \" + value);")
                     .arg(protoEnum.getName()).ln();
 
             cb.t(level+1).c("}").ln();

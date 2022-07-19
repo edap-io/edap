@@ -28,7 +28,7 @@ public class OneEnumBuilderTest extends AbstractTest {
         String workPath = getWorkPath();
         String[] args = new String[]{
                 "-proto", workPath + "/resources/proto/one_enum.proto",
-                "-src", workPath + "/tmpsrc/"
+                "-src", workPath + "/tmpsrc/",
 
         };
         JavaGenerator.main(args);
@@ -44,6 +44,48 @@ public class OneEnumBuilderTest extends AbstractTest {
                 "    @ProtoField(tag = 1, type = Type.ENUM)\n" +
                 "    private Corpus corpus;\n" +
                 "\n" +
+                "\n" +
+                "    public Corpus getCorpus() {\n" +
+                "        return corpus;\n" +
+                "    }\n" +
+                "\n" +
+                "    public OneEnum setCorpus(Corpus corpus) {\n" +
+                "        this.corpus = corpus;\n" +
+                "        return this;\n" +
+                "    }\n" +
+                "\n" +
+                "}").split("\\n");
+
+        String path = workPath + "/tmpsrc/" + packName + "/OneEnum.java";
+        System.out.println(lines.length);
+        assertTrue(codeEquals(path, lines));
+    }
+
+    @Test
+    public void testOneEnumDefaultValTest() {
+        String workPath = getWorkPath();
+        String[] args = new String[]{
+                "-proto", workPath + "/resources/proto/one_enum.proto",
+                "-src", workPath + "/tmpsrc/",
+                "-hasDefaultValue", "true"
+
+        };
+        JavaGenerator.main(args);
+
+        String[] lines = ("package io.edap.protobuf.test.message.v3;\n" +
+                "\n" +
+                "import io.edap.protobuf.annotation.ProtoField;\n" +
+                "import io.edap.protobuf.wire.Field.Type;\n" +
+                "import java.io.Serializable;\n" +
+                "\n" +
+                "public class OneEnum implements Serializable {\n" +
+                "\n" +
+                "    @ProtoField(tag = 1, type = Type.ENUM)\n" +
+                "    private Corpus corpus;\n" +
+                "\n" +
+                "    public OneEnum() {\n" +
+                "        this.corpus = Corpus.UNIVERSAL;\n" +
+                "    }\n" +
                 "\n" +
                 "    public Corpus getCorpus() {\n" +
                 "        return corpus;\n" +

@@ -61,6 +61,48 @@ public class OneBoolBuilderTest extends AbstractTest {
     }
 
     @Test
+    public void testOneBoolBoxedDefaultVal() {
+        String workPath = getWorkPath();
+        String[] args = new String[]{
+                "-proto", workPath + "/resources/proto/one_bool.proto",
+                "-src", workPath + "/tmpsrc/",
+                "-useBoxed", "true",
+                "-hasDefaultValue", "true"
+
+        };
+        JavaGenerator.main(args);
+
+        String[] lines = ("package io.edap.protobuf.test.message.v3;\n" +
+                "\n" +
+                "import io.edap.protobuf.annotation.ProtoField;\n" +
+                "import io.edap.protobuf.wire.Field.Type;\n" +
+                "import java.io.Serializable;\n" +
+                "\n" +
+                "public class OneBool implements Serializable {\n" +
+                "\n" +
+                "    @ProtoField(tag = 1, type = Type.BOOL)\n" +
+                "    private Boolean value;\n" +
+                "\n" +
+                "    public OneBool() {\n" +
+                "        this.value = false;\n" +
+                "    }\n" +
+                "\n" +
+                "    public Boolean isValue() {\n" +
+                "        return value;\n" +
+                "    }\n" +
+                "\n" +
+                "    public OneBool setValue(Boolean value) {\n" +
+                "        this.value = value;\n" +
+                "        return this;\n" +
+                "    }\n" +
+                "\n" +
+                "}").split("\\n");
+        String path = workPath + "/tmpsrc/" + packName + "/OneBool.java";
+        System.out.println(lines.length);
+        assertTrue(codeEquals(path, lines));
+    }
+
+    @Test
     public void testOneBoolBoxed() {
         String workPath = getWorkPath();
         String[] args = new String[]{

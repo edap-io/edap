@@ -28,7 +28,7 @@ public class OneDoubleBuilderTest extends AbstractTest {
         String workPath = getWorkPath();
         String[] args = new String[]{
                 "-proto", workPath + "/resources/proto/one_double.proto",
-                "-src", workPath + "/tmpsrc/"
+                "-src", workPath + "/tmpsrc/",
 
         };
         JavaGenerator.main(args);
@@ -83,6 +83,49 @@ public class OneDoubleBuilderTest extends AbstractTest {
                 "    @ProtoField(tag = 1, type = Type.DOUBLE)\n" +
                 "    private Double d;\n" +
                 "\n" +
+                "\n" +
+                "    public Double getD() {\n" +
+                "        return d;\n" +
+                "    }\n" +
+                "\n" +
+                "    public OneDouble setD(Double d) {\n" +
+                "        this.d = d;\n" +
+                "        return this;\n" +
+                "    }\n" +
+                "\n" +
+                "}").split("\\n");
+
+        String path = workPath + "/tmpsrc/" + packName + "/OneDouble.java";
+        System.out.println(lines.length);
+        assertTrue(codeEquals(path, lines));
+    }
+
+    @Test
+    public void testOneDoubleBoxedDefaultValTest() {
+        String workPath = getWorkPath();
+        String[] args = new String[]{
+                "-proto", workPath + "/resources/proto/one_double.proto",
+                "-src", workPath + "/tmpsrc/",
+                "-useBoxed", "true",
+                "-hasDefaultValue", "true"
+
+        };
+        JavaGenerator.main(args);
+
+        String[] lines = ("package io.edap.protobuf.test.message.v3;\n" +
+                "\n" +
+                "import io.edap.protobuf.annotation.ProtoField;\n" +
+                "import io.edap.protobuf.wire.Field.Type;\n" +
+                "import java.io.Serializable;\n" +
+                "\n" +
+                "public class OneDouble implements Serializable {\n" +
+                "\n" +
+                "    @ProtoField(tag = 1, type = Type.DOUBLE)\n" +
+                "    private Double d;\n" +
+                "\n" +
+                "    public OneDouble() {\n" +
+                "        this.d = 0D;\n" +
+                "    }\n" +
                 "\n" +
                 "    public Double getD() {\n" +
                 "        return d;\n" +

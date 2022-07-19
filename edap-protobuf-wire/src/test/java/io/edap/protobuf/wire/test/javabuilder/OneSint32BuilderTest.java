@@ -99,4 +99,47 @@ public class OneSint32BuilderTest extends AbstractTest {
         System.out.println(lines.length);
         assertTrue(codeEquals(path, lines));
     }
+
+    @Test
+    public void testOneSint32BoxedDefaultValTest() {
+        String workPath = getWorkPath();
+        String[] args = new String[]{
+                "-proto", workPath + "/resources/proto/one_sint32.proto",
+                "-src", workPath + "/tmpsrc/",
+                "-useBoxed", "true",
+                "-hasDefaultValue", "true"
+
+        };
+        JavaGenerator.main(args);
+
+        String[] lines = ("package io.edap.protobuf.test.message.v3;\n" +
+                "\n" +
+                "import io.edap.protobuf.annotation.ProtoField;\n" +
+                "import io.edap.protobuf.wire.Field.Type;\n" +
+                "import java.io.Serializable;\n" +
+                "\n" +
+                "public class OneSint32 implements Serializable {\n" +
+                "\n" +
+                "    @ProtoField(tag = 1, type = Type.SINT32)\n" +
+                "    private Integer value;\n" +
+                "\n" +
+                "    public OneSint32() {\n" +
+                "        this.value = 0;\n" +
+                "    }\n" +
+                "\n" +
+                "    public Integer getValue() {\n" +
+                "        return value;\n" +
+                "    }\n" +
+                "\n" +
+                "    public OneSint32 setValue(Integer value) {\n" +
+                "        this.value = value;\n" +
+                "        return this;\n" +
+                "    }\n" +
+                "\n" +
+                "}").split("\\n");
+
+        String path = workPath + "/tmpsrc/" + packName + "/OneSint32.java";
+        System.out.println(lines.length);
+        assertTrue(codeEquals(path, lines));
+    }
 }

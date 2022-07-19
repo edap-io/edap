@@ -75,6 +75,7 @@ public class IfaceGenerator {
         buildOps.setChainOper(true);
         buildOps.setEdapRpc(this.buildOption.isEdapRpc());
         buildOps.setUseBoxed(buildOption.isUseBoxed());
+        buildOps.setHasDefaultValue(buildOption.isHasDefaultValue());
         if (buildOption != null) {
             if (!buildOption.isChainOper()) {
                 buildOps.setChainOper(false);
