@@ -34,6 +34,10 @@ public class CollectionUtils {
         return collection == null || collection.isEmpty();
     }
 
+    public static boolean isEmpty(Iterable<?> collection) {
+        return collection == null || !collection.iterator().hasNext();
+    }
+
     public static boolean isEmpty(Object[] collection) {
         return collection == null || collection.length==0;
     }
