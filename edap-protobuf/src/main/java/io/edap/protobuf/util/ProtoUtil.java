@@ -522,7 +522,7 @@ public class ProtoUtil {
         Cardinality cardinality = Cardinality.OPTIONAL;
         if (AsmUtil.isList(field.getGenericType())
                 || AsmUtil.isSet(field.getGenericType())
-                || AsmUtil.isArray(field.getGenericType())
+                || isRepeatedArray(field.getGenericType())
                 || isIterable(field.getGenericType())) {
             cardinality = Cardinality.REPEATED;
         }
@@ -570,8 +570,18 @@ public class ProtoUtil {
             case "java.lang.String":
                 type = Type.STRING;
                 break;
+
         }
         return type;
+    }
+
+    public static boolean isRepeatedArray(java.lang.reflect.Type type) {
+        if (type instanceof Class) {
+            Class arrayCls = (Class)type;
+            return arrayCls.isArray() && !"[B".equals(arrayCls.getName())
+                    && !"[Ljava.lang.Byte;".equals(arrayCls.getName());
+        }
+        return false;
     }
 
     public static Type javaToProtoType(java.lang.reflect.Type javaType) {
@@ -586,7 +596,7 @@ public class ProtoUtil {
         if (AsmUtil.isPojo(javaType)) {
             return Type.MESSAGE;
         }
-        if (AsmUtil.isArray(javaType)) {
+        if (isRepeatedArray(javaType)) {
             return javaToProtoType(((Class)javaType).getComponentType());
         }
         if (isList(javaType) || isSet(javaType) || isIterable(javaType)) {
@@ -596,6 +606,8 @@ public class ProtoUtil {
                 if (types != null && types.length > 0) {
                     java.lang.reflect.Type itemType = types[0];
                     if (itemType instanceof TypeVariable) {
+                        return Type.OBJECT;
+                    } else if (itemType instanceof ParameterizedType) {
                         return Type.OBJECT;
                     } else if (itemType instanceof Class) {
                         return javaToProtoType((Class)types[0]);

@@ -97,6 +97,54 @@ public abstract class AbstractEncoder {
         writer.writePackedInts(fieldData, values, type);
     }
 
+    protected void writeArrayInt(ProtoBufWriter writer, byte[] fieldData, short[] values, Type type) {
+        if (values == null || values.length == 0) {
+            return;
+        }
+        int len = values.length;
+        int[] vals = new int[len];
+        for (int i=0;i<len;i++) {
+            vals[i] = values[i];
+        }
+        writer.writePackedInts(fieldData, vals, type);
+    }
+
+    protected void writeArrayInt(ProtoBufWriter writer, byte[] fieldData, Short[] values, Type type) {
+        if (values == null || values.length == 0) {
+            return;
+        }
+        int len = values.length;
+        int[] vals = new int[len];
+        for (int i=0;i<len;i++) {
+            vals[i] = values[i];
+        }
+        writer.writePackedInts(fieldData, vals, type);
+    }
+
+    protected void writeArrayInt(ProtoBufWriter writer, byte[] fieldData, char[] values, Type type) {
+        if (values == null || values.length == 0) {
+            return;
+        }
+        int len = values.length;
+        int[] vals = new int[len];
+        for (int i=0;i<len;i++) {
+            vals[i] = values[i];
+        }
+        writer.writePackedInts(fieldData, vals, type);
+    }
+
+    protected void writeArrayInt(ProtoBufWriter writer, byte[] fieldData, Character[] values, Type type) {
+        if (values == null || values.length == 0) {
+            return;
+        }
+        int len = values.length;
+        int[] vals = new int[len];
+        for (int i=0;i<len;i++) {
+            vals[i] = values[i];
+        }
+        writer.writePackedInts(fieldData, vals, type);
+    }
+
     protected void writeArrayInt(ProtoBufWriter writer, byte[] fieldData, Integer[] values, Type type) {
         writer.writePackedInts(fieldData, values, type);
     }

@@ -20,6 +20,7 @@ import io.edap.io.BufOut;
 import io.edap.io.BufWriter;
 import io.edap.protobuf.wire.Field.Type;
 
+import java.util.Collection;
 import java.util.List;
 
 /**
@@ -58,6 +59,7 @@ public interface ProtoBufWriter extends BufWriter {
     void writeBool(byte[] fieldData, Boolean value);
     void writeBool(byte[] fieldData, boolean value);
     void writePackedBools(byte[] fieldData, List<Boolean> values);
+    void writePackedBools(byte[] fieldData, Iterable<Boolean> values);
 
     void writeInt32(byte[] fieldData, Integer value);
     void writeInt32(byte[] fieldData, int value);
@@ -76,12 +78,15 @@ public interface ProtoBufWriter extends BufWriter {
     void writePackedInts(byte[] fieldData, int[] values, Type type);
     void writePackedInts(byte[] fieldData, Integer[] values, Type type);
     void writePackedInts(byte[] fieldData, List<Integer> value, Type type);
+    void writePackedInts(byte[] fieldData, Iterable<Integer> value, Type type);
     void writePackedFloats(byte[] fieldData, float[] values);
     void writePackedFloats(byte[] fieldData, Float[] values);
     void writePackedFloats(byte[] fieldData, List<Float> values);
+    void writePackedFloats(byte[] fieldData, Iterable<Float> values);
     void writePackedBooleans(byte[] fieldData, boolean[] values);
     void writePackedBooleans(byte[] fieldData, Boolean[] values);
     void writePackedBooleans(byte[] fieldData, List<Boolean> values);
+    void writePackedBooleans(byte[] fieldData, Iterable<Boolean> values);
 
     void writeLong(byte[] fieldData, Long value);
     void writeLong(byte[] fieldData, long value);
@@ -99,19 +104,24 @@ public interface ProtoBufWriter extends BufWriter {
     void writePackedLongs(byte[] fieldData, Long[] values, Type type);
     void writePackedLongs(byte[] fieldData, long[] values, Type type);
     void writePackedLongs(byte[] fieldData, List<Long> values, Type type);
+    void writePackedLongs(byte[] fieldData, Iterable<Long> values, Type type);
     void writePackedDoubles(byte[] fieldData, double[] values);
     void writePackedDoubles(byte[] fieldData, Double[] values);
     void writePackedDoubles(byte[] fieldData, List<Double> values);
+    void writePackedDoubles(byte[] fieldData, Iterable<Double> values);
 
     void writeEnum(byte[] fieldData, Integer value);
     <E extends Enum<E>> void writeArrayEnum(byte[] fieldData, E[] vs);
     <E extends Enum<E>> void writeListEnum(byte[] fieldData, List<E> vs);
+    <E extends Enum<E>> void writeListEnum(byte[] fieldData, Iterable<E> vs);
     <E extends ProtoBufEnum> void writeListProtoEnum(byte[] fieldData, List<E> vs);
+    <E extends ProtoBufEnum> void writeListProtoEnum(byte[] fieldData, Iterable<E> vs);
 
     void writeString(String value);
     void writeStringUtf8(String value, int len);
     void writeString(byte[] fieldData, String value);
     void writeBytes(byte[] fieldData, byte[] value);
+    void writeBytes(byte[] fieldData, Byte[] value);
     void writeByteArray(byte[] fieldData, byte[] value, int offset, int length);
     void writeByteArray(byte[] value, int offset, int length);
     void writeBytes(byte[] bs);
@@ -132,6 +142,7 @@ public interface ProtoBufWriter extends BufWriter {
     <T> void writeMessage(byte[] fieldData, int tag, T msg, ProtoBufEncoder<T> encoder) throws EncodeException;
     <T> void writeMessages(byte[] fieldData, int tag, T[] msg, ProtoBufEncoder<T> encoder) throws EncodeException;
     <T> void writeMessages(byte[] fieldData, int tag, List<T> msg, ProtoBufEncoder<T> encoder) throws EncodeException;
+    <T> void writeMessages(byte[] fieldData, int tag, Iterable<T> msg, ProtoBufEncoder<T> encoder) throws EncodeException;
 
     static int encodeZigZag32(int n) {
         // Note:  the right-shift must be arithmetic

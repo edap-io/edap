@@ -59,6 +59,8 @@ public class ProtoBufEncoderGenerator {
     private static final String WRITE_LIST_PREFIX = "writeList_";
     private static final String WRITE_ARRAY_PREFIX = "writeArray_";
     private static final String WRITE_ITERATOR_PREFIX = "writeIterator_";
+    private final HashSet codecNames = new HashSet();
+    private final HashSet codecMethods = new HashSet();
 
     private ClassWriter cw;
     private final Class pojoCls;
@@ -243,7 +245,7 @@ public class ProtoBufEncoderGenerator {
                                 new Object[]{WRITER_NAME, "[B", "java/lang/Integer"});
 
                         visitMethod(mv, INVOKEINTERFACE, WRITER_NAME, writeMethod, "([BLjava/lang/Integer;)V", true);
-                    } else if (isArray(pfi.field.getType())) {
+                    } else if (isRepeatedArray(pfi.field.getType())) {
                         visitArrayOpcodes(mv, pfi);
                     } else if (isList(pfi.field.getGenericType())) {
                         visitListOpcodes(mv, pfi);
@@ -257,6 +259,20 @@ public class ProtoBufEncoderGenerator {
                         rType = visitGetFieldValue(mv, pfi, pojoName, pojoCodecName, 2, rType);
                         if (writeMethod.equals("writeObject")) {
                             rType = "Ljava/lang/Object;";
+                        }
+                        if (pfi.field.getType().getName().equals("byte") ||
+                                pfi.field.getType().getName().equals("short") ||
+                                pfi.field.getType().getName().equals("char")) {
+                            rType = "I";
+                        } else if (pfi.field.getType().getName().equals("java.lang.Byte")) {
+                            rType = "I";
+                            mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/Byte", "byteValue", "()B", false);
+                        } else if (pfi.field.getType().getName().equals("java.lang.Short")) {
+                            rType = "I";
+                            mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/Short", "shortValue", "()S", false);
+                        } else if (pfi.field.getType().getName().equals("java.lang.Character")) {
+                            rType = "I";
+                            mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/Character", "charValue", "()C", false);
                         }
                         visitMethod(mv, INVOKEINTERFACE, WRITER_NAME, writeMethod,
                                 "([B" + rType + ")V", true);
@@ -791,6 +807,14 @@ public class ProtoBufEncoderGenerator {
                     "([B" + rType + ")V",
                     true);
             return;
+        } else if (itemType instanceof ParameterizedType) {
+            mv.visitVarInsn(ALOAD, 1);
+            mv.visitFieldInsn(GETSTATIC, pojoCodecName, "tag" + pfi.protoField.tag(), "[B");
+            rType = visitGetFieldValue(mv, pfi, pojoName, pojoCodecName, 2, rType);
+            visitMethod(mv, INVOKEINTERFACE, WRITER_NAME, "writeObject",
+                    "([BLjava/lang/Object;)V",
+                    true);
+            return;
         }
         mv.visitVarInsn(ALOAD, 0);
         mv.visitVarInsn(ALOAD, 1);
@@ -852,6 +876,7 @@ public class ProtoBufEncoderGenerator {
 //                    "(L" + WRITER_NAME + ";[B" + rType + ")V", false);
 
             mv.visitFieldInsn(GETSTATIC, FIELD_TYPE_NAME, pfi.protoField.type().name(), "L" + FIELD_TYPE_NAME + ";");
+            rType = "Ljava/lang/Iterable;";
             visitMethod(mv, INVOKEINTERFACE, WRITER_NAME, "writePackedInts",
                     "([B" + rType
                             + "L" + FIELD_TYPE_NAME + ";)V",
@@ -906,6 +931,7 @@ public class ProtoBufEncoderGenerator {
         mv.visitVarInsn(ALOAD, 1);
         rType = visitGetFieldValue(mv, pfi, pojoName, pojoCodecName, 2, rType);
         String listMethod = getInnerIteratorMethod(pfi.field.getGenericType());
+        rType = "Ljava/lang/Iterable;";
         visitMethod(mv, INVOKESPECIAL, pojoCodecName, listMethod,
                 "(L" + WRITER_NAME + ";" + rType + ")V", false);
         visitInnerIteratorMethod(pfi.field.getGenericType(), pfi);
@@ -1028,6 +1054,7 @@ public class ProtoBufEncoderGenerator {
         int index = iteratorMethods.indexOf(typed);
         if (index < 0) {
             index = iteratorMethods.size();
+            //iteratorMethods.add(typed);
         }
         return WRITE_ITERATOR_PREFIX + index;
     }
@@ -1061,31 +1088,37 @@ public class ProtoBufEncoderGenerator {
         String name = getInnerIteratorMethod(type);
 
         MethodVisitor mv;
-        mv = cw.visitMethod(ACC_PRIVATE, name, "(L" + WRITER_NAME + ";[BLjava/lang/Iterable;)V",
-                "(L" + WRITER_NAME + ";[BLjava/lang/Iterable<" + itemDesc + ">;)V", null);
+        mv = cw.visitMethod(ACC_PRIVATE, name, "(L" + WRITER_NAME + ";Ljava/lang/Iterable;)V",
+                "(L" + WRITER_NAME + ";Ljava/lang/Iterable<" + itemDesc + ">;)V", null);
         mv.visitCode();
-        mv.visitVarInsn(ALOAD, 3);
+        mv.visitVarInsn(ALOAD, 2);
         mv.visitMethodInsn(INVOKEINTERFACE, "java/lang/Iterable", "iterator", "()Ljava/util/Iterator;", true);
-        mv.visitVarInsn(ASTORE, 4);
+        mv.visitVarInsn(ASTORE, 3);
         Label l0 = new Label();
         mv.visitLabel(l0);
         mv.visitFrame(Opcodes.F_APPEND,1, new Object[] {"java/util/Iterator"}, 0, null);
-        mv.visitVarInsn(ALOAD, 4);
+        mv.visitVarInsn(ALOAD, 3);
         mv.visitMethodInsn(INVOKEINTERFACE, "java/util/Iterator", "hasNext", "()Z", true);
         Label l1 = new Label();
         mv.visitJumpInsn(IFEQ, l1);
         mv.visitVarInsn(ALOAD, 1);
-        mv.visitVarInsn(ALOAD, 2);
-        mv.visitVarInsn(ALOAD, 4);
+        mv.visitFieldInsn(GETSTATIC, pojoCodecName, "tag" + pfi.protoField.tag(), "[B");
+        mv.visitVarInsn(ALOAD, 3);
         mv.visitMethodInsn(INVOKEINTERFACE, "java/util/Iterator", "next", "()Ljava/lang/Object;", true);
         mv.visitTypeInsn(CHECKCAST, itemName);
-        mv.visitMethodInsn(INVOKEINTERFACE, WRITER_NAME, "writeString", "([B" + itemDesc + ")V", true);
+        String writeMethod = getWriteMethod(pfi.protoField.type());
+        if ("writeObject".equals(writeMethod)) {
+            itemDesc = "Ljava/lang/Object;";
+        }
+        mv.visitMethodInsn(INVOKEINTERFACE, WRITER_NAME, writeMethod, "([B" + itemDesc + ")V", true);
         mv.visitJumpInsn(GOTO, l0);
         mv.visitLabel(l1);
         mv.visitFrame(Opcodes.F_SAME, 0, null, 0, null);
         mv.visitInsn(RETURN);
         mv.visitMaxs(3, 5);
         mv.visitEnd();
+
+        iteratorMethods.add(typed);
     }
 
     private void visitInnerArrayMethod(java.lang.reflect.Type type,
@@ -1292,7 +1325,8 @@ public class ProtoBufEncoderGenerator {
             return;
         }
         for (java.lang.reflect.Type type : pojoTypes) {
-            if (type  instanceof Class && !((Class)type).getName().equals(pojoCls.getName())) {
+            if (type  instanceof Class
+                    && !((Class)type).getName().equals(pojoCls.getName())) {
                 visitGetEncoderMethod(type);
             }
         }
@@ -1301,6 +1335,9 @@ public class ProtoBufEncoderGenerator {
     private void visitGetEncoderMethod(java.lang.reflect.Type type) {
         String itemType = toInternalName(((Class)type).getName());
         String codecName = getPojoEncoderName(type);
+        if (codecMethods.contains(codecName)) {
+            return;
+        }
         String methodName = codecName.substring(0, 1).toUpperCase(Locale.ENGLISH) + codecName.substring(1);
         MethodVisitor mv = cw.visitMethod(ACC_PRIVATE, "get" + methodName, "()L" + IFACE_NAME + ";",
                 "()L" + IFACE_NAME + "<L" + itemType + ";>;", null);
@@ -1322,6 +1359,8 @@ public class ProtoBufEncoderGenerator {
         mv.visitInsn(ARETURN);
         mv.visitMaxs(3, 1);
         mv.visitEnd();
+
+        codecMethods.add(codecName);
     }
 
     private void visitInitMethod(List<java.lang.reflect.Type> pojoTypes, List<ProtoFieldInfo> fields) {
@@ -1330,9 +1369,10 @@ public class ProtoBufEncoderGenerator {
             String itemType = toInternalName(((Class)type).getName());
             String codecName = getPojoEncoderName(type);
             String encoderName = toInternalName(getEncoderName((Class)type, encodeType, writeOrder));
-            if (!encoderName.equals(pojoCodecName)) {
+            if (!encoderName.equals(pojoCodecName) && !codecNames.contains(codecName)) {
                 cw.visitField(ACC_PRIVATE, codecName, "L" + IFACE_NAME + ";",
                         "L" + IFACE_NAME + "<L" + itemType + ";>;", null);
+                codecNames.add(codecName);
             }
         }
         Map<String, String> mapNames = new HashMap<>();
