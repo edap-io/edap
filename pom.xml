@@ -32,7 +32,7 @@
         <junit.jupiter.version>5.5.2</junit.jupiter.version>
         <asm.version>5.1</asm.version>
         <protobuf.java.verson>3.16.1</protobuf.java.verson>
-        <fastjson.version>1.2.83.sec06</fastjson.version>
+        <fastjson.version>1.2.83</fastjson.version>
     </properties>
 
     <modules>
