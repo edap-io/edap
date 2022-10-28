@@ -36,7 +36,10 @@ public class TestOneInt32 {
     @ValueSource(ints = {
             0,
             1,
-            128,
+            129,
+            16385,
+            2097153,
+            268435457,
             -1,
             -129
     })
@@ -62,7 +65,8 @@ public class TestOneInt32 {
     @ValueSource(ints = {
             0,
             1,
-            128,
+            129,
+            16130,
             -1,
             -128
     })

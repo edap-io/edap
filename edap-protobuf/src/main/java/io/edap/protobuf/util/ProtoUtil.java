@@ -23,6 +23,7 @@ import io.edap.protobuf.annotation.ProtoField;
 import io.edap.protobuf.builder.ProtoV2Builder;
 import io.edap.protobuf.builder.ProtoV3Builder;
 import io.edap.protobuf.internal.PbField;
+import io.edap.protobuf.model.ProtoTypeInfo;
 import io.edap.protobuf.wire.*;
 import io.edap.protobuf.wire.Field.Cardinality;
 import io.edap.protobuf.wire.Field.Type;
@@ -526,21 +527,22 @@ public class ProtoUtil {
                 || isIterable(field.getGenericType())) {
             cardinality = Cardinality.REPEATED;
         }
-        Type type = javaToProtoType(field.getGenericType());
+        Type type = javaToProtoType(field.getGenericType()).getProtoType();
         String[] opitons = null;
         return buildProtoFieldAnnotation(tag, cardinality, type, opitons);
     }
 
-    public static Type javaToProtoType(Class javaType) {
-        Type type = Type.BYTES;
+    public static ProtoTypeInfo javaToProtoType(Class javaType) {
+        ProtoTypeInfo typeInfo = new ProtoTypeInfo();
         if (javaType.isEnum()) {
-            return Type.ENUM;
+            typeInfo.setProtoType(Type.ENUM);
+            return typeInfo;
         }
         String typeName = javaType.getName();
         switch (typeName) {
             case "boolean":
             case "java.lang.Boolean":
-                type = Type.BOOL;
+                typeInfo.setProtoType(Type.BOOL);;
                 break;
             case "byte":
             case "java.lang.Byte":
@@ -550,44 +552,52 @@ public class ProtoUtil {
             case "java.lang.Short":
             case "int":
             case "java.lang.Integer":
-                type = Type.INT32;
+                typeInfo.setProtoType(Type.INT32);
                 break;
             case "long":
             case "java.lang.Long":
             case "java.util.Date":
             case "java.util.Calendar":
             case "java.time.LocalDateTime":
-                type = Type.INT64;
+                typeInfo.setProtoType(Type.INT64);
                 break;
             case "float":
             case "java.lang.Float":
-                type = Type.FLOAT;
+                typeInfo.setProtoType(Type.FLOAT);
                 break;
             case "double":
             case "java.lang.Double":
-                type = Type.DOUBLE;
+                typeInfo.setProtoType(Type.DOUBLE);
                 break;
             case "java.lang.String":
-                type = Type.STRING;
+                typeInfo.setProtoType(Type.STRING);
                 break;
         }
-        return type;
+        return typeInfo;
     }
 
-    public static Type javaToProtoType(java.lang.reflect.Type javaType) {
+    public static ProtoTypeInfo javaToProtoType(java.lang.reflect.Type javaType) {
         Type type = Type.BYTES;
+        ProtoTypeInfo typeInfo = new ProtoTypeInfo();
         if (javaType.getTypeName().equals("java.lang.Object") || javaType.getTypeName().startsWith("java.lang.Class")
                 || javaType instanceof TypeVariable) {
-            return Type.OBJECT;
+            typeInfo.setProtoType(Type.OBJECT);
+            return typeInfo;
         }
         if (AsmUtil.isMap(javaType)) {
-            return Type.MAP;
+            typeInfo.setProtoType(Type.MAP);
+            return typeInfo;
         }
         if (AsmUtil.isPojo(javaType)) {
-            return Type.MESSAGE;
+            typeInfo.setProtoType(Type.MESSAGE);
+            return typeInfo;
         }
         if (AsmUtil.isArray(javaType)) {
-            return javaToProtoType(((Class)javaType).getComponentType());
+            ProtoTypeInfo innerTypeInfo = javaToProtoType(((Class)javaType).getComponentType());
+            typeInfo.setProtoType(innerTypeInfo.getProtoType());
+            typeInfo.setCardinality(Cardinality.REPEATED);
+            typeInfo.setProtoTypeInfo(innerTypeInfo);
+            return typeInfo;
         }
         if (isList(javaType) || isSet(javaType) || isIterable(javaType)) {
             if (javaType instanceof ParameterizedType) {
@@ -596,17 +606,25 @@ public class ProtoUtil {
                 if (types != null && types.length > 0) {
                     java.lang.reflect.Type itemType = types[0];
                     if (itemType instanceof TypeVariable) {
-                        return Type.OBJECT;
+                        typeInfo.setProtoType(Type.OBJECT);
+                        typeInfo.setCardinality(Cardinality.REPEATED);
+                        return typeInfo;
                     } else if (itemType instanceof Class) {
-                        return javaToProtoType((Class)types[0]);
+                        ProtoTypeInfo innerTypeInfo = javaToProtoType((Class)types[0]);
+                        typeInfo.setProtoType(innerTypeInfo.getProtoType());
+                        typeInfo.setCardinality(Cardinality.REPEATED);
+                        typeInfo.setProtoTypeInfo(innerTypeInfo);
+                        return typeInfo;
                     }
                 }
             } else if (javaType instanceof Class) {
-                return Type.OBJECT;
+                typeInfo.setCardinality(Cardinality.REPEATED);
+                typeInfo.setProtoType(Type.OBJECT);
+                return typeInfo;
             }
         }
         if (javaType instanceof ParameterizedType) {
-            return type;
+            return typeInfo;
         }
         if (javaType instanceof GenericArrayType) {
             GenericArrayType gat = (GenericArrayType)javaType;

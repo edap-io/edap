@@ -85,8 +85,8 @@ public class MapEntryGenerator {
         FieldVisitor fv;
         AnnotationVisitor av;
 
-        String keyProtoType = javaToProtoType(keyType).name();
-        String valProtoType = javaToProtoType(valType).name();
+        String keyProtoType = javaToProtoType(keyType).getProtoType().name();
+        String valProtoType = javaToProtoType(valType).getProtoType().name();
         //System.out.println("keyProtoType=" + keyProtoType + ",valProtoType=" + valProtoType);
         fv = cw.visitField(ACC_PUBLIC, "key", ClazzUtil.getDescriptor(keyType),
                 null, null);
