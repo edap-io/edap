@@ -152,7 +152,7 @@ public enum ProtoBufCodecRegister {
             MapEntryGenerator meg = new MapEntryGenerator(
                     toInternalName(mapEntryName), mapType);
             byte[] bs = meg.getEntryBytes();
-            //saveJavaFile("./" + toInternalName(mapEntryName) + ".class", bs);
+            saveJavaFile("./" + toInternalName(mapEntryName) + ".class", bs);
             mapEntryCls = encoderLoader.define(mapEntryName, bs, 0, bs.length);
             if (mapEntryCls != null) {
                 mapEncoders.put(mapType, mapEntryCls);
@@ -212,7 +212,7 @@ public enum ProtoBufCodecRegister {
             ProtoBufEncoderGenerator generator = new ProtoBufEncoderGenerator(cls, EncodeType.STANDARD, writeOrder);
             GeneratorClassInfo gci = generator.getClassInfo();
             byte[] bs = gci.clazzBytes;
-            //saveJavaFile("./" + gci.clazzName + ".class", bs);
+            saveJavaFile("./" + gci.clazzName + ".class", bs);
             encoderCls = encoderLoader.define(encoderName, bs, 0, bs.length);
             if (!CollectionUtils.isEmpty(gci.inners)) {
                 for (GeneratorClassInfo inner : gci.inners) {
@@ -259,13 +259,13 @@ public enum ProtoBufCodecRegister {
             ProtoBufDecoderGenerator generator = new ProtoBufDecoderGenerator(cls, EncodeType.STANDARD);
             GeneratorClassInfo gci = generator.getClassInfo();
             byte[] bs = gci.clazzBytes;
-            //saveJavaFile("./" + gci.clazzName + ".class", bs);
+            saveJavaFile("./" + gci.clazzName + ".class", bs);
             decoderCls = encoderLoader.define(decoderName, bs, 0, bs.length);
             if (!isEmpty(gci.inners)) {
                 for (GeneratorClassInfo inner : gci.inners) {
                     bs = inner.clazzBytes;
                     String innerName = toLangName(inner.clazzName);
-                    //saveJavaFile("./" + inner.clazzName + ".class", bs);
+                    saveJavaFile("./" + inner.clazzName + ".class", bs);
                     encoderLoader.define(innerName, bs, 0, bs.length);
                 }
             }

@@ -25,9 +25,7 @@ import io.edap.protobuf.internal.ProtoBufOut;
 import io.edap.protobuf.wire.Field;
 import io.edap.util.CollectionUtils;
 
-import java.util.ArrayDeque;
-import java.util.List;
-import java.util.Queue;
+import java.util.*;
 
 import static io.edap.protobuf.ProtoBufWriter.encodeZigZag32;
 import static io.edap.protobuf.ProtoBufWriter.encodeZigZag64;
@@ -313,6 +311,118 @@ public class StandardProtoBufWriter extends AbstractWriter {
     }
 
     @Override
+    public void writePackedInts(byte[] fieldData, Iterable<Integer> values, Field.Type type) {
+        if (isEmpty(values)) {
+            return;
+        }
+        int len;
+        int size;
+        size = 0;
+        Iterator<Integer> itr = values.iterator();
+        while (itr.hasNext()) {
+            itr.next();
+            size++;
+        }
+        switch (type) {
+            case INT32:
+            case UINT32:
+
+//                len = 0;
+//                for (Integer i : values) {
+//                    len += computeRawVarint32Size(i);
+//                }
+//                expand(wbuf, MAX_VARINT_SIZE << 1 + len);
+//                writeFieldData(fieldData);
+//                writeUInt32_0(values.size());
+//                for (Integer i : values) {
+//                    writeUInt32_0(i);
+//                }
+//
+                len = size * 5;
+                expand((MAX_VARLONG_SIZE << 1) + len);
+                writeFieldData(fieldData);
+                int oldPos = pos;
+
+                pos += 1;
+                int i = 0;
+                Iterator<Integer> iterator = values.iterator();
+                writeInt32_0(iterator.next());
+                if (size > 1) {
+                    writeInt32_0(iterator.next());
+                }
+                if (size > 2) {
+                    writeInt32_0(iterator.next());
+                }
+                if (size > 3) {
+                    writeInt32_0(iterator.next());
+                }
+                if (size > 4) {
+                    writeInt32_0(iterator.next());
+                }
+                if (size > 5) {
+                    writeInt32_0(iterator.next());
+                }
+                if (size > 6) {
+                    writeInt32_0(iterator.next());
+                }
+                if (size > 7) {
+                    writeUInt32_0(iterator.next());
+                }
+                if (size > 8) {
+                    writeInt32_0(iterator.next());
+                }
+                if (size > 9) {
+                    writeInt32_0(iterator.next());
+                }
+                if (size > 10) {
+                    while (iterator.hasNext()) {
+                        writeInt32_0(iterator.next());
+                    }
+                }
+
+                len = pos - oldPos - 1;
+                pos += writeLenMoveBytes(bs, oldPos, len);
+
+//                ProtoBufWriter twriter = getLocalWriter();
+//                try {
+//                    int size = values.size();
+//                    for (int i = 0; i < size; i++) {
+//                        twriter.writeInt32(values.get(i));
+//                    }
+//                    len = twriter.getBufOut().getWriteBuf().start;
+//                    writeByteArray(fieldData, 0, fieldData.length);
+//                    writeUInt32(len);
+//                    writeByteArray(twriter.getBufOut().getWriteBuf().bs, 0, len);
+//                } finally {
+//                    releaseLocalWriter(twriter);
+//                }
+                return;
+            case SINT32:
+                len = size * MAX_VARINT_SIZE;
+                expand(MAX_VARINT_SIZE << 1 + len);
+                writeFieldData(fieldData);
+                oldPos = pos;
+                pos++;
+                for (Integer v : values) {
+                    writeUInt32_0(encodeZigZag32(v));
+                }
+                len = pos - oldPos - 1;
+                pos += writeLenMoveBytes(bs, oldPos, len);
+                return;
+            case FIXED32:
+            case SFIXED32:
+                expand(MAX_VARINT_SIZE << 1 + size << 2);
+                writeFieldData(fieldData);
+                writeUInt32_0(size << 2);
+                for (Integer v : values) {
+                    writeFixed32_0(v);
+                }
+            default:
+                break;
+        }
+    }
+
+    @Override
     public void writePackedFloats(byte[] fieldData, float[] values) {
         if (values == null || values.length == 0) {
             return;
@@ -355,6 +465,24 @@ public class StandardProtoBufWriter extends AbstractWriter {
     }
 
     @Override
+    public void writePackedFloats(byte[] fieldData, Iterable<Float> values) {
+        if (isEmpty(values)) {
+            return;
+        }
+        int size = 0;
+        for (Float f : values) {
+            size++;
+        }
+        int len = size << 2;
+        expand( MAX_VARINT_SIZE << 1 + len);
+        writeFieldData(fieldData);
+        writeUInt32(len);
+        for (Float value : values) {
+            writeFixed32_0(Float.floatToRawIntBits(value));
+        }
+    }
+
+    @Override
     public void writePackedBooleans(byte[] fieldData, boolean[] values) {
         if (values == null || values.length == 0) {
             return;
@@ -388,6 +516,23 @@ public class StandardProtoBufWriter extends AbstractWriter {
         expand(MAX_VARINT_SIZE + values.size());
         writeFieldData(fieldData);
         writeUInt32(values.size());
+        for (boolean value : values) {
+            writeUInt32_0(value?1:0);
+        }
+    }
+
+    @Override
+    public void writePackedBooleans(byte[] fieldData, Iterable<Boolean> values) {
+        if (values==null || !values.iterator().hasNext()) {
+            return;
+        }
+        int size = 0;
+        for (Boolean b : values) {
+            size++;
+        }
+        expand(MAX_VARINT_SIZE + size);
+        writeFieldData(fieldData);
+        writeUInt32(size);
         for (boolean value : values) {
             writeUInt32_0(value?1:0);
         }
@@ -532,6 +677,55 @@ public class StandardProtoBufWriter extends AbstractWriter {
     }
 
     @Override
+    public void writePackedLongs(byte[] fieldData, Iterable<Long> values, Field.Type type) {
+        if (values == null || !values.iterator().hasNext()) {
+            return;
+        }
+        int len;
+        switch (type) {
+            case INT64:
+            case UINT64:
+                len = 0;
+                for (long l : values) {
+                    len += computeRawVarint64Size(l);
+                }
+                expand(MAX_VARINT_SIZE << 1 + len);
+                writeFieldData(fieldData);
+                writeUInt32_0(len);
+                for (long l : values) {
+                    writeUInt64_0(l);
+                }
+                return;
+            case SINT64:
+                len = 0;
+                for (long l : values) {
+                    len += computeRawVarint64Size(encodeZigZag64(l));
+                }
+                expand(MAX_VARINT_SIZE << 1 + len);
+                writeFieldData(fieldData);
+                writeUInt32_0(len);
+                for (long l : values) {
+                    writeUInt64_0(encodeZigZag64(l));
+                }
+                return;
+            case FIXED64:
+            case SFIXED64:
+                int size = 0;
+                for (long l : values) {
+                    size++;
+                }
+                expand(MAX_VARINT_SIZE << 1 + size << 3);
+                writeFieldData(fieldData);
+                writeUInt32_0(size << 3);
+                for (long l : values) {
+                    writeFixed64_0(l);
+                }
+            default:
+
+        }
+    }
+
+    @Override
     public void writePackedDoubles(byte[] fieldData, double[] values) {
         if (values == null || values.length == 0) {
             return;
@@ -566,6 +760,23 @@ public class StandardProtoBufWriter extends AbstractWriter {
             return;
         }
         int len = values.size() << 3;
+        expand(MAX_VARINT_SIZE << 1 + len);
+        writeFieldData(fieldData);
+        writeUInt32_0(len);
+        for (Double value : values) {
+            writeFixed64_0(Double.doubleToLongBits(value));
+        }
+    }
+
+    @Override
+    public void writePackedDoubles(byte[] fieldData, Iterable<Double> values) {
+        if (values == null || !values.iterator().hasNext()) {
+            return;
+        }
+        int len = 0;
+        for (Double value : values) {
+            len++;
+        }
         expand(MAX_VARINT_SIZE << 1 + len);
         writeFieldData(fieldData);
         writeUInt32_0(len);
@@ -693,6 +904,16 @@ public class StandardProtoBufWriter extends AbstractWriter {
         for (int i=0;i<size;i++) {
             //for (T v : vs) {
             T v = vs.get(i);
+            writeMessage0(fieldData, tag, v, codec);
+        }
+    }
+
+    @Override
+    public <T> void writeMessages(byte[] fieldData, int tag, Iterable<T> vs, ProtoBufEncoder<T> codec) throws EncodeException {
+        if (vs == null || !vs.iterator().hasNext()) {
+            return;
+        }
+        for (T v : vs) {
             writeMessage0(fieldData, tag, v, codec);
         }
     }

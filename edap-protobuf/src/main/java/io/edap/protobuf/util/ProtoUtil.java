@@ -523,7 +523,7 @@ public class ProtoUtil {
         Cardinality cardinality = Cardinality.OPTIONAL;
         if (AsmUtil.isList(field.getGenericType())
                 || AsmUtil.isSet(field.getGenericType())
-                || AsmUtil.isArray(field.getGenericType())
+                || isRepeatedArray(field.getGenericType())
                 || isIterable(field.getGenericType())) {
             cardinality = Cardinality.REPEATED;
         }

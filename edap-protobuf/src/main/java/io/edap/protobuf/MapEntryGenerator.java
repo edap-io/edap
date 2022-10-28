@@ -27,8 +27,8 @@ import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 
 import static io.edap.protobuf.util.ProtoUtil.javaToProtoType;
-import static io.edap.util.AsmUtil.isMap;
-import static io.edap.util.AsmUtil.visitMethod;
+import static io.edap.protobuf.wire.Field.Type.OBJECT;
+import static io.edap.util.AsmUtil.*;
 import static io.edap.util.ClazzUtil.getDescriptor;
 import static org.objectweb.asm.Opcodes.*;
 
@@ -85,11 +85,51 @@ public class MapEntryGenerator {
         FieldVisitor fv;
         AnnotationVisitor av;
 
-        String keyProtoType = javaToProtoType(keyType).getProtoType().name();
+        String keyProtoType;
+        String keyTypeStr;
+        String keyTypeDesc;
+        if (keyType instanceof ParameterizedType) {
+            ParameterizedType itemParamType = (ParameterizedType)keyType;
+            if (isList(itemParamType.getRawType())
+                    && itemParamType.getActualTypeArguments()[0] instanceof ParameterizedType) {
+                keyProtoType = OBJECT.name();
+            } else if (isIterable(itemParamType.getRawType())
+                    && itemParamType.getActualTypeArguments()[0] instanceof ParameterizedType) {
+                keyProtoType = OBJECT.name();
+            } else {
+                keyProtoType = javaToProtoType(keyType).getProtoType().name();
+            }
+            keyTypeStr = ClazzUtil.getDescriptor(itemParamType.getRawType());
+            keyTypeDesc = ClazzUtil.getDescriptor(keyType);
+        } else {
+            keyProtoType = javaToProtoType(keyType).getProtoType().name();
+            keyTypeStr = ClazzUtil.getDescriptor((Class)keyType);
+            keyTypeDesc = null;
+        }
         String valProtoType = javaToProtoType(valType).getProtoType().name();
+        String valTypeStr;
+        String valTypeDesc;
+        if (valType instanceof ParameterizedType) {
+            ParameterizedType itemParamType = (ParameterizedType)valType;
+            if (isList(itemParamType.getRawType())
+                    && itemParamType.getActualTypeArguments()[0] instanceof ParameterizedType) {
+                valProtoType = OBJECT.name();
+            } else if (isIterable(itemParamType.getRawType())
+                    && itemParamType.getActualTypeArguments()[0] instanceof ParameterizedType) {
+                valProtoType = OBJECT.name();
+            } else {
+                valProtoType = javaToProtoType(valType).getProtoType().name();
+            }
+            valTypeStr = ClazzUtil.getDescriptor(itemParamType.getRawType());
+            valTypeDesc = ClazzUtil.getDescriptor(valType);
+        } else {
+            valProtoType = javaToProtoType(valType).getProtoType().name();
+            valTypeStr = ClazzUtil.getDescriptor((Class)valType);
+            valTypeDesc = null;
+        }
         //System.out.println("keyProtoType=" + keyProtoType + ",valProtoType=" + valProtoType);
-        fv = cw.visitField(ACC_PUBLIC, "key", ClazzUtil.getDescriptor(keyType),
-                null, null);
+        fv = cw.visitField(ACC_PUBLIC, "key", keyTypeStr,
+                keyTypeDesc, null);
         av = fv.visitAnnotation(ANNOTATION_NAME, true);
         av.visit("tag", 1);
         av.visitEnum("type", PROTO_TYPE, keyProtoType);
@@ -97,8 +137,8 @@ public class MapEntryGenerator {
         fv.visitEnd();
 
 
-        fv = cw.visitField(ACC_PUBLIC, "value", ClazzUtil.getDescriptor(valType),
-                null, null);
+        fv = cw.visitField(ACC_PUBLIC, "value", valTypeStr,
+                valTypeDesc, null);
         av = fv.visitAnnotation(ANNOTATION_NAME, true);
         av.visit("tag", 2);
         av.visitEnum("type", PROTO_TYPE, valProtoType);

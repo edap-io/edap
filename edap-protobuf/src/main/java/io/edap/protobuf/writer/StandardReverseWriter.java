@@ -25,6 +25,8 @@ import io.edap.protobuf.wire.Field;
 import io.edap.util.CollectionUtils;
 import io.edap.util.StringUtil;
 
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 
 import static io.edap.protobuf.ProtoBufWriter.encodeZigZag32;
@@ -515,6 +517,53 @@ public class StandardReverseWriter extends AbstractWriter {
     }
 
     @Override
+    public void writePackedInts(byte[] fieldData, Iterable<Integer> values, Field.Type type) {
+        if (CollectionUtils.isEmpty(values)) {
+            return;
+        }
+        int len;
+        int i;
+        i = 0;
+        List<Integer> vs = new ArrayList<>();
+        for (Integer v : vs) {
+            vs.add(v);
+        }
+        int size = vs.size();
+        switch (type) {
+            case INT32:
+            case UINT32:
+                expand((MAX_VARLONG_SIZE << 1) + size * MAX_VARINT_SIZE);
+                int oldPos = pos;
+                for (i=size-1;i>=0;i--) {
+                    writeFixed32_0(vs.get(i));
+                }
+                len = oldPos - pos;
+                writeUInt32_0(len);
+                writeFieldData(fieldData);
+                return;
+            case SINT32:
+                expand((MAX_VARINT_SIZE << 1) + size * 5);
+                oldPos = pos;
+                for (i=size-1;i>=0;i--) {
+                    writeUInt32_0(encodeZigZag32(vs.get(i)));
+                }
+                writeUInt32_0(oldPos - pos);
+                writeFieldData(fieldData);
+                return;
+            case FIXED32:
+            case SFIXED32:
+                expand((MAX_VARINT_SIZE << 1) + (size << 2));
+                for (i=size-1;i>=0;i--) {
+                    writeFixed32_0(vs.get(i));
+                }
+                writeUInt32_0(size << 2);
+                writeFieldData(fieldData);
+            default:
+                break;
+        }
+    }
+
+    @Override
     public void writePackedInts(byte[] fieldData, Integer[] values, Field.Type type) {
         if (CollectionUtils.isEmpty(values)) {
             return;
@@ -601,6 +650,24 @@ public class StandardReverseWriter extends AbstractWriter {
     }
 
     @Override
+    public void writePackedDoubles(byte[] fieldData, Iterable<Double> values) {
+        if (isEmpty(values)) {
+            return;
+        }
+        List<Double> vs = new ArrayList<>();
+        for (Double v : values) {
+            vs.add(v);
+        }
+        int len = vs.size() << 3;
+        expand((MAX_VARINT_SIZE << 1) + len);
+        for (int i=vs.size()-1;i>=0;i--) {
+            writeFixed64_0(Double.doubleToLongBits(vs.get(i)));
+        }
+        writeUInt32_0(len);
+        writeFieldData(fieldData);
+    }
+
+    @Override
     public void writePackedLongs(byte[] fieldData, List<Long> values, Field.Type type) {
         if (isEmpty(values)) {
             return;
@@ -633,6 +700,51 @@ public class StandardReverseWriter extends AbstractWriter {
                 expand(MAX_VARINT_SIZE << 1 + size << 3);
                 for (i = values.size()-1;i>=0;i--) {
                     writeFixed64_0(values.get(i));
+                }
+                writeUInt32_0(size << 3);
+                writeFieldData(fieldData);
+            default:
+
+        }
+    }
+
+    @Override
+    public void writePackedLongs(byte[] fieldData, Iterable<Long> values, Field.Type type) {
+        if (isEmpty(values)) {
+            return;
+        }
+        int oldPos;
+        List<Long> vs = new ArrayList<>();
+        for (Long v : values) {
+            vs.add(v);
+        }
+        int i;
+        switch (type) {
+            case INT64:
+            case UINT64:
+                expand((MAX_VARINT_SIZE << 1) + vs.size()*10);
+                oldPos = pos;
+                for (i = vs.size()-1;i>=0;i--) {
+                    writeUInt64_0(vs.get(i));
+                }
+                writeUInt32_0(oldPos - pos);
+                writeFieldData(fieldData);
+                return;
+            case SINT64:
+                expand((MAX_VARINT_SIZE << 1) + vs.size() * 10);
+                oldPos = pos;
+                for (i = vs.size()-1;i>=0;i--) {
+                    writeUInt64_0(encodeZigZag64(vs.get(i)));
+                }
+                writeUInt32_0(oldPos - pos);
+                writeFieldData(fieldData);
+                return;
+            case FIXED64:
+            case SFIXED64:
+                int size = vs.size();
+                expand(MAX_VARINT_SIZE << 1 + size << 3);
+                for (i = size-1;i>=0;i--) {
+                    writeFixed64_0(vs.get(i));
                 }
                 writeUInt32_0(size << 3);
                 writeFieldData(fieldData);
@@ -736,6 +848,25 @@ public class StandardReverseWriter extends AbstractWriter {
     }
 
     @Override
+    public void writePackedFloats(byte[] fieldData, Iterable<Float> values) {
+        if (isEmpty(values)) {
+            return;
+        }
+        List<Float> vs = new ArrayList<>();
+        int i = 0;
+        for (Float v : values) {
+            vs.add(v);
+        }
+        int len = vs.size() << 2;
+        expand( MAX_VARINT_SIZE << 1 + len);
+        for (i=vs.size()-1;i>=0;i--) {
+            writeFixed32_0(Float.floatToRawIntBits(vs.get(i)));
+        }
+        writeUInt32(len);
+        writeFieldData(fieldData);
+    }
+
+    @Override
     public void writePackedFloats(byte[] fieldData, float[] values) {
         if (values == null || values.length == 0) {
             return;
@@ -793,7 +924,27 @@ public class StandardReverseWriter extends AbstractWriter {
 
     @Override
     public void writePackedBooleans(byte[] fieldData, List<Boolean> values) {
+        if (values == null || values.size() == 0) {
+            return;
+        }
+        Boolean[] vs = new Boolean[values.size()];
+        int i = 0;
+        for (Boolean v : values) {
+            vs[i++] = v;
+        }
+        writePackedBooleans(fieldData, vs);
+    }
 
+    @Override
+    public void writePackedBooleans(byte[] fieldData, Iterable<Boolean> values) {
+        if (values == null || !values.iterator().hasNext()) {
+            return;
+        }
+        List<Integer> vs = new ArrayList<>();
+        for (Boolean v : values) {
+            vs.add(v!=null||v.booleanValue()?1:0);
+        }
+        writePackedInts(fieldData, vs, Field.Type.INT32);
     }
 
     @Override
@@ -1042,6 +1193,18 @@ public class StandardReverseWriter extends AbstractWriter {
         for (int i = t; i>= 0;i--) {
             writeMessage0(fieldData, tag, msg.get(i), encoder);
         }
+    }
+
+    @Override
+    public <T> void writeMessages(byte[] fieldData, int tag, Iterable<T> msg, ProtoBufEncoder<T> encoder) throws EncodeException {
+        if (msg == null || !msg.iterator().hasNext()) {
+            return;
+        }
+        List<T> msgs = new ArrayList<>();
+        for (T v : msg) {
+            msgs.add(v);
+        }
+        writeMessages(fieldData, tag, msgs, encoder);
     }
 
     @Override

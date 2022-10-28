@@ -27,6 +27,8 @@ import io.edap.util.UnsafeUtil;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 
 import static io.edap.protobuf.ProtoBufWriter.encodeZigZag32;
@@ -361,6 +363,18 @@ public abstract class AbstractWriter implements ProtoBufWriter {
     }
 
     @Override
+    public void writePackedBools(byte[] fieldData, Iterable<Boolean> values) {
+        if (values == null || !values.iterator().hasNext()) {
+            return;
+        }
+        List<Integer> vs = new ArrayList<>();
+        for (Boolean v : values) {
+            vs.add(v!=null&&v.booleanValue()?1:0);
+        }
+        writePackedInts(fieldData, vs, Field.Type.UINT32);
+    }
+
+    @Override
     public void writeFixed64(final byte[] fieldData, final Long value) {
         if (value == null) {
             return;
@@ -439,6 +453,19 @@ public abstract class AbstractWriter implements ProtoBufWriter {
     }
 
     @Override
+    public <E extends Enum<E>> void writeListEnum(byte[] fieldData, Iterable<E> vs) {
+        if (vs == null || !vs.iterator().hasNext()) {
+            return;
+        }
+        List<Integer> values = new ArrayList<>();
+        int i = 0;
+        for (E e : vs) {
+            values.add(e.ordinal());
+        }
+        writePackedInts(fieldData, values, Field.Type.UINT32);
+    }
+
+    @Override
     public <E extends ProtoBufEnum> void writeListProtoEnum(byte[] fieldData, List<E> vs) {
         if (CollectionUtils.isEmpty(vs)) {
             return;
@@ -447,6 +474,18 @@ public abstract class AbstractWriter implements ProtoBufWriter {
         int[] values = new int[size];
         for (int i=0;i<size;i++) {
             values[i] = vs.get(i).getValue();
+        }
+        writePackedInts(fieldData, values, Field.Type.UINT32);
+    }
+
+    @Override
+    public <E extends ProtoBufEnum> void writeListProtoEnum(byte[] fieldData, Iterable<E> vs) {
+        if (vs == null || !vs.iterator().hasNext()) {
+            return;
+        }
+        List<Integer> values = new ArrayList<>();
+        for (E e : vs) {
+            values.add(e.getValue());
         }
         writePackedInts(fieldData, values, Field.Type.UINT32);
     }
@@ -647,6 +686,24 @@ public abstract class AbstractWriter implements ProtoBufWriter {
             return;
         }
         writeByteArray(fieldData, value, 0, value.length);
+    }
+
+    @Override
+    public void writeBytes(final byte[] fieldData, final Byte[] value) {
+        if (value == null) {
+            return;
+        }
+        int length = value.length;
+        expand(length + MAX_VARINT_SIZE * 2);
+        writeFieldData(fieldData);
+        writeUInt32_0(length);
+
+        int p = pos;
+        byte[] _bs = this.bs;
+        for (int i=0;i<length;i++) {
+            _bs[p++] = value[i].byteValue();
+        }
+        pos = p;
     }
 
     @Override
