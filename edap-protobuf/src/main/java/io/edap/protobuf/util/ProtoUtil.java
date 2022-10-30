@@ -576,6 +576,15 @@ public class ProtoUtil {
         return typeInfo;
     }
 
+    public static boolean isRepeatedArray(java.lang.reflect.Type type) {
+        if (type instanceof Class) {
+            Class arrayCls = (Class)type;
+            return arrayCls.isArray() && !"[B".equals(arrayCls.getName())
+                    && !"[Ljava.lang.Byte;".equals(arrayCls.getName());
+        }
+        return false;
+    }
+
     public static ProtoTypeInfo javaToProtoType(java.lang.reflect.Type javaType) {
         Type type = Type.BYTES;
         ProtoTypeInfo typeInfo = new ProtoTypeInfo();

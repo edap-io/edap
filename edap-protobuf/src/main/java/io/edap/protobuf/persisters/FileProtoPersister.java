@@ -48,19 +48,24 @@ public class FileProtoPersister implements ProtoPersister {
     @Override
     public void persist(String beanName, String proto) throws IOException {
         String name = checkPath(beanName);
+        RandomAccessFile file = null;
         try {
-            RandomAccessFile file = new RandomAccessFile(name, "rw");
+            file = new RandomAccessFile(name, "rw");
             file.setLength(0);
             file.write(proto.getBytes(StandardCharsets.UTF_8));
         } catch (Throwable ex) {
             throw new IOException("create " + name + " error!", ex);
+        } finally {
+            if (file != null) {
+                file.close();
+            }
         }
     }
 
     @Override
     public String getProto(String beanName) throws IOException {
         String name = checkPath(beanName);
-        RandomAccessFile file;
+        RandomAccessFile file = null;
         try {
             file = new RandomAccessFile(name, "r");
             byte[] bs = new byte[(int)file.length()];
@@ -68,6 +73,8 @@ public class FileProtoPersister implements ProtoPersister {
             return new String(bs, "utf-8");
         } catch (Throwable ex) {
             return null;
+        } finally {
+            file.close();
         }
     }
 
