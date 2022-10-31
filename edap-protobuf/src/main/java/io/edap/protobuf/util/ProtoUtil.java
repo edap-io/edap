@@ -23,6 +23,7 @@ import io.edap.protobuf.annotation.ProtoField;
 import io.edap.protobuf.builder.ProtoV2Builder;
 import io.edap.protobuf.builder.ProtoV3Builder;
 import io.edap.protobuf.internal.PbField;
+import io.edap.protobuf.model.MessageInfo;
 import io.edap.protobuf.model.ProtoTypeInfo;
 import io.edap.protobuf.wire.*;
 import io.edap.protobuf.wire.Field.Cardinality;
@@ -539,10 +540,20 @@ public class ProtoUtil {
             return typeInfo;
         }
         String typeName = javaType.getName();
+        MessageInfo msgInfo;
         switch (typeName) {
+            case "void":
+                msgInfo = new MessageInfo();
+                msgInfo.setMessageName("Empty");
+                msgInfo.setImpFile("edap-rpc/Empty.proto");
+                typeInfo.setMessageInfo(msgInfo);
+                break;
             case "boolean":
             case "java.lang.Boolean":
-                typeInfo.setProtoType(Type.BOOL);;
+                msgInfo = new MessageInfo();
+                msgInfo.setMessageName("BoolValue");
+                msgInfo.setImpFile("edap-rpc/BaseType.proto");
+                typeInfo.setProtoType(Type.BOOL);
                 break;
             case "byte":
             case "java.lang.Byte":
@@ -552,6 +563,9 @@ public class ProtoUtil {
             case "java.lang.Short":
             case "int":
             case "java.lang.Integer":
+                msgInfo = new MessageInfo();
+                msgInfo.setMessageName("Int32Value");
+                msgInfo.setImpFile("edap-rpc/BaseType.proto");
                 typeInfo.setProtoType(Type.INT32);
                 break;
             case "long":
@@ -559,21 +573,36 @@ public class ProtoUtil {
             case "java.util.Date":
             case "java.util.Calendar":
             case "java.time.LocalDateTime":
+                msgInfo = new MessageInfo();
+                msgInfo.setMessageName("Int64Value");
+                msgInfo.setImpFile("edap-rpc/BaseType.proto");
                 typeInfo.setProtoType(Type.INT64);
                 break;
             case "float":
             case "java.lang.Float":
+                msgInfo = new MessageInfo();
+                msgInfo.setMessageName("FloatValue");
+                msgInfo.setImpFile("edap-rpc/BaseType.proto");
                 typeInfo.setProtoType(Type.FLOAT);
                 break;
             case "double":
             case "java.lang.Double":
+                msgInfo = new MessageInfo();
+                msgInfo.setMessageName("DoubleValue");
+                msgInfo.setImpFile("edap-rpc/BaseType.proto");
                 typeInfo.setProtoType(Type.DOUBLE);
                 break;
             case "java.lang.String":
+                msgInfo = new MessageInfo();
+                msgInfo.setMessageName("StringValue");
+                msgInfo.setImpFile("edap-rpc/BaseType.proto");
                 typeInfo.setProtoType(Type.STRING);
                 break;
             case "[B":
             case "[Ljava.lang.Byte;":
+                msgInfo = new MessageInfo();
+                msgInfo.setMessageName("BytesValue");
+                msgInfo.setImpFile("edap-rpc/BaseType.proto");
                 typeInfo.setProtoType(Type.BYTES);
                 break;
             default:

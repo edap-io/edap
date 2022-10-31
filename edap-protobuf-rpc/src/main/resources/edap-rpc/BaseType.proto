@@ -1,0 +1,66 @@
+syntax = "proto3";
+
+
+package io.edap.protobuf.rpc.proto;
+
+option java_package = "io.edap.protobuf.rpc.proto";
+
+message DoubleValue {
+   double value = 1;
+}
+
+message FloatValue {
+    float value = 1;
+}
+
+message Int32Value {
+    int32 value = 1;
+}
+
+message Int64Value {
+    int64 value = 1;
+}
+
+message Uint32Value {
+    uint32 value = 1;
+}
+
+message Uint64Value {
+    uint64 value = 1;
+}
+
+message Sint32Value {
+    sint32 value = 1;
+}
+
+message Sint64Value {
+    sint64 value = 1;
+}
+
+message Fixed32Value {
+    fixed32 value = 1;
+}
+
+message Fixed64Value {
+    fixed64 value = 1;
+}
+
+message Sfixed32Value {
+    sfixed32 value = 1;
+}
+
+message Sfixed64Value {
+    sfixed64 value = 1;
+}
+
+message BoolValue {
+    bool value = 1;
+}
+
+message StringValue  {
+    string value = 1;
+}
+
+message BytesValue {
+    bytes value = 1;
+}

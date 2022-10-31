@@ -28,6 +28,10 @@ public class ProtoTypeInfo {
     private Field.Type protoType;
     private ProtoTypeInfo protoTypeInfo;
     /**
+     * 特殊Mesage的数据类型需要框架特殊处理的类型
+     */
+    private MessageInfo messageInfo;
+    /**
      * 数据的基数
      */
     private Field.Cardinality cardinality;
@@ -54,5 +58,17 @@ public class ProtoTypeInfo {
 
     public void setProtoTypeInfo(ProtoTypeInfo protoTypeInfo) {
         this.protoTypeInfo = protoTypeInfo;
+    }
+
+    /**
+     * 特殊Mesage的数据类型需要框架特殊处理的类型
+     */
+    public MessageInfo getMessageInfo() {
+        return messageInfo;
+    }
+
+    public ProtoTypeInfo setMessageInfo(MessageInfo messageInfo) {
+        this.messageInfo = messageInfo;
+        return this;
     }
 }

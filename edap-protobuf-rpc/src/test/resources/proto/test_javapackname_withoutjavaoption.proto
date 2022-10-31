@@ -1,0 +1,8 @@
+syntax = "proto3";
+
+
+package test.message;
+
+message ListDouble {
+  repeated double d = 1;
+}
