@@ -98,7 +98,7 @@ public class ProtoBufDecoderGenerator {
             if (isPojo(pfi.field.getGenericType())
                     && !pojoTypes.contains(pfi.field.getGenericType())) {
                 pojoTypes.add(pfi.field.getGenericType());
-            } else if (isArray(pfi.field.getGenericType()) && !isPacked(pfi)) {
+            } else if (isRepeatedArray(pfi.field.getGenericType()) && !isPacked(pfi)) {
 
                 java.lang.reflect.Type ctype = pfi.field.getGenericType();
                 if (ctype instanceof Class) {
@@ -294,7 +294,7 @@ public class ProtoBufDecoderGenerator {
             mv.visitFrame(F_SAME, 0, null, 0, null);
             ReadMethodInfo readMethod = getProtoReadMethod(pfi);
 
-            if (isArray(pfi.field.getGenericType())) {
+            if (isRepeatedArray(pfi.field.getGenericType())) {
                 java.lang.reflect.Type itemType = pfi.field.getType().getComponentType();
                 boolean isPrimitive = isPrimitive(pfi);
                 if (isPojo(itemType)) {
@@ -953,8 +953,7 @@ public class ProtoBufDecoderGenerator {
     private ReadMethodInfo getProtoReadMethod(ProtoFieldInfo pfi) {
         boolean isArray = false;
         boolean isList = false;
-        if (pfi.field.getType().isArray()
-                && !"[B".equals(pfi.field.getType().getName())) {
+        if (isRepeatedArray(pfi.field.getGenericType())) {
             isArray = true;
         } else if (AsmUtil.isList(pfi.field.getGenericType())) {
             isList = true;

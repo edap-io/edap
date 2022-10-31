@@ -572,6 +572,12 @@ public class ProtoUtil {
             case "java.lang.String":
                 typeInfo.setProtoType(Type.STRING);
                 break;
+            case "[B":
+            case "[Ljava.lang.Byte;":
+                typeInfo.setProtoType(Type.BYTES);
+                break;
+            default:
+                typeInfo.setProtoType(Type.MESSAGE);
         }
         return typeInfo;
     }
