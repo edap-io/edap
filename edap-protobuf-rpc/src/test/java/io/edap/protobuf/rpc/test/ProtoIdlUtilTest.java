@@ -17,8 +17,14 @@
 package io.edap.protobuf.rpc.test;
 
 import io.edap.protobuf.annotation.ProtoField;
-import io.edap.protobuf.rpc.test.model.OptionDemo;
+import io.edap.protobuf.rpc.UnsupportDataType;
+import io.edap.protobuf.rpc.test.dto.AllType;
+import io.edap.protobuf.rpc.test.dto.EmptyMsg;
+import io.edap.protobuf.rpc.test.dto.OptionDemo;
+import io.edap.protobuf.rpc.test.dto.Order;
+import io.edap.protobuf.rpc.test.service.DemoService;
 import io.edap.protobuf.rpc.util.ProtoIdlUtil;
+import io.edap.protobuf.wire.Message;
 import io.edap.protobuf.wire.Option;
 import io.edap.protobuf.wire.Proto;
 import io.edap.protobuf.wire.exceptions.ProtoParseException;
@@ -26,14 +32,18 @@ import io.edap.protobuf.wire.parser.ProtoParser;
 import org.junit.jupiter.api.Test;
 
 import java.io.*;
-import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.lang.reflect.Type;
 import java.nio.charset.Charset;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static io.edap.protobuf.rpc.util.ProtoIdlUtil.buildClassMessage;
+import static io.edap.protobuf.rpc.util.ProtoIdlUtil.buildServiceProto;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class ProtoIdlUtilTest {
 
@@ -60,8 +70,17 @@ public class ProtoIdlUtilTest {
         ProtoField protoFieldAnn = localTimeField.getAnnotation(ProtoField.class);
         Method parseOptionsMethod = ProtoIdlUtil.class.getDeclaredMethod("parseOptions", String[].class);
         parseOptionsMethod.setAccessible(true);
-        Object options = parseOptionsMethod.invoke(null, protoFieldAnn.options());
-        System.out.println(options);
+        Object options = parseOptionsMethod.invoke(null, (Object) protoFieldAnn.options());
+        assertNotNull(options);
+        List<Option> listOptions = (List<Option>)options;
+        assertEquals(listOptions.size(), 1);
+        assertEquals(listOptions.get(0).getName(), "javatype");
+        assertEquals(listOptions.get(0).getValue(), "java.time.LocalDateTime");
+
+        options = parseOptionsMethod.invoke(null, (Object) null);
+        assertNotNull(options);
+        listOptions = (List<Option>)options;
+        assertEquals(listOptions.size(), 0);
     }
 
     private String getResourceToString(String path) throws IOException {
@@ -78,5 +97,58 @@ public class ProtoIdlUtilTest {
             return sb.toString();
         }
 
+    }
+
+    @Test
+    public void testBuildClassMessage() throws IOException {
+        Proto proto = new Proto();
+        proto.setProtoPackage("io.edap.protobuf.rpc.test.service");
+
+
+        Class msgCls = EmptyMsg.class;
+        Map<String, Proto> dtoProtos = new HashMap<>();
+        buildClassMessage(msgCls, proto, dtoProtos);
+        assertNotNull(dtoProtos);
+        assertEquals(dtoProtos.size(), 1);
+
+        msgCls = Order.class;
+        dtoProtos = new HashMap<>();
+        buildClassMessage(msgCls, proto, dtoProtos);
+        assertNotNull(dtoProtos);
+        assertEquals(dtoProtos.size(), 1);
+        List<Message> messages = dtoProtos.get("io.edap.protobuf.rpc.test.dto.dto.proto").getMessages();
+        assertNotNull(messages);
+        assertEquals(messages.size(), 2);
+
+        msgCls = AllType.class;
+        dtoProtos = new HashMap<>();
+        buildClassMessage(msgCls, proto, dtoProtos);
+        assertNotNull(dtoProtos);
+    }
+
+    @Test
+    public void testGetProtoMessageClass() throws NoSuchFieldException, NoSuchMethodException, InvocationTargetException, IllegalAccessException {
+        Method method = ProtoIdlUtil.class.getDeclaredMethod("getProtoMessageClass", new Class[]{Type.class});
+        method.setAccessible(true);
+        Type type = AllType.class.getDeclaredField("fieldArrayMessage").getGenericType();
+        Class cls = (Class)method.invoke(null, type);
+        assertEquals(cls.getName(), Order.class.getName());
+
+        Type unsupportType = AllType.class.getDeclaredField("fieldGernericList").getGenericType();
+        InvocationTargetException thrown = assertThrows(InvocationTargetException.class,
+                () -> {
+                     Class unsupportCls = (Class)method.invoke(null, unsupportType);
+                });
+        assertTrue(thrown.getTargetException().getMessage().contains("unsupport data type java.util.List"));
+
+        type = AllType.class.getDeclaredField("fieldMessage").getGenericType();
+        cls = (Class)method.invoke(null, type);
+        assertEquals(cls.getName(), Order.class.getName());
+    }
+
+    @Test
+    public void testBuildServiceProto() throws IOException {
+        Map<String, Proto> protos = buildServiceProto(DemoService.class);
+        System.out.println(protos);
     }
 }

@@ -14,15 +14,7 @@
  * under the License.
  */
 
-package io.edap.protobuf.rpc.test.model;
+package io.edap.protobuf.rpc.test.dto;
 
-import io.edap.protobuf.annotation.ProtoField;
-import io.edap.protobuf.wire.Field;
-
-import java.time.LocalDateTime;
-
-public class OptionDemo {
-
-    @ProtoField(tag = 1, type = Field.Type.INT64, options = {"javatype = java.time.LocalDateTime"})
-    private LocalDateTime createTime;
+public class EmptyMsg {
 }
