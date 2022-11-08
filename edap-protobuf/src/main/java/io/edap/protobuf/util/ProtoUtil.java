@@ -22,7 +22,6 @@ import io.edap.protobuf.ProtoPersister;
 import io.edap.protobuf.annotation.ProtoField;
 import io.edap.protobuf.builder.ProtoV2Builder;
 import io.edap.protobuf.builder.ProtoV3Builder;
-import io.edap.protobuf.internal.PbField;
 import io.edap.protobuf.model.MessageInfo;
 import io.edap.protobuf.model.ProtoTypeInfo;
 import io.edap.protobuf.wire.*;
@@ -33,7 +32,6 @@ import io.edap.protobuf.wire.parser.ProtoParser;
 import io.edap.util.AsmUtil;
 import io.edap.util.CollectionUtils;
 import io.edap.util.StringUtil;
-import org.objectweb.asm.MethodVisitor;
 
 import java.io.IOException;
 import java.lang.annotation.Annotation;
@@ -106,14 +104,23 @@ public class ProtoUtil {
             if (needEncode(f)) {
                 ProtoFieldInfo pfi = new ProtoFieldInfo();
                 pfi.field = f;
-                Method em = getAccessMethod(f, aMethod);
-                if (isIgnore(f, em)) {
-                    continue;
+                Method em = null;
+                try {
+                    em = getAccessMethod(f, aMethod);
+                    if (isIgnore(f, em)) {
+                        continue;
+                    }
+                } catch (Throwable t) {
+                    new RuntimeException(pojoClass.getName() + " getAccessMethod error", t);
                 }
                 pfi.getMethod = em;
-                Method setMethod = getSetMethod(f, aMethod);
-                if (setMethod != null) {
-                    pfi.setMethod = setMethod;
+                try {
+                    Method setMethod = getSetMethod(f, aMethod);
+                    if (setMethod != null) {
+                        pfi.setMethod = setMethod;
+                    }
+                } catch (Throwable t) {
+                    new RuntimeException(pojoClass.getName() + " getSetMethod error", t);
                 }
                 pfi.hasGetAccessed = Modifier.isPublic(f.getModifiers()) || pfi.getMethod != null;
                 pfi.hasSetAccessed = Modifier.isPublic(f.getModifiers()) || pfi.setMethod != null;
@@ -545,14 +552,17 @@ public class ProtoUtil {
             case "void":
                 msgInfo = new MessageInfo();
                 msgInfo.setMessageName("Empty");
-                msgInfo.setImpFile("edap-rpc/Empty.proto");
+                msgInfo.setImpFile("edap-idl/Empty.proto");
+                msgInfo.setJavaType(javaType);
                 typeInfo.setMessageInfo(msgInfo);
                 break;
             case "boolean":
             case "java.lang.Boolean":
                 msgInfo = new MessageInfo();
                 msgInfo.setMessageName("BoolValue");
-                msgInfo.setImpFile("edap-rpc/BaseType.proto");
+                msgInfo.setImpFile("edap-idl/BaseType.proto");
+                msgInfo.setJavaType(javaType);
+                typeInfo.setMessageInfo(msgInfo);
                 typeInfo.setProtoType(Type.BOOL);
                 break;
             case "byte":
@@ -565,7 +575,9 @@ public class ProtoUtil {
             case "java.lang.Integer":
                 msgInfo = new MessageInfo();
                 msgInfo.setMessageName("Int32Value");
-                msgInfo.setImpFile("edap-rpc/BaseType.proto");
+                msgInfo.setImpFile("edap-idl/BaseType.proto");
+                msgInfo.setJavaType(javaType);
+                typeInfo.setMessageInfo(msgInfo);
                 typeInfo.setProtoType(Type.INT32);
                 break;
             case "long":
@@ -575,37 +587,49 @@ public class ProtoUtil {
             case "java.time.LocalDateTime":
                 msgInfo = new MessageInfo();
                 msgInfo.setMessageName("Int64Value");
-                msgInfo.setImpFile("edap-rpc/BaseType.proto");
+                msgInfo.setImpFile("edap-idl/BaseType.proto");
+                msgInfo.setJavaType(javaType);
+                typeInfo.setMessageInfo(msgInfo);
                 typeInfo.setProtoType(Type.INT64);
                 break;
             case "float":
             case "java.lang.Float":
                 msgInfo = new MessageInfo();
                 msgInfo.setMessageName("FloatValue");
-                msgInfo.setImpFile("edap-rpc/BaseType.proto");
+                msgInfo.setImpFile("edap-idl/BaseType.proto");
+                msgInfo.setJavaType(javaType);
                 typeInfo.setProtoType(Type.FLOAT);
                 break;
             case "double":
             case "java.lang.Double":
                 msgInfo = new MessageInfo();
                 msgInfo.setMessageName("DoubleValue");
-                msgInfo.setImpFile("edap-rpc/BaseType.proto");
+                msgInfo.setImpFile("edap-idl/BaseType.proto");
+                msgInfo.setJavaType(javaType);
+                typeInfo.setMessageInfo(msgInfo);
                 typeInfo.setProtoType(Type.DOUBLE);
                 break;
             case "java.lang.String":
                 msgInfo = new MessageInfo();
                 msgInfo.setMessageName("StringValue");
-                msgInfo.setImpFile("edap-rpc/BaseType.proto");
+                msgInfo.setImpFile("edap-idl/BaseType.proto");
+                typeInfo.setMessageInfo(msgInfo);
                 typeInfo.setProtoType(Type.STRING);
                 break;
             case "[B":
             case "[Ljava.lang.Byte;":
                 msgInfo = new MessageInfo();
                 msgInfo.setMessageName("BytesValue");
-                msgInfo.setImpFile("edap-rpc/BaseType.proto");
+                msgInfo.setImpFile("edap-idl/BaseType.proto");
+                msgInfo.setJavaType(javaType);
+                typeInfo.setMessageInfo(msgInfo);
                 typeInfo.setProtoType(Type.BYTES);
                 break;
             default:
+                msgInfo = new MessageInfo();
+                msgInfo.setMessageName(Type.MESSAGE.name());
+                msgInfo.setJavaType(javaType);
+                typeInfo.setMessageInfo(msgInfo);
                 typeInfo.setProtoType(Type.MESSAGE);
         }
         return typeInfo;
@@ -788,9 +812,13 @@ public class ProtoUtil {
         Method m = aMethod.get(methodName);
         if (m != null && m.getParameters().length == 1) {
             String fd = getDescriptor(f.getGenericType());
-            String md = getDescriptor(m.getGenericParameterTypes()[0]);
-            if (fd.equals(md)) {
-                return m;
+            try {
+                String md = getDescriptor(m.getGenericParameterTypes()[0]);
+                if (fd.equals(md)) {
+                    return m;
+                }
+            } catch (Throwable t) {
+                throw new RuntimeException("getDescriptor error", t);
             }
         }
         methodName = f.getName();
@@ -816,9 +844,13 @@ public class ProtoUtil {
         Method m = aMethod.get(methodName);
         if (m != null && m.getParameters().length == 0) {
             String fd = getDescriptor(f.getGenericType());
-            String md = getDescriptor(m.getGenericReturnType());
-            if (fd.equals(md)) {
-                return m;
+            try {
+                String md = getDescriptor(m.getGenericReturnType());
+                if (fd.equals(md)) {
+                    return m;
+                }
+            } catch (Throwable t) {
+                throw new RuntimeException("getDescriptor error", t);
             }
         }
         if (f.getType().getName().equals("java.lang.Boolean")

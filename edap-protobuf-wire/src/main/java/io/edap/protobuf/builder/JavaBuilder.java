@@ -269,9 +269,23 @@ public class JavaBuilder {
         methods.stream()
                 .sorted(Comparator.comparing(ServiceMethod::getName))
                 .forEach(m -> {
-                    cb.t(level).c("/**").ln();
-                    if (m.getComments() != null && !m.getComments().isEmpty()) {
-                        m.getComments().forEach(c -> cb.t(level).c(" * ").c(c).ln());
+                    Comment comment = m.getComment();
+                    if (comment.getType() == Comment.CommentType.DOCUMENT) {
+                        cb.t(level).c("/**").ln();
+                        for (String c : comment.getLines()) {
+                            cb.t(level).c(" * ").c(c).ln();
+                        }
+                        cb.t(level).c(" */").ln();
+                    } else if (comment.getType() == Comment.CommentType.MULTILINE) {
+                        cb.t(level).c("/*").ln();
+                        for (String c : comment.getLines()) {
+                            cb.t(level).c(" * ").c(c).ln();
+                        }
+                        cb.t(level).c(" */").ln();
+                    } else {
+                        for (String c : comment.getLines()) {
+                            cb.t(level).c(" * ").c(c).ln();
+                        }
                     }
 
                     String[] params = new String[4];
@@ -279,12 +293,8 @@ public class JavaBuilder {
                     params[1] = formatParamName(m.getName(), m.getType());
                     params[2] = formatTypeName(m.getRequest(), m.getType());
                     params[3] = formatParamName(m.getRequest(), m.getType());
-                    String comment = msgComments.get(params[2]);
-                    if (comment == null) {
-                        comment = "";
-                    }
-                    cb.t(level).e(" * @param $param$ $paramComment$")
-                            .arg(params[3], comment).ln();
+                    cb.t(level).e(" * @param $param$ ")
+                            .arg(params[3]).ln();
                     cb.t(level).e(" * @return").arg( params[3]).ln();
                     cb.t(level).c(" */").ln();
                     cb.t(level).e("$return$ $func$($param$ $arg$);")

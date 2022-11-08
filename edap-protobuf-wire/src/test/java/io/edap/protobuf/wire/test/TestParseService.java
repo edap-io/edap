@@ -16,10 +16,7 @@
 
 package io.edap.protobuf.wire.test;
 
-import io.edap.protobuf.wire.Proto;
-import io.edap.protobuf.wire.Service;
-import io.edap.protobuf.wire.ServiceMethod;
-import io.edap.protobuf.wire.Syntax;
+import io.edap.protobuf.wire.*;
 import io.edap.protobuf.wire.exceptions.ProtoParseException;
 import io.edap.protobuf.wire.parser.ProtoParser;
 import org.junit.jupiter.api.Assertions;
@@ -76,9 +73,10 @@ public class TestParseService {
             assertEquals("SearchRequest", method.getRequest());
             assertEquals("SearchResponse", method.getResponse());
 
-            List<String> mcomments = method.getComments();
-            assertEquals(1, mcomments.size());
-            String mcomment = mcomments.get(0);
+            Comment comment = method.getComment();
+            assertNotNull(comment);
+            assertEquals(comment.getLines().size(), 1);
+            String mcomment = comment.getLines().get(0);
             assertEquals("服务方法说明", mcomment);
 
             //测试setMethods的方法
@@ -277,8 +275,8 @@ public class TestParseService {
             assertEquals("SearchRequest", method.getRequest());
             assertEquals("SearchResponse", method.getResponse());
 
-            String mcomment = method.getComment();
-            assertEquals("服务单行服务说明", mcomment);
+            Comment mcomment = method.getComment();
+            assertEquals("服务单行服务说明", mcomment.getLines().get(0));
 
 
         } catch (ProtoParseException e) {

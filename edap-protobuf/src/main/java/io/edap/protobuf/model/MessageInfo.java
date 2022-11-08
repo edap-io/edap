@@ -28,6 +28,10 @@ public class MessageInfo {
      * 需要导入的proto文件路径
      */
     private String impFile;
+    /**
+     * 多个java类型对应一个protobuf类型时标记java的原始类型
+     */
+    private Class javaType;
 
     /**
      * Message的名称
@@ -49,5 +53,13 @@ public class MessageInfo {
 
     public void setImpFile(String impFile) {
         this.impFile = impFile;
+    }
+
+    public Class getJavaType() {
+        return javaType;
+    }
+
+    public void setJavaType(Class javaType) {
+        this.javaType = javaType;
     }
 }

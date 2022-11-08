@@ -581,8 +581,27 @@ public class ProtoParser {
         String token = readToken();
         while (token.length() > 0) {
             if ("//".equals(token)) {
-                String comment = readSingleLineComment();
-                addCommentLines(CommentType.INLINE, Arrays.asList(comment));
+                Comment comment;
+                if (comments.size() > 0) {
+                    comment = comments.get(0);
+                } else {
+                    comment = new Comment();
+                    comment.setType(CommentType.INLINE);
+                    comments.add(comment);
+                }
+                comments.add(comment);
+                nextLine();
+            } else if ("/**".equals(token)) {
+                Comment comment = new Comment();
+                comment.setType(CommentType.DOCUMENT);
+                comment.setLines(readMultiLineComment());
+                comments.add(comment);
+                nextLine();
+            } else if ("/*".equals(token)) {
+                Comment comment = new Comment();
+                comment.setType(CommentType.MULTILINE);
+                comment.setLines(readMultiLineComment());
+                comments.add(comment);
                 nextLine();
             } else if ("rpc".equals(token)) {
                 service.addMethod(parseMethod(ServiceType.UNARY));
@@ -616,11 +635,6 @@ public class ProtoParser {
         if (name.length() == 0) {
             throw new ProtoParseException(ROW_MSG + row + "] service method not define");
         }
-        final List<String> tmpComments = new ArrayList<>();
-        if (!comments.isEmpty()) {
-            comments.forEach(c -> tmpComments.addAll(c.getLines()));
-            comments.clear();
-        }
         boolean clientStream = false;
         boolean serverStream = false;
         List<String> params = parseMethodVars();
@@ -649,7 +663,12 @@ public class ProtoParser {
             trim();
             token = readToken();
             if ("//".equals(token)) {
-                method.setComment(readSingleLineComment());
+                if (method.getComment() == null) {
+                    Comment comment = new Comment();
+                    comment.setType(CommentType.INLINE);
+                    comment.setLines(Arrays.asList(readSingleLineComment()));
+                    comments.add(comment);
+                }
             }
         }
         if (clientStream && serverStream) {
@@ -666,7 +685,10 @@ public class ProtoParser {
         method.setType(serviceType);
         method.setRequest(request);
         method.setResponse(response);
-        method.setComments(tmpComments);
+        if (comments != null && comments.size() > 0) {
+            method.setComment(comments.get(0));
+            comments.clear();
+        }
         return method;
     }
 

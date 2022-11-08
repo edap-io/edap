@@ -44,11 +44,7 @@ public class ServiceMethod {
     /**
      * 方法块前的单行注释列表
      */
-    private List<String> comments;
-    /**
-     * 方法行后的单行注释
-     */
-    private String comment;
+    private Comment comment;
 
     /**
      * 服务定义Method的类型默认为 rpc
@@ -126,34 +122,16 @@ public class ServiceMethod {
      * 方法块前的单行注释列表
      * @return the comments
      */
-    public List<String> getComments() {
-        return comments;
-    }
-
-    /**
-     * 方法块前的单行注释列表
-     * @param comments the comments to set
-     * @return
-     */
-    public ServiceMethod setComments(List<String> comments) {
-        this.comments = comments;
-        return this;
-    }
-
-    /**
-     * 方法行后的单行注释
-     * @return the comment
-     */
-    public String getComment() {
+    public Comment getComment() {
         return comment;
     }
 
     /**
-     * 方法行后的单行注释
-     * @param comment the comment to set
+     * 方法块前的单行注释列表
+     * @param comment the comments to set
      * @return
      */
-    public ServiceMethod setComment(String comment) {
+    public ServiceMethod setComment(Comment comment) {
         this.comment = comment;
         return this;
     }

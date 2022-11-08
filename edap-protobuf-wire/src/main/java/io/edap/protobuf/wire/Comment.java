@@ -52,8 +52,6 @@ public class Comment {
 
     /**
      * 注释内容文本行列表
-     */ /**
-     * 注释内容文本行列表
      */
     public List<String> getLines() {
         if (lines == null) {

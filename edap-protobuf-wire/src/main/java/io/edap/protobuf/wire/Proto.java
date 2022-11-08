@@ -18,7 +18,9 @@ package io.edap.protobuf.wire;
 
 import java.io.File;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * proto文件的结构定义
@@ -67,6 +69,7 @@ public class Proto {
      * proto文件定义的service的列表
      */
     private List<Service> services;
+    private Map<String, Message> messageMap;
     /**
      * proto文件的单行注释列表
      */
@@ -402,5 +405,22 @@ public class Proto {
      */
     public void setFile(File file) {
         this.file = file;
+    }
+
+    /**
+     * 按名称为key的Message的map对象
+     */
+    public Map<String, Message> getMessageMap() {
+        if (messageMap == null) {
+            messageMap = new HashMap<>();
+        }
+        List<Message> msgs = getMessages();
+        if (msgs.size() != messageMap.size()) {
+            messageMap.clear();
+            for (Message msg : msgs) {
+                messageMap.put(msg.getName(), msg);
+            }
+        }
+        return messageMap;
     }
 }

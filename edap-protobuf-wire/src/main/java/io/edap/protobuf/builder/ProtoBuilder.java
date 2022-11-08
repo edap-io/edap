@@ -26,6 +26,8 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 
+import static io.edap.protobuf.wire.Service.ServiceType.*;
+
 /**
  * 根据protoFile的对象构建proto文件的基础类
  * @author louis
@@ -77,25 +79,31 @@ public abstract class ProtoBuilder {
     }
 
     protected String options() {
-        if (optionNames == null || optionNames.isEmpty()) {
+        List<Option> options = proto.getOptions();
+        if (options == null || options.isEmpty()) {
             return EMPTY;
         }
         CodeBuilder ops = new CodeBuilder();
-        Optional<String> maxlen = optionNames.stream()
-                .max(Comparator.comparingInt(String::length));
-        int len = maxlen.isPresent()?maxlen.get().length():1;
-        optionNames.stream()
-                .sorted(Comparator.naturalOrder())
-                .forEach(e -> {
-                    String v = getOptionValue(e);
-                    if (v != null) {
-                        String[] args = new String[3];
-                        args[0] = e;
-                        args[1] = fillSpace(len - e.length());
-                        args[2] = v;
-                        ops.e("option $name$$spaces$ = $value$;").arg(args).ln();
-                    }
-                });
+        int len = 0;
+        for (int i=0;i<options.size();i++) {
+            Option option = proto.getOptions().get(i);
+            if (option.getName() == null || option.getValue() == null
+                    || option.getName().trim().length() == 0 || option.getValue().trim().length() == 0) {
+                continue;
+            }
+            if (option.getName().length() > len) {
+                len = option.getName().length();
+            }
+        }
+        for (int i=0;i<options.size();i++) {
+            Option option = proto.getOptions().get(i);
+            if (option.getName() == null || option.getValue() == null
+                    || option.getName().trim().length() == 0 || option.getValue().trim().length() == 0) {
+                continue;
+            }
+            String space = fillSpace(len - options.get(i).getName().length());
+            ops.e("option $name$$spaces$ = $value$;").arg(option.getName(), space, option.getValue()).ln();
+        }
         return ops.toString();
     }
 
@@ -105,22 +113,6 @@ public abstract class ProtoBuilder {
             sb.append(" ");
         }
         return sb.toString();
-    }
-
-    private String getOptionValue(String name) {
-        if (name == null || name.trim().length() < 1 || proto == null ||
-                proto.getOptions() == null || proto.getOptions().isEmpty()) {
-            return null;
-        }
-        String value = null;
-        for (int i=0;i<proto.getOptions().size();i++) {
-            Option option = proto.getOptions().get(i);
-            if (option.getName().equals(name)) {
-                value = option.getValue();
-                break;
-            }
-        }
-        return value;
     }
 
     public String message(Message msg, final int depth) {
@@ -165,12 +157,28 @@ public abstract class ProtoBuilder {
         if (fields == null || fields.isEmpty()) {
             return;
         }
-        Optional<Field> maxType = fields.stream()
-                .max(Comparator.comparingInt(f -> f.getTypeString().length()));
-        int typeLen = maxType.isPresent()?maxType.get().getTypeString().length():1;
+        int typeLen = 0;
+        int nameLen = 0;
+        int cardinalityLen = 0;
+        for (Field f : fields) {
+            if (f.getTypeString().length() > typeLen) {
+                typeLen = f.getTypeString().length();
+            }
+            if (f.getName().length() > nameLen) {
+                nameLen = f.getName().length();
+            }
+            if (syntax() == Syntax.PROTO_3.getValue()) {
+                if (f.getCardinality() == Cardinality.REPEATED && f.getCardinality().getValue().length() > cardinalityLen) {
+                    cardinalityLen = f.getCardinality().getValue().length();
+                }
+            }
+        }
+        int typeLen0 = typeLen;
+        int nameLen0 = nameLen;
+        int cardinalityLen0 = cardinalityLen + 1;
         fields.stream()
                 .sorted(Comparator.comparingInt(Field::getTag))
-                .forEach(f -> appendField(cb, f, typeLen, level));
+                .forEach(f -> appendField(cb, f, typeLen0, nameLen0, cardinalityLen0, level));
     }
 
     private void appendExtensionses(CodeBuilder cb, List<Extensions> exts, int depth) {
@@ -220,23 +228,28 @@ public abstract class ProtoBuilder {
             int typeLen = maxType.isPresent()?maxType.get().getTypeString().length():1;
             fields.stream()
                     .sorted(Comparator.comparingInt(Field::getTag))
-                    .forEach(f -> appendField(cb, f, typeLen, indentCount + 1));
+                    .forEach(f -> appendField(cb, f, typeLen, 1, 1, indentCount + 1));
         }
         cb.t(indentCount).c("}").ln();
     }
 
-    public void appendField(CodeBuilder cb, Field field, int typeLen, int indentCount) {
+    public void appendField(CodeBuilder cb, Field field, int typeLen, int nameLen, int cardinalityLen, int indentCount) {
         String cardinality = fieldCardinality(field.getCardinality());
-        if (cardinality != null && !cardinality.isEmpty()) {
-            cb.t(indentCount).c(cardinality);
+        cb.t(indentCount);
+        if (cardinalityLen > 1) {
+            if (cardinality != null && !cardinality.isEmpty()) {
+                cb.c(cardinality).c(" ");
+            }
         }
-        cb.c(field.getTypeString());
+        cb.c(field.getType()).c(" ");
         String spaces1 = fillSpace(typeLen - field.getTypeString().length());
-        String[] args = new String[3];
-        args[0] = field.getName();
-        args[1] = spaces1;
-        args[2] = String.valueOf(field.getTag());
-        cb.e(" $name$$spaces$ = $tag$;").arg(args).ln();
+        String spaces2 = fillSpace(nameLen - field.getName().length());
+        String[] args = new String[4];
+        args[0] = spaces1;
+        args[1] = field.getName();
+        args[2] = spaces2;
+        args[3] = String.valueOf(field.getTag());
+        cb.e("$spaces$$name$$spaces2$ = $tag$;").arg(args).ln();
     }
 
     public void appendReserved(CodeBuilder cb, Reserved reserved, int indent) {
@@ -353,6 +366,44 @@ public abstract class ProtoBuilder {
         return cb.toString();
     }
 
+    private String service(Service service, int level) {
+        CodeBuilder cb = new CodeBuilder();
+        if (service == null) {
+            return cb.toString();
+        }
+        cb.t(level-1).e("service $serviceName$ {").arg(service.getName()).ln();
+        if (service.getMethods() != null && !service.getMethods().isEmpty()) {
+            service.getMethods().forEach(m -> {
+                if (m.getComment() != null) {
+                    Comment comment = m.getComment();
+                    if (comment.getType() == Comment.CommentType.DOCUMENT) {
+                        cb.t(level).c("/**").ln();
+                        for (String line : comment.getLines()) {
+                            cb.t(level).c(" * $comment$").arg(line).ln();
+                        }
+                        cb.t(level).c(" */").ln();
+                    } else if (comment.getType() == Comment.CommentType.MULTILINE) {
+                        cb.t(level).c("/*").ln();
+                        for (String line : comment.getLines()) {
+                            cb.t(level).c(" * $comment$").arg(line).ln();
+                        }
+                        cb.t(level).c(" */").ln();
+                    } else {
+                        for (String line : comment.getLines()) {
+                            cb.t(level).c(" // $comment$").arg(line).ln();
+                        }
+                    }
+                }
+                String request = (m.getType()==BIDIRECTIONAL||m.getType() == CLIENT_STREAM?"stream ":"") + m.getRequest();
+                String response = (m.getType()==BIDIRECTIONAL||m.getType() == SERVER_STREAM?"stream ":"") + m.getResponse();
+                cb.t(level).e("rpc $methodName$($request$) returns ($response$);")
+                        .arg(m.getName(), request, response).ln();
+            });
+        }
+        cb.t(level-1).c("}").ln();
+        return cb.toString();
+    }
+
     public String toProtoString() {
         StringBuilder sb = new StringBuilder();
         String syntax = syntax();
@@ -371,6 +422,12 @@ public abstract class ProtoBuilder {
         if (ops != null && !ops.isEmpty()) {
             sb.append(ops).append(LN);
         }
+
+        List<Service> services = proto.getServices();
+        if (services != null && !services.isEmpty()) {
+            services.forEach(s -> sb.append(service(s, 1)).append(LN));
+        }
+
         List<Message> msgs = proto.getMessages();
         if (msgs != null && !msgs.isEmpty()) {
             msgs.stream()
