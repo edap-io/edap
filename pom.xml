@@ -33,6 +33,7 @@
         <asm.version>5.1</asm.version>
         <protobuf.java.verson>3.16.1</protobuf.java.verson>
         <fastjson.version>1.2.83</fastjson.version>
+        <qdox.verqdoxsion>2.0.3</qdox.verqdoxsion>
     </properties>
 
     <modules>
@@ -67,6 +68,11 @@
                 <groupId>io.edap</groupId>
                 <artifactId>edap-protobuf</artifactId>
                 <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.thoughtworks.qdox</groupId>
+                <artifactId>qdox</artifactId>
+                <version>${qdox.verqdoxsion}</version>
             </dependency>
             <dependency>
                 <groupId>org.junit.jupiter</groupId>
