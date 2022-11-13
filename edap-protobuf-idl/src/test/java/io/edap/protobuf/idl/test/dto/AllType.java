@@ -68,4 +68,5 @@ public class AllType<T> {
     private Map<String, Integer> fieldMapStringInt;
     private Order[] fieldArrayMessage;
     private Order fieldMessage;
+    private OrderType orderType;
 }

@@ -30,5 +30,5 @@ public interface ServiceParser {
      * @param buildeOption
      * @return
      */
-    Map<String, Proto> parseServices(BuildOption buildeOption);
+    ProtoIdl parseServices(BuildOption buildeOption);
 }

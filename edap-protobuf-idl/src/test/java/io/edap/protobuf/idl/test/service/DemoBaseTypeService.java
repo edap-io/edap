@@ -16,7 +16,15 @@
 
 package io.edap.protobuf.idl.test.service;
 
+/**
+ * 基础类型入参出参的服务用例
+ */
 public interface DemoBaseTypeService {
+    /**
+     * byte入参的函数
+     * @param param byte的参数类型
+     * @return 返回byte类型的值
+     */
     byte methodIByte(byte param);
     int methodInt(int param);
 }

@@ -14,21 +14,15 @@
  * under the License.
  */
 
-package io.edap.protobuf.idl.serviceparser;
+package io.edap.protobuf.idl.test.service;
 
-import io.edap.protobuf.idl.BuildOption;
-import io.edap.protobuf.idl.ProtoIdl;
-import io.edap.protobuf.idl.ServiceParser;
-import io.edap.protobuf.wire.Proto;
+import io.edap.protobuf.idl.test.dto.Order;
+import io.edap.protobuf.idl.test.dto.OrderType;
 
-import java.util.Map;
+import java.util.List;
 
-/**
- * 运行期基于反射机制反射符合条件的Class对象来解析生成proto描述的服务的对象
- */
-public class ReflectServiceParser implements ServiceParser {
-    @Override
-    public ProtoIdl parseServices(BuildOption buildeOption) {
-        return null;
-    }
+public interface DemoGenericParamService {
+    List<Order> saveOrders(List<Order> orderList);
+    Order saveOrder(Order order);
+    OrderType paramEnum(OrderType orderType);
 }

@@ -23,10 +23,7 @@ import io.edap.protobuf.wire.Proto;
 
 import java.util.Map;
 
-/**
- * 运行期基于反射机制反射符合条件的Class对象来解析生成proto描述的服务的对象
- */
-public class ReflectServiceParser implements ServiceParser {
+public class BytecodeParser implements ServiceParser {
     @Override
     public ProtoIdl parseServices(BuildOption buildeOption) {
         return null;

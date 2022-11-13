@@ -21,10 +21,7 @@ import io.edap.protobuf.wire.*;
 import io.edap.protobuf.wire.Field.Cardinality;
 import io.edap.protobuf.wire.TagReserved.StartEnd;
 
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 
 import static io.edap.protobuf.wire.Service.ServiceType.*;
 
@@ -371,6 +368,26 @@ public abstract class ProtoBuilder {
         if (service == null) {
             return cb.toString();
         }
+        Comment serviceComment = service.getComments();
+        if (serviceComment != null && serviceComment.getLines() != null && !serviceComment.getLines().isEmpty()) {
+            if (serviceComment.getType() == Comment.CommentType.DOCUMENT) {
+                cb.t(level - 1).c("/**").ln();
+                for (String line : serviceComment.getLines()) {
+                    cb.t(level - 1).e(" * $comment$").arg(line).ln();
+                }
+                cb.t(level - 1).c(" */").ln();
+            } else if (serviceComment.getType() == Comment.CommentType.MULTILINE) {
+                cb.t(level - 1).c("/*").ln();
+                for (String line : serviceComment.getLines()) {
+                    cb.t(level - 1).e(" * $comment$").arg(line).ln();
+                }
+                cb.t(level - 1).c(" */").ln();
+            } else {
+                for (String line : serviceComment.getLines()) {
+                    cb.t(level - 1).e("// $comment$").arg(line).ln();
+                }
+            }
+        }
         cb.t(level-1).e("service $serviceName$ {").arg(service.getName()).ln();
         if (service.getMethods() != null && !service.getMethods().isEmpty()) {
             service.getMethods().forEach(m -> {
@@ -379,18 +396,18 @@ public abstract class ProtoBuilder {
                     if (comment.getType() == Comment.CommentType.DOCUMENT) {
                         cb.t(level).c("/**").ln();
                         for (String line : comment.getLines()) {
-                            cb.t(level).c(" * $comment$").arg(line).ln();
+                            cb.t(level).e(" * $comment$").arg(line).ln();
                         }
                         cb.t(level).c(" */").ln();
                     } else if (comment.getType() == Comment.CommentType.MULTILINE) {
                         cb.t(level).c("/*").ln();
                         for (String line : comment.getLines()) {
-                            cb.t(level).c(" * $comment$").arg(line).ln();
+                            cb.t(level).e(" * $comment$").arg(line).ln();
                         }
                         cb.t(level).c(" */").ln();
                     } else {
                         for (String line : comment.getLines()) {
-                            cb.t(level).c(" // $comment$").arg(line).ln();
+                            cb.t(level).e("// $comment$").arg(line).ln();
                         }
                     }
                 }

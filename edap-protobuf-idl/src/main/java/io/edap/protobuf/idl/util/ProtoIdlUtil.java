@@ -17,6 +17,9 @@
 package io.edap.protobuf.idl.util;
 
 import io.edap.protobuf.ProtoBuf;
+import io.edap.protobuf.builder.ProtoBuilder;
+import io.edap.protobuf.builder.ProtoV3Builder;
+import io.edap.protobuf.idl.ProtoIdl;
 import io.edap.protobuf.model.MessageInfo;
 import io.edap.protobuf.model.ProtoTypeInfo;
 import io.edap.protobuf.idl.BuildOption;
@@ -99,7 +102,7 @@ public class ProtoIdlUtil {
      * @param buildOption 构建对象的选项设置
      * @return
      */
-    private static String getNoParameterString(Proto proto, BuildOption buildOption) {
+    public static String getNoParameterString(Proto proto, BuildOption buildOption) {
         String request;
         if (buildOption.isGrpcCompatible()) {
             List<String> impts = proto.getImports();
@@ -111,6 +114,18 @@ public class ProtoIdlUtil {
             request = "";
         }
         return request;
+    }
+
+    public static void printProtoIdl(ProtoIdl protoIdl) {
+        Map<String, Proto> serviceProtos = protoIdl.getServiceProtos();
+        if (!CollectionUtils.isEmpty(serviceProtos)) {
+            for (Map.Entry<String, Proto> entry : serviceProtos.entrySet()) {
+                System.out.println(entry.getKey() + "\n");
+                ProtoBuilder protoBuilder = new ProtoV3Builder(entry.getValue());
+                System.out.println(protoBuilder.toProtoString());
+
+            }
+        }
     }
 
     /**
