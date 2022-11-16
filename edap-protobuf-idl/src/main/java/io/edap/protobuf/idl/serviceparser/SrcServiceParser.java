@@ -220,10 +220,10 @@ public class SrcServiceParser implements ServiceParser {
     private Comment parseComment(JavaAnnotatedElement javaMethod) {
         if (!StringUtil.isEmpty(javaMethod.getComment())) {
             Comment comment = new Comment();
+            comment.setType(Comment.CommentType.DOCUMENT);
             comment.setLines(Arrays.asList(javaMethod.getComment()));
             List<DocletTag> tags = javaMethod.getTags();
             if (!CollectionUtils.isEmpty(tags)) {
-                comment.setType(Comment.CommentType.DOCUMENT);
                 List<String> lines = new ArrayList<>();
                 for (DocletTag tag : tags) {
                     lines.add("@" + tag.getName() + " " + tag.getValue());

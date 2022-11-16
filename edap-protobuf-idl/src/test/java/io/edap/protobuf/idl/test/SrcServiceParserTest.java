@@ -32,6 +32,15 @@ public class SrcServiceParserTest {
     }
 
     @Test
+    public void testParseExtServices() {
+        SrcServiceParser srcServiceParser = new SrcServiceParser();
+        srcServiceParser.addSrcDir("/Users/louis/NetBeansProjects/edap/edap-protobuf-idl/src/test/java/");
+        srcServiceParser.addAnnotationFilter("");
+        srcServiceParser.addServiceNameFilter("io.edap.protobuf.idl.test.service.DemoBaseTypeExtService");
+        srcServiceParser.parseServices(new BuildOption());
+    }
+
+    @Test
     public void testGenericParam() {
         SrcServiceParser srcServiceParser = new SrcServiceParser();
         srcServiceParser.addSrcDir("/Users/louis/NetBeansProjects/edap/edap-protobuf-idl/src/test/java/");
