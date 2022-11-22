@@ -750,6 +750,7 @@ public abstract class AbstractWriter implements ProtoBufWriter {
             value >>>= 7;
             if ((value & ~0x7F) == 0) {
                 expand(1);
+                _bs = this.bs;
                 System.arraycopy(_bs, p, _bs, p+1, len);
                 _bs[p++] = (byte) value;
                 return 1;
@@ -758,6 +759,7 @@ public abstract class AbstractWriter implements ProtoBufWriter {
                 value >>>= 7;
                 if ((value & ~0x7F) == 0) {
                     expand(2);
+                    _bs = this.bs;
                     System.arraycopy(_bs, p, _bs, p+2, len);
                     _bs[p++] = b2;
                     _bs[p++] = (byte) value;
@@ -767,6 +769,7 @@ public abstract class AbstractWriter implements ProtoBufWriter {
                     value >>>= 7;
                     if ((value & ~0x7F) == 0) {
                         expand(3);
+                        _bs = this.bs;
                         System.arraycopy(_bs, p, _bs, p+3, len);
                         _bs[p++] = b2;
                         _bs[p++] = b3;
@@ -777,6 +780,7 @@ public abstract class AbstractWriter implements ProtoBufWriter {
                         value >>>= 7;
                         if ((value & ~0x7F) == 0) {
                             expand(4);
+                            _bs = this.bs;
                             System.arraycopy(_bs, p, _bs, p+4, len);
                             _bs[p++] = b2;
                             _bs[p++] = b3;
