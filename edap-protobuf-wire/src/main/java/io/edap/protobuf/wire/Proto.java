@@ -125,6 +125,18 @@ public class Proto {
         return this;
     }
 
+    public Message getMessage(String name) {
+        if (messages == null) {
+            return null;
+        }
+        for (Message msg : messages) {
+            if (msg.getName().equals(name)) {
+                return msg;
+            }
+        }
+        return null;
+    }
+
     public Proto setOptions(List<Option> options) {
         if (options == null) {
             return this;

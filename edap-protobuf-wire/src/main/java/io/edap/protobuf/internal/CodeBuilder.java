@@ -26,14 +26,21 @@ import java.util.concurrent.BlockingQueue;
 public class CodeBuilder {
     private final StringBuilder code;
     private static final String INDENT_CHARS  = "    ";
+    private static final String SHORT_INDENT_CHARS = "\t";
     private static final String LINE_SPERATOR = "\n";
     private final BlockingQueue<String> prepares;
     private final BlockingQueue<String> args;
+
+    /**
+     * 使用紧凑的缩进，紧凑缩进使用一个"\t"tab键缩进的方式
+     */
+    private boolean compactIdentation;
 
     public CodeBuilder() {
         code = new StringBuilder();
         prepares = new ArrayBlockingQueue<>(40);
         args     = new ArrayBlockingQueue<>(40);
+        compactIdentation = false;
     }
     /**
      * 向现有代码中缩进指定的级别
@@ -43,7 +50,11 @@ public class CodeBuilder {
     public CodeBuilder t(int level) {
         flush();
         for (int i=0;i<level;i++) {
-            code.append(INDENT_CHARS);
+            if (!isCompactIdentation()) {
+                code.append(INDENT_CHARS);
+            } else {
+                code.append(SHORT_INDENT_CHARS);
+            }
         }
         return this;
     }
@@ -191,5 +202,16 @@ public class CodeBuilder {
      */
     public CodeBuilder ln() {
         return ln(1);
+    }
+
+    /**
+     * 使用紧凑的缩进，紧凑缩进使用一个"\t"tab键缩进的方式
+     */
+    public boolean isCompactIdentation() {
+        return compactIdentation;
+    }
+
+    public void setCompactIdentation(boolean compactIdentation) {
+        this.compactIdentation = compactIdentation;
     }
 }

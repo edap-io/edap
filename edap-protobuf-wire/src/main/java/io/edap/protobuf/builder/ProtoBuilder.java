@@ -36,9 +36,14 @@ public abstract class ProtoBuilder {
     public static final String LN    = "\n";
     public static final String LN2   = "\n\n";
     protected List<String> optionNames;
+    /**
+     * 是否使用紧凑格式来减少生成proto文件的大小,紧凑模式缩进使用tab键，对于proto文件不做严格的对齐
+     */
+    private boolean compactIdentation;
 
     public ProtoBuilder(Proto proto) {
         this.proto = proto;
+        this.compactIdentation = true;
         optionNames = new ArrayList<>();
         optionNames.add("java_package");
         optionNames.add("java_multiple_files");
@@ -81,6 +86,7 @@ public abstract class ProtoBuilder {
             return EMPTY;
         }
         CodeBuilder ops = new CodeBuilder();
+        ops.setCompactIdentation(compactIdentation);
         int len = 0;
         for (int i=0;i<options.size();i++) {
             Option option = proto.getOptions().get(i);
@@ -104,12 +110,16 @@ public abstract class ProtoBuilder {
         return ops.toString();
     }
 
-    public static String fillSpace(int count) {
-        StringBuilder sb = new StringBuilder();
-        for (int i=0;i<count;i++) {
-            sb.append(" ");
+    public String fillSpace(int count) {
+        if (compactIdentation) {
+            return EMPTY;
+        } else {
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < count; i++) {
+                sb.append(" ");
+            }
+            return sb.toString();
         }
-        return sb.toString();
     }
 
     public String message(Message msg, final int depth) {
@@ -123,6 +133,7 @@ public abstract class ProtoBuilder {
             level = depth;
         }
         CodeBuilder cb = new CodeBuilder();
+        cb.setCompactIdentation(compactIdentation);
         cb.t(level-1).e("message $name$ {").arg(msg.getName()).ln();
         List<Field> fields = msg.getFields();
         appendFields(cb, fields, level);
@@ -236,17 +247,33 @@ public abstract class ProtoBuilder {
         if (cardinalityLen > 1) {
             if (cardinality != null && !cardinality.isEmpty()) {
                 cb.c(cardinality).c(" ");
+            } else {
+                if (!compactIdentation) {
+                    cb.c("         ");
+                }
             }
         }
         cb.c(field.getType()).c(" ");
         String spaces1 = fillSpace(typeLen - field.getTypeString().length());
         String spaces2 = fillSpace(nameLen - field.getName().length());
-        String[] args = new String[4];
+        String[] args = new String[5];
         args[0] = spaces1;
         args[1] = field.getName();
         args[2] = spaces2;
         args[3] = String.valueOf(field.getTag());
-        cb.e("$spaces$$name$$spaces2$ = $tag$;").arg(args).ln();
+        StringBuilder options = new StringBuilder();
+        if (field.getOptions() != null && field.getOptions().size() > 0) {
+            options.append(" [");
+            for (Option option : field.getOptions()) {
+                if (options.length() > 2) {
+                    options.append(',');
+                }
+                options.append(option.getName()).append('=').append(option.getValue());
+            }
+            options.append(']');
+        }
+        args[4] = options.toString();
+        cb.e("$spaces$$name$$spaces2$ = $tag$$options$;").arg(args).ln();
     }
 
     public void appendReserved(CodeBuilder cb, Reserved reserved, int indent) {
@@ -343,6 +370,7 @@ public abstract class ProtoBuilder {
             level = depth;
         }
         CodeBuilder cb = new CodeBuilder();
+        cb.setCompactIdentation(compactIdentation);
         cb.t(depth-1).e("enum $name$ {").arg(protoEnum.getName()).ln();
         List<ProtoEnum.EnumEntry> entries = protoEnum.getEntries();
         if (entries != null && !entries.isEmpty()) {
@@ -365,6 +393,7 @@ public abstract class ProtoBuilder {
 
     private String service(Service service, int level) {
         CodeBuilder cb = new CodeBuilder();
+        cb.setCompactIdentation(compactIdentation);
         if (service == null) {
             return cb.toString();
         }
@@ -458,5 +487,16 @@ public abstract class ProtoBuilder {
                     .forEach(e -> sb.append(protoEnum(e, 1)).append(LN));
         }
         return sb.toString();
+    }
+
+    /**
+     * 是否使用紧凑格式来减少生成proto文件的大小,紧凑模式缩进使用tab键，对于proto文件不做严格的对齐
+     */
+    public boolean isCompactIdentation() {
+        return compactIdentation;
+    }
+
+    public void setCompactIdentation(boolean compactIdentation) {
+        this.compactIdentation = compactIdentation;
     }
 }
