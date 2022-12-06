@@ -497,7 +497,16 @@ public class ProtoIdlUtil {
                                            ServiceParser serviceParser) {
         String pkgName = getPackageName(parentInfo.getMessageName());
         IdlParameterizedType pitemType = (IdlParameterizedType)mapJavaType;
-        Proto dtoProto = getDtoProtos(protoIdl).get(pkgName + ".proto");
+        Proto dtoProto = protoIdl.getServiceProtos().get(parentInfo.getServiceName() + ".proto");
+        if (dtoProto == null) {
+            dtoProto = getDtoProtos(protoIdl).get(pkgName + ".proto");
+        }
+        if (dtoProto == null) {
+            dtoProto = new Proto();
+            dtoProto.setName(pkgName + ".proto");
+            setProtoPackage(dtoProto, pkgName);
+            getDtoProtos(protoIdl).put(pkgName + ".proto", dtoProto);
+        }
         IdlJavaClass itemRawType = (IdlJavaClass) pitemType.rawType();
         IdlJavaType[] argTypes = pitemType.ActualTypeArgs();
         StringBuilder types = new StringBuilder();
@@ -505,6 +514,15 @@ public class ProtoIdlUtil {
             types.append(type.toString());
         }
         String mapMsgName = "MapMsg_" + md5(types.toString());
+        if (dtoProto.getMessageMap().containsKey(mapMsgName)) {
+            IdlFieldType ift = new IdlFieldType();
+            if (!StringUtil.isEmpty(pkgName)) {
+                ift.setType(pkgName + "." + mapMsgName);
+            } else {
+                ift.setType(mapMsgName);
+            }
+            return ift;
+        }
         Message msg = new Message();
         msg.setName(mapMsgName);
         List<Field> fields = new ArrayList<>();
@@ -529,7 +547,11 @@ public class ProtoIdlUtil {
             tag++;
         }
         IdlFieldType ift = new IdlFieldType();
-        ift.setType(pkgName + "." + mapMsgName);
+        if (!StringUtil.isEmpty(pkgName)) {
+            ift.setType(pkgName + "." + mapMsgName);
+        } else {
+            ift.setType(mapMsgName);
+        }
         return ift;
     }
 
@@ -797,11 +819,18 @@ public class ProtoIdlUtil {
         } else {
             List<Field> fields = new ArrayList<>();
             int tag = 1;
+            String pkgName = getPackageName(serviceName);
             for (MethodParam mp : methodParams) {
                 if (StringUtil.isEmpty(msg.getName())) {
                     name = mp.getIdlMethod().getName().substring(0, 1).toUpperCase(Locale.ENGLISH)
                             + mp.getIdlMethod().getName().substring(1) + "Req";
-                    parentInfo.setMessageName(name);
+                    String msgName;
+                    if (!StringUtil.isEmpty(pkgName)) {
+                        msgName = pkgName + "." + name;
+                    } else {
+                        msgName = name;
+                    }
+                    parentInfo.setMessageName(msgName);
                 }
                 IdlFieldType type;
                 if (mp.getIdlJavaType() != null) {
@@ -818,11 +847,17 @@ public class ProtoIdlUtil {
                     field.setName(mp.getParamName());
                 }
                 field.setTag(tag);
-                field.setType(type.getType());
+                String fieldType = type.getType();
+                if (!StringUtil.isEmpty(pkgName) && getPackageName(fieldType).equals(pkgName)) {
+                    fieldType = fieldType.substring(pkgName.length() + 1);
+                }
+                field.setType(fieldType);
+                field.setCardinality(type.getCardinality());
                 List<Option> options = new ArrayList<>();
                 options.add(new Option().setName("java_class")
                         .setValue(mp.getIdlJavaClass().canonicalName()));
-                if (mp.getIdlJavaType() != null) {
+                if (mp.getIdlJavaType() != null
+                        && !mp.getIdlJavaType().toString().equals(mp.getIdlJavaClass().canonicalName())) {
                     options.add(new Option().setName("java_type")
                             .setValue(mp.getIdlJavaType().toString()));
                 }
@@ -890,10 +925,12 @@ public class ProtoIdlUtil {
                 }
                 field.setTag(tag);
                 field.setType(type.getType());
+                field.setCardinality(type.getCardinality());
                 List<Option> options = new ArrayList<>();
                 options.add(new Option().setName("java_class")
                         .setValue(mp.getIdlJavaClass().canonicalName()));
-                if (mp.getIdlJavaType() != null) {
+                if (mp.getIdlJavaType() != null
+                        && !mp.getIdlJavaType().toString().equals(mp.getIdlJavaClass().canonicalName())) {
                     options.add(new Option().setName("java_type")
                             .setValue(mp.getIdlJavaType().toString()));
                 }

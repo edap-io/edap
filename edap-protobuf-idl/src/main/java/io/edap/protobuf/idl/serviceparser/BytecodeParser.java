@@ -16,6 +16,8 @@
 
 package io.edap.protobuf.idl.serviceparser;
 
+import io.edap.log.Logger;
+import io.edap.log.LoggerManager;
 import io.edap.protobuf.idl.BuildOption;
 import io.edap.protobuf.idl.ProtoIdl;
 import io.edap.protobuf.idl.ServiceParser;
@@ -44,6 +46,8 @@ import static io.edap.util.AsmUtil.toInternalName;
 import static io.edap.util.AsmUtil.toLangName;
 
 public class BytecodeParser implements ServiceParser {
+
+    Logger log = LoggerManager.getLogger(BytecodeParser.class);
 
     /**
      * jar包的路径信息
@@ -218,12 +222,16 @@ public class BytecodeParser implements ServiceParser {
                 if (mapType != null) {
                     parentMapField = new Field();
                     parentMapField.setTag(WireFormat.RESERVED_TAG_VALUE_START);
+                    Comment comment = new Comment();
+                    comment.setType(Comment.CommentType.INLINE);
+                    comment.setLines(Arrays.asList("该类的父类为" + cSignture.getParentType()));
+                    parentMapField.setComment(comment);
                     setBeanParentMap(parentMapField, cSignture, parentInfo, buildOption, protoIdl);
                     protoFields.add(parentMapField);
                 }
             }
         } catch (Throwable t) {
-            t.printStackTrace();
+            log.error("", t);
         } finally {
             if (input != null) {
                 try {input.close();} catch (IOException e) {}
@@ -317,7 +325,7 @@ public class BytecodeParser implements ServiceParser {
             }
 
         } catch (Throwable t) {
-
+            log.error("getServiceInterface error", t);
         } finally {
             if (input != null) {
                 try {input.close();} catch (IOException e) {}

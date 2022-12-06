@@ -18,6 +18,7 @@ package io.edap.log;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
+import java.util.function.Consumer;
 
 /**
  * 日志管理器
@@ -50,6 +51,114 @@ public class LoggerManager {
 
         } catch (InvocationTargetException e) {
 
+        }
+        if (log == null) {
+            log = new Logger() {
+                @Override
+                public void trace(Object message) {
+
+                }
+
+                @Override
+                public void trace(String msg, Throwable cause) {
+
+                }
+
+                @Override
+                public void trace(String format, Consumer<LogArgs> logArgsConsumer) {
+
+                }
+
+                @Override
+                public void debug(Object message) {
+
+                }
+
+                @Override
+                public void debug(String msg, Throwable cause) {
+
+                }
+
+                @Override
+                public void debug(String format, Consumer<LogArgs> logArgsConsumer) {
+
+                }
+
+                @Override
+                public void conf(Object message) {
+
+                }
+
+                @Override
+                public void conf(String msg, Throwable cause) {
+
+                }
+
+                @Override
+                public void conf(String format, Consumer<LogArgs> logArgsConsumer) {
+
+                }
+
+                @Override
+                public void info(Object message) {
+
+                }
+
+                @Override
+                public void info(String msg, Throwable cause) {
+
+                }
+
+                @Override
+                public void info(String format, Consumer<LogArgs> logArgsConsumer) {
+
+                }
+
+                @Override
+                public void warn(Object message) {
+
+                }
+
+                @Override
+                public void warn(String msg, Throwable cause) {
+
+                }
+
+                @Override
+                public void warn(String format, Consumer<LogArgs> logArgsConsumer) {
+
+                }
+
+                @Override
+                public void error(Object message) {
+
+                }
+
+                @Override
+                public void error(String msg, Throwable t) {
+
+                }
+
+                @Override
+                public void error(String format, Consumer<LogArgs> logArgsConsumer) {
+
+                }
+
+                @Override
+                public int level() {
+                    return 0;
+                }
+
+                @Override
+                public boolean isEnabled(int level) {
+                    return false;
+                }
+
+                @Override
+                public void level(int level) {
+
+                }
+            };
         }
         return log;
     }
