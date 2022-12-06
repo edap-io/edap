@@ -14,7 +14,11 @@
  * under the License.
  */
 
-package io.edap.protobuf.idl.model;
+package io.edap.protobuf.idl.consts;
 
-public class IdlJavaClass {
+public class ProtoIdlConsts {
+
+    public static final String COMBINE_PARAM_PACKAGE_NAME = "combineparam";
+
+    public static final String COMBINE_PARAM_NAME_PREFIX = "Combine_";
 }

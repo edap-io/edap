@@ -31,4 +31,11 @@ public interface ServiceParser {
      * @return
      */
     ProtoIdl parseServices(BuildOption buildeOption);
+
+    /**
+     * 根据指定的javabean的类名构建该类名对应的Message，并将添加到ProtoIdl的dto对象中
+     * @param clazzName 指定的class名称
+     * @param protoIdl 该类所在ProtoIdl的对象
+     */
+    void buildBeanProto(String clazzName, String serviceName, BuildOption buildOption, ProtoIdl protoIdl);
 }

@@ -167,6 +167,11 @@ public class SrcServiceParser implements ServiceParser {
         return protoIdl;
     }
 
+    @Override
+    public void buildBeanProto(String clazzName, String serviceName, BuildOption buildOption, ProtoIdl protoIdl) {
+
+    }
+
     private Proto parseServices(JavaClass javaClass, Map<String, Proto> dtoProtos) {
         Proto proto = new Proto();
         currentProto = proto;

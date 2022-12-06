@@ -18,11 +18,12 @@ package io.edap.protobuf.idl;
 
 import io.edap.protobuf.wire.Proto;
 
+import java.util.HashMap;
 import java.util.Map;
 
 public class ProtoIdl {
-    private Map<String, Proto> serviceProtos;
-    private Map<String, Proto> dtoProtos;
+    private Map<String, Proto> serviceProtos = new HashMap<>();
+    private Map<String, Proto> dtoProtos = new HashMap<>();
 
     public Map<String, Proto> getServiceProtos() {
         return serviceProtos;

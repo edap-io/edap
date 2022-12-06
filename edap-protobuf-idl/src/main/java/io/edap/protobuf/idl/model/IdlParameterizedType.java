@@ -16,8 +16,12 @@
 
 package io.edap.protobuf.idl.model;
 
-public interface IdlJavaType {
-    String binaryName();
-    String canonicalName();
+import io.edap.protobuf.idl.model.IdlJavaType;
 
+import java.lang.reflect.ParameterizedType;
+
+public interface IdlParameterizedType extends IdlJavaType {
+
+    IdlJavaType rawType();
+    IdlJavaType[] ActualTypeArgs();
 }

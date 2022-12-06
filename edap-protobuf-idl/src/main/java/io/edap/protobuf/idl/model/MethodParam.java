@@ -16,5 +16,43 @@
 
 package io.edap.protobuf.idl.model;
 
+import io.edap.protobuf.idl.model.impl.IdlJavaClass;
+
 public class MethodParam {
+    private IdlJavaClass idlJavaClass;
+    private IdlJavaType idlJavaType;
+    private String paramName;
+    private IdlMethod idlMethod;
+
+    public IdlJavaClass getIdlJavaClass() {
+        return idlJavaClass;
+    }
+
+    public void setIdlJavaClass(IdlJavaClass idlJavaClass) {
+        this.idlJavaClass = idlJavaClass;
+    }
+
+    public IdlJavaType getIdlJavaType() {
+        return idlJavaType;
+    }
+
+    public void setIdlJavaType(IdlJavaType idlJavaType) {
+        this.idlJavaType = idlJavaType;
+    }
+
+    public String getParamName() {
+        return paramName;
+    }
+
+    public void setParamName(String paramName) {
+        this.paramName = paramName;
+    }
+
+    public IdlMethod getIdlMethod() {
+        return idlMethod;
+    }
+
+    public void setIdlMethod(IdlMethod idlMethod) {
+        this.idlMethod = idlMethod;
+    }
 }

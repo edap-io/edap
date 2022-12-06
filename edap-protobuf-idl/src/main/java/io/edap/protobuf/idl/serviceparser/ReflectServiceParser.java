@@ -31,4 +31,9 @@ public class ReflectServiceParser implements ServiceParser {
     public ProtoIdl parseServices(BuildOption buildeOption) {
         return null;
     }
+
+    @Override
+    public void buildBeanProto(String clazzName, String serviceName, BuildOption buildOption, ProtoIdl protoIdl) {
+
+    }
 }

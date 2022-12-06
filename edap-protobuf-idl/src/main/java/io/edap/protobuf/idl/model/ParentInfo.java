@@ -16,8 +16,34 @@
 
 package io.edap.protobuf.idl.model;
 
-public interface IdlJavaType {
-    String binaryName();
-    String canonicalName();
+import java.util.List;
 
+public class ParentInfo {
+    private String serviceName;
+    private String messageName;
+    private List<String> generics;
+
+    public String getServiceName() {
+        return serviceName;
+    }
+
+    public void setServiceName(String serviceName) {
+        this.serviceName = serviceName;
+    }
+
+    public String getMessageName() {
+        return messageName;
+    }
+
+    public void setMessageName(String messageName) {
+        this.messageName = messageName;
+    }
+
+    public List<String> getGenerics() {
+        return generics;
+    }
+
+    public void setGenerics(List<String> generics) {
+        this.generics = generics;
+    }
 }

@@ -32,6 +32,8 @@ import io.edap.protobuf.wire.parser.ProtoParser;
 import io.edap.util.AsmUtil;
 import io.edap.util.CollectionUtils;
 import io.edap.util.StringUtil;
+import org.objectweb.asm.tree.AnnotationNode;
+import org.objectweb.asm.tree.FieldNode;
 
 import java.io.IOException;
 import java.lang.annotation.Annotation;
@@ -71,6 +73,9 @@ public class ProtoUtil {
      * @return
      */
     public static java.lang.reflect.Type parentMapType(Class clazz) {
+        if (isMap(clazz)) {
+            return clazz;
+        }
         Class pclazz = clazz.getSuperclass();
         Class cclazz = clazz;
         while (pclazz != null) {
@@ -560,7 +565,7 @@ public class ProtoUtil {
             case "java.lang.Boolean":
                 msgInfo = new MessageInfo();
                 msgInfo.setMessageName("BoolValue");
-                msgInfo.setImpFile("edap-idl/BaseType.proto");
+                msgInfo.setImpFile("edap-idl/wrappers.proto");
                 msgInfo.setJavaType(javaType);
                 typeInfo.setMessageInfo(msgInfo);
                 typeInfo.setProtoType(Type.BOOL);
@@ -575,7 +580,7 @@ public class ProtoUtil {
             case "java.lang.Integer":
                 msgInfo = new MessageInfo();
                 msgInfo.setMessageName("Int32Value");
-                msgInfo.setImpFile("edap-idl/BaseType.proto");
+                msgInfo.setImpFile("edap-idl/wrappers.proto");
                 msgInfo.setJavaType(javaType);
                 typeInfo.setMessageInfo(msgInfo);
                 typeInfo.setProtoType(Type.INT32);
@@ -587,7 +592,7 @@ public class ProtoUtil {
             case "java.time.LocalDateTime":
                 msgInfo = new MessageInfo();
                 msgInfo.setMessageName("Int64Value");
-                msgInfo.setImpFile("edap-idl/BaseType.proto");
+                msgInfo.setImpFile("edap-idl/wrappers.proto");
                 msgInfo.setJavaType(javaType);
                 typeInfo.setMessageInfo(msgInfo);
                 typeInfo.setProtoType(Type.INT64);
@@ -596,7 +601,7 @@ public class ProtoUtil {
             case "java.lang.Float":
                 msgInfo = new MessageInfo();
                 msgInfo.setMessageName("FloatValue");
-                msgInfo.setImpFile("edap-idl/BaseType.proto");
+                msgInfo.setImpFile("edap-idl/wrappers.proto");
                 msgInfo.setJavaType(javaType);
                 typeInfo.setProtoType(Type.FLOAT);
                 break;
@@ -604,7 +609,7 @@ public class ProtoUtil {
             case "java.lang.Double":
                 msgInfo = new MessageInfo();
                 msgInfo.setMessageName("DoubleValue");
-                msgInfo.setImpFile("edap-idl/BaseType.proto");
+                msgInfo.setImpFile("edap-idl/wrappers.proto");
                 msgInfo.setJavaType(javaType);
                 typeInfo.setMessageInfo(msgInfo);
                 typeInfo.setProtoType(Type.DOUBLE);
@@ -612,7 +617,7 @@ public class ProtoUtil {
             case "java.lang.String":
                 msgInfo = new MessageInfo();
                 msgInfo.setMessageName("StringValue");
-                msgInfo.setImpFile("edap-idl/BaseType.proto");
+                msgInfo.setImpFile("edap-idl/wrappers.proto");
                 typeInfo.setMessageInfo(msgInfo);
                 typeInfo.setProtoType(Type.STRING);
                 break;
@@ -620,7 +625,7 @@ public class ProtoUtil {
             case "[Ljava.lang.Byte;":
                 msgInfo = new MessageInfo();
                 msgInfo.setMessageName("BytesValue");
-                msgInfo.setImpFile("edap-idl/BaseType.proto");
+                msgInfo.setImpFile("edap-idl/wrappers.proto");
                 msgInfo.setJavaType(javaType);
                 typeInfo.setMessageInfo(msgInfo);
                 typeInfo.setProtoType(Type.BYTES);
@@ -776,6 +781,22 @@ public class ProtoUtil {
             return false;
         }
         int mod = field.getModifiers();
+        return !Modifier.isStatic(mod) && !Modifier.isTransient(mod);
+    }
+
+    public static boolean needEncode(FieldNode fieldNode) {
+        if ("Lorg/slf4j/Logger;".equals(fieldNode.desc)) {
+            return false;
+        }
+        int mod = fieldNode.access;
+        List<AnnotationNode> fieldAnns = fieldNode.visibleAnnotations;
+        if (fieldAnns != null) {
+            for (AnnotationNode annNode : fieldAnns) {
+                if ("Ljavax/persistence/Transient;".equals(annNode.desc)) {
+                    return false;
+                }
+            }
+        }
         return !Modifier.isStatic(mod) && !Modifier.isTransient(mod);
     }
 

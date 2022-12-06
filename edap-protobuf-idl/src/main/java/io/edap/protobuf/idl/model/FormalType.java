@@ -16,11 +16,23 @@
 
 package io.edap.protobuf.idl.model;
 
-import java.util.List;
+public class FormalType {
+    private String formal;
+    private IdlJavaType type;
 
-public class MethodDesc {
-    private String name;
-    private List<MethodParam> methodParams;
-    private IdlJavaType returnType;
-    private IdlJavaClass returns;
+    public String getFormal() {
+        return formal;
+    }
+
+    public void setFormal(String formal) {
+        this.formal = formal;
+    }
+
+    public IdlJavaType getType() {
+        return type;
+    }
+
+    public void setType(IdlJavaType type) {
+        this.type = type;
+    }
 }
