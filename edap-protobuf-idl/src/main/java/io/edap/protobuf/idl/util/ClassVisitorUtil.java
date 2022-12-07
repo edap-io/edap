@@ -472,8 +472,8 @@ public class ClassVisitorUtil {
                     IdlJavaType arrType = parseType();
                     if (arrType instanceof IdlJavaClass) {
                         IdlJavaClass arrClazz = (IdlJavaClass)arrType;
-                        IdlJavaClass ijc = new IdlJavaClass("L" + arrClazz.binaryName(),
-                                "L" + arrClazz.canonicalName());
+                        IdlJavaClass ijc = new IdlJavaClass("[L" + arrClazz.binaryName() + ";",
+                                "[" + arrClazz.canonicalName());
                         types.add(ijc);
                     }
                 } else if (c == ')') {

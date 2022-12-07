@@ -126,11 +126,6 @@ public class BytecodeParser implements ServiceParser {
 
     @Override
     public void buildBeanProto(String clazzName, String serviceName, BuildOption buildOption, ProtoIdl protoIdl) {
-//        try {
-//            System.out.println("clazzName=" + clazzName);
-//        } catch (Throwable t) {
-//            t.printStackTrace();
-//        }
         String path = toInternalName(clazzName) + ".class";
         JarEntry entry = jarFile.getJarEntry(path);
         Map<String, Proto> dtoProtos = getDtoProtos(protoIdl);
@@ -150,6 +145,7 @@ public class BytecodeParser implements ServiceParser {
             dtoProtos.put(protoName, dtoProto);
         }
         if (entry == null) {
+            System.out.println("class name [" + clazzName + "] not found in " + jarFile.getName());
             return;
         }
         InputStream input = null;
@@ -319,8 +315,7 @@ public class BytecodeParser implements ServiceParser {
                 serviceMethod.setType(Service.ServiceType.UNARY);
                 serviceMethod.setRequest(buildIdlRequest(idlMethod.getMethodParams(), clazzName,
                         buildOption, protoIdl, this));
-                serviceMethod.setResponse(buildIdlResp(idlMethod.getReturns(), clazzName,
-                        idlMethod.getReturnType(), buildOption, protoIdl, this));
+                serviceMethod.setResponse(buildIdlResp(idlMethod, clazzName, buildOption, protoIdl, this));
                 serviceMethods.add(serviceMethod);
             }
 

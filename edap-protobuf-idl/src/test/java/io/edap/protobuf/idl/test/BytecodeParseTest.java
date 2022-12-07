@@ -32,14 +32,13 @@ import java.util.Comparator;
 import java.util.Set;
 import java.util.stream.Stream;
 
-import static io.edap.protobuf.idl.util.ClassVisitorUtil.LOCAL_TYPES;
 import static io.edap.protobuf.idl.util.ProtoIdlUtil.writeProtoIdl;
 
 public class BytecodeParseTest {
 
     @Test
     public void testParseServices() throws IOException {
-        String path = "/Users/louis/Downloads/lib";
+        String path = "/Users/louis/IdeaProjects/yts-demo-pay/yts-demo-pay-be/dev-yts-demo-pay-bootstrap/target/mdd/WEB-INF/lib/";
         File[] jars = new File(path).listFiles();
         long start = System.currentTimeMillis();
         int total = 0;

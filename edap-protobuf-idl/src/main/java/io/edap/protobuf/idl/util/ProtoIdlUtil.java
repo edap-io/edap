@@ -479,7 +479,7 @@ public class ProtoIdlUtil {
                 } else {
                     protoType = clazzName;
                     serviceParser.buildBeanProto(clazzName, serviceName, buildOption, protoIdl);
-                    impt = dtoPkgName;
+                    impt = dtoPkgName + ".proto";
                 }
                 break;
 
@@ -717,10 +717,10 @@ public class ProtoIdlUtil {
 
         }
         if (!StringUtil.isEmpty(impt)) {
-            addServiceImport(parentInfo.getServiceName(), protoIdl, impt);
+            addServiceImport(parentInfo.getServiceName() + ".proto", protoIdl, impt);
         }
         if (!StringUtil.isEmpty(parentInfo.getMessageName()) && !StringUtil.isEmpty(impt)) {
-            addDtoImport(parentInfo.getMessageName(), protoIdl, impt);
+            addDtoImport(parentInfo.getMessageName() + ".proto", protoIdl, impt);
         }
         ift.setType(protoType);
         return ift;
@@ -775,14 +775,15 @@ public class ProtoIdlUtil {
     }
 
 
-    public static String buildIdlResp(IdlJavaClass javaClass,
+    public static String buildIdlResp(IdlMethod idlMethod,
                                       String serviceName,
-                                      IdlJavaType idlJavaType,
                                       BuildOption buildOption,
                                       ProtoIdl protoIdl,
                                       ServiceParser serviceParser) {
         StringBuilder resp = new StringBuilder();
         String name;
+        IdlJavaType idlJavaType = idlMethod.getReturnType();
+        IdlJavaClass javaClass = idlMethod.getReturns();
         if (idlJavaType != null) {
             name = baseTypeToProtoIdlType(idlJavaType, serviceName, buildOption, protoIdl, serviceParser);
         } else {
@@ -791,6 +792,9 @@ public class ProtoIdlUtil {
         if (StringUtil.isEmpty(name)) {
             MethodParam mp = new MethodParam();
             List<MethodParam> methodParams = new ArrayList<>();
+            mp.setIdlJavaType(idlJavaType);
+            mp.setIdlJavaClass(javaClass);
+            mp.setIdlMethod(idlMethod);
             methodParams.add(mp);
             resp.append(buildCombineRespMessage(methodParams, serviceName, buildOption, protoIdl,
                     serviceParser));
@@ -907,7 +911,7 @@ public class ProtoIdlUtil {
             for (MethodParam mp : methodParams) {
                 if (StringUtil.isEmpty(msg.getName())) {
                     name = mp.getIdlMethod().getName().substring(0, 1).toUpperCase(Locale.ENGLISH)
-                            + mp.getIdlMethod().getName().substring(1) + "Req";
+                            + mp.getIdlMethod().getName().substring(1) + "Resp";
                 }
                 IdlFieldType type;
                 if (mp.getIdlJavaType() != null) {
