@@ -16,7 +16,7 @@
 
 package io.edap.protobuf;
 
-import io.edap.protobuf.internal.GeneratorClassInfo;
+import io.edap.util.internal.GeneratorClassInfo;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.MethodVisitor;
 

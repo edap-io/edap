@@ -27,13 +27,15 @@
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <maven.compiler.source>1.8</maven.compiler.source>
-        <maven.compiler.target>1.8</maven.compiler.target>
+        <maven.compiler.source>17</maven.compiler.source>
+        <maven.compiler.target>17</maven.compiler.target>
         <junit.jupiter.version>5.5.2</junit.jupiter.version>
-        <asm.version>5.1</asm.version>
+        <asm.version>9.4</asm.version>
         <protobuf.java.verson>3.16.1</protobuf.java.verson>
         <fastjson.version>1.2.83</fastjson.version>
         <qdox.verqdoxsion>2.0.3</qdox.verqdoxsion>
+        <system.lambda.version>1.2.1</system.lambda.version>
+        <jmh.version>1.36</jmh.version>
     </properties>
 
     <modules>
@@ -43,6 +45,9 @@
         <module>edap-log-api</module>
         <module>edap-bean-convert</module>
         <module>edap-protobuf-idl</module>
+        <module>edap-log</module>
+        <module>edap-toml</module>
+        <module>edap-json</module>
 
     </modules>
 
@@ -82,7 +87,17 @@
             </dependency>
             <dependency>
                 <groupId>org.ow2.asm</groupId>
-                <artifactId>asm-all</artifactId>
+                <artifactId>asm</artifactId>
+                <version>${asm.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.ow2.asm</groupId>
+                <artifactId>asm-tree</artifactId>
+                <version>${asm.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.ow2.asm</groupId>
+                <artifactId>asm-util</artifactId>
                 <version>${asm.version}</version>
             </dependency>
             <dependency>
@@ -95,6 +110,21 @@
                 <groupId>com.alibaba</groupId>
                 <artifactId>fastjson</artifactId>
                 <version>${fastjson.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.github.stefanbirkner</groupId>
+                <artifactId>system-lambda</artifactId>
+                <version>${system.lambda.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.openjdk.jmh</groupId>
+                <artifactId>jmh-core</artifactId>
+                <version>${jmh.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.openjdk.jmh</groupId>
+                <artifactId>jmh-generator-annprocess</artifactId>
+                <version>${jmh.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>
@@ -149,8 +179,9 @@
     </build>
     <distributionManagement>
         <snapshotRepository>
-            <id>ossrh</id>
-            <url>https://oss.sonatype.org/content/repositories/snapshots/</url>
+            <id>YonyouCloud-Snapshot</id>
+            <name>YonyouCloud-Snapshot</name>
+            <url>https://repo.yyrd.com/artifactory/YonyouCloud-Snapshot/</url>
         </snapshotRepository>
         <repository>
             <id>ossrh</id>

@@ -16,7 +16,6 @@
 
 package io.edap.protobuf;
 
-import io.edap.protobuf.internal.GeneratorClassInfo;
 import io.edap.protobuf.ProtoBuf.EncodeType;
 import io.edap.protobuf.ProtoBuf.ProtoFieldInfo;
 import io.edap.protobuf.ProtoBufWriter.WriteOrder;
@@ -28,6 +27,7 @@ import io.edap.protobuf.wire.WireFormat;
 import io.edap.util.AsmUtil;
 import io.edap.util.ClazzUtil;
 import io.edap.util.CollectionUtils;
+import io.edap.util.internal.GeneratorClassInfo;
 import org.objectweb.asm.*;
 
 import java.io.IOException;

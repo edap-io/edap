@@ -19,8 +19,8 @@ package io.edap.protobuf.idl.model.impl;
 import io.edap.protobuf.idl.model.IdlJavaType;
 
 public class IdlJavaClass implements IdlJavaType {
-    private String binaryName;
-    private String canonicalName;
+    private final String binaryName;
+    private final String canonicalName;
 
     public IdlJavaClass(String binaryName, String canonicalName) {
         this.binaryName = binaryName;
@@ -38,19 +38,15 @@ public class IdlJavaClass implements IdlJavaType {
     }
 
     public boolean isArray() {
-        if (canonicalName.startsWith("[")) {
-            return true;
-        }
-        return false;
+        return canonicalName.startsWith("[");
     }
 
     public IdlJavaClass getComponentType() {
         if (!isArray()) {
             return null;
         }
-        IdlJavaClass compType = new IdlJavaClass(binaryName.substring(1),
+        return new IdlJavaClass(binaryName.substring(1),
                 canonicalName.substring(1));
-        return compType;
     }
 
     @Override

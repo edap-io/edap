@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 The edap Project
+ * Copyright 2023 The edap Project
  *
  * The Netty Project licenses this file to you under the Apache License,
  * version 2.0 (the "License"); you may not use this file except in compliance
@@ -14,12 +14,15 @@
  * under the License.
  */
 
-package io.edap.protobuf.internal;
+package io.edap.toml;
 
+import java.util.ArrayList;
 import java.util.List;
 
-public class GeneratorClassInfo {
-    public String clazzName;
-    public byte [] clazzBytes;
-    public List<GeneratorClassInfo> inners;
+public class Parser {
+
+    public static List<String> parseDottedKey(String dottedKey) {
+        List<String> path = new ArrayList<>();
+        return path;
+    }
 }

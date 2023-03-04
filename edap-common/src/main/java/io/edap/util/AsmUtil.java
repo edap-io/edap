@@ -141,7 +141,7 @@ public class AsmUtil {
         int start = 0;
         int index = internalName.indexOf('/', start);
         while (index != -1) {
-            sb.append(internalName.substring(start, index)).append('.');
+            sb.append(internalName, start, index).append('.');
             start = index + 1;
             index = internalName.indexOf('/', start);
         }

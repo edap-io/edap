@@ -17,13 +17,13 @@
 package io.edap.protobuf;
 
 import io.edap.protobuf.annotation.ProtoField;
-import io.edap.protobuf.internal.GeneratorClassInfo;
 import io.edap.protobuf.ProtoBuf.ProtoFieldInfo;
 import io.edap.protobuf.util.ProtoUtil;
 import io.edap.protobuf.wire.Field;
 import io.edap.protobuf.wire.Field.Type;
 import io.edap.protobuf.wire.WireFormat;
 import io.edap.util.*;
+import io.edap.util.internal.GeneratorClassInfo;
 import org.objectweb.asm.*;
 
 import java.io.IOException;

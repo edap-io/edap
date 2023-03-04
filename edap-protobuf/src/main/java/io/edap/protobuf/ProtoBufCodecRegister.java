@@ -16,10 +16,10 @@
 
 package io.edap.protobuf;
 
-import io.edap.protobuf.internal.GeneratorClassInfo;
 import io.edap.protobuf.ProtoBuf.EncodeType;
 import io.edap.protobuf.ProtoBufWriter.WriteOrder;
 import io.edap.util.CollectionUtils;
+import io.edap.util.internal.GeneratorClassInfo;
 
 import java.io.File;
 import java.io.IOException;

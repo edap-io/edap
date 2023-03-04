@@ -24,7 +24,9 @@ import java.util.function.Consumer;
  */
 public interface Logger {
 
-    static int MAX_ARGS = 64;
+    String ROOT_LOGGER_NAME = "ROOT";
+
+    int MAX_ARGS = 64;
 
     void trace(Object message);
     void trace(String msg, Throwable cause);
@@ -52,5 +54,4 @@ public interface Logger {
 
     int level();
     boolean isEnabled(int level);
-    void level(int level);
 }

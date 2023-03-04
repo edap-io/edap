@@ -25,5 +25,13 @@ public class LogLevel {
     public static final int DEBUG = 0x200;
     public static final int TRACE = 0x100;
 
+    public static final byte[] OFF_BYTES   = new byte[]{'O', 'F', 'F'};   // highest conceivable level, used to turn off logging
+    public static final byte[] ERROR_BYTES = new byte[]{'E', 'R', 'R', 'O', 'R'};
+    public static final byte[] WARN_BYTES  = new byte[]{'W', 'A', 'R', 'N'};
+    public static final byte[] INFO_BYTES  = new byte[]{'I', 'N', 'F', 'O'};
+    public static final byte[] CONF_BYTES  = new byte[]{'C', 'O', 'N', 'F'};
+    public static final byte[] DEBUG_BYTES = new byte[]{'D', 'E', 'B', 'U', 'G'};
+    public static final byte[] TRACE_BYTES = new byte[]{'T', 'R', 'A', 'C', 'E'};
+
     private LogLevel() {}
 }

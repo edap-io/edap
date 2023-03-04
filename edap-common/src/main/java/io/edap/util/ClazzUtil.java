@@ -169,7 +169,7 @@ public class ClazzUtil {
         return methods;
     }
 
-    private static void fillParentMethod(Class msgCls, List<Method> aMethod) {
+    public static void fillParentMethod(Class msgCls, List<Method> aMethod) {
         Class pClass = msgCls.getSuperclass();
         while (pClass != null && pClass != Object.class) {
             Method[] am = pClass.getDeclaredMethods();
