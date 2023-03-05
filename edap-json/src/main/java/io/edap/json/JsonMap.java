@@ -82,7 +82,7 @@ public interface JsonMap extends Map<String, Object> {
      * @param start 开始位置
      * @return 返回指定位置后并且到第一个点结束的字符串
      */
-    private ParsePathInfo getPathItem(String path, int start) {
+    default ParsePathInfo getPathItem(String path, int start) {
         if (path.charAt(path.length()-1) == '.') {
             throw new RuntimeException("path cann't end with '.'!");
         }

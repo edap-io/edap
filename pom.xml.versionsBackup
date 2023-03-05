@@ -7,7 +7,7 @@
     <groupId>io.edap</groupId>
     <artifactId>edap</artifactId>
     <packaging>pom</packaging>
-    <version>0.2-SNAPSHOT</version>
+    <version>0.1-SNAPSHOT</version>
 
     <developers>
         <developer>

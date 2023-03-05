@@ -201,7 +201,7 @@ public class StringJson5Reader extends StringJsonReader {
             char c = _json.charAt(pos);
             if (c == '*' && pos < end - 1 && _json.charAt(pos+1) == '/') {
                 if (start > 0) {
-                    comments.add(_json.substring(start, pos).stripTrailing());
+                    comments.add(_json.substring(start, pos).trim());
                 }
                 this.pos = pos + 2;
                 isFinish = true;

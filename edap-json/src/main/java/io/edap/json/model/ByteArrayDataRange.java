@@ -32,6 +32,20 @@ public class ByteArrayDataRange implements DataRange<byte[]> {
 
     }
 
+    public ByteArrayDataRange(byte[] value, int start, int end, int hashCode) {
+        this.value = value;
+        this.start = start;
+        this.end   = end;
+        this.hashCode = hashCode;
+    }
+
+    public void fill(byte[] value, int start, int end, int hashCode) {
+        this.value = value;
+        this.start = start;
+        this.end   = end;
+        this.hashCode = hashCode;
+    }
+
     @Override
     public DataRange value(byte[] value) {
         this.value = value;
@@ -57,6 +71,14 @@ public class ByteArrayDataRange implements DataRange<byte[]> {
     public DataRange hashCode(int hashCode) {
         this.hashCode = hashCode;
         return this;
+    }
+
+    public int end() {
+        return end;
+    }
+
+    public int start() {
+        return start;
     }
 
     @Override

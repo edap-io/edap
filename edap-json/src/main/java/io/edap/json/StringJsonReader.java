@@ -316,6 +316,11 @@ public class StringJsonReader implements JsonReader {
         pos = 0;
     }
 
+    @Override
+    public int keyHash() {
+        return 0;
+    }
+
     protected int readNumberValue() {
         int _pos = pos;
         String _json = json;

@@ -20,6 +20,7 @@ import io.edap.json.model.ByteArrayDataRange;
 import io.edap.json.model.DataRange;
 
 import java.lang.reflect.InvocationTargetException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -39,6 +40,10 @@ public class ByteArrayJsonReader implements JsonReader {
 
     protected byte[] json;
     protected int end;
+
+    private char[] tmpChars = new char[64];
+
+    static ByteArrayDataRange byteArrayDataRange = new ByteArrayDataRange();
 
     static DecoderRegister DECODER_REGISTE = DecoderRegister.instance();
 
@@ -120,39 +125,35 @@ public class ByteArrayJsonReader implements JsonReader {
 
     protected String readQuotationMarksString(char quotation) {
         int _pos = pos;
-        byte[] _json = json;
-        byte[] tmp = null;
-        int tmpSize = 0;
+        //byte[] _json = json;
+        int charLen = 0;
         for (;_pos<end;_pos++) {
-            byte c = _json[_pos];
-            if (c == quotation && _pos > pos && _json[_pos-1] != '\\') {
-                break;
-            } else {
-                if (c == '\\' && _pos+1 < end) {
-                    if (tmp == null) {
-                        tmp = new byte[end - pos];
-                        System.arraycopy(_json, pos, tmp, 0, _pos-pos);
-                        tmpSize = _pos - pos;
-                    }
-                    _pos++;
-                    tmp[tmpSize++] = _json[_pos];
-                    continue;
-                } else {
-                    if (tmp != null) {
-                        tmp[tmpSize++] = _json[_pos];
-                    }
-                }
+            byte c = json[_pos];
+            if (c == (byte) quotation) {
+                pos = _pos+1;
+                return new String(tmpChars, 0, charLen);
             }
+            if ((c ^ '\\') < 1) {
+                break;
+            }
+            tmpChars[charLen++] = (char)c;
         }
-        String key;
-        if (tmp == null) {
-            key = new String(_json, pos, _pos - pos);
-        } else {
-            key = new String(tmp, 0, tmpSize);
-        }
-        pos = _pos+1;
-        return key;
+        return null;
     }
+
+//    protected String readQuotationMarksString(char quotation) {
+//        int _pos = pos;
+//        int tmpSize = 0;
+//        for (;_pos<end;_pos++) {
+//            byte c = json[_pos];
+//            if (c == quotation) {
+//                String val = new String(json, pos, _pos - pos, StandardCharsets.ISO_8859_1);
+//                pos = _pos+1;
+//                return val;
+//            }
+//        }
+//        return null;
+//    }
 
     protected Object readValue() {
         char c = firstNotSpaceChar();
@@ -253,6 +254,62 @@ public class ByteArrayJsonReader implements JsonReader {
         return readKeyRange(firstNotSpaceChar());
     }
 
+    @Override
+    public int keyHash() {
+        char c = firstNotSpaceChar();
+        if (c != '"') {
+            throw new JsonParseException("Key must start with '\"'!");
+        }
+        pos++;
+        int _pos = pos;
+        long hashCode = 0x811c9dc5;
+        byte b;
+        while (_pos<end) {
+            b = json[_pos++];
+            if (b == '"') {
+                pos = _pos;
+                break;
+            }
+            hashCode ^= b;
+            hashCode *= 0x1000193;
+        }
+        c = firstNotSpaceChar();
+        if (c != ':') {
+            throw new JsonParseException("Key and value must use colon split");
+        }
+        pos++;
+        return (int)hashCode;
+    }
+
+//    @Override
+//    public int keyHash() {
+//        char c = firstNotSpaceChar();
+//        if (c != '"') {
+//            throw new JsonParseException("Key must start with '\"'!");
+//        }
+//        pos++;
+//        int _pos = pos;
+//        byte[] _json = json;
+//        long hashCode = 0x811c9dc5;
+//        byte b;
+//        for (;_pos<end;_pos++) {
+//            b = _json[_pos];
+//            if (b == '"') {
+//                pos = _pos+1;
+//                return (int)hashCode;
+//            } else {
+//                hashCode ^= b;
+//                hashCode *= 0x1000193;
+//            }
+//        }
+//        c = firstNotSpaceChar();
+//        if (c != ':') {
+//            throw new JsonParseException("Key and value must use colon split");
+//        }
+//        pos++;
+//        return 0;
+//    }
+
     /**
      * 解析JSON的key，并判断Key后是否是":" 如果不是冒号则抛异常
      * @return
@@ -273,17 +330,14 @@ public class ByteArrayJsonReader implements JsonReader {
 
     protected DataRange readQuotationMarksDataRange(char quotation) {
         int _pos = pos;
-        byte[] _json = json;
-        ByteArrayDataRange dr = new ByteArrayDataRange();
-        dr.value(_json);
-        dr.start(pos);
         long hashCode = FNV_1a_INIT_VAL;
-        for (;_pos<end;_pos++) {
-            byte c = _json[_pos];
-            if (c == quotation && _pos > pos && _json[_pos-1] != '\\') {
-                pos = _pos+1;
-                dr.end(_pos).hashCode((int)hashCode);
-                return dr;
+        byte[] _json = json;
+        while (_pos<end) {
+            byte c = _json[_pos++];
+            if (c == quotation) {
+                byteArrayDataRange.fill(_json, pos, _pos-1, (int)hashCode);
+                pos = _pos;
+                return byteArrayDataRange;
             } else {
                 hashCode ^= c;
                 hashCode *= FNV_1a_FACTOR_VAL;
@@ -314,54 +368,77 @@ public class ByteArrayJsonReader implements JsonReader {
         }
     }
 
+    //@Override
+//    public char firstNotSpaceChar() {
+////        int _pos = pos;
+////        byte[] _json = json;
+////        int _end = end;
+//        int _pos = pos;
+//        byte[] _json = json;
+//        byte bb;
+//        for (;_pos<end;_pos++) {
+//            bb = _json[_pos];
+//            if (bb < 0 || bb > ' ') {
+//                pos = _pos;
+//                return (char)bb;
+//            }
+//        }
+//        return 0;
+//    }
+
     @Override
     public char firstNotSpaceChar() {
-        int _pos = pos;
-        byte[] _json = json;
-        int _end = end;
+        int _pos = pos++;
+        //byte[] _json = json;
         byte c;
-        if (_pos < _end) {
-            c = _json[_pos];
+        c = json[_pos];
+        if (c < 0 || c > ' ') {
+            pos = _pos;
+            return (char)c;
+        }
+        _pos++;
+        if (_pos < end) {
+            c = json[_pos];
             if (c < 0 || c > ' ') {
                 pos = _pos;
                 return (char)c;
             }
             _pos++;
         }
-        if (_pos < _end) {
-            c = _json[_pos];
+        if (_pos < end) {
+            c = json[_pos];
             if (c < 0 || c > ' ') {
                 pos = _pos;
                 return (char)c;
             }
             _pos++;
         }
-        if (_pos < _end) {
-            c = _json[_pos];
+        if (_pos < end) {
+            c = json[_pos];
             if (c < 0 || c > ' ') {
                 pos = _pos;
                 return (char)c;
             }
             _pos++;
         }
-        if (_pos < _end) {
-            c = _json[_pos];
+        if (_pos < end) {
+            c = json[_pos];
             if (c < 0 || c > ' ') {
                 pos = _pos;
                 return (char)c;
             }
             _pos++;
         }
-        if (_pos < _end) {
-            c = _json[_pos];
+        if (_pos < end) {
+            c = json[_pos];
             if (c < 0 || c > ' ') {
                 pos = _pos;
                 return (char)c;
             }
             _pos++;
         }
-        for (;_pos<_end;_pos++) {
-            c = _json[_pos];
+        for (;_pos<end;_pos++) {
+            c = json[_pos];
             if (c < 0 || c > ' ') {
                 pos = _pos;
                 return (char)c;
@@ -374,7 +451,7 @@ public class ByteArrayJsonReader implements JsonReader {
     public String readString() {
         char c = firstNotSpaceChar();
         // 解析字符串
-        if (c == '"' || c == '\'') {
+        if (c == '"') {
             pos++;
             return readQuotationMarksString(c);
         }
@@ -520,4 +597,6 @@ public class ByteArrayJsonReader implements JsonReader {
     public void reset() {
         pos = 0;
     }
+
+
 }

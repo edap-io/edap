@@ -14,42 +14,16 @@
  * under the License.
  */
 
-package io.edap.json;
+package io.edap.json.test.model;
 
-import io.edap.json.model.DataRange;
+public class DemoOneString {
+    private String field1;
 
-import java.lang.reflect.InvocationTargetException;
+    public String getField1() {
+        return field1;
+    }
 
-public interface JsonReader {
-
-    DataRange readKeyRange();
-
-    Object readObject();
-
-    <T> T readObject(Class<T> valueType) throws InvocationTargetException, InstantiationException,
-            IllegalAccessException;
-
-    NodeType readStart();
-
-    void nextPos(int count);
-
-    char firstNotSpaceChar();
-
-    String readString();
-
-    int readInt();
-
-    long readLong();
-
-    boolean readBoolean();
-
-    void skipValue();
-
-    float readFloat();
-
-    double readDouble();
-
-    void reset();
-
-    int keyHash();
+    public void setField1(String field1) {
+        this.field1 = field1;
+    }
 }

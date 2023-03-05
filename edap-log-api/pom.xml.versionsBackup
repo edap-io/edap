@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  ~ Copyright 2022 The edap Project
+  ~ Copyright 2021 The edap Project
   ~
   ~ The Netty Project licenses this file to you under the Apache License,
   ~ version 2.0 (the "License"); you may not use this file except in compliance
@@ -21,11 +21,11 @@
     <parent>
         <artifactId>edap</artifactId>
         <groupId>io.edap</groupId>
-        <version>0.2-SNAPSHOT</version>
+        <version>0.1-SNAPSHOT</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
-    <artifactId>edap-bean-convert</artifactId>
+    <artifactId>edap-log-api</artifactId>
 
     <properties>
         <maven.compiler.source>8</maven.compiler.source>
@@ -34,13 +34,13 @@
 
     <dependencies>
         <dependency>
-            <groupId>io.edap</groupId>
-            <artifactId>edap-common</artifactId>
-        </dependency>
-        <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter</artifactId>
             <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.github.stefanbirkner</groupId>
+            <artifactId>system-lambda</artifactId>
         </dependency>
     </dependencies>
 </project>
