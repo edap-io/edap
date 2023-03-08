@@ -19,6 +19,7 @@ package io.edap.json;
 import io.edap.json.model.ByteArrayDataRange;
 import io.edap.json.model.DataRange;
 
+import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -127,16 +128,24 @@ public class ByteArrayJsonReader implements JsonReader {
         int _pos = pos;
         //byte[] _json = json;
         int charLen = 0;
-        for (;_pos<end;_pos++) {
-            byte c = json[_pos];
-            if (c == (byte) quotation) {
-                pos = _pos+1;
-                return new String(tmpChars, 0, charLen);
+        byte c = 0;
+        try {
+            for (; charLen < tmpChars.length; _pos++) {
+                c = json[_pos];
+                if (c == (byte) quotation) {
+                    pos = _pos + 1;
+                    return new String(tmpChars, 0, charLen);
+                }
+                if ((c ^ '\\') < 1) {
+                    break;
+                }
+                tmpChars[charLen++] = (char) c;
             }
-            if ((c ^ '\\') < 1) {
-                break;
+            if (_pos >= end) {
+                throw new JsonParseException("JSON string was not closed with a char[" + quotation + "]");
             }
-            tmpChars[charLen++] = (char)c;
+        } catch (ArrayIndexOutOfBoundsException ignore) {
+            throw new JsonParseException("JSON string was not closed with a char[" + quotation + "]");
         }
         return null;
     }
@@ -388,7 +397,10 @@ public class ByteArrayJsonReader implements JsonReader {
 
     @Override
     public char firstNotSpaceChar() {
-        int _pos = pos++;
+        if (end - pos == 0) {
+            return 0;
+        }
+        int _pos = pos;
         //byte[] _json = json;
         byte c;
         c = json[_pos];
