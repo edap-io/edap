@@ -23,11 +23,13 @@ import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
+import java.lang.reflect.ParameterizedType;
 import java.util.*;
 
 import static io.edap.json.consts.JsonConsts.END_OF_NUMBER;
 import static io.edap.json.consts.JsonConsts.INVALID_CHAR_FOR_NUMBER;
 import static io.edap.util.AsmUtil.isMap;
+import static io.edap.util.AsmUtil.isPojo;
 import static io.edap.util.ClazzUtil.*;
 
 public class JsonUtil {
@@ -128,6 +130,39 @@ public class JsonUtil {
         return method;
     }
 
+    public static boolean isRepeatedArray(java.lang.reflect.Type type) {
+        if (type instanceof Class) {
+            Class arrayCls = (Class)type;
+            return arrayCls.isArray() && !"[B".equals(arrayCls.getName())
+                    && !"[Ljava.lang.Byte;".equals(arrayCls.getName());
+        }
+        return false;
+    }
+
+    public static List<java.lang.reflect.Type> getAllPojoTypes(
+            java.lang.reflect.Type genericType) {
+        List<java.lang.reflect.Type> types = new ArrayList<>();
+        if (genericType instanceof ParameterizedType) {
+            ParameterizedType ptype = (ParameterizedType)genericType;
+            java.lang.reflect.Type[] ts = ptype.getActualTypeArguments();
+            if (ts == null || ts.length == 0) {
+                return types;
+            }
+            for (java.lang.reflect.Type t : ts) {
+                if (t instanceof ParameterizedType) {
+                    types.addAll(getAllPojoTypes(t));
+                } else {
+                    if (isPojo(t) && !types.contains(t)) {
+                        types.add(t);
+                    }
+                }
+            }
+        } else {
+            return types;
+        }
+        return types;
+    }
+
     public static List<JsonFieldInfo> getCodecFieldInfos(Class pojoCls) {
         List<JsonFieldInfo> fs = new ArrayList<>();
         List<Field> fields = getClassFields(pojoCls);
@@ -205,5 +240,17 @@ public class JsonUtil {
             name = jsonFieldName;
         }
         return name;
+    }
+
+    public static String getDecoderName(Class pojoCls) {
+        if (pojoCls == null) {
+            return "";
+        }
+        StringBuilder sb = new StringBuilder("jbd.");
+        if (pojoCls.getPackage() != null) {
+            sb.append(pojoCls.getPackage().getName()).append(".");
+        }
+        sb.append(pojoCls.getSimpleName()).append("Decoder");
+        return sb.toString();
     }
 }

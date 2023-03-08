@@ -22,15 +22,15 @@ import io.edap.json.enums.DataType;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-public class DecoderRegister {
+public class JsonCodecRegister {
 
-    private Map<String, Decoder> decoderMap = new ConcurrentHashMap<>();
+    private Map<String, JsonDecoder> decoderMap = new ConcurrentHashMap<>();
 
-    private DecoderRegister() {}
+    private JsonCodecRegister() {}
 
-    public <T> Decoder<T> getDecoder(Class<T> tClass, DataType dataType) {
+    public <T> JsonDecoder<T> getDecoder(Class<T> tClass, DataType dataType) {
         String key = tClass.getName() + "-" + dataType;
-        Decoder decoder = decoderMap.get(key);
+        JsonDecoder decoder = decoderMap.get(key);
         if (decoder == null) {
             decoder = new ReflectDecoder(tClass, dataType);
             decoderMap.put(key, decoder);
@@ -38,11 +38,11 @@ public class DecoderRegister {
         return decoder;
     }
 
-    public static final DecoderRegister instance() {
-        return DecoderRegister.SingletonHolder.INSTANCE;
+    public static final JsonCodecRegister instance() {
+        return JsonCodecRegister.SingletonHolder.INSTANCE;
     }
 
     private static class SingletonHolder {
-        private static final DecoderRegister INSTANCE = new DecoderRegister();
+        private static final JsonCodecRegister INSTANCE = new JsonCodecRegister();
     }
 }

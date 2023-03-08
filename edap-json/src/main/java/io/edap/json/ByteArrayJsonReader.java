@@ -20,7 +20,6 @@ import io.edap.json.model.ByteArrayDataRange;
 import io.edap.json.model.DataRange;
 
 import java.lang.reflect.InvocationTargetException;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -29,7 +28,6 @@ import static io.edap.json.StringJsonReader.ERROR_JSON_FORMAT;
 import static io.edap.json.consts.JsonConsts.END_OF_NUMBER;
 import static io.edap.json.consts.JsonConsts.INVALID_CHAR_FOR_NUMBER;
 import static io.edap.json.enums.DataType.BYTE_ARRAY;
-import static io.edap.json.enums.DataType.STRING;
 import static io.edap.json.util.JsonUtil.INT_DIGITS;
 import static io.edap.util.Constants.FNV_1a_FACTOR_VAL;
 import static io.edap.util.Constants.FNV_1a_INIT_VAL;
@@ -45,7 +43,7 @@ public class ByteArrayJsonReader implements JsonReader {
 
     static ByteArrayDataRange byteArrayDataRange = new ByteArrayDataRange();
 
-    static DecoderRegister DECODER_REGISTE = DecoderRegister.instance();
+    static JsonCodecRegister DECODER_REGISTE = JsonCodecRegister.instance();
 
     public ByteArrayJsonReader(byte[] bytes) {
         this.json = bytes;
@@ -68,7 +66,7 @@ public class ByteArrayJsonReader implements JsonReader {
 
     @Override
     public <T> T readObject(Class<T> valueType) throws InvocationTargetException, InstantiationException, IllegalAccessException {
-        Decoder decoder = DECODER_REGISTE.getDecoder(valueType, BYTE_ARRAY);
+        JsonDecoder decoder = DECODER_REGISTE.getDecoder(valueType, BYTE_ARRAY);
         if (decoder != null) {
             return (T)decoder.decode(this);
         }

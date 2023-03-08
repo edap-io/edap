@@ -16,7 +16,7 @@
 
 package io.edap.json.test;
 
-import io.edap.json.Decoder;
+import io.edap.json.JsonDecoder;
 import io.edap.json.JsonReader;
 import io.edap.json.NodeType;
 import io.edap.json.ValueSetter;
@@ -28,7 +28,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.util.HashMap;
 import java.util.Map;
 
-public class DemoDecoder implements Decoder<DemoPojo> {
+public class DemoDecoder implements JsonDecoder<DemoPojo> {
 
     static final Map<DataRange, ValueSetter<DemoPojo>> SETTER_MAP = new HashMap<>();
 

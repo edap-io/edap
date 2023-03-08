@@ -32,7 +32,7 @@ import java.util.Map;
 import static io.edap.json.util.JsonUtil.getCodecFieldInfos;
 import static io.edap.json.util.JsonUtil.getJsonFieldName;
 
-public class ReflectDecoder implements Decoder<Object> {
+public class ReflectDecoder implements JsonDecoder<Object> {
 
     private final Class valueType;
     private final Constructor constructor;

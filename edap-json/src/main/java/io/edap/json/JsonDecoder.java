@@ -22,7 +22,7 @@ import java.lang.reflect.InvocationTargetException;
  * 定义JSON反序列化解码器
  * @param <T> 对象的类型
  */
-public interface Decoder<T> {
+public interface JsonDecoder<T> {
 
     /**
      * 使用JsonParser解析器解码一个类实例

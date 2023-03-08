@@ -16,51 +16,53 @@
 
 package io.edap.json.test;
 
-import io.edap.json.Decoder;
+import io.edap.json.JsonDecoder;
 import io.edap.json.JsonParseException;
 import io.edap.json.JsonReader;
-import io.edap.json.NodeType;
+import io.edap.json.model.DataRange;
 import io.edap.json.test.model.DemoOneString;
 
 import java.lang.reflect.InvocationTargetException;
 
-public class DemoOneStringDecoder implements Decoder<DemoOneString> {
+public class DemoOneStringDecoder implements JsonDecoder<DemoOneString> {
     @Override
     public DemoOneString decode(JsonReader jsonReader) throws InvocationTargetException, InstantiationException, IllegalAccessException {
-        NodeType nodeType = jsonReader.readStart();
-        if (nodeType != NodeType.OBJECT) {
+        char c = jsonReader.firstNotSpaceChar();
+        if (c != '{') {
             return null;
         }
         jsonReader.nextPos(1);
-        char c = jsonReader.firstNotSpaceChar();
+        c = jsonReader.firstNotSpaceChar();
         DemoOneString pojo = new DemoOneString();
         if (c == '}') {
             return pojo;
         }
-        int hash = jsonReader.keyHash();
-        if (hash == 1212206434) {
-            pojo.setField1(jsonReader.readString());
+        DataRange<byte[]> dr = jsonReader.readKeyRange();
+        switch (dr.hashCode()) {
+            case 1212206434:
+                pojo.setField1(jsonReader.readString());
+                break;
+            default:
+                jsonReader.skipValue();
+                break;
         }
         c = jsonReader.firstNotSpaceChar();
         while (c == ',') {
             jsonReader.nextPos(1);
-
-//            hash = jsonReader.keyHash();
-//            if (hash == 1212206434) {
-//                pojo.field1 = jsonReader.readString();
-//            }
-//                setter = fieldSetters.get(dr);
-//                if (setter != null) {
-//                    setter.set(pojo, jsonReader);
-//                } else {
-//                    jsonReader.skipValue();
-//                }
+            dr = jsonReader.readKeyRange();
+            switch (dr.hashCode()) {
+                case 1212206434:
+                    pojo.setField1(jsonReader.readString());
+                    break;
+                default:
+                    jsonReader.skipValue();
+                    break;
+            }
             c = jsonReader.firstNotSpaceChar();
         }
         if (c != '}') {
             throw new JsonParseException("key and value 后为不符合json字符[" + (char)c + "]");
         }
-
         return pojo;
     }
 }

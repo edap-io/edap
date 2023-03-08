@@ -16,7 +16,6 @@
 
 package io.edap.json;
 
-import io.edap.json.enums.DataType;
 import io.edap.json.model.DataRange;
 import io.edap.json.model.StringDataRange;
 
@@ -44,7 +43,7 @@ public class StringJsonReader implements JsonReader {
     protected String json;
     protected int end;
 
-    static DecoderRegister DECODER_REGISTE = DecoderRegister.instance();
+    static JsonCodecRegister DECODER_REGISTE = JsonCodecRegister.instance();
 
     public StringJsonReader(String jsonStr) {
         pos = 0;
@@ -117,7 +116,7 @@ public class StringJsonReader implements JsonReader {
 
     @Override
     public <T> T readObject(Class<T> valueType) throws InvocationTargetException, InstantiationException, IllegalAccessException {
-        Decoder decoder = DECODER_REGISTE.getDecoder(valueType, STRING);
+        JsonDecoder decoder = DECODER_REGISTE.getDecoder(valueType, STRING);
         if (decoder != null) {
             return (T)decoder.decode(this);
         }
