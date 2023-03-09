@@ -332,54 +332,52 @@ public class ByteArrayReader extends AbstractReader {
         if (len < 0) {
             return null;
         }
-//        char[] cs = null;
-//        if (len < 4096 && tmp == null) {
-//            tmp = LOCAL_TMP_CHAR_ARRAY.get();
-//        }
-//        cs = tmp;
-//        if (cs == null) {
-//            cs = new char[len];
-//        }
-//        int index = 0;
-//        int tmpPos = pos;
-//        for (int i=0;i<len;i++) {
-//            int b = buf[tmpPos++];
-//            if ((b & 0x80) == 0) {
-//                cs[index++] = (char)b;
-//            } else {
-//                byte b2 = buf[tmpPos++];
-//                i++;
-//                if ((b & 0xE0) == 0xC0) {
-//                    cs[index++] = (char)(((b & 0x1F) << 6) + (b2 & 0x3F));
-//                } else {
-//                    byte b3 = buf[tmpPos++];
-//                    i++;
-//                    if ((b & 0xF0) == 0xE0) {
-//                        cs[index++] = (char)(((b & 0x0F) << 12)
-//                                + ((b2 & 0x3F) << 6) + (b3 & 0x3F));
-//                    } else {
-//                        byte b4 = buf[tmpPos++];
-//                        i++;
-//                        if ((b & 0xF8) == 0xF0) {
-//                            b = ((b & 0x07) << 18) + ((b2 & 0x3F) << 12)
-//                                    + ((b3 & 0x3F) << 6) + (b4 & 0x3F);
-//                        } else {
-//                            throw new RuntimeException();
-//                        }
-//                        if (b >= 0x10000) {
-//                            if (b >= 0x110000) {
-//                                throw new RuntimeException();
-//                            }
-//                            int sup = b - 0x10000;
-//                            cs[index++] = (char)((sup >>> 10) + 0xd800);
-//                            cs[index++] = (char)((sup & 0x3ff) + 0xdc00);
-//                        }
-//                    }
-//                }
-//            }
-//        }
-//        String s = new String(cs, 0, index);
-        String s = new String(buf, pos, len, CHARSET_UTF8);
+        char[] cs;
+        if (len < 4096 && tmp == null) {
+            cs = LOCAL_TMP_CHAR_ARRAY.get();
+        } else {
+            cs = new char[len];
+        }
+        int index = 0;
+        int tmpPos = pos;
+        for (int i=0;i<len;i++) {
+            int b = buf[tmpPos++];
+            if ((b & 0x80) == 0) {
+                cs[index++] = (char)b;
+            } else {
+                byte b2 = buf[tmpPos++];
+                i++;
+                if ((b & 0xE0) == 0xC0) {
+                    cs[index++] = (char)(((b & 0x1F) << 6) + (b2 & 0x3F));
+                } else {
+                    byte b3 = buf[tmpPos++];
+                    i++;
+                    if ((b & 0xF0) == 0xE0) {
+                        cs[index++] = (char)(((b & 0x0F) << 12)
+                                + ((b2 & 0x3F) << 6) + (b3 & 0x3F));
+                    } else {
+                        byte b4 = buf[tmpPos++];
+                        i++;
+                        if ((b & 0xF8) == 0xF0) {
+                            b = ((b & 0x07) << 18) + ((b2 & 0x3F) << 12)
+                                    + ((b3 & 0x3F) << 6) + (b4 & 0x3F);
+                        } else {
+                            throw new RuntimeException();
+                        }
+                        if (b >= 0x10000) {
+                            if (b >= 0x110000) {
+                                throw new RuntimeException();
+                            }
+                            int sup = b - 0x10000;
+                            cs[index++] = (char)((sup >>> 10) + 0xd800);
+                            cs[index++] = (char)((sup & 0x3ff) + 0xdc00);
+                        }
+                    }
+                }
+            }
+        }
+        String s = new String(cs, 0, index);
+        //String s = new String(buf, pos, len, CHARSET_UTF8);
         pos += len;
         return s;
     }

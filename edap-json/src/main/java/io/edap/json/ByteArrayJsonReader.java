@@ -145,7 +145,111 @@ public class ByteArrayJsonReader implements JsonReader {
         } catch (ArrayIndexOutOfBoundsException ignore) {
             throw new JsonParseException("JSON string was not closed with a char[" + quotation + "]");
         }
+
         return null;
+    }
+
+    private int readNoAsciiString(char[] tmp, int useLen, int pos, int readLen, byte quotation) {
+        int bc;
+        for (int i=0;i<readLen;i++) {
+            bc = json[pos++];
+            if (bc == quotation) {
+                this.pos = pos;
+                return i;
+            }
+            if (bc == '\\') {
+                if (i >= readLen) {
+                    this.pos = pos-1;
+                    return useLen;
+                }
+                i++;
+                bc = json[pos++];
+                switch (bc) {
+                    case 'b':
+                        bc = '\b';
+                        break;
+                    case 't':
+                        bc = '\t';
+                        break;
+                    case 'n':
+                        bc = '\n';
+                        break;
+                    case 'f':
+                        bc = '\f';
+                        break;
+                    case 'r':
+                        bc = '\r';
+                        break;
+                    case '"':
+                    case '/':
+                    case '\\':
+                        break;
+                    case 'u':
+                        if (i+4>=readLen) {
+                            this.pos = pos-2;
+                            return useLen;
+                        }
+                        i += 4;
+                        bc = (hexToInt(json[pos++]) << 12) +
+                                (hexToInt(json[pos++]) << 8) +
+                                (hexToInt(json[pos++]) << 4) +
+                                hexToInt(json[pos++]);
+                        break;
+
+                    default:
+                        throw new JsonParseException("Could not parse String at position: " + (pos-1)
+                                + ". Invalid escape combination detected: '\\" + bc + "'");
+
+                }
+            } else if ((bc & 0x80) != 0) {
+                if (i+3 >= readLen) {
+                    this.pos = pos--;
+                    return useLen;
+                }
+                i++;
+                final int u2 = json[pos++];
+                if ((bc & 0xE0) == 0xC0) {
+                    bc = ((bc & 0x1F) << 6) + (u2 & 0x3F);
+                } else {
+                    i++;
+                    final int u3 = json[pos++];
+                    if ((bc & 0xF0) == 0xE0) {
+                        bc = ((bc & 0x0F) << 12) + ((u2 & 0x3F) << 6) + (u3 & 0x3F);
+                    } else {
+                        i++;
+                        final int u4 = json[pos++];
+                        if ((bc & 0xF8) == 0xF0) {
+                            bc = ((bc & 0x07) << 18) + ((u2 & 0x3F) << 12) + ((u3 & 0x3F) << 6) + (u4 & 0x3F);
+                        } else {
+                            // there are legal 5 & 6 byte combinations, but none are _valid_
+                            throw new JsonParseException("Invalid unicode character detected at: " + pos);
+                        }
+
+                        if (bc >= 0x10000) {
+                            // check if valid unicode
+                            if (bc >= 0x110000) {
+                                throw new JsonParseException("Invalid unicode character detected at: " + pos);
+                            }
+
+                            // split surrogates
+                            final int sup = bc - 0x10000;
+                            tmp[useLen++] = (char) ((sup >>> 10) + 0xd800);
+                            tmp[useLen++] = (char) ((sup & 0x3ff) + 0xdc00);
+                            continue;
+                        }
+                    }
+                }
+            }
+            tmp[useLen++] = (char)bc;
+        }
+        return readLen;
+    }
+
+    private static int hexToInt(final byte value) {
+        if (value >= '0' && value <= '9') return value - 0x30;
+        if (value >= 'A' && value <= 'F') return value - 0x37;
+        if (value >= 'a' && value <= 'f') return value - 0x57;
+        throw new JsonParseException("Could not parse unicode escape, expected a hexadecimal digit, got '" + value + "'");
     }
 
 //    protected String readQuotationMarksString(char quotation) {
