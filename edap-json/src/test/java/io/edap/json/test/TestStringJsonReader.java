@@ -833,4 +833,9 @@ public class TestStringJsonReader {
         assertNotNull(pojo);
     }
 
+    @Test
+    public void testReadQuotationMarksString() {
+
+    }
+
 }

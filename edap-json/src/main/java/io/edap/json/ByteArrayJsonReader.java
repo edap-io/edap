@@ -145,7 +145,12 @@ public class ByteArrayJsonReader implements JsonReader {
         } catch (ArrayIndexOutOfBoundsException ignore) {
             throw new JsonParseException("JSON string was not closed with a char[" + quotation + "]");
         }
-
+        int oldPos = _pos;
+        int readLen = tmpChars.length - charLen;
+        int len = readNoAsciiString(tmpChars, charLen, _pos, readLen, (byte)quotation);
+        if (pos - oldPos < readLen) {
+            return new String(tmpChars, 0, len);
+        }
         return null;
     }
 
@@ -155,7 +160,7 @@ public class ByteArrayJsonReader implements JsonReader {
             bc = json[pos++];
             if (bc == quotation) {
                 this.pos = pos;
-                return i;
+                return useLen;
             }
             if (bc == '\\') {
                 if (i >= readLen) {
@@ -242,7 +247,8 @@ public class ByteArrayJsonReader implements JsonReader {
             }
             tmp[useLen++] = (char)bc;
         }
-        return readLen;
+        this.pos = pos;
+        return useLen;
     }
 
     private static int hexToInt(final byte value) {
