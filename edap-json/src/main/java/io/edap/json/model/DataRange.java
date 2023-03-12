@@ -29,4 +29,5 @@ public interface DataRange<T> {
 
     DataRange end(int end);
 
+    int keyHashCode(String key);
 }

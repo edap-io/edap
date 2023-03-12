@@ -16,6 +16,7 @@
 
 package io.edap.json.util;
 
+import io.edap.json.enums.DataType;
 import io.edap.json.model.JsonFieldInfo;
 import io.edap.util.StringUtil;
 
@@ -96,11 +97,29 @@ public class JsonUtil {
         return ECMAS_ALLOW_OTHER_CHARS[c];
     }
 
-    public static String buildEncoderName(Class pojoCls) {
+    public static String buildDecoderName(Class pojoCls) {
         if (pojoCls == null) {
             return "";
         }
-        StringBuilder sb = new StringBuilder("eje.");
+        StringBuilder sb = new StringBuilder("ejd.");
+        if (pojoCls.getPackage() != null) {
+            sb.append(pojoCls.getPackage().getName()).append(".");
+        }
+        sb.append(pojoCls.getSimpleName()).append("Encoder");
+        return sb.toString();
+    }
+
+    public static String buildDecoderName(Class pojoCls, DataType dataType) {
+        if (pojoCls == null) {
+            return "";
+        }
+        StringBuilder sb = new StringBuilder("ejd");
+        if (dataType == DataType.STRING) {
+            sb.append('s');
+        } else {
+            sb.append('b');
+        }
+        sb.append('.');
         if (pojoCls.getPackage() != null) {
             sb.append(pojoCls.getPackage().getName()).append(".");
         }
@@ -110,6 +129,28 @@ public class JsonUtil {
 
     public static boolean isBaseType(Field field) {
         return field.getType().isPrimitive();
+    }
+
+    public static String getReadMethod(JsonFieldInfo jfi) {
+        String type = jfi.field.getType().getName();
+        String method = "";
+        switch (type) {
+            case "boolean":
+                method = "readBoolean";
+                break;
+            case "java.lang.String":
+                method = "readString";
+                break;
+            case "int":
+                method = "readInt";
+                break;
+            case "long":
+                method = "readLong";
+                break;
+            default:
+                method = "writeObject";
+        }
+        return method;
     }
 
     public static String getWriteMethod(Field field) {
@@ -166,15 +207,12 @@ public class JsonUtil {
     public static List<JsonFieldInfo> getCodecFieldInfos(Class pojoCls) {
         List<JsonFieldInfo> fs = new ArrayList<>();
         List<Field> fields = getClassFields(pojoCls);
+
         Iterator itr = fields.iterator();
-        List<Field> needMethods = new ArrayList<>();
+        List<Field> needCodecFields = new ArrayList<>();
         while (itr.hasNext()) {
             Field f = (Field)itr.next();
-            if (f.getModifiers() != Modifier.PUBLIC) {
-                needMethods.add(f);
-            } else {
-                fs.add(new JsonFieldInfo(f, null));
-            }
+            needCodecFields.add(f);
         }
         Method[] am = pojoCls.getDeclaredMethods();
         List<Method> allMethod = new ArrayList<>();
@@ -183,27 +221,68 @@ public class JsonUtil {
                 allMethod.add(m);
             }
         }
+
         fillParentMethod(pojoCls, allMethod);
         Map<String, Method> aMethod = new HashMap<>();
-        allMethod.forEach(m -> aMethod.put(m.getName(), m));
-        for (Field f : needMethods) {
+        for (int i=0;i<allMethod.size();i++) {
+            Method m = allMethod.get(i);
+            aMethod.put(m.getName(), m);
+        }
+
+        for (Field f : needCodecFields) {
+            JsonFieldInfo jfi = new JsonFieldInfo();
+            jfi.field = f;
             Method m = getAccessMethod(f, "get", aMethod);
             if (m != null) {
-                fs.add(new JsonFieldInfo(f, m));
+                jfi.method = m;
             } else {
                 m = getAccessMethod(f, "is", aMethod);
                 if (m != null) {
-                    fs.add(new JsonFieldInfo(f, m));
+                    jfi.method = m;
                 }
             }
+            Method setMethod = getSetMethod(f, aMethod);
+            if (setMethod != null) {
+                jfi.setMethod = setMethod;
+            }
+            fs.add(jfi);
         }
+
+
+
         for (JsonFieldInfo jfi : fs) {
             if (isMap(jfi.field.getGenericType())) {
                 jfi.isMap = true;
             }
+            jfi.hasGetAccessed = Modifier.isPublic(jfi.field.getModifiers()) || jfi.method != null;
+            jfi.hasSetAccessed = Modifier.isPublic(jfi.field.getModifiers()) || jfi.setMethod != null;
         }
-        Collections.sort(fs, Comparator.comparing((JsonFieldInfo o) -> o.field.getName()));
+        //Collections.sort(fs, Comparator.comparing((JsonFieldInfo o) -> o.field.getName()));
         return fs;
+    }
+
+    /**
+     * 查找是否有获取private标识field的方法
+     * @param f
+     * @param aMethod
+     * @return
+     */
+    private static Method getSetMethod(Field f, Map<String, Method> aMethod) {
+        String methodName = "set" + upperCaseFirst(f.getName());
+        Method m = aMethod.get(methodName);
+        if (m != null && m.getParameters().length == 1) {
+            if (f.getGenericType().getTypeName().equals(m.getGenericParameterTypes()[0].getTypeName())) {
+                return m;
+            }
+        }
+        methodName = f.getName();
+        m = aMethod.get(methodName);
+        if (m != null && m.getParameters().length == 1) {
+            if (f.getGenericType().getTypeName().equals(m.getGenericParameterTypes()[0].getTypeName())) {
+                return m;
+            }
+        }
+        return null;
     }
 
     /**
@@ -216,18 +295,14 @@ public class JsonUtil {
         String methodName = prefix + upperCaseFirst(f.getName());
         Method m = aMethod.get(methodName);
         if (m != null && m.getParameters().length == 0) {
-            String fd = getDescriptor(f.getGenericType());
-            String md = getDescriptor(m.getGenericReturnType());
-            if (fd.equals(md)) {
+            if (f.getGenericType().getTypeName().equals(m.getGenericReturnType().getTypeName())) {
                 return m;
             }
         }
         methodName = f.getName();
         m = aMethod.get(methodName);
         if (m != null && m.getParameters().length == 0) {
-            String fd = getDescriptor(f.getGenericType());
-            String md = getDescriptor(m.getGenericReturnType());
-            if (fd.equals(md)) {
+            if (f.getGenericType().getTypeName().equals(m.getGenericReturnType().getTypeName())) {
                 return m;
             }
         }
@@ -240,17 +315,5 @@ public class JsonUtil {
             name = jsonFieldName;
         }
         return name;
-    }
-
-    public static String getDecoderName(Class pojoCls) {
-        if (pojoCls == null) {
-            return "";
-        }
-        StringBuilder sb = new StringBuilder("jbd.");
-        if (pojoCls.getPackage() != null) {
-            sb.append(pojoCls.getPackage().getName()).append(".");
-        }
-        sb.append(pojoCls.getSimpleName()).append("Decoder");
-        return sb.toString();
     }
 }

@@ -21,6 +21,7 @@ import io.edap.protobuf.ProtoBufException;
 import io.edap.protobuf.ext.AnyCodec;
 import io.edap.protobuf.wire.Field.Type;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -377,7 +378,7 @@ public class ByteArrayReader extends AbstractReader {
             }
         }
         String s = new String(cs, 0, index);
-        //String s = new String(buf, pos, len, CHARSET_UTF8);
+        //String s = new String(buf, pos, len, StandardCharsets.UTF_8);
         pos += len;
         return s;
     }

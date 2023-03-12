@@ -22,32 +22,33 @@ import io.edap.json.JsonParseException;
 import io.edap.json.JsonReader;
 import io.edap.json.model.DataRange;
 import io.edap.json.test.model.DemoOneString;
+import io.edap.json.test.model.DemoPojo;
 
 import java.lang.reflect.InvocationTargetException;
 
-public class DemoOneStringDecoder extends AbstractDecoder implements JsonDecoder<DemoOneString> {
+public class DemoPojoDecoder extends AbstractDecoder implements JsonDecoder<DemoPojo> {
     @Override
-    public DemoOneString decode(JsonReader jsonReader) throws InvocationTargetException, InstantiationException, IllegalAccessException {
+    public DemoPojo decode(JsonReader jsonReader) throws InvocationTargetException, InstantiationException, IllegalAccessException {
         char c = jsonReader.firstNotSpaceChar();
         if (c != '{') {
             return null;
         }
         jsonReader.nextPos(1);
         c = jsonReader.firstNotSpaceChar();
-        DemoOneString pojo = new DemoOneString();
+        DemoPojo pojo = new DemoPojo();
         if (c == '}') {
             return pojo;
         }
         DataRange<byte[]> dr = jsonReader.readKeyRange();
         switch (dr.hashCode()) {
             case 1212206434:
-                pojo.setField1(jsonReader.readString());
+                pojo.setAge(jsonReader.readInt());
                 break;
             case 567:
-                pojo.setField1(jsonReader.readString());
+                pojo.setName(jsonReader.readString());
                 break;
             case 789:
-                pojo.setField1(jsonReader.readString());
+                pojo.setOld(jsonReader.readBoolean());
                 break;
             default:
                 jsonReader.skipValue();
@@ -59,13 +60,13 @@ public class DemoOneStringDecoder extends AbstractDecoder implements JsonDecoder
             dr = jsonReader.readKeyRange();
             switch (dr.hashCode()) {
                 case 1212206434:
-                    pojo.setField1(jsonReader.readString());
+                    pojo.setAge(jsonReader.readInt());
                     break;
                 case 567:
-                    pojo.setField1(jsonReader.readString());
+                    pojo.setName(jsonReader.readString());
                     break;
                 case 789:
-                    pojo.setField1(jsonReader.readString());
+                    pojo.setOld(jsonReader.readBoolean());
                     break;
                 default:
                     jsonReader.skipValue();

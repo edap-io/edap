@@ -22,7 +22,7 @@ public class Asm {
         System.out.println("short Max=" + Short.MAX_VALUE);
 
         String clsPath = "/Users/louis/NetBeansProjects/edap/edap-json/target/test-classes/" +
-                "io/edap/json/test/DemoOneStringDecoder.class";
+                "io/edap/json/test/DemoPojoDecoder.class";
         ClassReader cr;
         if (clsPath.endsWith(".class") || clsPath.indexOf('\\') > -1
                 || clsPath.indexOf('/') > -1) {

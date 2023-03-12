@@ -99,6 +99,17 @@ public class ByteArrayDataRange implements DataRange<byte[]> {
     }
 
     @Override
+    public int keyHashCode(String key) {
+        long hashCode = FNV_1a_INIT_VAL;
+        byte[] bs = key.getBytes(StandardCharsets.UTF_8);
+        for (int i=0;i<bs.length;i++) {
+            hashCode ^= bs[i];
+            hashCode *= FNV_1a_FACTOR_VAL;
+        }
+        return (int)hashCode;
+    }
+
+    @Override
     public boolean equals(Object dataRange) {
         if (this == dataRange) {
             return true;

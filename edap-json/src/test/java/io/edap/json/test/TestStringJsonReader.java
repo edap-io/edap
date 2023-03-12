@@ -834,8 +834,133 @@ public class TestStringJsonReader {
     }
 
     @Test
-    public void testReadQuotationMarksString() {
+    public void testReadString() {
+        String json = "\"InvocationTargetException\"";
 
+        ByteArrayJsonReader bsReader = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
+        String s = bsReader.readString();
+        assertEquals(json.substring(1, json.length()-1), s);
+
+        json = "\"012345678901234567890123456789012345678901234567890123456789012345678901234567" +
+                "8901234567890123456789012345678901234567890123456789012345678901234567890123456789\"";
+        bsReader = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
+        s = bsReader.readString();
+        System.out.println("src.len=" + (json.length() - 2));
+        System.out.println("desc.len=" + s.length());
+        assertEquals(json.substring(1, json.length()-1), s);
+
+        json = "\"Invo\\bfd\"";
+        System.out.println("json=[" + json + "]");
+        bsReader = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
+        s = bsReader.readString();
+        assertEquals("Invo\bfd", s);
+
+        json = "\"Invo\\bfd123456\"";
+        System.out.println("json=[" + json + "]");
+        bsReader = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
+        s = bsReader.readString();
+        assertEquals("Invo\bfd123456", s);
+
+        json = "\"Invo\\t\"";
+        System.out.println("json=[" + json + "]");
+        bsReader = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
+        s = bsReader.readString();
+        assertEquals("Invo\t", s);
+
+        json = "\"Invo\\t123456\"";
+        System.out.println("json=[" + json + "]");
+        bsReader = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
+        s = bsReader.readString();
+        assertEquals("Invo\t123456", s);
+
+        json = "\"Invo\\n\"";
+        System.out.println("json=[" + json + "]");
+        bsReader = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
+        s = bsReader.readString();
+        assertEquals("Invo\n", s);
+
+        json = "\"Invo\\n123456\"";
+        System.out.println("json=[" + json + "]");
+        bsReader = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
+        s = bsReader.readString();
+        assertEquals("Invo\n123456", s);
+
+        json = "\"Invo\\f\"";
+        System.out.println("json=[" + json + "]");
+        bsReader = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
+        s = bsReader.readString();
+        assertEquals("Invo\f", s);
+
+        json = "\"Invo\\f123456\"";
+        System.out.println("json=[" + json + "]");
+        bsReader = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
+        s = bsReader.readString();
+        assertEquals("Invo\f123456", s);
+
+        json = "\"Invo\\r\"";
+        System.out.println("json=[" + json + "]");
+        bsReader = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
+        s = bsReader.readString();
+        assertEquals("Invo\r", s);
+
+        json = "\"Invo\\r123456\"";
+        System.out.println("json=[" + json + "]");
+        bsReader = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
+        s = bsReader.readString();
+        assertEquals("Invo\r123456", s);
+
+        json = "\"Invo\\u7814\"";
+        System.out.println("json=[" + json + "]");
+        bsReader = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
+        s = bsReader.readString();
+        System.out.println("str=[" + s + "]");
+        assertEquals("Invo研", s);
+
+        json = "\"Invo\\u7814123456\"";
+        System.out.println("json=[" + json + "]");
+        bsReader = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
+        s = bsReader.readString();
+        System.out.println("str=[" + s + "]");
+        assertEquals("Invo研123456", s);
+
+        json = "\"Invo\\u7814\"";
+        System.out.println("json=[" + json + "]");
+        bsReader = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8), 7);
+        s = bsReader.readString();
+        System.out.println("str=[" + s + "]");
+        assertEquals("Invo研", s);
+
+        json = "\"Invo\\u7814123456\"";
+        System.out.println("json=[" + json + "]");
+        bsReader = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8), 7);
+        s = bsReader.readString();
+        System.out.println("str=[" + s + "]");
+        assertEquals("Invo研123456", s);
+
+        JsonParseException thrown = assertThrows(JsonParseException.class,
+                () -> {
+                    String json2 = "\"123\\\"ok";
+                    ByteArrayJsonReader read = new ByteArrayJsonReader(json2.getBytes(StandardCharsets.UTF_8), 4);
+                    read.readString();
+                });
+        assertTrue(thrown.getMessage().contains("JSON string was not closed with a char["));
+
+        thrown = assertThrows(JsonParseException.class,
+                () -> {
+                    String json2 = "\"InvocationTargetException";
+                    ByteArrayJsonReader reader = new ByteArrayJsonReader(json2.getBytes(StandardCharsets.UTF_8));
+                    reader.readString();
+                });
+        assertTrue(thrown.getMessage().contains("JSON string was not closed with a char["));
+
+        thrown = assertThrows(JsonParseException.class,
+                () -> {
+                    String json2 = "\"Invo";
+                    ByteArrayJsonReader reader = new ByteArrayJsonReader(
+                            json2.getBytes(StandardCharsets.UTF_8), 4);
+                    reader.readString();
+                });
+        assertTrue(thrown.getMessage().contains("JSON string was not closed with a char["));
     }
 
 }

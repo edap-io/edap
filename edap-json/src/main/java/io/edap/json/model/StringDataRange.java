@@ -73,6 +73,16 @@ public class StringDataRange implements DataRange<String> {
     }
 
     @Override
+    public int keyHashCode(String key) {
+        long hashCode = FNV_1a_INIT_VAL;
+        for (int i=0;i<key.length();i++) {
+            hashCode ^= key.charAt(i);
+            hashCode *= FNV_1a_FACTOR_VAL;
+        }
+        return (int)hashCode;
+    }
+
+    @Override
     public boolean equals(Object dataRange) {
         if (this == dataRange) {
             return true;

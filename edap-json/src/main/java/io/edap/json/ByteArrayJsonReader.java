@@ -22,6 +22,7 @@ import io.edap.json.model.DataRange;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -40,16 +41,24 @@ public class ByteArrayJsonReader implements JsonReader {
     protected byte[] json;
     protected int end;
 
-    private char[] tmpChars = new char[64];
+    protected boolean needExpandChars;
+
+    private char[] tmpChars;
 
     static ByteArrayDataRange byteArrayDataRange = new ByteArrayDataRange();
 
     static JsonCodecRegister DECODER_REGISTE = JsonCodecRegister.instance();
 
     public ByteArrayJsonReader(byte[] bytes) {
+        this(bytes, 64);
+    }
+
+    public ByteArrayJsonReader(byte[] bytes, int tmpChars) {
         this.json = bytes;
         this.pos = 0;
         this.end = bytes.length;
+        this.tmpChars = new char[tmpChars];
+        this.needExpandChars = false;
     }
 
     @Override
@@ -122,22 +131,24 @@ public class ByteArrayJsonReader implements JsonReader {
         return key;
     }
 
-    protected String readQuotationMarksString(char quotation) {
+    protected String readQuotationMarksString2(char quotation) {
         int _pos = pos;
         //byte[] _json = json;
         int charLen = 0;
-        byte c = 0;
+        byte c;
+        char[] chars = tmpChars;
+        int clen = chars.length;
         try {
-            for (; charLen < tmpChars.length; _pos++) {
+            for (; charLen < clen; _pos++) {
                 c = json[_pos];
                 if (c == (byte) quotation) {
                     pos = _pos + 1;
-                    return new String(tmpChars, 0, charLen);
+                    return new String(chars, 0, charLen);
                 }
                 if ((c ^ '\\') < 1) {
                     break;
                 }
-                tmpChars[charLen++] = (char) c;
+                chars[charLen++] = (char) c;
             }
             if (_pos >= end) {
                 throw new JsonParseException("JSON string was not closed with a char[" + quotation + "]");
@@ -145,30 +156,137 @@ public class ByteArrayJsonReader implements JsonReader {
         } catch (ArrayIndexOutOfBoundsException ignore) {
             throw new JsonParseException("JSON string was not closed with a char[" + quotation + "]");
         }
-        int oldPos = _pos;
-        int readLen = tmpChars.length - charLen;
-        int len = readNoAsciiString(tmpChars, charLen, _pos, readLen, (byte)quotation);
-        if (pos - oldPos < readLen) {
-            return new String(tmpChars, 0, len);
+        if (charLen == clen) {
+            chars = tmpChars = Arrays.copyOf(chars, clen * 2);
+            clen = chars.length;
         }
-        return null;
+        int bc;
+        try {
+            while (true) {
+                while (charLen != clen) {
+                    bc = json[_pos++];
+                    if (bc == quotation) {
+                        this.pos = _pos--;
+                        return new String(chars, 0, charLen);
+                    }
+                    if (bc == '\\') {
+                        bc = json[_pos++];
+                        switch (bc) {
+                            case 'b':
+                                bc = '\b';
+                                break;
+                            case 't':
+                                bc = '\t';
+                                break;
+                            case 'n':
+                                bc = '\n';
+                                break;
+                            case 'f':
+                                bc = '\f';
+                                break;
+                            case 'r':
+                                bc = '\r';
+                                break;
+                            case '"':
+                            case '/':
+                            case '\\':
+                                break;
+                            case 'u':
+                                bc = (hexToInt(json[_pos++]) << 12) +
+                                        (hexToInt(json[_pos++]) << 8) +
+                                        (hexToInt(json[_pos++]) << 4) +
+                                        hexToInt(json[_pos++]);
+                                break;
+
+                            default:
+                                throw new JsonParseException("Could not parse String at position: " + (pos - 1)
+                                        + ". Invalid escape combination detected: '\\" + bc + "'");
+
+                        }
+                    } else if ((bc & 0x80) != 0) {
+                        final int u2 = json[_pos++];
+                        if ((bc & 0xE0) == 0xC0) {
+                            bc = ((bc & 0x1F) << 6) + (u2 & 0x3F);
+                        } else {
+                            final int u3 = json[_pos++];
+                            if ((bc & 0xF0) == 0xE0) {
+                                bc = ((bc & 0x0F) << 12) + ((u2 & 0x3F) << 6) + (u3 & 0x3F);
+                            } else {
+                                final int u4 = json[_pos++];
+                                if ((bc & 0xF8) == 0xF0) {
+                                    bc = ((bc & 0x07) << 18) + ((u2 & 0x3F) << 12) + ((u3 & 0x3F) << 6) + (u4 & 0x3F);
+                                } else {
+                                    // there are legal 5 & 6 byte combinations, but none are _valid_
+                                    throw new JsonParseException("Invalid unicode character detected at: " + pos);
+                                }
+
+                                if (bc >= 0x10000) {
+                                    // check if valid unicode
+                                    if (bc >= 0x110000) {
+                                        throw new JsonParseException("Invalid unicode character detected at: " + pos);
+                                    }
+
+                                    // split surrogates
+                                    final int sup = bc - 0x10000;
+                                    chars[charLen++] = (char) ((sup >>> 10) + 0xd800);
+                                    chars[charLen++] = (char) ((sup & 0x3ff) + 0xdc00);
+                                    continue;
+                                }
+                            }
+                        }
+                    }
+                    chars[charLen++] = (char) bc;
+                }
+                chars = tmpChars = Arrays.copyOf(chars, clen * 2);
+                clen = chars.length;
+            }
+        } catch (ArrayIndexOutOfBoundsException ignore) {
+            throw new JsonParseException("JSON string was not closed with a char[" + quotation + "]");
+        }
     }
 
-    private int readNoAsciiString(char[] tmp, int useLen, int pos, int readLen, byte quotation) {
+    protected String readQuotationMarksString(char quotation) {
+        int _pos = pos;
+        //byte[] _json = json;
+        int charLen = 0;
+        byte c = 0;
+        char[] chars = tmpChars;
+        int clen = chars.length;
+        try {
+            for (; charLen < clen; _pos++) {
+                c = json[_pos];
+                if (c == (byte) quotation) {
+                    pos = _pos + 1;
+                    return new String(chars, 0, charLen);
+                }
+                if ((c ^ '\\') < 1) {
+                    break;
+                }
+                chars[charLen++] = (char) c;
+            }
+            if (_pos >= end) {
+                throw new JsonParseException("JSON string was not closed with a char[" + quotation + "]");
+            }
+        } catch (ArrayIndexOutOfBoundsException ignore) {
+            throw new JsonParseException("JSON string was not closed with a char[" + quotation + "]");
+        }
+        if (charLen == clen) {
+            chars = tmpChars = Arrays.copyOf(chars, clen * 2);
+            clen = chars.length;
+        }
         int bc;
-        for (int i=0;i<readLen;i++) {
-            bc = json[pos++];
+        while (_pos != end) {
+            bc = json[_pos++];
             if (bc == quotation) {
-                this.pos = pos;
-                return useLen;
+                this.pos = _pos--;
+                return new String(chars, 0, charLen);
             }
             if (bc == '\\') {
-                if (i >= readLen) {
-                    this.pos = pos-1;
-                    return useLen;
+                if (charLen == clen) {
+                    chars = tmpChars = Arrays.copyOf(chars, clen * 2);
+                    clen = chars.length;
                 }
-                i++;
-                bc = json[pos++];
+                bc = json[_pos++];
                 switch (bc) {
                     case 'b':
                         bc = '\b';
@@ -190,39 +308,31 @@ public class ByteArrayJsonReader implements JsonReader {
                     case '\\':
                         break;
                     case 'u':
-                        if (i+4>=readLen) {
-                            this.pos = pos-2;
-                            return useLen;
-                        }
-                        i += 4;
-                        bc = (hexToInt(json[pos++]) << 12) +
-                                (hexToInt(json[pos++]) << 8) +
-                                (hexToInt(json[pos++]) << 4) +
-                                hexToInt(json[pos++]);
+                        bc = (hexToInt(json[_pos++]) << 12) +
+                                (hexToInt(json[_pos++]) << 8) +
+                                (hexToInt(json[_pos++]) << 4) +
+                                hexToInt(json[_pos++]);
                         break;
 
                     default:
-                        throw new JsonParseException("Could not parse String at position: " + (pos-1)
+                        throw new JsonParseException("Could not parse String at position: " + (pos - 1)
                                 + ". Invalid escape combination detected: '\\" + bc + "'");
 
                 }
             } else if ((bc & 0x80) != 0) {
-                if (i+3 >= readLen) {
-                    this.pos = pos--;
-                    return useLen;
+                if (charLen + 1 == clen) {
+                    chars = tmpChars = Arrays.copyOf(chars, clen * 2);
+                    clen = chars.length;
                 }
-                i++;
-                final int u2 = json[pos++];
+                final int u2 = json[_pos++];
                 if ((bc & 0xE0) == 0xC0) {
                     bc = ((bc & 0x1F) << 6) + (u2 & 0x3F);
                 } else {
-                    i++;
-                    final int u3 = json[pos++];
+                    final int u3 = json[_pos++];
                     if ((bc & 0xF0) == 0xE0) {
                         bc = ((bc & 0x0F) << 12) + ((u2 & 0x3F) << 6) + (u3 & 0x3F);
                     } else {
-                        i++;
-                        final int u4 = json[pos++];
+                        final int u4 = json[_pos++];
                         if ((bc & 0xF8) == 0xF0) {
                             bc = ((bc & 0x07) << 18) + ((u2 & 0x3F) << 12) + ((u3 & 0x3F) << 6) + (u4 & 0x3F);
                         } else {
@@ -238,17 +348,20 @@ public class ByteArrayJsonReader implements JsonReader {
 
                             // split surrogates
                             final int sup = bc - 0x10000;
-                            tmp[useLen++] = (char) ((sup >>> 10) + 0xd800);
-                            tmp[useLen++] = (char) ((sup & 0x3ff) + 0xdc00);
+                            chars[charLen++] = (char) ((sup >>> 10) + 0xd800);
+                            chars[charLen++] = (char) ((sup & 0x3ff) + 0xdc00);
                             continue;
                         }
                     }
                 }
+            } else if (charLen == clen) {
+                chars = tmpChars = Arrays.copyOf(chars, clen * 2);
+                clen = chars.length;
             }
-            tmp[useLen++] = (char)bc;
+            chars[charLen++] = (char) bc;
         }
-        this.pos = pos;
-        return useLen;
+        throw new JsonParseException("JSON string was not closed with a char[" + quotation + "]");
+
     }
 
     private static int hexToInt(final byte value) {

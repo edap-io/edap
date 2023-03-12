@@ -111,6 +111,10 @@ public class UnsafeUtil {
         return field;
     }
 
+    public static Object getValue(Object value, long offset) {
+        return UNSAFE.getObject(value, offset);
+    }
+
     public static int readByte(long address) {
         return UNSAFE.getByte(address);
     }

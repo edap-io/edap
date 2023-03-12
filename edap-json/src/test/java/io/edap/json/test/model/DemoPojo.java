@@ -22,7 +22,7 @@ public class DemoPojo {
 
     private int age;
 
-    private boolean isOld;
+    private boolean old;
 
     public String getName() {
         return name;
@@ -41,10 +41,10 @@ public class DemoPojo {
     }
 
     public boolean isOld() {
-        return isOld;
+        return old;
     }
 
     public void setOld(boolean old) {
-        isOld = old;
+        old = old;
     }
 }

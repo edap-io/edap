@@ -18,24 +18,86 @@ package io.edap.json;
 
 import io.edap.json.decoders.ReflectDecoder;
 import io.edap.json.enums.DataType;
+import io.edap.util.internal.GeneratorClassInfo;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+import static io.edap.json.util.JsonUtil.buildDecoderName;
+import static io.edap.util.AsmUtil.saveJavaFile;
+import static io.edap.util.AsmUtil.toLangName;
+import static io.edap.util.CollectionUtils.isEmpty;
+
 public class JsonCodecRegister {
 
-    private Map<String, JsonDecoder> decoderMap = new ConcurrentHashMap<>();
+    private static final Map<String, JsonDecoder> DECODER_MAP = new ConcurrentHashMap<>();
+
+    private final JsonCodecLoader codecLoader = new JsonCodecLoader(this.getClass().getClassLoader());
 
     private JsonCodecRegister() {}
 
     public <T> JsonDecoder<T> getDecoder(Class<T> tClass, DataType dataType) {
         String key = tClass.getName() + "-" + dataType;
-        JsonDecoder decoder = decoderMap.get(key);
+        JsonDecoder decoder = DECODER_MAP.get(key);
+        if (decoder == null) {
+            decoder = generateDecoder(tClass, dataType);
+            DECODER_MAP.put(key, decoder);
+        }
+
         if (decoder == null) {
             decoder = new ReflectDecoder(tClass, dataType);
-            decoderMap.put(key, decoder);
+            DECODER_MAP.put(key, decoder);
         }
         return decoder;
+    }
+
+    private JsonDecoder generateDecoder(Class cls, DataType dataType) {
+        JsonDecoder codec = null;
+        Class decoderCls = generateDecoderClass(cls, dataType);
+        if (decoderCls != null) {
+            try {
+                codec = (JsonDecoder)decoderCls.newInstance();
+            } catch (InstantiationException | IllegalAccessException ex) {
+                throw new RuntimeException("generateDecoder "
+                        + cls.getName() + " error", ex);
+            }
+        }
+        return codec;
+    }
+
+    private Class generateDecoderClass(Class cls, DataType dataType) {
+        Class decoderCls;
+        long start = System.currentTimeMillis();
+        String decoderName = buildDecoderName(cls, dataType);
+        try {
+            JsonDecoderGenerator generator = new JsonDecoderGenerator(cls, dataType);
+            GeneratorClassInfo gci = generator.getClassInfo();
+            byte[] bs = gci.clazzBytes;
+            System.out.println("generate class time: " + (System.currentTimeMillis() - start));
+            saveJavaFile("./" + gci.clazzName + ".class", bs);
+            decoderCls = codecLoader.define(decoderName, bs, 0, bs.length);
+            if (!isEmpty(gci.inners)) {
+                for (GeneratorClassInfo inner : gci.inners) {
+                    bs = inner.clazzBytes;
+                    String innerName = toLangName(inner.clazzName);
+                    saveJavaFile("./" + inner.clazzName + ".class", bs);
+                    codecLoader.define(innerName, bs, 0, bs.length);
+                }
+            }
+        } catch (Throwable e) {
+            try {
+                if (codecLoader.loadClass(decoderName) != null) {
+                    return codecLoader.loadClass(decoderName);
+                }
+            } catch (ClassNotFoundException ex) {
+                throw new RuntimeException("generateDecoder "
+                        + cls.getName() + " error", ex);
+            }
+            throw new RuntimeException("generateDecoder "
+                    + cls.getName() + " error", e);
+        }
+
+        return decoderCls;
     }
 
     public static final JsonCodecRegister instance() {
@@ -44,5 +106,16 @@ public class JsonCodecRegister {
 
     private static class SingletonHolder {
         private static final JsonCodecRegister INSTANCE = new JsonCodecRegister();
+    }
+
+    class JsonCodecLoader extends ClassLoader {
+
+        public JsonCodecLoader(ClassLoader parent) {
+            super(parent);
+        }
+
+        public Class define(String className, byte[] bs, int offset, int len) {
+            return super.defineClass(className, bs, offset, len);
+        }
     }
 }
