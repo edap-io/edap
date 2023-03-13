@@ -281,7 +281,49 @@ public class StringJsonReader implements JsonReader {
         char c = firstNotSpaceChar();
         if (c == '"') {
             skipStringValue('"');
+        } else if (c == '{') {
+            skipObjectValue();
+        } else if (c == '[') {
+            skipArrayValue();
         }
+    }
+
+    private void skipArrayValue() {
+    }
+
+    private void skipObjectValue() {
+        char c = firstNotSpaceChar();
+        if (c == '}') {
+            return;
+        }
+        skipKey(c);
+        skipValue();
+        c = firstNotSpaceChar();
+        while (true) {
+            if (c == '}') {
+                return;
+            } else if (c == ',') {
+                pos++;
+                skipKey(firstNotSpaceChar());
+                skipValue();
+                c = firstNotSpaceChar();
+            } else {
+                throw new JsonParseException("key and value 后为不符合json字符[" + (char)c + "]");
+            }
+        }
+    }
+
+    private void skipKey(char c) {
+        if (c != '"') {
+            throw new JsonParseException("Key must start with '\"'!");
+        }
+        pos++;
+        skipStringValue('"');
+        c = firstNotSpaceChar();
+        if (c != ':') {
+            throw new JsonParseException("Key and value must use colon split");
+        }
+        pos++;
     }
 
     public void skipStringValue(char quotation) {

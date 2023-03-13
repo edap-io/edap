@@ -127,6 +127,36 @@ public class JsonUtil {
         return sb.toString();
     }
 
+    public static String buildEncoderName(Class pojoCls) {
+        if (pojoCls == null) {
+            return "";
+        }
+        StringBuilder sb = new StringBuilder("eje.");
+        if (pojoCls.getPackage() != null) {
+            sb.append(pojoCls.getPackage().getName()).append(".");
+        }
+        sb.append(pojoCls.getSimpleName()).append("Encoder");
+        return sb.toString();
+    }
+
+    public static String buildEncoderName(Class pojoCls, DataType dataType) {
+        if (pojoCls == null) {
+            return "";
+        }
+        StringBuilder sb = new StringBuilder("eje");
+        if (dataType == DataType.STRING) {
+            sb.append('s');
+        } else {
+            sb.append('b');
+        }
+        sb.append('.');
+        if (pojoCls.getPackage() != null) {
+            sb.append(pojoCls.getPackage().getName()).append(".");
+        }
+        sb.append(pojoCls.getSimpleName()).append("Encoder");
+        return sb.toString();
+    }
+
     public static boolean isBaseType(Field field) {
         return field.getType().isPrimitive();
     }
