@@ -123,7 +123,7 @@ public class JsonUtil {
         if (pojoCls.getPackage() != null) {
             sb.append(pojoCls.getPackage().getName()).append(".");
         }
-        sb.append(pojoCls.getSimpleName()).append("Encoder");
+        sb.append(pojoCls.getSimpleName()).append("Decoder");
         return sb.toString();
     }
 
@@ -212,6 +212,9 @@ public class JsonUtil {
         List<Field> needCodecFields = new ArrayList<>();
         while (itr.hasNext()) {
             Field f = (Field)itr.next();
+            if (Modifier.isStatic(f.getModifiers()) || Modifier.isTransient(f.getModifiers())) {
+                continue;
+            }
             needCodecFields.add(f);
         }
         Method[] am = pojoCls.getDeclaredMethods();

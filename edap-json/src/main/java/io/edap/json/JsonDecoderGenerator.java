@@ -5,7 +5,6 @@ import io.edap.json.model.ByteArrayDataRange;
 import io.edap.json.model.DataRange;
 import io.edap.json.model.JsonFieldInfo;
 import io.edap.json.model.StringDataRange;
-import io.edap.json.util.JsonUtil;
 import io.edap.util.StringUtil;
 import io.edap.util.internal.GeneratorClassInfo;
 import org.objectweb.asm.*;
@@ -41,7 +40,7 @@ public class JsonDecoderGenerator {
 
     private ClassWriter cw;
     private String pojoName;
-    String pojoDecoderName;
+    private String pojoDecoderName;
     private final Class pojoCls;
     private final DataType dataType;
 

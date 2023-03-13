@@ -813,7 +813,25 @@ public class ByteArrayJsonReader implements JsonReader {
 
     @Override
     public void skipValue() {
+        char c = firstNotSpaceChar();
+        if (c == '"') {
+            skipStringValue('"');
+        }
+    }
 
+    public void skipStringValue(char quotation) {
+        int _pos = pos;
+        for (;_pos<end;_pos++) {
+            byte c = json[_pos];
+            if (c == quotation && _pos > pos && json[_pos-1] != '\\') {
+                pos = _pos+1;
+                break;
+            } else {
+                if (c == '\\' && _pos+1 < end) {
+                    continue;
+                }
+            }
+        }
     }
 
     @Override

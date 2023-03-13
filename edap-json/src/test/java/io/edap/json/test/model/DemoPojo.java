@@ -45,6 +45,6 @@ public class DemoPojo {
     }
 
     public void setOld(boolean old) {
-        old = old;
+        this.old = old;
     }
 }

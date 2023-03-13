@@ -464,19 +464,19 @@ public class TestStringJsonReader {
 
     @Test
     public void testReadPojoBoolean() throws InvocationTargetException, InstantiationException, IllegalAccessException {
-        String json = "{\"age\":549,\"isOld\":true}";
+        String json = "{\"age\":549,\"old\":true}";
         DemoPojo pojo = new StringJsonReader(json).readObject(DemoPojo.class);
         assertNotNull(pojo);
         assertEquals(pojo.getAge(), 549);
         assertEquals(pojo.isOld(), true);
 
-        json = "{\"name\":\"john325\",\"isOld\":false}";
+        json = "{\"name\":\"john325\",\"old\":false}";
         pojo = new StringJsonReader(json).readObject(DemoPojo.class);
         assertNotNull(pojo);
         assertEquals(pojo.getName(), "john325");
         assertEquals(pojo.isOld(), false);
 
-        json = "{\"isOld\":false,\"name\":\"john325\"}";
+        json = "{\"old\":false,\"name\":\"john325\"}";
         pojo = new StringJsonReader(json).readObject(DemoPojo.class);
         assertNotNull(pojo);
         assertEquals(pojo.getName(), "john325");
@@ -484,21 +484,21 @@ public class TestStringJsonReader {
 
         JsonParseException thrown = assertThrows(JsonParseException.class,
                 () -> {
-                    String json2 = "{\"name\":\"john\",\"isOld\":ts}";
+                    String json2 = "{\"name\":\"john\",\"old\":ts}";
                     DemoPojo pojo2 = new StringJsonReader(json2).readObject(DemoPojo.class);
                 });
         assertTrue(thrown.getMessage().contains("boolean 格式错误"));
 
         thrown = assertThrows(JsonParseException.class,
                 () -> {
-                    String json2 = "{\"name\":\"john\",\"isOld\":fs}";
+                    String json2 = "{\"name\":\"john\",\"old\":fs}";
                     DemoPojo pojo2 = new StringJsonReader(json2).readObject(DemoPojo.class);
                 });
         assertTrue(thrown.getMessage().contains("boolean 格式错误"));
 
         thrown = assertThrows(JsonParseException.class,
                 () -> {
-                    String json2 = "{\"name\":\"john\",\"isOld\":r}";
+                    String json2 = "{\"name\":\"john\",\"old\":r}";
                     DemoPojo pojo2 = new StringJsonReader(json2).readObject(DemoPojo.class);
                 });
         assertTrue(thrown.getMessage().contains("boolean 格式错误"));
@@ -830,6 +830,10 @@ public class TestStringJsonReader {
     public void testSkipVaue() throws InvocationTargetException, InstantiationException, IllegalAccessException {
         String json = "{\"namd\":\"john\"}";
         DemoPojo pojo = new StringJsonReader(json).readObject(DemoPojo.class);
+        assertNotNull(pojo);
+
+        pojo = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8))
+                .readObject(DemoPojo.class);
         assertNotNull(pojo);
     }
 
