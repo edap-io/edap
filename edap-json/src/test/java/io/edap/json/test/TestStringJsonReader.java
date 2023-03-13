@@ -835,6 +835,16 @@ public class TestStringJsonReader {
         pojo = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8))
                 .readObject(DemoPojo.class);
         assertNotNull(pojo);
+
+        json = "{\"name\":\"john\",\"extInfo\":{\"weight\":100,\"height\":175}}";
+        pojo = new StringJsonReader(json).readObject(DemoPojo.class);
+        assertNotNull(pojo);
+        assertEquals(pojo.getName(), "john");
+
+        pojo = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8))
+                .readObject(DemoPojo.class);
+        assertNotNull(pojo);
+        assertEquals(pojo.getName(), "john");
     }
 
     @Test
@@ -965,6 +975,23 @@ public class TestStringJsonReader {
                     reader.readString();
                 });
         assertTrue(thrown.getMessage().contains("JSON string was not closed with a char["));
+
+        thrown = assertThrows(JsonParseException.class,
+                () -> {
+                    String json2 = "Invo";
+                    StringJsonReader reader = new StringJsonReader(json2);
+                    reader.readString();
+                });
+        assertTrue(thrown.getMessage().contains("字符串没有使用引号"));
+
+        thrown = assertThrows(JsonParseException.class,
+                () -> {
+                    String json2 = "Invo";
+                    ByteArrayJsonReader reader = new ByteArrayJsonReader(
+                            json2.getBytes(StandardCharsets.UTF_8), 4);
+                    reader.readString();
+                });
+        assertTrue(thrown.getMessage().contains("字符串没有使用引号"));
     }
 
 }

@@ -282,9 +282,19 @@ public class StringJsonReader implements JsonReader {
         if (c == '"') {
             skipStringValue('"');
         } else if (c == '{') {
+            pos++;
             skipObjectValue();
         } else if (c == '[') {
             skipArrayValue();
+        } else {
+            int _pos = pos;
+            for (;_pos<end;_pos++) {
+                c = json.charAt(_pos);
+                if (c == ',' || c == '}') {
+                    pos = _pos;
+                    return;
+                }
+            }
         }
     }
 

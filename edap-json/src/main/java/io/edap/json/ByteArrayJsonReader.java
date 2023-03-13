@@ -131,120 +131,6 @@ public class ByteArrayJsonReader implements JsonReader {
         return key;
     }
 
-    protected String readQuotationMarksString2(char quotation) {
-        int _pos = pos;
-        //byte[] _json = json;
-        int charLen = 0;
-        byte c;
-        char[] chars = tmpChars;
-        int clen = chars.length;
-        try {
-            for (; charLen < clen; _pos++) {
-                c = json[_pos];
-                if (c == (byte) quotation) {
-                    pos = _pos + 1;
-                    return new String(chars, 0, charLen);
-                }
-                if ((c ^ '\\') < 1) {
-                    break;
-                }
-                chars[charLen++] = (char) c;
-            }
-            if (_pos >= end) {
-                throw new JsonParseException("JSON string was not closed with a char[" + quotation + "]");
-            }
-        } catch (ArrayIndexOutOfBoundsException ignore) {
-            throw new JsonParseException("JSON string was not closed with a char[" + quotation + "]");
-        }
-        if (charLen == clen) {
-            chars = tmpChars = Arrays.copyOf(chars, clen * 2);
-            clen = chars.length;
-        }
-        int bc;
-        try {
-            while (true) {
-                while (charLen != clen) {
-                    bc = json[_pos++];
-                    if (bc == quotation) {
-                        this.pos = _pos--;
-                        return new String(chars, 0, charLen);
-                    }
-                    if (bc == '\\') {
-                        bc = json[_pos++];
-                        switch (bc) {
-                            case 'b':
-                                bc = '\b';
-                                break;
-                            case 't':
-                                bc = '\t';
-                                break;
-                            case 'n':
-                                bc = '\n';
-                                break;
-                            case 'f':
-                                bc = '\f';
-                                break;
-                            case 'r':
-                                bc = '\r';
-                                break;
-                            case '"':
-                            case '/':
-                            case '\\':
-                                break;
-                            case 'u':
-                                bc = (hexToInt(json[_pos++]) << 12) +
-                                        (hexToInt(json[_pos++]) << 8) +
-                                        (hexToInt(json[_pos++]) << 4) +
-                                        hexToInt(json[_pos++]);
-                                break;
-
-                            default:
-                                throw new JsonParseException("Could not parse String at position: " + (pos - 1)
-                                        + ". Invalid escape combination detected: '\\" + bc + "'");
-
-                        }
-                    } else if ((bc & 0x80) != 0) {
-                        final int u2 = json[_pos++];
-                        if ((bc & 0xE0) == 0xC0) {
-                            bc = ((bc & 0x1F) << 6) + (u2 & 0x3F);
-                        } else {
-                            final int u3 = json[_pos++];
-                            if ((bc & 0xF0) == 0xE0) {
-                                bc = ((bc & 0x0F) << 12) + ((u2 & 0x3F) << 6) + (u3 & 0x3F);
-                            } else {
-                                final int u4 = json[_pos++];
-                                if ((bc & 0xF8) == 0xF0) {
-                                    bc = ((bc & 0x07) << 18) + ((u2 & 0x3F) << 12) + ((u3 & 0x3F) << 6) + (u4 & 0x3F);
-                                } else {
-                                    // there are legal 5 & 6 byte combinations, but none are _valid_
-                                    throw new JsonParseException("Invalid unicode character detected at: " + pos);
-                                }
-
-                                if (bc >= 0x10000) {
-                                    // check if valid unicode
-                                    if (bc >= 0x110000) {
-                                        throw new JsonParseException("Invalid unicode character detected at: " + pos);
-                                    }
-
-                                    // split surrogates
-                                    final int sup = bc - 0x10000;
-                                    chars[charLen++] = (char) ((sup >>> 10) + 0xd800);
-                                    chars[charLen++] = (char) ((sup & 0x3ff) + 0xdc00);
-                                    continue;
-                                }
-                            }
-                        }
-                    }
-                    chars[charLen++] = (char) bc;
-                }
-                chars = tmpChars = Arrays.copyOf(chars, clen * 2);
-                clen = chars.length;
-            }
-        } catch (ArrayIndexOutOfBoundsException ignore) {
-            throw new JsonParseException("JSON string was not closed with a char[" + quotation + "]");
-        }
-    }
-
     protected String readQuotationMarksString(char quotation) {
         int _pos = pos;
         //byte[] _json = json;
@@ -370,20 +256,6 @@ public class ByteArrayJsonReader implements JsonReader {
         if (value >= 'a' && value <= 'f') return value - 0x57;
         throw new JsonParseException("Could not parse unicode escape, expected a hexadecimal digit, got '" + value + "'");
     }
-
-//    protected String readQuotationMarksString(char quotation) {
-//        int _pos = pos;
-//        int tmpSize = 0;
-//        for (;_pos<end;_pos++) {
-//            byte c = json[_pos];
-//            if (c == quotation) {
-//                String val = new String(json, pos, _pos - pos, StandardCharsets.ISO_8859_1);
-//                pos = _pos+1;
-//                return val;
-//            }
-//        }
-//        return null;
-//    }
 
     protected Object readValue() {
         char c = firstNotSpaceChar();
@@ -511,35 +383,6 @@ public class ByteArrayJsonReader implements JsonReader {
         return (int)hashCode;
     }
 
-//    @Override
-//    public int keyHash() {
-//        char c = firstNotSpaceChar();
-//        if (c != '"') {
-//            throw new JsonParseException("Key must start with '\"'!");
-//        }
-//        pos++;
-//        int _pos = pos;
-//        byte[] _json = json;
-//        long hashCode = 0x811c9dc5;
-//        byte b;
-//        for (;_pos<end;_pos++) {
-//            b = _json[_pos];
-//            if (b == '"') {
-//                pos = _pos+1;
-//                return (int)hashCode;
-//            } else {
-//                hashCode ^= b;
-//                hashCode *= 0x1000193;
-//            }
-//        }
-//        c = firstNotSpaceChar();
-//        if (c != ':') {
-//            throw new JsonParseException("Key and value must use colon split");
-//        }
-//        pos++;
-//        return 0;
-//    }
-
     /**
      * 解析JSON的key，并判断Key后是否是":" 如果不是冒号则抛异常
      * @return
@@ -597,24 +440,6 @@ public class ByteArrayJsonReader implements JsonReader {
             throw new IndexOutOfBoundsException("pos + count > " + end);
         }
     }
-
-    //@Override
-//    public char firstNotSpaceChar() {
-////        int _pos = pos;
-////        byte[] _json = json;
-////        int _end = end;
-//        int _pos = pos;
-//        byte[] _json = json;
-//        byte bb;
-//        for (;_pos<end;_pos++) {
-//            bb = _json[_pos];
-//            if (bb < 0 || bb > ' ') {
-//                pos = _pos;
-//                return (char)bb;
-//            }
-//        }
-//        return 0;
-//    }
 
     @Override
     public char firstNotSpaceChar() {
@@ -808,15 +633,87 @@ public class ByteArrayJsonReader implements JsonReader {
 
     @Override
     public boolean readBoolean() {
-        return false;
+        char c = firstNotSpaceChar();
+        if (c == 't') {
+            int _pos = pos;
+            if (_pos+3 < end && json[_pos+1] == 'r' && json[_pos+2] == 'u'
+                    && json[_pos+3] == 'e') {
+                pos = _pos + 4;
+                return true;
+            } else {
+                throw new JsonParseException("boolean 格式错误");
+            }
+        } else if (c == 'f') {
+            int _pos = pos;
+            if (_pos+4 < end && json[_pos+1] == 'a' && json[_pos+2] == 'l'
+                    && json[_pos+3] == 's' && json[_pos+4] == 'e') {
+                pos = _pos + 5;
+                return false;
+            } else {
+                throw new JsonParseException("boolean 格式错误");
+            }
+        }
+        throw new JsonParseException("boolean 格式错误");
     }
 
     @Override
     public void skipValue() {
-        char c = firstNotSpaceChar();
+        int c = firstNotSpaceChar();
         if (c == '"') {
             skipStringValue('"');
+        } else if (c == '{') {
+            pos++;
+            skipObjectValue();
+        } else if (c == '[') {
+            skipArrayValue();
+        } else {
+            int _pos = pos;
+            for (;_pos<end;_pos++) {
+                c = json[_pos];
+                if (c == ',' || c == '}') {
+                    pos = _pos;
+                    return;
+                }
+            }
         }
+    }
+
+    private void skipArrayValue() {
+    }
+
+    private void skipObjectValue() {
+        char c = firstNotSpaceChar();
+        if (c == '}') {
+            return;
+        }
+        skipKey(c);
+        skipValue();
+        c = firstNotSpaceChar();
+        while (true) {
+            if (c == '}') {
+                return;
+            } else if (c == ',') {
+                pos++;
+                skipKey(firstNotSpaceChar());
+                skipValue();
+                c = firstNotSpaceChar();
+            } else {
+                throw new JsonParseException("key and value 后为不符合json字符[" + (char)c + "]");
+            }
+        }
+    }
+
+    protected void skipKey(char c) {
+        if (c != '"' && c != '\'') {
+            throw new JsonParseException("Key must start with '\"' or \"'\"!");
+        }
+        pos++;
+        skipStringValue(c);
+        c = firstNotSpaceChar();
+        if (c != ':') {
+            throw new JsonParseException("Key and value must use colon split");
+        }
+        pos++;
     }
 
     public void skipStringValue(char quotation) {
