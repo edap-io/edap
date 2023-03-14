@@ -665,12 +665,13 @@ public class ByteArrayJsonReader implements JsonReader {
             pos++;
             skipObjectValue();
         } else if (c == '[') {
+            pos++;
             skipArrayValue();
         } else {
             int _pos = pos;
             for (;_pos<end;_pos++) {
                 c = json[_pos];
-                if (c == ',' || c == '}') {
+                if (c == ',' || c == '}' || c == ']') {
                     pos = _pos;
                     return;
                 }
@@ -679,6 +680,20 @@ public class ByteArrayJsonReader implements JsonReader {
     }
 
     private void skipArrayValue() {
+        skipValue();
+        char c = firstNotSpaceChar();
+        while (true) {
+            if (c == ']') {
+                pos++;
+                return;
+            } else if (c == ',') {
+                pos++;
+                skipValue();
+                c = firstNotSpaceChar();
+            } else {
+                throw new JsonParseException("数组格式错误");
+            }
+        }
     }
 
     private void skipObjectValue() {
@@ -691,6 +706,7 @@ public class ByteArrayJsonReader implements JsonReader {
         c = firstNotSpaceChar();
         while (true) {
             if (c == '}') {
+                pos++;
                 return;
             } else if (c == ',') {
                 pos++;
@@ -704,8 +720,8 @@ public class ByteArrayJsonReader implements JsonReader {
     }
 
     protected void skipKey(char c) {
-        if (c != '"' && c != '\'') {
-            throw new JsonParseException("Key must start with '\"' or \"'\"!");
+        if (c != '"') {
+            throw new JsonParseException("Key must start with '\"'!");
         }
         pos++;
         skipStringValue(c);

@@ -285,12 +285,13 @@ public class StringJsonReader implements JsonReader {
             pos++;
             skipObjectValue();
         } else if (c == '[') {
+            pos++;
             skipArrayValue();
         } else {
             int _pos = pos;
             for (;_pos<end;_pos++) {
                 c = json.charAt(_pos);
-                if (c == ',' || c == '}') {
+                if (c == ',' || c == '}' || c == ']') {
                     pos = _pos;
                     return;
                 }
@@ -299,6 +300,20 @@ public class StringJsonReader implements JsonReader {
     }
 
     private void skipArrayValue() {
+        skipValue();
+        char c = firstNotSpaceChar();
+        while (true) {
+            if (c == ']') {
+                pos++;
+                return;
+            } else if (c == ',') {
+                pos++;
+                skipValue();
+                c = firstNotSpaceChar();
+            } else {
+                throw new JsonParseException("数组格式错误");
+            }
+        }
     }
 
     private void skipObjectValue() {
@@ -311,6 +326,7 @@ public class StringJsonReader implements JsonReader {
         c = firstNotSpaceChar();
         while (true) {
             if (c == '}') {
+                pos++;
                 return;
             } else if (c == ',') {
                 pos++;
@@ -369,7 +385,28 @@ public class StringJsonReader implements JsonReader {
 
     @Override
     public int keyHash() {
-        return 0;
+        char c = firstNotSpaceChar();
+        if (c != '"') {
+            throw new JsonParseException("Key must start with '\"'!");
+        }
+        pos++;
+        int _pos = pos;
+        long hashCode = 0x811c9dc5;
+        while (_pos<end) {
+            c = json.charAt(_pos++);
+            if (c == '"') {
+                pos = _pos;
+                break;
+            }
+            hashCode ^= c;
+            hashCode *= 0x1000193;
+        }
+        c = firstNotSpaceChar();
+        if (c != ':') {
+            throw new JsonParseException("Key and value must use colon split");
+        }
+        pos++;
+        return (int)hashCode;
     }
 
     protected int readNumberValue() {

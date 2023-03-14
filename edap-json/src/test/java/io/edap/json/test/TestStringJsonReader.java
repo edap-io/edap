@@ -425,6 +425,15 @@ public class TestStringJsonReader {
         jsonObject = (JsonObject) reader.readObject();
         assertNull(jsonObject);
 
+        json = "    ";
+        parser = new StringJsonReader(json);
+        jsonObject = (JsonObject) parser.readObject();
+        assertNull(jsonObject);
+
+        reader = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
+        jsonObject = (JsonObject) reader.readObject();
+        assertNull(jsonObject);
+
     }
 
     @Test
@@ -470,14 +479,32 @@ public class TestStringJsonReader {
         assertEquals(pojo.getAge(), 549);
         assertEquals(pojo.isOld(), true);
 
+        pojo = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8))
+                .readObject(DemoPojo.class);
+        assertNotNull(pojo);
+        assertEquals(pojo.getAge(), 549);
+        assertEquals(pojo.isOld(), true);
+
         json = "{\"name\":\"john325\",\"old\":false}";
         pojo = new StringJsonReader(json).readObject(DemoPojo.class);
         assertNotNull(pojo);
         assertEquals(pojo.getName(), "john325");
         assertEquals(pojo.isOld(), false);
 
+        pojo = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8))
+                .readObject(DemoPojo.class);
+        assertNotNull(pojo);
+        assertEquals(pojo.getName(), "john325");
+        assertEquals(pojo.isOld(), false);
+
         json = "{\"old\":false,\"name\":\"john325\"}";
         pojo = new StringJsonReader(json).readObject(DemoPojo.class);
+        assertNotNull(pojo);
+        assertEquals(pojo.getName(), "john325");
+        assertEquals(pojo.isOld(), false);
+
+        pojo = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8))
+                .readObject(DemoPojo.class);
         assertNotNull(pojo);
         assertEquals(pojo.getName(), "john325");
         assertEquals(pojo.isOld(), false);
@@ -491,6 +518,14 @@ public class TestStringJsonReader {
 
         thrown = assertThrows(JsonParseException.class,
                 () -> {
+                    String json2 = "{\"name\":\"john\",\"old\":ts}";
+                    DemoPojo pojo2 = new ByteArrayJsonReader(json2.getBytes(StandardCharsets.UTF_8))
+                            .readObject(DemoPojo.class);
+                });
+        assertTrue(thrown.getMessage().contains("boolean 格式错误"));
+
+        thrown = assertThrows(JsonParseException.class,
+                () -> {
                     String json2 = "{\"name\":\"john\",\"old\":fs}";
                     DemoPojo pojo2 = new StringJsonReader(json2).readObject(DemoPojo.class);
                 });
@@ -498,8 +533,24 @@ public class TestStringJsonReader {
 
         thrown = assertThrows(JsonParseException.class,
                 () -> {
+                    String json2 = "{\"name\":\"john\",\"old\":fs}";
+                    DemoPojo pojo2 = new ByteArrayJsonReader(json2.getBytes(StandardCharsets.UTF_8))
+                            .readObject(DemoPojo.class);
+                });
+        assertTrue(thrown.getMessage().contains("boolean 格式错误"));
+
+        thrown = assertThrows(JsonParseException.class,
+                () -> {
                     String json2 = "{\"name\":\"john\",\"old\":r}";
                     DemoPojo pojo2 = new StringJsonReader(json2).readObject(DemoPojo.class);
+                });
+        assertTrue(thrown.getMessage().contains("boolean 格式错误"));
+
+        thrown = assertThrows(JsonParseException.class,
+                () -> {
+                    String json2 = "{\"name\":\"john\",\"old\":r}";
+                    DemoPojo pojo2 = new ByteArrayJsonReader(json2.getBytes(StandardCharsets.UTF_8))
+                            .readObject(DemoPojo.class);
                 });
         assertTrue(thrown.getMessage().contains("boolean 格式错误"));
     }
@@ -845,6 +896,125 @@ public class TestStringJsonReader {
                 .readObject(DemoPojo.class);
         assertNotNull(pojo);
         assertEquals(pojo.getName(), "john");
+
+        json = "{\"name\":\"john\",\"extInfo\":{\"weight\":100,\"height\":175},\"age\":11}";
+        pojo = new StringJsonReader(json).readObject(DemoPojo.class);
+        assertNotNull(pojo);
+        assertEquals(pojo.getName(), "john");
+        assertEquals(pojo.getAge(), 11);
+
+        pojo = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8))
+                .readObject(DemoPojo.class);
+        assertNotNull(pojo);
+        assertEquals(pojo.getName(), "john");
+        assertEquals(pojo.getAge(), 11);
+
+        json = "{\"name\":\"john\",\"extInfo\":[\"123\",\"456\"]}";
+        pojo = new StringJsonReader(json).readObject(DemoPojo.class);
+        assertNotNull(pojo);
+        assertEquals(pojo.getName(), "john");
+
+        pojo = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8))
+                .readObject(DemoPojo.class);
+        assertNotNull(pojo);
+        assertEquals(pojo.getName(), "john");
+
+        json = "{\"name\":\"john\",\"extInfo\":[123,456]}";
+        pojo = new StringJsonReader(json).readObject(DemoPojo.class);
+        assertNotNull(pojo);
+        assertEquals(pojo.getName(), "john");
+
+        pojo = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8))
+                .readObject(DemoPojo.class);
+        assertNotNull(pojo);
+        assertEquals(pojo.getName(), "john");
+
+        json = "{\"name\":\"john\",\"extInfo\":[123,456],\"age\":21}";
+        pojo = new StringJsonReader(json).readObject(DemoPojo.class);
+        assertNotNull(pojo);
+        assertEquals(pojo.getName(), "john");
+        assertEquals(pojo.getAge(), 21);
+
+        pojo = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8))
+                .readObject(DemoPojo.class);
+        assertNotNull(pojo);
+        assertEquals(pojo.getName(), "john");
+        assertEquals(pojo.getAge(), 21);
+
+        JsonParseException thrown = assertThrows(JsonParseException.class,
+                () -> {
+                    String json2 = "{\"name\":\"john\",\"extInfo\":[\"123\"{},456]}";
+                    new StringJsonReader(json2).readObject(DemoPojo.class);
+                });
+        assertTrue(thrown.getMessage().contains("数组格式错误"));
+
+        thrown = assertThrows(JsonParseException.class,
+                () -> {
+                    String json2 = "{\"name\":\"john\",\"extInfo\":[\"123\"{},456]}";
+                    new ByteArrayJsonReader(json2.getBytes(StandardCharsets.UTF_8))
+                            .readObject(DemoPojo.class);
+                });
+        assertTrue(thrown.getMessage().contains("数组格式错误"));
+
+        thrown = assertThrows(JsonParseException.class,
+                () -> {
+                    String json2 = "{\"name\":\"john\",\"extInfo\":[\"123\"abc,456]}";
+                    new StringJsonReader(json2).readObject(DemoPojo.class);
+                });
+        assertTrue(thrown.getMessage().contains("数组格式错误"));
+
+        thrown = assertThrows(JsonParseException.class,
+                () -> {
+                    String json2 = "{\"name\":\"john\",\"extInfo\":[\"123\"abc,456]}";
+                    new ByteArrayJsonReader(json2.getBytes(StandardCharsets.UTF_8))
+                            .readObject(DemoPojo.class);
+                });
+        assertTrue(thrown.getMessage().contains("数组格式错误"));
+
+        thrown = assertThrows(JsonParseException.class,
+                () -> {
+                    String json2 = "{\"name\":\"john\",\"extInfo\":{\"a\":true,'b':10}}";
+                    new StringJsonReader(json2).readObject(DemoPojo.class);
+                });
+        assertTrue(thrown.getMessage().contains("Key must start with '\"'!"));
+
+        thrown = assertThrows(JsonParseException.class,
+                () -> {
+                    String json2 = "{\"name\":\"john\",\"extInfo\":{\"a\":true,'b':10}}";
+                    new ByteArrayJsonReader(json2.getBytes(StandardCharsets.UTF_8))
+                            .readObject(DemoPojo.class);
+                });
+        assertTrue(thrown.getMessage().contains("Key must start with '\"'!"));
+
+        thrown = assertThrows(JsonParseException.class,
+                () -> {
+                    String json2 = "{\"name\":\"john\",\"extInfo\":{\"a\"true,'b':10}}";
+                    new StringJsonReader(json2).readObject(DemoPojo.class);
+                });
+        assertTrue(thrown.getMessage().contains("Key and value must use colon split"));
+
+        thrown = assertThrows(JsonParseException.class,
+                () -> {
+                    String json2 = "{\"name\":\"john\",\"extInfo\":{\"a\"true,'b':10}}";
+                    new ByteArrayJsonReader(json2.getBytes(StandardCharsets.UTF_8))
+                            .readObject(DemoPojo.class);
+                });
+        assertTrue(thrown.getMessage().contains("Key and value must use colon split"));
+
+        thrown = assertThrows(JsonParseException.class,
+                () -> {
+                    String json2 = "{\"name\":\"john\",\"extInfo\":{\"a\":true,\"b\":\"10\"]}}";
+                    new StringJsonReader(json2).readObject(DemoPojo.class);
+                });
+        assertTrue(thrown.getMessage().contains("key and value 后为不符合json字符["));
+
+        thrown = assertThrows(JsonParseException.class,
+                () -> {
+                    String json2 = "{\"name\":\"john\",\"extInfo\":{\"a\":true,\"b\":\"10\"]}}";
+                    new ByteArrayJsonReader(json2.getBytes(StandardCharsets.UTF_8))
+                            .readObject(DemoPojo.class);
+                });
+        assertTrue(thrown.getMessage().contains("key and value 后为不符合json字符["));
     }
 
     @Test
