@@ -39,8 +39,8 @@ public class DemoPojoDecoder extends AbstractDecoder implements JsonDecoder<Demo
         if (c == '}') {
             return pojo;
         }
-        DataRange<byte[]> dr = jsonReader.readKeyRange();
-        switch (dr.hashCode()) {
+        int dr = jsonReader.keyHash();
+        switch (dr) {
             case 1212206434:
                 pojo.setAge(jsonReader.readInt());
                 break;
@@ -57,8 +57,8 @@ public class DemoPojoDecoder extends AbstractDecoder implements JsonDecoder<Demo
         c = jsonReader.firstNotSpaceChar();
         while (c == ',') {
             jsonReader.nextPos(1);
-            dr = jsonReader.readKeyRange();
-            switch (dr.hashCode()) {
+            dr = jsonReader.keyHash();
+            switch (dr) {
                 case 1212206434:
                     pojo.setAge(jsonReader.readInt());
                     break;

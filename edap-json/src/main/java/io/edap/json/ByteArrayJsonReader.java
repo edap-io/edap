@@ -30,7 +30,7 @@ import static io.edap.json.StringJsonReader.ERROR_JSON_FORMAT;
 import static io.edap.json.consts.JsonConsts.END_OF_NUMBER;
 import static io.edap.json.consts.JsonConsts.INVALID_CHAR_FOR_NUMBER;
 import static io.edap.json.enums.DataType.BYTE_ARRAY;
-import static io.edap.json.util.JsonUtil.INT_DIGITS;
+import static io.edap.json.util.JsonUtil.*;
 import static io.edap.util.Constants.FNV_1a_FACTOR_VAL;
 import static io.edap.util.Constants.FNV_1a_INIT_VAL;
 
@@ -529,14 +529,13 @@ public class ByteArrayJsonReader implements JsonReader {
 
     public int readInt0() {
         int _pos = pos;
-        byte[] _json = json;
-        byte c1 = _json[_pos++];
+        byte c1 = json[_pos++];
         int c2;
         try {
             int ind = INT_DIGITS[c1];
             if (ind == 0) {
                 if (_pos < end) {
-                    c2 = _json[_pos];
+                    c2 = json[_pos];
                     if (INT_DIGITS[c2] == END_OF_NUMBER) {
                         pos = _pos;
                         return 0;
@@ -547,49 +546,49 @@ public class ByteArrayJsonReader implements JsonReader {
                 throw new JsonParseException("整数不符合规范");
             }
             if (end - _pos > 8) {
-                int ind2 = INT_DIGITS[_json[_pos++]];
+                int ind2 = INT_DIGITS[json[_pos++]];
                 if (ind2 == END_OF_NUMBER) {
                     pos = _pos;
                     return ind;
                 }
-                int ind3 = INT_DIGITS[_json[_pos++]];
+                int ind3 = INT_DIGITS[json[_pos++]];
                 if (ind3 == END_OF_NUMBER) {
                     pos = _pos - 1;
                     return ind * 10 + ind2;
                 }
-                int ind4 = INT_DIGITS[_json[_pos++]];
+                int ind4 = INT_DIGITS[json[_pos++]];
                 if (ind4 == END_OF_NUMBER) {
                     pos = _pos - 1;
                     return ind * 100 + ind2*10 + ind3;
                 }
-                int ind5 = INT_DIGITS[_json[_pos++]];
+                int ind5 = INT_DIGITS[json[_pos++]];
                 if (ind5 == END_OF_NUMBER) {
                     pos = _pos;
                     return ind * 1000 + ind2*100 + ind3*10 + ind4;
                 }
-                int ind6 = INT_DIGITS[_json[_pos++]];
+                int ind6 = INT_DIGITS[json[_pos++]];
                 if (ind6 == END_OF_NUMBER) {
                     pos = _pos - 1;
                     return ind * 10000 + ind2*1000 + ind3*100 + ind4*10 + ind5;
                 }
-                int ind7 = INT_DIGITS[_json[_pos++]];
+                int ind7 = INT_DIGITS[json[_pos++]];
                 if (ind7 == END_OF_NUMBER) {
                     pos = _pos - 1;
                     return ind * 100000 + ind2*10000 + ind3*1000 + ind4*100 + ind5*10 + ind6;
                 }
-                int ind8 = INT_DIGITS[_json[_pos++]];
+                int ind8 = INT_DIGITS[json[_pos++]];
                 if (ind8 == END_OF_NUMBER) {
                     pos = _pos - 1;
                     return ind * 1000000 + ind2*100000 + ind3*10000 + ind4*1000 + ind5*100 + ind6*10
                             + ind7;
                 }
-                int ind9 = INT_DIGITS[_json[_pos++]];
+                int ind9 = INT_DIGITS[json[_pos++]];
                 if (ind9 == END_OF_NUMBER) {
                     pos = _pos - 1;
                     return ind * 10000000 + ind2*1000000 + ind3*100000 + ind4*10000 + ind5*1000
                             + ind6*100 + ind7*10 + ind8;
                 }
-                int ind10 = INT_DIGITS[_json[_pos++]];
+                int ind10 = INT_DIGITS[json[_pos++]];
                 if (ind10 == END_OF_NUMBER) {
                     pos = _pos - 1;
                     return ind * 100000000 + ind2*10000000 + ind3*1000000 + ind4*100000 + ind5*10000
@@ -611,14 +610,34 @@ public class ByteArrayJsonReader implements JsonReader {
 
     public int readIntSlowPath(int value) {
         int _pos = pos;
-        byte[] _json = json;
         for (;_pos<end;_pos++) {
-            int ind = INT_DIGITS[_json[_pos]];
+            int ind = INT_DIGITS[json[_pos]];
             if (ind == END_OF_NUMBER) {
                 pos = _pos;
                 return value;
             }
             value = (value << 3) + (value << 1) + ind;
+            if (value < 0) {
+                throw new JsonParseException("value is too large for int");
+            }
+        }
+        throw new JsonParseException("整数没有正确结束");
+    }
+
+    public int readIntSlowPath2(int value) {
+        int _pos = pos;
+        int ind;
+        for (;_pos<end;_pos++) {
+            ind = json[_pos] - '0';
+            if (isNumberEnd((byte)(ind + '0'))) {
+                pos = _pos;
+                return value;
+            }
+            if (ind >= 0 && ind <= 9) {
+                value = (value << 3) + (value << 1) + ind;
+            } else {
+
+            }
             if (value < 0) {
                 throw new JsonParseException("value is too large for int");
             }

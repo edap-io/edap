@@ -17,9 +17,12 @@
 package io.edap.json.test;
 
 import io.edap.json.*;
+import io.edap.json.model.DataRange;
+import io.edap.json.model.StringDataRange;
 import io.edap.json.test.model.DemoPojo;
 import org.junit.jupiter.api.Test;
 
+import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
@@ -547,15 +550,30 @@ public class TestStringJsonReader {
 
     @Test
     public void testReadNumberValue() {
-        StringJsonReader parser = new StringJsonReader("\n{\t\"value\":123.45}\n\n");
+        String json = "\n{\t\"value\":123.45}\n\n";
+        StringJsonReader parser = new StringJsonReader(json);
         JsonObject jsonObject = (JsonObject) parser.readObject();
         assertEquals(jsonObject.size(), 1);
         assertArrayEquals((char[])jsonObject.get("value"), new char[]{'1','2','3','.','4','5'});
+
+        ByteArrayJsonReader br = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
+        jsonObject = (JsonObject) br.readObject();
+        assertEquals(jsonObject.size(), 1);
+        assertArrayEquals((byte[])jsonObject.get("value"), new byte[]{'1','2','3','.','4','5'});
+
 
         JsonParseException thrown = assertThrows(JsonParseException.class,
                 () -> {
                     StringJsonReader parser2 = new StringJsonReader("\n{\t\"value\":123.45");
                     parser2.readObject();
+                });
+        assertTrue(thrown.getMessage().contains("Json没有正确结束"));
+
+        thrown = assertThrows(JsonParseException.class,
+                () -> {
+                    ByteArrayJsonReader reader = new ByteArrayJsonReader(
+                            "\n{\t\"value\":123.45".getBytes(StandardCharsets.UTF_8));
+                    reader.readObject();
                 });
         assertTrue(thrown.getMessage().contains("Json没有正确结束"));
     }
@@ -1354,6 +1372,81 @@ public class TestStringJsonReader {
                     reader2.readString();
                 });
         assertTrue(thrown.getMessage().contains("字符串没有使用引号"));
+    }
+
+    @Test
+    public void testKeyHash() {
+        String json = "\"name\":";
+        StringJsonReader sr = new StringJsonReader(json);
+        DataRange sdr = StringDataRange.from("name");
+        assertEquals(sr.keyHash(), sdr.hashCode());
+
+        ByteArrayJsonReader br = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
+        assertEquals(br.keyHash(), sdr.hashCode());
+
+        JsonParseException thrown = assertThrows(JsonParseException.class,
+                () -> {
+                    String json2 = "name\":";
+                    StringJsonReader read = new StringJsonReader(json2);
+                    read.keyHash();
+                });
+        assertTrue(thrown.getMessage().contains("Key must start with '\"'!"));
+
+        thrown = assertThrows(JsonParseException.class,
+                () -> {
+                    String json2 = "name\":";
+                    ByteArrayJsonReader read = new ByteArrayJsonReader(json2.getBytes(StandardCharsets.UTF_8));
+                    read.keyHash();
+                });
+        assertTrue(thrown.getMessage().contains("Key must start with '\"'!"));
+
+        thrown = assertThrows(JsonParseException.class,
+                () -> {
+                    String json2 = "\"name\",";
+                    StringJsonReader read = new StringJsonReader(json2);
+                    read.keyHash();
+                });
+        assertTrue(thrown.getMessage().contains("Key and value must use colon split"));
+
+        thrown = assertThrows(JsonParseException.class,
+                () -> {
+                    String json2 = "\"name\",";
+                    ByteArrayJsonReader read = new ByteArrayJsonReader(json2.getBytes(StandardCharsets.UTF_8));
+                    read.keyHash();
+                });
+        assertTrue(thrown.getMessage().contains("Key and value must use colon split"));
+    }
+
+    @Test
+    public void testNextPos() throws NoSuchFieldException, IllegalAccessException {
+        String json = "12";
+        StringJsonReader reader = new StringJsonReader(json);
+        reader.nextPos(1);
+        Field posField = StringJsonReader.class.getDeclaredField("pos");
+        posField.setAccessible(true);
+        assertEquals((int)posField.get(reader), 1);
+
+        ByteArrayJsonReader br = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
+        br.nextPos(1);
+        posField = ByteArrayJsonReader.class.getDeclaredField("pos");
+        posField.setAccessible(true);
+        assertEquals((int)posField.get(br), 1);
+
+        IndexOutOfBoundsException thrown = assertThrows(IndexOutOfBoundsException.class,
+                () -> {
+                    String json2 = "12";
+                    StringJsonReader read = new StringJsonReader(json2);
+                    read.nextPos(3);
+                });
+        assertTrue(thrown.getMessage().contains("pos + count > 2"));
+
+        thrown = assertThrows(IndexOutOfBoundsException.class,
+                () -> {
+                    String json2 = "12";
+                    ByteArrayJsonReader read = new ByteArrayJsonReader(json2.getBytes(StandardCharsets.UTF_8));
+                    read.nextPos(3);
+                });
+        assertTrue(thrown.getMessage().contains("pos + count > 2"));
     }
 
 }

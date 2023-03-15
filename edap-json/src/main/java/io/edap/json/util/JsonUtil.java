@@ -90,6 +90,28 @@ public class JsonUtil {
         return ECMAS_ALLOW_FIRST_CHARS[c];
     }
 
+    public static boolean isNumber(byte b) {
+        if (b >= '0' && b <= '9') {
+            return true;
+        }
+        return false;
+    }
+
+    public static boolean isNumberEnd(byte b) {
+        switch (b) {
+            case ',':
+            case ']':
+            case '}':
+            case ' ':
+            case '\t':
+            case '\r':
+            case '\n':
+                return true;
+            default:
+        }
+        return false;
+    }
+
     public static boolean isIdentifierNameOther(char c) {
         if (c >= 128) {
             return false;

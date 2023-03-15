@@ -172,6 +172,178 @@ public class JsonDecoderGenerator {
         mv.visitLabel(labelJsonEnd);
         mv.visitFrame(Opcodes.F_APPEND,1, new Object[] {pojoName}, 0, null);
         mv.visitVarInsn(ALOAD, 1);
+        mv.visitMethodInsn(INVOKEINTERFACE, READER_NAME, "keyHash",
+                "()I", true);
+        mv.visitVarInsn(ISTORE, 4);
+        mv.visitVarInsn(ILOAD, 4);
+        Label[] lbFieldCases = new Label[fields.size()];
+        int[] fieldHashCodes = new int[fields.size()];
+        for (int i=0;i<fields.size();i++) {
+            lbFieldCases[i] = new Label();
+            fieldHashCodes[i] = fields.get(i).jsonFieldHash;
+        }
+        Label lbDefCase   = new Label();
+        Label lbEndSwitch = new Label();
+        mv.visitLookupSwitchInsn(lbDefCase, fieldHashCodes, lbFieldCases);
+        for (int i=0;i<fields.size();i++) {
+            JsonFieldInfo jfi = fields.get(i);
+            mv.visitLabel(lbFieldCases[i]);
+            if (i == 0) {
+                mv.visitFrame(Opcodes.F_APPEND, 1, new Object[]{DATARANGE_NAME}, 0, null);
+            } else {
+                mv.visitFrame(Opcodes.F_SAME, 0, null, 0, null);
+            }
+            mv.visitVarInsn(ALOAD, 3);
+            mv.visitVarInsn(ALOAD, 1);
+            String readMethod = getReadMethod(jfi);
+            mv.visitMethodInsn(INVOKEINTERFACE, READER_NAME, readMethod,
+                    "()" + getDescriptor(jfi.field.getGenericType()), true);
+//            mv.visitMethodInsn(INVOKEVIRTUAL, pojoName, "setField1",
+//                    "(Ljava/lang/String;)V", false);
+            visitSetValueOpcode(mv, jfi);
+            mv.visitJumpInsn(GOTO, lbEndSwitch);
+        }
+
+        mv.visitLabel(lbDefCase);
+        mv.visitFrame(Opcodes.F_SAME, 0, null, 0, null);
+        mv.visitVarInsn(ALOAD, 1);
+        mv.visitMethodInsn(INVOKEINTERFACE, READER_NAME, "skipValue",
+                "()V", true);
+
+        mv.visitLabel(lbEndSwitch);
+        mv.visitFrame(Opcodes.F_SAME, 0, null, 0, null);
+        mv.visitVarInsn(ALOAD, 1);
+        mv.visitMethodInsn(INVOKEINTERFACE, READER_NAME, "firstNotSpaceChar",
+                "()C", true);
+        mv.visitVarInsn(ISTORE, 2);
+
+        Label lbWhile = new Label();
+        mv.visitLabel(lbWhile);
+        mv.visitFrame(Opcodes.F_SAME, 0, null, 0, null);
+        mv.visitVarInsn(ILOAD, 2);
+        mv.visitIntInsn(BIPUSH, ',');
+
+        Label lbJsonEnd = new Label();
+        mv.visitJumpInsn(IF_ICMPNE, lbJsonEnd);
+        mv.visitVarInsn(ALOAD, 1);
+        mv.visitInsn(ICONST_1);
+        mv.visitMethodInsn(INVOKEINTERFACE, READER_NAME, "nextPos", "(I)V", true);
+        mv.visitVarInsn(ALOAD, 1);
+        mv.visitMethodInsn(INVOKEINTERFACE, READER_NAME, "keyHash",
+                "()I", true);
+        mv.visitVarInsn(ISTORE, 4);
+        mv.visitVarInsn(ILOAD, 4);
+
+        Label[] lbWhileCases = new Label[fields.size()];
+        for (int i=0;i<fields.size();i++) {
+            lbWhileCases[i] = new Label();
+        }
+        Label lbWhileDefCase = new Label();
+        Label lbWhileSwitchEnd = new Label();
+
+        mv.visitLookupSwitchInsn(lbWhileDefCase, fieldHashCodes, lbWhileCases);
+        for (int i=0;i<fields.size();i++) {
+            JsonFieldInfo jfi = fields.get(i);
+            mv.visitLabel(lbWhileCases[i]);
+            mv.visitFrame(Opcodes.F_SAME, 0, null, 0, null);
+            mv.visitVarInsn(ALOAD, 3);
+            mv.visitVarInsn(ALOAD, 1);
+            String readMethod = getReadMethod(jfi);
+            mv.visitMethodInsn(INVOKEINTERFACE, READER_NAME, readMethod,
+                    "()" + getDescriptor(jfi.field.getGenericType()), true);
+            //mv.visitMethodInsn(INVOKEVIRTUAL, pojoName, "setField1",
+            //        "(Ljava/lang/String;)V", false);
+            visitSetValueOpcode(mv, fields.get(i));
+            mv.visitJumpInsn(GOTO, lbWhileSwitchEnd);
+        }
+
+        mv.visitLabel(lbWhileDefCase);
+        mv.visitFrame(Opcodes.F_SAME, 0, null, 0, null);
+        mv.visitVarInsn(ALOAD, 1);
+        mv.visitMethodInsn(INVOKEINTERFACE, READER_NAME, "skipValue",
+                "()V", true);
+
+        mv.visitLabel(lbWhileSwitchEnd);
+        mv.visitFrame(Opcodes.F_SAME, 0, null, 0, null);
+        mv.visitVarInsn(ALOAD, 1);
+        mv.visitMethodInsn(INVOKEINTERFACE, READER_NAME, "firstNotSpaceChar",
+                "()C", true);
+        mv.visitVarInsn(ISTORE, 2);
+        mv.visitJumpInsn(GOTO, lbWhile);
+
+        mv.visitLabel(lbJsonEnd);
+        mv.visitFrame(Opcodes.F_SAME, 0, null, 0, null);
+        mv.visitVarInsn(ILOAD, 2);
+        mv.visitIntInsn(BIPUSH, '}');
+        Label lbPojoRetrun = new Label();
+        mv.visitJumpInsn(IF_ICMPEQ, lbPojoRetrun);
+        mv.visitTypeInsn(NEW, "io/edap/json/JsonParseException");
+        mv.visitInsn(DUP);
+        mv.visitTypeInsn(NEW, "java/lang/StringBuilder");
+        mv.visitInsn(DUP);
+        mv.visitMethodInsn(INVOKESPECIAL, "java/lang/StringBuilder", "<init>",
+                "()V", false);
+        mv.visitLdcInsn("key and value \u540e\u4e3a\u4e0d\u7b26\u5408json\u5b57\u7b26[");
+        mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/StringBuilder", "append",
+                "(Ljava/lang/String;)Ljava/lang/StringBuilder;", false);
+        mv.visitVarInsn(ILOAD, 2);
+        mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/StringBuilder", "append",
+                "(C)Ljava/lang/StringBuilder;", false);
+        mv.visitLdcInsn("]");
+        mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/StringBuilder", "append",
+                "(Ljava/lang/String;)Ljava/lang/StringBuilder;", false);
+        mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/StringBuilder", "toString",
+                "()Ljava/lang/String;", false);
+        mv.visitMethodInsn(INVOKESPECIAL, "io/edap/json/JsonParseException", "<init>",
+                "(Ljava/lang/String;)V", false);
+        mv.visitInsn(ATHROW);
+
+        mv.visitLabel(lbPojoRetrun);
+        mv.visitFrame(Opcodes.F_SAME, 0, null, 0, null);
+        mv.visitVarInsn(ALOAD, 3);
+        mv.visitInsn(ARETURN);
+        mv.visitMaxs(4, 5);
+        mv.visitEnd();
+    }
+
+    private void visitDecodeMethod2(List<JsonFieldInfo> fields) {
+        MethodVisitor mv = cw.visitMethod(ACC_PUBLIC, "decode",
+                "(L" + READER_NAME + ";)L" + pojoName + ";",
+                null, new String[] { "java/lang/reflect/InvocationTargetException",
+                        "java/lang/InstantiationException", "java/lang/IllegalAccessException" });
+        mv.visitCode();
+        mv.visitVarInsn(ALOAD, 1);
+        mv.visitMethodInsn(INVOKEINTERFACE, READER_NAME, "firstNotSpaceChar", "()C", true);
+        mv.visitVarInsn(ISTORE, 2);
+        mv.visitVarInsn(ILOAD, 2);
+        mv.visitIntInsn(BIPUSH, '{');
+        Label labelJsonStart = new Label();
+        mv.visitJumpInsn(IF_ICMPEQ, labelJsonStart);
+        mv.visitInsn(ACONST_NULL);
+        mv.visitInsn(ARETURN);
+        mv.visitLabel(labelJsonStart);
+        mv.visitFrame(Opcodes.F_APPEND,1, new Object[] {Opcodes.INTEGER}, 0, null);
+        mv.visitVarInsn(ALOAD, 1);
+        mv.visitInsn(ICONST_1);
+        mv.visitMethodInsn(INVOKEINTERFACE, READER_NAME, "nextPos",
+                "(I)V", true);
+        mv.visitVarInsn(ALOAD, 1);
+        mv.visitMethodInsn(INVOKEINTERFACE, READER_NAME, "firstNotSpaceChar",
+                "()C", true);
+        mv.visitVarInsn(ISTORE, 2);
+        mv.visitTypeInsn(NEW, pojoName);
+        mv.visitInsn(DUP);
+        mv.visitMethodInsn(INVOKESPECIAL, pojoName, "<init>", "()V", false);
+        mv.visitVarInsn(ASTORE, 3);
+        mv.visitVarInsn(ILOAD, 2);
+        mv.visitIntInsn(BIPUSH, '}');
+        Label labelJsonEnd = new Label();
+        mv.visitJumpInsn(IF_ICMPNE, labelJsonEnd);
+        mv.visitVarInsn(ALOAD, 3);
+        mv.visitInsn(ARETURN);
+        mv.visitLabel(labelJsonEnd);
+        mv.visitFrame(Opcodes.F_APPEND,1, new Object[] {pojoName}, 0, null);
+        mv.visitVarInsn(ALOAD, 1);
         mv.visitMethodInsn(INVOKEINTERFACE, READER_NAME, "readKeyRange",
                 "()L" + DATARANGE_NAME + ";", true);
         mv.visitVarInsn(ASTORE, 4);
