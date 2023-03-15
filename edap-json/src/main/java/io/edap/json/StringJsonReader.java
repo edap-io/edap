@@ -21,6 +21,7 @@ import io.edap.json.model.StringDataRange;
 
 import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -42,6 +43,7 @@ public class StringJsonReader implements JsonReader {
 
     protected String json;
     protected int end;
+    private char[] tmpChars;
 
     static JsonCodecRegister DECODER_REGISTE = JsonCodecRegister.instance();
 
@@ -49,6 +51,7 @@ public class StringJsonReader implements JsonReader {
         pos = 0;
         json = jsonStr;
         end = json.length();
+        tmpChars = new char[64];
     }
 
     @Override
@@ -360,10 +363,6 @@ public class StringJsonReader implements JsonReader {
             if (c == quotation && _pos > pos && _json.charAt(_pos-1) != '\\') {
                 pos = _pos+1;
                 break;
-            } else {
-                if (c == '\\' && _pos+1 < end) {
-                    continue;
-                }
             }
         }
     }
@@ -494,21 +493,93 @@ public class StringJsonReader implements JsonReader {
 
     protected String readQuotationMarksString(char quotation) {
         int _pos = pos;
-        String _json = json;
-        StringBuilder key = new StringBuilder();
-        for (;_pos<end;_pos++) {
-            char c = _json.charAt(_pos);
-            if (c == quotation && _pos > pos && _json.charAt(_pos-1) != '\\') {
-                pos = _pos+1;
-                break;
-            } else {
-                if (c == '\\' && _pos+1 < end) {
-                    continue;
+        //byte[] _json = json;
+        int charLen = 0;
+        char c = 0;
+        char[] chars = tmpChars;
+        int clen = chars.length;
+        try {
+            for (; charLen < clen; _pos++) {
+                c = json.charAt(_pos);
+                if (c == (byte) quotation) {
+                    pos = _pos + 1;
+                    return new String(chars, 0, charLen);
                 }
-                key.append(c);
+                if ((c ^ '\\') < 1) {
+                    break;
+                }
+                chars[charLen++] = (char) c;
             }
+            if (_pos >= end) {
+                throw new JsonParseException("JSON string was not closed with a char[" + quotation + "]");
+            }
+        } catch (ArrayIndexOutOfBoundsException ignore) {
+            throw new JsonParseException("JSON string was not closed with a char[" + quotation + "]");
         }
-        return key.toString();
+        if (charLen == clen) {
+            chars = tmpChars = Arrays.copyOf(chars, clen * 2);
+            clen = chars.length;
+        }
+        int bc;
+        while (_pos != end) {
+            bc = json.charAt(_pos++);
+            if (bc == quotation) {
+                this.pos = _pos--;
+                return new String(chars, 0, charLen);
+            }
+            if (bc == '\\') {
+                if (charLen == clen) {
+                    chars = tmpChars = Arrays.copyOf(chars, clen * 2);
+                    clen = chars.length;
+                }
+                bc = json.charAt(_pos++);
+                switch (bc) {
+                    case 'b':
+                        bc = '\b';
+                        break;
+                    case 't':
+                        bc = '\t';
+                        break;
+                    case 'n':
+                        bc = '\n';
+                        break;
+                    case 'f':
+                        bc = '\f';
+                        break;
+                    case 'r':
+                        bc = '\r';
+                        break;
+                    case '"':
+                    case '/':
+                    case '\\':
+                        break;
+                    case 'u':
+                        bc = (hexToInt(json.charAt(_pos++)) << 12) +
+                                (hexToInt(json.charAt(_pos++)) << 8) +
+                                (hexToInt(json.charAt(_pos++)) << 4) +
+                                hexToInt(json.charAt(_pos++));
+                        break;
+
+                    default:
+                        throw new JsonParseException("Could not parse String at position: " + (pos - 1)
+                                + ". Invalid escape combination detected: '\\" + bc + "'");
+
+                }
+            } else if (charLen == clen) {
+                chars = tmpChars = Arrays.copyOf(chars, clen * 2);
+                clen = chars.length;
+            }
+            chars[charLen++] = (char) bc;
+        }
+        throw new JsonParseException("JSON string was not closed with a char[" + quotation + "]");
+
+    }
+
+    private static int hexToInt(final char value) {
+        if (value >= '0' && value <= '9') return value - 0x30;
+        if (value >= 'A' && value <= 'F') return value - 0x37;
+        if (value >= 'a' && value <= 'f') return value - 0x57;
+        throw new JsonParseException("Could not parse unicode escape, expected a hexadecimal digit, got '" + value + "'");
     }
 
     protected DataRange readQuotationMarksDataRange(char quotation) {

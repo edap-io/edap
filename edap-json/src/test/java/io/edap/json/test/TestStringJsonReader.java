@@ -190,7 +190,8 @@ public class TestStringJsonReader {
 
     @Test
     public void testReadNumberArray() {
-        StringJsonReader parser = new StringJsonReader("[123,34,567,0.12,3.1415]");
+        String json = "[123,34,567,0.12,3.1415]";
+        StringJsonReader parser = new StringJsonReader(json);
         List<Object> array = (List<Object>)parser.readObject();
         assertTrue(array != null);
         assertArrayEquals((char[])array.get(0), "123".toCharArray());
@@ -198,6 +199,15 @@ public class TestStringJsonReader {
         assertArrayEquals((char[])array.get(2), "567".toCharArray());
         assertArrayEquals((char[])array.get(3), "0.12".toCharArray());
         assertArrayEquals((char[])array.get(4), "3.1415".toCharArray());
+
+        ByteArrayJsonReader reader = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
+        array = (List<Object>)reader.readObject();
+        assertTrue(array != null);
+        assertArrayEquals((byte[])array.get(0), "123".getBytes());
+        assertArrayEquals((byte[])array.get(1), "34".getBytes());
+        assertArrayEquals((byte[])array.get(2), "567".getBytes());
+        assertArrayEquals((byte[])array.get(3), "0.12".getBytes());
+        assertArrayEquals((byte[])array.get(4), "3.1415".getBytes());
     }
 
     @Test
@@ -243,7 +253,8 @@ public class TestStringJsonReader {
 
     @Test
     public void testReadStringArray() {
-        StringJsonReader parser = new StringJsonReader("[\"abc\",\"bc\",\"cedf\"]");
+        String json = "[\"abc\",\"bc\",\"cedf\"]";
+        StringJsonReader parser = new StringJsonReader(json);
         List<Object> array = (List<Object>)parser.readObject();
         assertTrue(array != null);
         assertEquals(array.size(), 3);
@@ -251,7 +262,16 @@ public class TestStringJsonReader {
         assertEquals(array.get(1), "bc");
         assertEquals(array.get(2), "cedf");
 
-        parser = new StringJsonReader("[\"abc\",\"bc\",\"cedf\",]");
+        ByteArrayJsonReader reader = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
+        array = (List<Object>)reader.readObject();
+        assertTrue(array != null);
+        assertEquals(array.size(), 3);
+        assertEquals(array.get(0), "abc");
+        assertEquals(array.get(1), "bc");
+        assertEquals(array.get(2), "cedf");
+
+        json = "[\"abc\",\"bc\",\"cedf\",]";
+        parser = new StringJsonReader(json);
         array = (List<Object>)parser.readObject();
         assertTrue(array != null);
         assertEquals(array.size(), 3);
@@ -259,7 +279,16 @@ public class TestStringJsonReader {
         assertEquals(array.get(1), "bc");
         assertEquals(array.get(2), "cedf");
 
-        parser = new StringJsonReader("[\"abc\",\"bc\",\"cedf\",,,]");
+        reader = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
+        array = (List<Object>)reader.readObject();
+        assertTrue(array != null);
+        assertEquals(array.size(), 3);
+        assertEquals(array.get(0), "abc");
+        assertEquals(array.get(1), "bc");
+        assertEquals(array.get(2), "cedf");
+
+        json = "[\"abc\",\"bc\",\"cedf\",,,]";
+        parser = new StringJsonReader(json);
         array = (List<Object>)parser.readObject();
         assertTrue(array != null);
         assertEquals(array.size(), 3);
@@ -267,7 +296,16 @@ public class TestStringJsonReader {
         assertEquals(array.get(1), "bc");
         assertEquals(array.get(2), "cedf");
 
-        parser = new StringJsonReader("[\"abc\",\"bc\",\"cedf\",,,\"defgh\"]");
+        reader = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
+        array = (List<Object>)reader.readObject();
+        assertTrue(array != null);
+        assertEquals(array.size(), 3);
+        assertEquals(array.get(0), "abc");
+        assertEquals(array.get(1), "bc");
+        assertEquals(array.get(2), "cedf");
+
+        json = "[\"abc\",\"bc\",\"cedf\",,,\"defgh\"]";
+        parser = new StringJsonReader(json);
         array = (List<Object>)parser.readObject();
         assertTrue(array != null);
         assertEquals(array.size(), 4);
@@ -276,7 +314,17 @@ public class TestStringJsonReader {
         assertEquals(array.get(2), "cedf");
         assertEquals(array.get(3), "defgh");
 
-        parser = new StringJsonReader("[]");
+        reader = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
+        array = (List<Object>)reader.readObject();
+        assertTrue(array != null);
+        assertEquals(array.size(), 4);
+        assertEquals(array.get(0), "abc");
+        assertEquals(array.get(1), "bc");
+        assertEquals(array.get(2), "cedf");
+        assertEquals(array.get(3), "defgh");
+
+        json = "[]";
+        parser = new StringJsonReader(json);
         array = (List<Object>)parser.readObject();
         assertTrue(array != null);
         assertEquals(array.size(), 0);
@@ -287,11 +335,24 @@ public class TestStringJsonReader {
                     parser2.readObject();
                 });
         assertTrue(thrown.getMessage().contains("数组格式不正确"));
+
+        reader = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
+        array = (List<Object>)reader.readObject();
+        assertTrue(array != null);
+        assertEquals(array.size(), 0);
+
+        thrown = assertThrows(JsonParseException.class,
+                () -> {
+                    ByteArrayJsonReader parser2 = new ByteArrayJsonReader("[\"123\"t".getBytes(StandardCharsets.UTF_8));
+                    parser2.readObject();
+                });
+        assertTrue(thrown.getMessage().contains("数组格式不正确"));
     }
 
     @Test
     public void testReadNullValue() {
-        StringJsonReader parser = new StringJsonReader("\n{\t\"name\":null}\n\n");
+        String json = "\n{\t\"name\":null}\n\n";
+        StringJsonReader parser = new StringJsonReader(json);
         JsonObject jsonObject = (JsonObject) parser.readObject();
         assertEquals(jsonObject.size(), 1);
         assertNull(jsonObject.get("name"));
@@ -302,17 +363,42 @@ public class TestStringJsonReader {
                     parser2.readObject();
                 });
         assertTrue(thrown.getMessage().contains("null 格式错误"));
+
+        ByteArrayJsonReader reader = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
+        jsonObject = (JsonObject) reader.readObject();
+        assertEquals(jsonObject.size(), 1);
+        assertNull(jsonObject.get("name"));
+
+        thrown = assertThrows(JsonParseException.class,
+                () -> {
+                    ByteArrayJsonReader parser2 = new ByteArrayJsonReader("\n{\t\"name\":nult}\n\n".getBytes(StandardCharsets.UTF_8));
+                    parser2.readObject();
+                });
+        assertTrue(thrown.getMessage().contains("null 格式错误"));
+
     }
 
     @Test
     public void testParseBooleanValue() {
-        StringJsonReader parser = new StringJsonReader("\n{\t\"open\":true}\n\n");
+        String json = "\n{\t\"open\":true}\n\n";
+        StringJsonReader parser = new StringJsonReader(json);
         JsonObject jsonObject = (JsonObject) parser.readObject();
         assertEquals(jsonObject.size(), 1);
         assertTrue((boolean)jsonObject.get("open"));
 
-        parser = new StringJsonReader("\n{\t\"open\":false}\n\n");
+        ByteArrayJsonReader reader = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
+        jsonObject = (JsonObject) reader.readObject();
+        assertEquals(jsonObject.size(), 1);
+        assertTrue((boolean)jsonObject.get("open"));
+
+        json = "\n{\t\"open\":false}\n\n";
+        parser = new StringJsonReader(json);
         jsonObject = (JsonObject) parser.readObject();
+        assertEquals(jsonObject.size(), 1);
+        assertFalse((boolean)jsonObject.get("open"));
+
+        reader = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
+        jsonObject = (JsonObject) reader.readObject();
         assertEquals(jsonObject.size(), 1);
         assertFalse((boolean)jsonObject.get("open"));
 
@@ -329,14 +415,37 @@ public class TestStringJsonReader {
                     parser2.readObject();
                 });
         assertTrue(thrown.getMessage().contains("boolean 格式错误"));
+
+        thrown = assertThrows(JsonParseException.class,
+                () -> {
+                    ByteArrayJsonReader parser2 = new ByteArrayJsonReader("\n{\t\"open\":truu}\n\n".getBytes(StandardCharsets.UTF_8));
+                    parser2.readObject();
+                });
+        assertTrue(thrown.getMessage().contains("boolean 格式错误"));
+
+        thrown = assertThrows(JsonParseException.class,
+                () -> {
+                    ByteArrayJsonReader parser2 = new ByteArrayJsonReader("\n{\t\"open\":falsa}\n\n".getBytes(StandardCharsets.UTF_8));
+                    parser2.readObject();
+                });
+        assertTrue(thrown.getMessage().contains("boolean 格式错误"));
     }
 
     @Test
     public void testReadArrayValue() {
-        StringJsonReader parser = new StringJsonReader("\n{\t\"list\":[\"a\",\"bc\"]}\n\n");
+        String json = "\n{\t\"list\":[\"a\",\"bc\"]}\n\n";
+        StringJsonReader parser = new StringJsonReader(json);
         JsonObject jsonObject = (JsonObject) parser.readObject();
         assertEquals(jsonObject.size(), 1);
         List<String> list = (List<String>)jsonObject.get("list");
+        assertEquals(list.size(), 2);
+        assertEquals(list.get(0), "a");
+        assertEquals(list.get(1), "bc");
+
+        ByteArrayJsonReader reader = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
+        jsonObject = (JsonObject) reader.readObject();
+        assertEquals(jsonObject.size(), 1);
+        list = (List<String>)jsonObject.get("list");
         assertEquals(list.size(), 2);
         assertEquals(list.get(0), "a");
         assertEquals(list.get(1), "bc");
@@ -867,11 +976,26 @@ public class TestStringJsonReader {
                 });
         assertTrue(thrown.getMessage().contains("Key must start with '\"'!"));
 
+        thrown = assertThrows(JsonParseException.class,
+                () -> {
+                    ByteArrayJson5Reader reader = new ByteArrayJson5Reader(json.getBytes(StandardCharsets.UTF_8));
+                    reader.readKeyRange();
+                });
+        assertTrue(thrown.getMessage().contains("Key must start with '\"'!"));
+
 
         thrown = assertThrows(JsonParseException.class,
                 () -> {
                    String json2 = "\"name\",\"john\",\"age\":0}";
                     StringJsonReader reader = new StringJsonReader(json2);
+                    reader.readKeyRange();
+                });
+        assertTrue(thrown.getMessage().contains("Key and value must use colon split"));
+
+        thrown = assertThrows(JsonParseException.class,
+                () -> {
+                    String json2 = "\"name\",\"john\",\"age\":0}";
+                    ByteArrayJson5Reader reader = new ByteArrayJson5Reader(json2.getBytes(StandardCharsets.UTF_8));
                     reader.readKeyRange();
                 });
         assertTrue(thrown.getMessage().contains("Key and value must use colon split"));
@@ -1021,79 +1145,135 @@ public class TestStringJsonReader {
     public void testReadString() {
         String json = "\"InvocationTargetException\"";
 
+        StringJsonReader reader = new StringJsonReader(json);
+        String s = reader.readString();
+        assertEquals(json.substring(1, json.length()-1), s);
+
         ByteArrayJsonReader bsReader = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
-        String s = bsReader.readString();
+        s = bsReader.readString();
         assertEquals(json.substring(1, json.length()-1), s);
 
         json = "\"012345678901234567890123456789012345678901234567890123456789012345678901234567" +
                 "8901234567890123456789012345678901234567890123456789012345678901234567890123456789\"";
+        reader = new StringJsonReader(json);
+        s = reader.readString();
+        assertEquals(json.substring(1, json.length()-1), s);
+
         bsReader = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
+        reader = new StringJsonReader(json);
+        s = reader.readString();
+        assertEquals(json.substring(1, json.length()-1), s);
+
         s = bsReader.readString();
         System.out.println("src.len=" + (json.length() - 2));
         System.out.println("desc.len=" + s.length());
         assertEquals(json.substring(1, json.length()-1), s);
 
         json = "\"Invo\\bfd\"";
+        reader = new StringJsonReader(json);
+        s = reader.readString();
+        assertEquals("Invo\bfd", s);
+
         System.out.println("json=[" + json + "]");
         bsReader = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
         s = bsReader.readString();
         assertEquals("Invo\bfd", s);
 
         json = "\"Invo\\bfd123456\"";
+        reader = new StringJsonReader(json);
+        s = reader.readString();
+        assertEquals("Invo\bfd123456", s);
+
         System.out.println("json=[" + json + "]");
         bsReader = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
         s = bsReader.readString();
         assertEquals("Invo\bfd123456", s);
 
         json = "\"Invo\\t\"";
+        reader = new StringJsonReader(json);
+        s = reader.readString();
+        assertEquals("Invo\t", s);
+
         System.out.println("json=[" + json + "]");
         bsReader = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
         s = bsReader.readString();
         assertEquals("Invo\t", s);
 
         json = "\"Invo\\t123456\"";
+        reader = new StringJsonReader(json);
+        s = reader.readString();
+        assertEquals("Invo\t123456", s);
+
         System.out.println("json=[" + json + "]");
         bsReader = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
         s = bsReader.readString();
         assertEquals("Invo\t123456", s);
 
         json = "\"Invo\\n\"";
+        reader = new StringJsonReader(json);
+        s = reader.readString();
+        assertEquals("Invo\n", s);
+
         System.out.println("json=[" + json + "]");
         bsReader = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
         s = bsReader.readString();
         assertEquals("Invo\n", s);
 
         json = "\"Invo\\n123456\"";
+        reader = new StringJsonReader(json);
+        s = reader.readString();
+        assertEquals("Invo\n123456", s);
+
         System.out.println("json=[" + json + "]");
         bsReader = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
         s = bsReader.readString();
         assertEquals("Invo\n123456", s);
 
         json = "\"Invo\\f\"";
+        reader = new StringJsonReader(json);
+        s = reader.readString();
+        assertEquals("Invo\f", s);
+
         System.out.println("json=[" + json + "]");
         bsReader = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
         s = bsReader.readString();
         assertEquals("Invo\f", s);
 
         json = "\"Invo\\f123456\"";
+        reader = new StringJsonReader(json);
+        s = reader.readString();
+        assertEquals("Invo\f123456", s);
+
         System.out.println("json=[" + json + "]");
         bsReader = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
         s = bsReader.readString();
         assertEquals("Invo\f123456", s);
 
         json = "\"Invo\\r\"";
+        reader = new StringJsonReader(json);
+        s = reader.readString();
+        assertEquals("Invo\r", s);
+
         System.out.println("json=[" + json + "]");
         bsReader = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
         s = bsReader.readString();
         assertEquals("Invo\r", s);
 
         json = "\"Invo\\r123456\"";
+        reader = new StringJsonReader(json);
+        s = reader.readString();
+        assertEquals("Invo\r123456", s);
+
         System.out.println("json=[" + json + "]");
         bsReader = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
         s = bsReader.readString();
         assertEquals("Invo\r123456", s);
 
         json = "\"Invo\\u7814\"";
+        reader = new StringJsonReader(json);
+        s = reader.readString();
+        assertEquals("Invo研", s);
+
         System.out.println("json=[" + json + "]");
         bsReader = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
         s = bsReader.readString();
@@ -1101,6 +1281,10 @@ public class TestStringJsonReader {
         assertEquals("Invo研", s);
 
         json = "\"Invo\\u7814123456\"";
+        reader = new StringJsonReader(json);
+        s = reader.readString();
+        assertEquals("Invo研123456", s);
+
         System.out.println("json=[" + json + "]");
         bsReader = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
         s = bsReader.readString();
@@ -1108,6 +1292,10 @@ public class TestStringJsonReader {
         assertEquals("Invo研123456", s);
 
         json = "\"Invo\\u7814\"";
+        reader = new StringJsonReader(json);
+        s = reader.readString();
+        assertEquals("Invo研", s);
+
         System.out.println("json=[" + json + "]");
         bsReader = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8), 7);
         s = bsReader.readString();
@@ -1115,6 +1303,10 @@ public class TestStringJsonReader {
         assertEquals("Invo研", s);
 
         json = "\"Invo\\u7814123456\"";
+        reader = new StringJsonReader(json);
+        s = reader.readString();
+        assertEquals("Invo研123456", s);
+
         System.out.println("json=[" + json + "]");
         bsReader = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8), 7);
         s = bsReader.readString();
@@ -1132,34 +1324,34 @@ public class TestStringJsonReader {
         thrown = assertThrows(JsonParseException.class,
                 () -> {
                     String json2 = "\"InvocationTargetException";
-                    ByteArrayJsonReader reader = new ByteArrayJsonReader(json2.getBytes(StandardCharsets.UTF_8));
-                    reader.readString();
+                    ByteArrayJsonReader reader2 = new ByteArrayJsonReader(json2.getBytes(StandardCharsets.UTF_8));
+                    reader2.readString();
                 });
         assertTrue(thrown.getMessage().contains("JSON string was not closed with a char["));
 
         thrown = assertThrows(JsonParseException.class,
                 () -> {
                     String json2 = "\"Invo";
-                    ByteArrayJsonReader reader = new ByteArrayJsonReader(
+                    ByteArrayJsonReader reader2 = new ByteArrayJsonReader(
                             json2.getBytes(StandardCharsets.UTF_8), 4);
-                    reader.readString();
+                    reader2.readString();
                 });
         assertTrue(thrown.getMessage().contains("JSON string was not closed with a char["));
 
         thrown = assertThrows(JsonParseException.class,
                 () -> {
                     String json2 = "Invo";
-                    StringJsonReader reader = new StringJsonReader(json2);
-                    reader.readString();
+                    StringJsonReader reader2 = new StringJsonReader(json2);
+                    reader2.readString();
                 });
         assertTrue(thrown.getMessage().contains("字符串没有使用引号"));
 
         thrown = assertThrows(JsonParseException.class,
                 () -> {
                     String json2 = "Invo";
-                    ByteArrayJsonReader reader = new ByteArrayJsonReader(
+                    ByteArrayJsonReader reader2 = new ByteArrayJsonReader(
                             json2.getBytes(StandardCharsets.UTF_8), 4);
-                    reader.readString();
+                    reader2.readString();
                 });
         assertTrue(thrown.getMessage().contains("字符串没有使用引号"));
     }
