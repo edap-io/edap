@@ -325,10 +325,11 @@ public class StringJsonReader implements JsonReader {
                     return ind * 100000000 + ind2*10000000 + ind3*1000000 + ind4*100000 + ind5*10000
                             + ind6*1000 + ind7*100 + ind8*10 + ind9;
                 } else {
+                    pos = _pos;
                     ind = ind * 1000000000 + ind2*100000000 + ind3*10000000 + ind4*1000000 + ind5*100000
                             + ind6*10000 + ind7*1000 + ind8*100 + ind9*10 + ind10;
                 }
-                pos++;
+
                 return readLongSlowPath(ind);
             } else {
                 pos = _pos;
@@ -344,9 +345,8 @@ public class StringJsonReader implements JsonReader {
 
     private long readLongSlowPath(long value) {
         int _pos = pos;
-        String _json = json;
         for (;_pos<end;_pos++) {
-            int ind = INT_DIGITS[_json.charAt(_pos)];
+            int ind = INT_DIGITS[json.charAt(_pos)];
             if (ind == END_OF_NUMBER) {
                 pos = _pos;
                 return value;

@@ -920,11 +920,18 @@ public class TestStringJsonReader {
 
     @Test
     public void testReadLong0() {
-        String json = "9           ";
+        String json = "0 ";
         StringJsonReader reader = new StringJsonReader(json);
-        assertEquals(reader.readLong0(), 9L);
+        assertEquals(reader.readLong0(), 0L);
 
         ByteArrayJsonReader br = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
+        assertEquals(br.readLong0(), 0);
+
+        json = "9           ";
+        reader = new StringJsonReader(json);
+        assertEquals(reader.readLong0(), 9L);
+
+        br = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
         assertEquals(br.readLong0(), 9);
 
         json = "89           ";
@@ -943,7 +950,7 @@ public class TestStringJsonReader {
 
         json = "6789           ";
         reader = new StringJsonReader(json);
-        assertEquals(reader.readInt0(), 6789);
+        assertEquals(reader.readLong0(), 6789);
 
         br = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
         assertEquals(br.readLong0(), 6789);
@@ -982,6 +989,13 @@ public class TestStringJsonReader {
 
         br = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
         assertEquals(br.readLong0(), 123456789);
+
+        json = "2123456789           ";
+        reader = new StringJsonReader(json);
+        assertEquals(reader.readLong0(), 2123456789L);
+
+        br = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
+        assertEquals(br.readLong0(), 2123456789L);
 
         json = "9 ";
         reader = new StringJsonReader(json);
@@ -1042,6 +1056,13 @@ public class TestStringJsonReader {
 
         br = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
         assertEquals(br.readLong0(), 123456789);
+
+        json = "2123456789 ";
+        reader = new StringJsonReader(json);
+        assertEquals(reader.readLong0(), 2123456789);
+
+        br = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
+        assertEquals(br.readLong0(), 2123456789);
 
 
 //        JsonParseException thrown = assertThrows(JsonParseException.class,
