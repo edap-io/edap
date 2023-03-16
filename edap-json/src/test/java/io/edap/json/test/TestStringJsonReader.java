@@ -919,6 +919,167 @@ public class TestStringJsonReader {
     }
 
     @Test
+    public void testReadLong0() {
+        String json = "9           ";
+        StringJsonReader reader = new StringJsonReader(json);
+        assertEquals(reader.readLong0(), 9L);
+
+        ByteArrayJsonReader br = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
+        assertEquals(br.readLong0(), 9);
+
+        json = "89           ";
+        reader = new StringJsonReader(json);
+        assertEquals(reader.readLong0(), 89);
+
+        br = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
+        assertEquals(br.readLong0(), 89);
+
+        json = "789           ";
+        reader = new StringJsonReader(json);
+        assertEquals(reader.readLong0(), 789);
+
+        br = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
+        assertEquals(br.readLong0(), 789);
+
+        json = "6789           ";
+        reader = new StringJsonReader(json);
+        assertEquals(reader.readInt0(), 6789);
+
+        br = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
+        assertEquals(br.readLong0(), 6789);
+
+        json = "56789           ";
+        reader = new StringJsonReader(json);
+        assertEquals(reader.readLong0(), 56789);
+
+        br = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
+        assertEquals(br.readLong0(), 56789);
+
+        json = "456789           ";
+        reader = new StringJsonReader(json);
+        assertEquals(reader.readLong0(), 456789);
+
+        br = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
+        assertEquals(br.readLong0(), 456789);
+
+        json = "3456789           ";
+        reader = new StringJsonReader(json);
+        assertEquals(reader.readLong0(), 3456789);
+
+        br = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
+        assertEquals(br.readLong0(), 3456789);
+
+        json = "23456789           ";
+        reader = new StringJsonReader(json);
+        assertEquals(reader.readLong0(), 23456789);
+
+        br = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
+        assertEquals(br.readLong0(), 23456789);
+
+        json = "123456789           ";
+        reader = new StringJsonReader(json);
+        assertEquals(reader.readLong0(), 123456789);
+
+        br = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
+        assertEquals(br.readLong0(), 123456789);
+
+        json = "9 ";
+        reader = new StringJsonReader(json);
+        assertEquals(reader.readLong0(), 9);
+
+        json = "89 ";
+        reader = new StringJsonReader(json);
+        assertEquals(reader.readLong0(), 89);
+
+        br = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
+        assertEquals(br.readLong0(), 89);
+
+        json = "789 ";
+        reader = new StringJsonReader(json);
+        assertEquals(reader.readLong0(), 789);
+
+        br = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
+        assertEquals(br.readLong0(), 789);
+
+        json = "6789 ";
+        reader = new StringJsonReader(json);
+        assertEquals(reader.readLong0(), 6789);
+
+        br = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
+        assertEquals(br.readLong0(), 6789);
+
+        json = "56789           ";
+        reader = new StringJsonReader(json);
+        assertEquals(reader.readLong0(), 56789);
+
+        br = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
+        assertEquals(br.readLong0(), 56789);
+
+        json = "456789 ";
+        reader = new StringJsonReader(json);
+        assertEquals(reader.readLong0(), 456789);
+
+        br = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
+        assertEquals(br.readLong0(), 456789);
+
+        json = "3456789 ";
+        reader = new StringJsonReader(json);
+        assertEquals(reader.readLong0(), 3456789);
+
+        br = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
+        assertEquals(br.readLong0(), 3456789);
+
+        json = "23456789           ";
+        reader = new StringJsonReader(json);
+        assertEquals(reader.readLong0(), 23456789);
+
+        br = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
+        assertEquals(br.readLong0(), 23456789);
+
+        json = "123456789 ";
+        reader = new StringJsonReader(json);
+        assertEquals(reader.readLong0(), 123456789);
+
+        br = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
+        assertEquals(br.readLong0(), 123456789);
+
+
+//        JsonParseException thrown = assertThrows(JsonParseException.class,
+//                () -> {
+//                    String json2 = "3123456789 ";
+//                    StringJsonReader reader2 = new StringJsonReader(json2);
+//                    reader2.readInt0();
+//                });
+//        assertTrue(thrown.getMessage().contains("value is too large for int"));
+//
+//        thrown = assertThrows(JsonParseException.class,
+//                () -> {
+//                    String json2 = "3123456789 ";
+//                    ByteArrayJsonReader reader2
+//                            = new ByteArrayJsonReader(json2.getBytes(StandardCharsets.UTF_8));
+//                    reader2.readInt0();
+//                });
+//        assertTrue(thrown.getMessage().contains("value is too large for int"));
+//
+//        thrown = assertThrows(JsonParseException.class,
+//                () -> {
+//                    String json2 = "123456789";
+//                    StringJsonReader reader2 = new StringJsonReader(json2);
+//                    reader2.readInt0();
+//                });
+//        assertTrue(thrown.getMessage().contains("整数没有正确结束"));
+//
+//        thrown = assertThrows(JsonParseException.class,
+//                () -> {
+//                    String json2 = "123456789";
+//                    ByteArrayJsonReader reader2
+//                            = new ByteArrayJsonReader(json2.getBytes(StandardCharsets.UTF_8));
+//                    reader2.readInt0();
+//                });
+//        assertTrue(thrown.getMessage().contains("整数没有正确结束"));
+    }
+
+    @Test
     public void testReadInt() {
         String json = "-9           ";
         StringJsonReader reader = new StringJsonReader(json);

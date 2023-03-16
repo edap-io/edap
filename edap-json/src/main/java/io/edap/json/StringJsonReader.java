@@ -249,7 +249,114 @@ public class StringJsonReader implements JsonReader {
 
     @Override
     public long readLong() {
-        return 0;
+        char c1 = firstNotSpaceChar();
+        if (c1 == '-') {
+            pos++;
+            return -readLong0();
+        } else {
+            return readLong0();
+        }
+    }
+
+    public long readLong0() {
+        int _pos = pos;
+        char c1 = json.charAt(_pos++);
+        int c2;
+        try {
+            long ind = INT_DIGITS[c1];
+            if (ind == 0) {
+                if (_pos < end) {
+                    c2 = json.charAt(_pos);
+                    if (INT_DIGITS[c2] == END_OF_NUMBER) {
+                        pos = _pos;
+                        return 0;
+                    }
+                }
+                throw new JsonParseException("整数不能有前导0的字符");
+            } else if (ind == INVALID_CHAR_FOR_NUMBER) {
+                throw new JsonParseException("整数不符合规范");
+            }
+            if (end - _pos > 8) {
+                int ind2 = INT_DIGITS[json.charAt(_pos++)];
+                if (ind2 == END_OF_NUMBER) {
+                    pos = _pos;
+                    return ind;
+                }
+                int ind3 = INT_DIGITS[json.charAt(_pos++)];
+                if (ind3 == END_OF_NUMBER) {
+                    pos = _pos - 1;
+                    return ind * 10 + ind2;
+                }
+                int ind4 = INT_DIGITS[json.charAt(_pos++)];
+                if (ind4 == END_OF_NUMBER) {
+                    pos = _pos - 1;
+                    return ind * 100 + ind2*10 + ind3;
+                }
+                int ind5 = INT_DIGITS[json.charAt(_pos++)];
+                if (ind5 == END_OF_NUMBER) {
+                    pos = _pos;
+                    return ind * 1000 + ind2*100 + ind3*10 + ind4;
+                }
+                int ind6 = INT_DIGITS[json.charAt(_pos++)];
+                if (ind6 == END_OF_NUMBER) {
+                    pos = _pos - 1;
+                    return ind * 10000 + ind2*1000 + ind3*100 + ind4*10 + ind5;
+                }
+                int ind7 = INT_DIGITS[json.charAt(_pos++)];
+                if (ind7 == END_OF_NUMBER) {
+                    pos = _pos - 1;
+                    return ind * 100000 + ind2*10000 + ind3*1000 + ind4*100 + ind5*10 + ind6;
+                }
+                int ind8 = INT_DIGITS[json.charAt(_pos++)];
+                if (ind8 == END_OF_NUMBER) {
+                    pos = _pos - 1;
+                    return ind * 1000000 + ind2*100000 + ind3*10000 + ind4*1000 + ind5*100 + ind6*10
+                            + ind7;
+                }
+                int ind9 = INT_DIGITS[json.charAt(_pos++)];
+                if (ind9 == END_OF_NUMBER) {
+                    pos = _pos - 1;
+                    return ind * 10000000 + ind2*1000000 + ind3*100000 + ind4*10000 + ind5*1000
+                            + ind6*100 + ind7*10 + ind8;
+                }
+                int ind10 = INT_DIGITS[json.charAt(_pos++)];
+                if (ind10 == END_OF_NUMBER) {
+                    pos = _pos - 1;
+                    return ind * 100000000 + ind2*10000000 + ind3*1000000 + ind4*100000 + ind5*10000
+                            + ind6*1000 + ind7*100 + ind8*10 + ind9;
+                } else {
+                    ind = ind * 1000000000 + ind2*100000000 + ind3*10000000 + ind4*1000000 + ind5*100000
+                            + ind6*10000 + ind7*1000 + ind8*100 + ind9*10 + ind10;
+                }
+                pos++;
+                return readLongSlowPath(ind);
+            } else {
+                pos = _pos;
+                return readLongSlowPath(ind);
+            }
+        } catch (Throwable t) {
+            if (t instanceof JsonParseException) {
+                throw t;
+            }
+            throw new JsonParseException("整数不符合规范");
+        }
+    }
+
+    private long readLongSlowPath(long value) {
+        int _pos = pos;
+        String _json = json;
+        for (;_pos<end;_pos++) {
+            int ind = INT_DIGITS[_json.charAt(_pos)];
+            if (ind == END_OF_NUMBER) {
+                pos = _pos;
+                return value;
+            }
+            value = (value << 3) + (value << 1) + ind;
+            if (value < 0) {
+                throw new JsonParseException("value is too large for long");
+            }
+        }
+        throw new JsonParseException("整数没有正确结束");
     }
 
     @Override
