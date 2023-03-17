@@ -325,7 +325,7 @@ public class StringJsonReader implements JsonReader {
                     return ind * 100000000 + ind2*10000000 + ind3*1000000 + ind4*100000 + ind5*10000
                             + ind6*1000 + ind7*100 + ind8*10 + ind9;
                 } else {
-                    pos = _pos;
+                    pos = _pos--;
                     ind = ind * 1000000000 + ind2*100000000 + ind3*10000000 + ind4*1000000 + ind5*100000
                             + ind6*10000 + ind7*1000 + ind8*100 + ind9*10 + ind10;
                 }

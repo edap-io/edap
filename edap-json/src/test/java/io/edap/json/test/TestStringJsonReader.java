@@ -1167,6 +1167,159 @@ public class TestStringJsonReader {
     }
 
     @Test
+    public void testReadLong() {
+        String json = "-9           ";
+        StringJsonReader reader = new StringJsonReader(json);
+        assertEquals(reader.readLong(), -9);
+
+        ByteArrayJsonReader br = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
+        assertEquals(br.readLong(), -9);
+
+        json = "-89           ";
+        reader = new StringJsonReader(json);
+        assertEquals(reader.readLong(), -89);
+
+        br = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
+        assertEquals(br.readLong(), -89);
+
+        json = "-789           ";
+        reader = new StringJsonReader(json);
+        assertEquals(reader.readLong(), -789);
+
+        br = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
+        assertEquals(br.readLong(), -789);
+
+        json = "-6789           ";
+        reader = new StringJsonReader(json);
+        assertEquals(reader.readLong(), -6789);
+
+        br = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
+        assertEquals(br.readLong(), -6789);
+
+        json = "-56789           ";
+        reader = new StringJsonReader(json);
+        assertEquals(reader.readLong(), -56789);
+
+        br = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
+        assertEquals(br.readLong(), -56789);
+
+        json = "-456789           ";
+        reader = new StringJsonReader(json);
+        assertEquals(reader.readLong(), -456789);
+
+        br = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
+        assertEquals(br.readLong(), -456789);
+
+        json = "-3456789           ";
+        reader = new StringJsonReader(json);
+        assertEquals(reader.readLong(), -3456789);
+
+        br = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
+        assertEquals(br.readLong(), -3456789);
+
+        json = "-23456789           ";
+        reader = new StringJsonReader(json);
+        assertEquals(reader.readLong(), -23456789);
+
+        br = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
+        assertEquals(br.readLong(), -23456789);
+
+        json = "-123456789           ";
+        reader = new StringJsonReader(json);
+        assertEquals(reader.readLong(), -123456789);
+
+        br = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
+        assertEquals(br.readLong(), -123456789);
+
+        json = "-2123456789           ";
+        reader = new StringJsonReader(json);
+        assertEquals(reader.readLong(), -2123456789);
+
+        br = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
+        assertEquals(br.readLong(), -2123456789);
+
+        json = "-32123456789           ";
+        reader = new StringJsonReader(json);
+        assertEquals(reader.readLong(), -32123456789L);
+
+        br = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
+        assertEquals(br.readLong(), -32123456789L);
+
+        json = "-432123456789           ";
+        reader = new StringJsonReader(json);
+        assertEquals(reader.readLong(), -432123456789L);
+
+        br = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
+        assertEquals(br.readLong(), -432123456789L);
+
+        json = "-5432123456789           ";
+        reader = new StringJsonReader(json);
+        assertEquals(reader.readLong(), -5432123456789L);
+
+        br = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
+        assertEquals(br.readLong(), -5432123456789L);
+
+        json = "-65432123456789           ";
+        reader = new StringJsonReader(json);
+        assertEquals(reader.readLong(), -65432123456789L);
+
+        br = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
+        assertEquals(br.readLong(), -65432123456789L);
+
+        json = "-765432123456789           ";
+        reader = new StringJsonReader(json);
+        assertEquals(reader.readLong(), -765432123456789L);
+
+        br = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
+        assertEquals(br.readLong(), -765432123456789L);
+
+        json = "-8765432123456789           ";
+        reader = new StringJsonReader(json);
+        assertEquals(reader.readLong(), -8765432123456789L);
+
+        br = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
+        assertEquals(br.readLong(), -8765432123456789L);
+
+        json = "-98765432123456789           ";
+        reader = new StringJsonReader(json);
+        assertEquals(reader.readLong(), -98765432123456789L);
+
+        br = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
+        assertEquals(br.readLong(), -98765432123456789L);
+
+        json = "-898765432123456789           ";
+        reader = new StringJsonReader(json);
+        assertEquals(reader.readLong(), -898765432123456789L);
+
+        br = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
+        assertEquals(br.readLong(), -898765432123456789L);
+
+        json = "-7898765432123456789           ";
+        reader = new StringJsonReader(json);
+        assertEquals(reader.readLong(), -7898765432123456789L);
+
+        br = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
+        assertEquals(br.readLong(), -7898765432123456789L);
+
+
+        JsonParseException thrown = assertThrows(JsonParseException.class,
+                () -> {
+                    String json2 = "-67898765432123456789           ";
+                    StringJsonReader reader2 = new StringJsonReader(json2);
+                    reader2.readLong();
+                });
+        assertTrue(thrown.getMessage().contains("value is too large for long"));
+
+        thrown = assertThrows(JsonParseException.class,
+                () -> {
+                    String json2 = "-67898765432123456789           ";
+                    ByteArrayJsonReader reader2 = new ByteArrayJsonReader(json2.getBytes(StandardCharsets.UTF_8));
+                    reader2.readLong();
+                });
+        assertTrue(thrown.getMessage().contains("value is too large for long"));
+    }
+
+    @Test
     public void testReadKeyRange() {
         String json = "name:\"john\",\"age\":0}";
         JsonParseException thrown = assertThrows(JsonParseException.class,

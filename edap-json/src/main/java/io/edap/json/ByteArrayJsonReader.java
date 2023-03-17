@@ -750,7 +750,7 @@ public class ByteArrayJsonReader implements JsonReader {
             }
             value = (value << 3) + (value << 1) + ind;
             if (value < 0) {
-                throw new JsonParseException("value is too large for int");
+                throw new JsonParseException("value is too large for long");
             }
         }
         throw new JsonParseException("整数没有正确结束");
