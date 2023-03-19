@@ -54,6 +54,8 @@ public class T {
         start = System.currentTimeMillis();
         JsonCodecRegister.instance().getDecoder(DemoOneString.class, DataType.BYTE_ARRAY);
         System.out.println("time=" + (System.currentTimeMillis() - start));
+        System.out.println("unicode:" + Integer.toHexString("中".charAt(0)));
+        System.out.println("unicode:" + Integer.toHexString("文".charAt(0)));
         // 2,4,8,16,32,64,
     }
 }

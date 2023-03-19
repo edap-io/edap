@@ -639,14 +639,14 @@ public class TestStringJsonReader {
         JsonParseException thrown = assertThrows(JsonParseException.class,
                 () -> {
                     String json2 = "{\"name\":\"john\",\"old\":ts}";
-                    DemoPojo pojo2 = new StringJsonReader(json2).readObject(DemoPojo.class);
+                    new StringJsonReader(json2).readObject(DemoPojo.class);
                 });
         assertTrue(thrown.getMessage().contains("boolean 格式错误"));
 
         thrown = assertThrows(JsonParseException.class,
                 () -> {
                     String json2 = "{\"name\":\"john\",\"old\":ts}";
-                    DemoPojo pojo2 = new ByteArrayJsonReader(json2.getBytes(StandardCharsets.UTF_8))
+                    new ByteArrayJsonReader(json2.getBytes(StandardCharsets.UTF_8))
                             .readObject(DemoPojo.class);
                 });
         assertTrue(thrown.getMessage().contains("boolean 格式错误"));
@@ -654,14 +654,14 @@ public class TestStringJsonReader {
         thrown = assertThrows(JsonParseException.class,
                 () -> {
                     String json2 = "{\"name\":\"john\",\"old\":fs}";
-                    DemoPojo pojo2 = new StringJsonReader(json2).readObject(DemoPojo.class);
+                    new StringJsonReader(json2).readObject(DemoPojo.class);
                 });
         assertTrue(thrown.getMessage().contains("boolean 格式错误"));
 
         thrown = assertThrows(JsonParseException.class,
                 () -> {
                     String json2 = "{\"name\":\"john\",\"old\":fs}";
-                    DemoPojo pojo2 = new ByteArrayJsonReader(json2.getBytes(StandardCharsets.UTF_8))
+                    new ByteArrayJsonReader(json2.getBytes(StandardCharsets.UTF_8))
                             .readObject(DemoPojo.class);
                 });
         assertTrue(thrown.getMessage().contains("boolean 格式错误"));
@@ -669,14 +669,14 @@ public class TestStringJsonReader {
         thrown = assertThrows(JsonParseException.class,
                 () -> {
                     String json2 = "{\"name\":\"john\",\"old\":r}";
-                    DemoPojo pojo2 = new StringJsonReader(json2).readObject(DemoPojo.class);
+                    new StringJsonReader(json2).readObject(DemoPojo.class);
                 });
         assertTrue(thrown.getMessage().contains("boolean 格式错误"));
 
         thrown = assertThrows(JsonParseException.class,
                 () -> {
                     String json2 = "{\"name\":\"john\",\"old\":r}";
-                    DemoPojo pojo2 = new ByteArrayJsonReader(json2.getBytes(StandardCharsets.UTF_8))
+                    new ByteArrayJsonReader(json2.getBytes(StandardCharsets.UTF_8))
                             .readObject(DemoPojo.class);
                 });
         assertTrue(thrown.getMessage().contains("boolean 格式错误"));
@@ -684,35 +684,76 @@ public class TestStringJsonReader {
 
     @Test
     public void testReadPojo() throws InvocationTargetException, InstantiationException, IllegalAccessException {
-        String json = "{\"name\":\"john\",\"age\":0}";
+        String json = "{\"name\":\"john\",\"age\":0,\"integral\":0,\"balance\":0}";
+        StringJsonReader reader = new StringJsonReader(json);
+        DemoPojoDecoder decoder = new DemoPojoDecoder();
+        decoder.decode(reader);
         DemoPojo pojo = new StringJsonReader(json).readObject(DemoPojo.class);
         assertNotNull(pojo);
         assertEquals(pojo.getName(), "john");
         assertEquals(pojo.getAge(), 0);
+        assertEquals(pojo.getBalance(), 0);
+        assertEquals(pojo.getIntegral(), 0);
 
         pojo = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8))
                 .readObject(DemoPojo.class);
         assertNotNull(pojo);
         assertEquals(pojo.getName(), "john");
         assertEquals(pojo.getAge(), 0);
+        assertEquals(pojo.getBalance(), 0);
+        assertEquals(pojo.getIntegral(), 0);
 
-        json = "{\"name\":\"john325\",\"age\":549}";
+        json = "{\"name\":\"john325\",\"age\":549,\"integral\":1234567898776,\"balance\":12345.67898776}";
         pojo = new StringJsonReader(json).readObject(DemoPojo.class);
         assertNotNull(pojo);
         assertEquals(pojo.getName(), "john325");
         assertEquals(pojo.getAge(), 549);
+        assertEquals(pojo.getIntegral(), 1234567898776L);
+        assertEquals(pojo.getBalance(), 12345.67898776D);
 
         pojo = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8))
                 .readObject(DemoPojo.class);
         assertNotNull(pojo);
         assertEquals(pojo.getName(), "john325");
         assertEquals(pojo.getAge(), 549);
+        assertEquals(pojo.getIntegral(), 1234567898776L);
+        assertEquals(pojo.getBalance(), 12345.67898776D);
+
+        json = "{\"name\":\"john325\",\"age\":549,\"integral\":1234567898776,\"balance\":12345.67898776}";
+        pojo = new StringJsonReader(json).readObject(DemoPojo.class);
+        assertNotNull(pojo);
+        assertEquals(pojo.getName(), "john325");
+        assertEquals(pojo.getAge(), 549);
+        assertEquals(pojo.getIntegral(), 1234567898776L);
+        assertEquals(pojo.getBalance(), 12345.67898776D);
+
+        pojo = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8))
+                .readObject(DemoPojo.class);
+        assertNotNull(pojo);
+        assertEquals(pojo.getName(), "john325");
+        assertEquals(pojo.getAge(), 549);
+        assertEquals(pojo.getBalance(), 12345.67898776D);
+
+        json = "{\"name\":\"john325\",\"age\":549,\"integral\":1234567898776,\"balance\":12345}";
+        pojo = new StringJsonReader(json).readObject(DemoPojo.class);
+        assertNotNull(pojo);
+        assertEquals(pojo.getName(), "john325");
+        assertEquals(pojo.getAge(), 549);
+        assertEquals(pojo.getIntegral(), 1234567898776L);
+        assertEquals(pojo.getBalance(), 12345D);
+
+        pojo = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8))
+                .readObject(DemoPojo.class);
+        assertNotNull(pojo);
+        assertEquals(pojo.getName(), "john325");
+        assertEquals(pojo.getAge(), 549);
+        assertEquals(pojo.getBalance(), 12345D);
 
 
         JsonParseException thrown = assertThrows(JsonParseException.class,
                 () -> {
                     String json2 = "{\"name\":\"john\",\"age\":中}";
-                    DemoPojo pojo2 = new StringJsonReader(json2).readObject(DemoPojo.class);
+                    new StringJsonReader(json2).readObject(DemoPojo.class);
                 });
         assertTrue(thrown.getMessage().contains("整数不符合规范"));
 
@@ -721,7 +762,7 @@ public class TestStringJsonReader {
                     String json2 = "{\"name\":\"john\",\"age\":中}";
                     System.out.println("json2.leng=" + json2.length());
                     System.out.println("json2.bs.leng=" + json2.getBytes(StandardCharsets.UTF_8).length);
-                    DemoPojo pojo2 = new ByteArrayJsonReader(json2.getBytes(StandardCharsets.UTF_8))
+                    new ByteArrayJsonReader(json2.getBytes(StandardCharsets.UTF_8))
                             .readObject(DemoPojo.class);
                 });
         assertTrue(thrown.getMessage().contains("整数不符合规范"));
@@ -736,7 +777,7 @@ public class TestStringJsonReader {
         thrown = assertThrows(JsonParseException.class,
                 () -> {
                     String json2 = "{\"name\":\"john\",\"age\":01}";
-                    DemoPojo pojo2 = new ByteArrayJsonReader(json2.getBytes(StandardCharsets.UTF_8))
+                    new ByteArrayJsonReader(json2.getBytes(StandardCharsets.UTF_8))
                             .readObject(DemoPojo.class);
                 });
         assertTrue(thrown.getMessage().contains("整数不能有前导0的字符"));
@@ -744,17 +785,32 @@ public class TestStringJsonReader {
         thrown = assertThrows(JsonParseException.class,
                 () -> {
                     String json2 = "{\"name\":\"john\",\"age\":a}";
-                    DemoPojo pojo2 = new StringJsonReader(json2).readObject(DemoPojo.class);
+                    new StringJsonReader(json2).readObject(DemoPojo.class);
                 });
         assertTrue(thrown.getMessage().contains("整数不符合规范"));
 
         thrown = assertThrows(JsonParseException.class,
                 () -> {
                     String json2 = "{\"name\":\"john\",\"age\":a}";
-                    DemoPojo pojo2 = new ByteArrayJsonReader(json2.getBytes(StandardCharsets.UTF_8))
+                    new ByteArrayJsonReader(json2.getBytes(StandardCharsets.UTF_8))
                             .readObject(DemoPojo.class);
                 });
         assertTrue(thrown.getMessage().contains("整数不符合规范"));
+
+        thrown = assertThrows(JsonParseException.class,
+                () -> {
+                    String json2 = "{\"name\":\"john\",\"balance\":123.}";
+                    new StringJsonReader(json2).readObject(DemoPojo.class);
+                });
+        assertTrue(thrown.getMessage().contains("double类型\".\"没有其他数字"));
+
+        thrown = assertThrows(JsonParseException.class,
+                () -> {
+                    String json2 = "{\"name\":\"john\",\"balance\":123.}";
+                    new ByteArrayJsonReader(json2.getBytes(StandardCharsets.UTF_8))
+                            .readObject(DemoPojo.class);
+                });
+        assertTrue(thrown.getMessage().contains("double类型\".\"没有其他数字"));
     }
 
     @Test
@@ -1065,39 +1121,39 @@ public class TestStringJsonReader {
         assertEquals(br.readLong0(), 2123456789);
 
 
-//        JsonParseException thrown = assertThrows(JsonParseException.class,
-//                () -> {
-//                    String json2 = "3123456789 ";
-//                    StringJsonReader reader2 = new StringJsonReader(json2);
-//                    reader2.readInt0();
-//                });
-//        assertTrue(thrown.getMessage().contains("value is too large for int"));
-//
-//        thrown = assertThrows(JsonParseException.class,
-//                () -> {
-//                    String json2 = "3123456789 ";
-//                    ByteArrayJsonReader reader2
-//                            = new ByteArrayJsonReader(json2.getBytes(StandardCharsets.UTF_8));
-//                    reader2.readInt0();
-//                });
-//        assertTrue(thrown.getMessage().contains("value is too large for int"));
-//
-//        thrown = assertThrows(JsonParseException.class,
-//                () -> {
-//                    String json2 = "123456789";
-//                    StringJsonReader reader2 = new StringJsonReader(json2);
-//                    reader2.readInt0();
-//                });
-//        assertTrue(thrown.getMessage().contains("整数没有正确结束"));
-//
-//        thrown = assertThrows(JsonParseException.class,
-//                () -> {
-//                    String json2 = "123456789";
-//                    ByteArrayJsonReader reader2
-//                            = new ByteArrayJsonReader(json2.getBytes(StandardCharsets.UTF_8));
-//                    reader2.readInt0();
-//                });
-//        assertTrue(thrown.getMessage().contains("整数没有正确结束"));
+        JsonParseException thrown = assertThrows(JsonParseException.class,
+                () -> {
+                    String json2 = "67898765432123456789 ";
+                    StringJsonReader reader2 = new StringJsonReader(json2);
+                    reader2.readLong0();
+                });
+        assertTrue(thrown.getMessage().contains("value is too large for long"));
+
+        thrown = assertThrows(JsonParseException.class,
+                () -> {
+                    String json2 = "67898765432123456789 ";
+                    ByteArrayJsonReader reader2
+                            = new ByteArrayJsonReader(json2.getBytes(StandardCharsets.UTF_8));
+                    reader2.readLong0();
+                });
+        assertTrue(thrown.getMessage().contains("value is too large for long"));
+
+        thrown = assertThrows(JsonParseException.class,
+                () -> {
+                    String json2 = "123456789";
+                    StringJsonReader reader2 = new StringJsonReader(json2);
+                    reader2.readLong0();
+                });
+        assertTrue(thrown.getMessage().contains("整数没有正确结束"));
+
+        thrown = assertThrows(JsonParseException.class,
+                () -> {
+                    String json2 = "123456789";
+                    ByteArrayJsonReader reader2
+                            = new ByteArrayJsonReader(json2.getBytes(StandardCharsets.UTF_8));
+                    reader2.readLong0();
+                });
+        assertTrue(thrown.getMessage().contains("整数没有正确结束"));
     }
 
     @Test
@@ -1164,6 +1220,38 @@ public class TestStringJsonReader {
 
         br = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
         assertEquals(br.readInt(), -123456789);
+    }
+
+    @Test
+    public void testReadDouble() {
+        String json = "-9           ";
+        StringJsonReader reader = new StringJsonReader(json);
+        assertEquals(reader.readDouble(), -9);
+        reader.reset();
+        assertEquals(reader.readDouble(), -9);
+
+        ByteArrayJsonReader br = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
+        assertEquals(br.readDouble(), -9);
+        br.reset();
+        assertEquals(br.readDouble(), -9);
+    }
+
+    @Test
+    public void testReadFloat() {
+        String json = "{\"v\":123.45}";
+        StringJsonReader reader = new StringJsonReader(json);
+        reader.nextPos(5);
+        assertEquals(reader.readFloat(), 123.45f);
+        reader.reset();
+        reader.nextPos(5);
+        assertEquals(reader.readFloat(), 123.45f);
+
+        ByteArrayJsonReader br = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
+        br.nextPos(5);
+        assertEquals(br.readFloat(), 123.45f);
+        br.reset();
+        br.nextPos(5);
+        assertEquals(br.readFloat(), 123.45f);
     }
 
     @Test
@@ -1644,16 +1732,16 @@ public class TestStringJsonReader {
         System.out.println("str=[" + s + "]");
         assertEquals("Invo研123456", s);
 
-        json = "\"Invo\\u7814\"";
+        json = "\"Invo\\u7814\\u4e2d\\u4E2D\"";
         reader = new StringJsonReader(json);
         s = reader.readString();
-        assertEquals("Invo研", s);
+        assertEquals("Invo研中中", s);
 
         System.out.println("json=[" + json + "]");
         bsReader = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8), 7);
         s = bsReader.readString();
         System.out.println("str=[" + s + "]");
-        assertEquals("Invo研", s);
+        assertEquals("Invo研中中", s);
 
         json = "\"Invo\\u7814123456\"";
         reader = new StringJsonReader(json);
@@ -1707,6 +1795,23 @@ public class TestStringJsonReader {
                     reader2.readString();
                 });
         assertTrue(thrown.getMessage().contains("字符串没有使用引号"));
+
+        thrown = assertThrows(JsonParseException.class,
+                () -> {
+                    String json2 = "\"Invo\\uwedf\"";
+                    StringJsonReader reader2 = new StringJsonReader(json2);
+                    reader2.readString();
+                });
+        assertTrue(thrown.getMessage().contains("Could not parse unicode escape, expected a hexadecimal digit"));
+
+        thrown = assertThrows(JsonParseException.class,
+                () -> {
+                    String json2 = "\"Invo\\uwedf\"";
+                    ByteArrayJsonReader reader2 = new ByteArrayJsonReader(
+                            json2.getBytes(StandardCharsets.UTF_8), 4);
+                    reader2.readString();
+                });
+        assertTrue(thrown.getMessage().contains("Could not parse unicode escape, expected a hexadecimal digit"));
     }
 
     @Test

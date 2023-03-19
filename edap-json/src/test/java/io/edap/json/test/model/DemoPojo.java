@@ -24,6 +24,10 @@ public class DemoPojo {
 
     private boolean old;
 
+    private double balance;
+
+    private long integral;
+
     public String getName() {
         return name;
     }
@@ -46,5 +50,21 @@ public class DemoPojo {
 
     public void setOld(boolean old) {
         this.old = old;
+    }
+
+    public double getBalance() {
+        return balance;
+    }
+
+    public void setBalance(double balance) {
+        this.balance = balance;
+    }
+
+    public long getIntegral() {
+        return integral;
+    }
+
+    public void setIntegral(long integral) {
+        this.integral = integral;
     }
 }

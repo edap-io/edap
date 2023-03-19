@@ -40,6 +40,11 @@ public class JsonUtil {
     public static boolean[] ECMAS_ALLOW_FIRST_CHARS = new boolean[128];
     public static boolean[] ECMAS_ALLOW_OTHER_CHARS = new boolean[128];
 
+    public static final long POW10[] = {
+            1, 10, 100, 1000, 10000, 100000, 1000000, 10000000, 100000000,
+            1000000000, 10000000000L, 100000000000L, 1000000000000L,
+            10000000000000L, 100000000000000L, 1000000000000000L};
+
     public static int[] INT_DIGITS = new int[128];
     static {
         // 标识符首字母允许的符号
@@ -48,13 +53,13 @@ public class JsonUtil {
             INT_DIGITS[i] = INVALID_CHAR_FOR_NUMBER;
         }
 
-        INT_DIGITS[',']  = END_OF_NUMBER;
-        INT_DIGITS[']']  = END_OF_NUMBER;
-        INT_DIGITS['}']  = END_OF_NUMBER;
-        INT_DIGITS[' ']  = END_OF_NUMBER;
-        INT_DIGITS['\t'] = END_OF_NUMBER;
-        INT_DIGITS['\r'] = END_OF_NUMBER;
-        INT_DIGITS['\n'] = END_OF_NUMBER;
+//        INT_DIGITS[',']  = END_OF_NUMBER;
+//        INT_DIGITS[']']  = END_OF_NUMBER;
+//        INT_DIGITS['}']  = END_OF_NUMBER;
+//        INT_DIGITS[' ']  = END_OF_NUMBER;
+//        INT_DIGITS['\t'] = END_OF_NUMBER;
+//        INT_DIGITS['\r'] = END_OF_NUMBER;
+//        INT_DIGITS['\n'] = END_OF_NUMBER;
 
         ECMAS_ALLOW_FIRST_CHARS['$'] = true; // $符号
         ECMAS_ALLOW_FIRST_CHARS['_'] = true; // _下划线符号
@@ -199,8 +204,14 @@ public class JsonUtil {
             case "long":
                 method = "readLong";
                 break;
+            case "double":
+                method = "readDouble";
+                break;
+            case "float":
+                method = "readFloat";
+                break;
             default:
-                method = "writeObject";
+                method = "readObject";
         }
         return method;
     }

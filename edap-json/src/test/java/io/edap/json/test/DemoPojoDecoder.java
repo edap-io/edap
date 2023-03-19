@@ -21,12 +21,24 @@ import io.edap.json.JsonDecoder;
 import io.edap.json.JsonParseException;
 import io.edap.json.JsonReader;
 import io.edap.json.model.DataRange;
+import io.edap.json.model.StringDataRange;
 import io.edap.json.test.model.DemoOneString;
 import io.edap.json.test.model.DemoPojo;
 
 import java.lang.reflect.InvocationTargetException;
 
 public class DemoPojoDecoder extends AbstractDecoder implements JsonDecoder<DemoPojo> {
+
+    static DataRange<String> NAME_DR = StringDataRange.from("name");
+
+    static DataRange<String> AGE_DR = StringDataRange.from("age");
+
+    static DataRange<String> OLD_DR = StringDataRange.from("old");
+
+    static DataRange<String> BALANCE_DR = StringDataRange.from("balance");
+
+    static DataRange<String> INTEGRAL_DR = StringDataRange.from("integral");
+
     @Override
     public DemoPojo decode(JsonReader jsonReader) throws InvocationTargetException, InstantiationException, IllegalAccessException {
         char c = jsonReader.firstNotSpaceChar();
@@ -39,38 +51,36 @@ public class DemoPojoDecoder extends AbstractDecoder implements JsonDecoder<Demo
         if (c == '}') {
             return pojo;
         }
-        int dr = jsonReader.keyHash();
-        switch (dr) {
-            case 1212206434:
-                pojo.setAge(jsonReader.readInt());
-                break;
-            case 567:
-                pojo.setName(jsonReader.readString());
-                break;
-            case 789:
-                pojo.setOld(jsonReader.readBoolean());
-                break;
-            default:
-                jsonReader.skipValue();
-                break;
+        DataRange dr = jsonReader.readKeyRange();
+        if (NAME_DR.equals(dr)) {
+            pojo.setName(jsonReader.readString());
+        } else if (AGE_DR.equals(dr)) {
+            pojo.setAge(jsonReader.readInt());
+        } else if (OLD_DR.equals(dr)) {
+            pojo.setOld(jsonReader.readBoolean());
+        } else if (BALANCE_DR.equals(dr)) {
+            pojo.setBalance(jsonReader.readDouble());
+        } else if (INTEGRAL_DR.equals(dr)) {
+            pojo.setIntegral(jsonReader.readLong());
+        } else {
+            jsonReader.skipValue();
         }
         c = jsonReader.firstNotSpaceChar();
         while (c == ',') {
             jsonReader.nextPos(1);
-            dr = jsonReader.keyHash();
-            switch (dr) {
-                case 1212206434:
-                    pojo.setAge(jsonReader.readInt());
-                    break;
-                case 567:
-                    pojo.setName(jsonReader.readString());
-                    break;
-                case 789:
-                    pojo.setOld(jsonReader.readBoolean());
-                    break;
-                default:
-                    jsonReader.skipValue();
-                    break;
+            dr = jsonReader.readKeyRange();
+            if (NAME_DR.equals(dr)) {
+                pojo.setName(jsonReader.readString());
+            } else if (AGE_DR.equals(dr)) {
+                pojo.setAge(jsonReader.readInt());
+            } else if (OLD_DR.equals(dr)) {
+                pojo.setOld(jsonReader.readBoolean());
+            } else if (BALANCE_DR.equals(dr)) {
+                pojo.setBalance(jsonReader.readDouble());
+            } else if (INTEGRAL_DR.equals(dr)) {
+                pojo.setIntegral(jsonReader.readLong());
+            } else {
+                jsonReader.skipValue();
             }
             c = jsonReader.firstNotSpaceChar();
         }
