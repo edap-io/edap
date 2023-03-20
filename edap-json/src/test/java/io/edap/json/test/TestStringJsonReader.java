@@ -972,6 +972,23 @@ public class TestStringJsonReader {
                     reader2.readInt0();
                 });
         assertTrue(thrown.getMessage().contains("整数没有正确结束"));
+
+        thrown = assertThrows(JsonParseException.class,
+                () -> {
+                    String json2 = "05";
+                    StringJsonReader reader2 = new StringJsonReader(json2);
+                    reader2.readInt0();
+                });
+        assertTrue(thrown.getMessage().contains("整数不能有前导0的字符"));
+
+        thrown = assertThrows(JsonParseException.class,
+                () -> {
+                    String json2 = "05";
+                    ByteArrayJsonReader reader2
+                            = new ByteArrayJsonReader(json2.getBytes(StandardCharsets.UTF_8));
+                    reader2.readInt0();
+                });
+        assertTrue(thrown.getMessage().contains("整数不能有前导0的字符"));
     }
 
     @Test
@@ -1154,6 +1171,23 @@ public class TestStringJsonReader {
                     reader2.readLong0();
                 });
         assertTrue(thrown.getMessage().contains("整数没有正确结束"));
+
+        thrown = assertThrows(JsonParseException.class,
+                () -> {
+                    String json2 = "07";
+                    StringJsonReader reader2 = new StringJsonReader(json2);
+                    reader2.readLong0();
+                });
+        assertTrue(thrown.getMessage().contains("整数不能有前导0的字符"));
+
+        thrown = assertThrows(JsonParseException.class,
+                () -> {
+                    String json2 = "07";
+                    ByteArrayJsonReader reader2
+                            = new ByteArrayJsonReader(json2.getBytes(StandardCharsets.UTF_8));
+                    reader2.readLong0();
+                });
+        assertTrue(thrown.getMessage().contains("整数不能有前导0的字符"));
     }
 
     @Test
@@ -1252,6 +1286,52 @@ public class TestStringJsonReader {
         br.reset();
         br.nextPos(5);
         assertEquals(br.readFloat(), 123.45f);
+
+        json = "{\"v\":-1234.5}";
+        reader = new StringJsonReader(json);
+        reader.nextPos(5);
+        assertEquals(reader.readFloat(), -1234.5f);
+        reader.reset();
+        reader.nextPos(5);
+        assertEquals(reader.readFloat(), -1234.5f);
+
+        br = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
+        br.nextPos(5);
+        assertEquals(br.readFloat(), -1234.5f);
+        br.reset();
+        br.nextPos(5);
+        assertEquals(br.readFloat(), -1234.5f);
+
+        json = "{\"v\":-1234}";
+        reader = new StringJsonReader(json);
+        reader.nextPos(5);
+        assertEquals(reader.readFloat(), -1234f);
+        reader.reset();
+        reader.nextPos(5);
+        assertEquals(reader.readFloat(), -1234f);
+
+        br = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
+        br.nextPos(5);
+        assertEquals(br.readFloat(), -1234f);
+        br.reset();
+        br.nextPos(5);
+        assertEquals(br.readFloat(), -1234f);
+
+        JsonParseException thrown = assertThrows(JsonParseException.class,
+                () -> {
+                    String json2 = "123.";
+                    StringJsonReader reader2 = new StringJsonReader(json2);
+                    reader2.readFloat();
+                });
+        assertTrue(thrown.getMessage().contains("double类型\".\"没有其他数字"));
+
+        thrown = assertThrows(JsonParseException.class,
+                () -> {
+                    String json2 = "123.";
+                    ByteArrayJsonReader reader2 = new ByteArrayJsonReader(json2.getBytes(StandardCharsets.UTF_8));
+                    reader2.readFloat();
+                });
+        assertTrue(thrown.getMessage().contains("double类型\".\"没有其他数字"));
     }
 
     @Test
