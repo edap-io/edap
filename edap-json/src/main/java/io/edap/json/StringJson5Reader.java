@@ -24,11 +24,11 @@ import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
 import java.util.List;
 
+import static io.edap.json.consts.JsonConsts.INVALID_CHAR_FOR_NUMBER;
 import static io.edap.json.enums.DataType.STRING;
 import static io.edap.json.model.CommentItem.emptyRow;
 import static io.edap.json.model.CommentItem.singleLineComment;
-import static io.edap.json.util.JsonUtil.isIdentifierNameFirst;
-import static io.edap.json.util.JsonUtil.isIdentifierNameOther;
+import static io.edap.json.util.JsonUtil.*;
 
 public class StringJson5Reader extends StringJsonReader {
 
@@ -65,7 +65,11 @@ public class StringJson5Reader extends StringJsonReader {
                 jsonObject.put(key, value);
                 c = firstNotSpaceChar();
             } else {
-                throw new JsonParseException("key and value 后为不符合json字符[" + c + "]");
+                if (pos < end) {
+                    throw new JsonParseException("key and value 后为不符合json字符[" + c + "]");
+                } else {
+                    throw new JsonParseException("Json没有正确结束");
+                }
             }
         }
         return jsonObject;
@@ -300,5 +304,64 @@ public class StringJson5Reader extends StringJsonReader {
         }
         item.setComments(comments);
         return item;
+    }
+
+    protected Object readNumberValue() {
+        char c1 = firstNotSpaceChar();
+        int start = pos;
+        try {
+            if (c1 == '-') {
+                pos++;
+                return readNumber0(true);
+            } else {
+                return readNumber0(false);
+            }
+        } catch (Exception e) {
+            for (int i=pos;i<end;i++) {
+                char c = json.charAt(i);
+                if (c == ' ' || c == ',' || c == ']' || c == '}') {
+                    String num = json.substring(start, i);
+                    pos = i;
+                    return Double.parseDouble(num);
+                }
+            }
+            String num = json.substring(start, end);
+            pos = end;
+            return Double.parseDouble(num);
+        }
+    }
+
+    private Object readNumber0(boolean isNe) {
+        int start = pos;
+        long value = readLong0(INVALID_CHAR_FOR_NUMBER);
+        char c = json.charAt(pos);
+        if (c == '.') {
+            pos++;
+            int dotPos = pos;
+            try {
+                long div = readLong0(INVALID_CHAR_FOR_NUMBER);
+                int len = pos - dotPos;
+                double v = value + ((double) div / POW10[len]);
+                return isNe ? -v : v;
+            } catch (Exception e) {
+                throw new JsonParseException("double类型\".\"没有其他数字");
+            }
+        } else if (c == 'x') {
+            if (pos - start == 1) {
+                pos++;
+                value = 0;
+                for (int i=pos;i<end;i++) {
+                    int ind = HEX_DIGITS[json.charAt(i)];
+                    if (ind == INVALID_CHAR_FOR_NUMBER) {
+                        pos = i;
+                        return value;
+                    }
+                    value = (value  << 4) + ind;
+                }
+            }
+        } else {
+            return isNe ? -value : value;
+        }
+        return null;
     }
 }

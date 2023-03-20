@@ -47,11 +47,14 @@ public class JsonUtil {
             10000000000000L, 100000000000000L, 1000000000000000L};
 
     public static int[] INT_DIGITS = new int[128];
+
+    public static int[] HEX_DIGITS = new int[128];
     static {
         // 标识符首字母允许的符号
         for (int i=0;i<128;i++) {
             ECMAS_ALLOW_FIRST_CHARS[i] = false;
             INT_DIGITS[i] = INVALID_CHAR_FOR_NUMBER;
+            HEX_DIGITS[i] = INVALID_CHAR_FOR_NUMBER;
         }
 
 //        INT_DIGITS[',']  = END_OF_NUMBER;
@@ -66,9 +69,11 @@ public class JsonUtil {
         ECMAS_ALLOW_FIRST_CHARS['_'] = true; // _下划线符号
         for (int i='A';i<='Z';i++) {
             ECMAS_ALLOW_FIRST_CHARS[i] = true; // 大写字母
+            HEX_DIGITS[i] = i - 55;
         }
         for (int i='a';i<='z';i++) {
             ECMAS_ALLOW_FIRST_CHARS[i] = true; // 小写字母
+            HEX_DIGITS[i] = i - 87;
         }
 
         // 标识符其他位置允许的符号

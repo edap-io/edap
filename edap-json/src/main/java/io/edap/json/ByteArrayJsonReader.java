@@ -104,7 +104,11 @@ public class ByteArrayJsonReader implements JsonReader {
                 jsonObject.put(key, value);
                 c = firstNotSpaceChar();
             } else {
-                throw new JsonParseException("key and value 后为不符合json字符[" + (char)c + "]");
+                if (pos < end) {
+                    throw new JsonParseException("key and value 后为不符合json字符[" + (char) c + "]");
+                } else {
+                    throw new JsonParseException("Json没有正确结束");
+                }
             }
         }
         return jsonObject;
@@ -300,24 +304,52 @@ public class ByteArrayJsonReader implements JsonReader {
                 throw new JsonParseException("boolean 格式错误");
             }
         } else {
-            int endPos = readNumberValue();
-            byte[] nums = new byte[endPos-pos];
-            System.arraycopy(json, pos, nums, 0, nums.length);
-            pos = endPos;
-            return nums;
+            return readNumberValue();
         }
     }
 
-    protected int readNumberValue() {
-        int _pos = pos;
-        byte[] _json = json;
-        for (;_pos<end;_pos++) {
-            byte c = _json[_pos];
-            if (c <= ' ' || c == ',' || c == ']' || c == '}') {
-                return _pos;
+    protected Object readNumberValue() {
+        char c1 = firstNotSpaceChar();
+        int start = pos;
+        try {
+            if (c1 == '-') {
+                pos++;
+                return readNumber0(true);
+            } else {
+                return readNumber0(false);
             }
+        } catch (Exception e) {
+            for (int i=pos;i<end;i++) {
+                byte c = json[i];
+                if (c == ' ' || c == ',' || c == ']' || c == '}') {
+                    String num = new String(json, start, i-start);
+                    pos = i;
+                    return Double.parseDouble(num);
+                }
+            }
+            String num = new String(json, start, end-start);
+            pos = end;
+            return Double.parseDouble(num);
         }
-        throw new JsonParseException("Json没有正确结束");
+    }
+
+    private Object readNumber0(boolean isNe) {
+        long value = readLong0(INVALID_CHAR_FOR_NUMBER);
+        byte c = json[pos];
+        if (c == '.') {
+            pos++;
+            int dotPos = pos;
+            try {
+                long div = readLong0(INVALID_CHAR_FOR_NUMBER);
+                int len = pos - dotPos;
+                double v = value + ((double) div / POW10[len]);
+                return isNe?-v:v;
+            } catch (Exception e) {
+                throw new JsonParseException("double类型\".\"没有其他数字");
+            }
+        } else {
+            return isNe?-value:value;
+        }
     }
 
     public List<Object> readArrayValue() {

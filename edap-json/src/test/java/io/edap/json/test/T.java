@@ -31,10 +31,14 @@ public class T {
         String str = "中文";
         char c = str.charAt(0);
         byte[] bs = str.getBytes(StandardCharsets.UTF_8);
-        System.out.println("c=" + (char)bs[0]);
+        System.out.println("9=" + (int)'9');
+        System.out.println("a=" + (int)'a');
+        System.out.println("A=" + (int)'A');
+        System.out.println("d=" + (int)'d');
         System.out.println("c=" + (char)bs[0]);
         System.out.println("c=" + (int)c);
         System.out.println("b=" + (byte)c);
+        System.out.println("0xdecaf=" + Integer.parseInt("decaf", 16));
 
         int value = 5;
         System.out.println("value=" + ((value << 3) + (value << 1)));

@@ -21,13 +21,11 @@ import io.edap.json.model.DataRange;
 import io.edap.json.model.StringDataRange;
 
 import java.lang.reflect.InvocationTargetException;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
-import static io.edap.json.consts.JsonConsts.END_OF_NUMBER;
 import static io.edap.json.consts.JsonConsts.INVALID_CHAR_FOR_NUMBER;
 import static io.edap.json.enums.DataType.STRING;
 import static io.edap.json.util.JsonUtil.INT_DIGITS;
@@ -117,11 +115,7 @@ public class StringJsonReader implements JsonReader {
                 throw new JsonParseException("boolean 格式错误");
             }
         } else {
-            int endPos = readNumberValue();
-            char[] nums = new char[endPos-pos];
-            json.getChars(pos, endPos, nums, 0);
-            pos = endPos;
-            return nums;
+            return readNumberValue();
         }
     }
 
@@ -162,14 +156,13 @@ public class StringJsonReader implements JsonReader {
 
     public int readInt0(int endType) {
         int _pos = pos;
-        String _json = json;
-        char c1 = _json.charAt(_pos++);
+        char c1 = json.charAt(_pos++);
         int c2;
         try {
             int ind = INT_DIGITS[c1];
             if (ind == 0) {
                 if (_pos < end) {
-                    c2 = _json.charAt(_pos);
+                    c2 = json.charAt(_pos);
                     if (INT_DIGITS[c2] == endType) {
                         pos = _pos;
                         return 0;
@@ -180,49 +173,49 @@ public class StringJsonReader implements JsonReader {
                 throw new JsonParseException("整数不符合规范");
             }
             if (end - _pos > 8) {
-                int ind2 = INT_DIGITS[_json.charAt(_pos++)];
+                int ind2 = INT_DIGITS[json.charAt(_pos++)];
                 if (ind2 == endType) {
                     pos = _pos;
                     return ind;
                 }
-                int ind3 = INT_DIGITS[_json.charAt(_pos++)];
+                int ind3 = INT_DIGITS[json.charAt(_pos++)];
                 if (ind3 == endType) {
                     pos = _pos - 1;
                     return ind * 10 + ind2;
                 }
-                int ind4 = INT_DIGITS[_json.charAt(_pos++)];
+                int ind4 = INT_DIGITS[json.charAt(_pos++)];
                 if (ind4 == endType) {
                     pos = _pos - 1;
                     return ind * 100 + ind2*10 + ind3;
                 }
-                int ind5 = INT_DIGITS[_json.charAt(_pos++)];
+                int ind5 = INT_DIGITS[json.charAt(_pos++)];
                 if (ind5 == endType) {
                     pos = _pos;
                     return ind * 1000 + ind2*100 + ind3*10 + ind4;
                 }
-                int ind6 = INT_DIGITS[_json.charAt(_pos++)];
+                int ind6 = INT_DIGITS[json.charAt(_pos++)];
                 if (ind6 == endType) {
                     pos = _pos - 1;
                     return ind * 10000 + ind2*1000 + ind3*100 + ind4*10 + ind5;
                 }
-                int ind7 = INT_DIGITS[_json.charAt(_pos++)];
+                int ind7 = INT_DIGITS[json.charAt(_pos++)];
                 if (ind7 == endType) {
                     pos = _pos - 1;
                     return ind * 100000 + ind2*10000 + ind3*1000 + ind4*100 + ind5*10 + ind6;
                 }
-                int ind8 = INT_DIGITS[_json.charAt(_pos++)];
+                int ind8 = INT_DIGITS[json.charAt(_pos++)];
                 if (ind8 == endType) {
                     pos = _pos - 1;
                     return ind * 1000000 + ind2*100000 + ind3*10000 + ind4*1000 + ind5*100 + ind6*10
                             + ind7;
                 }
-                int ind9 = INT_DIGITS[_json.charAt(_pos++)];
+                int ind9 = INT_DIGITS[json.charAt(_pos++)];
                 if (ind9 == endType) {
                     pos = _pos - 1;
                     return ind * 10000000 + ind2*1000000 + ind3*100000 + ind4*10000 + ind5*1000
                             + ind6*100 + ind7*10 + ind8;
                 }
-                int ind10 = INT_DIGITS[_json.charAt(_pos++)];
+                int ind10 = INT_DIGITS[json.charAt(_pos++)];
                 if (ind10 == endType) {
                     pos = _pos - 1;
                     return ind * 100000000 + ind2*10000000 + ind3*1000000 + ind4*100000 + ind5*10000
@@ -242,11 +235,10 @@ public class StringJsonReader implements JsonReader {
         }
     }
 
-    public int readIntSlowPath(int value, int endType) {
+    private int readIntSlowPath(int value, int endType) {
         int _pos = pos;
-        String _json = json;
         for (;_pos<end;_pos++) {
-            int ind = INT_DIGITS[_json.charAt(_pos)];
+            int ind = INT_DIGITS[json.charAt(_pos)];
             if (ind == endType) {
                 pos = _pos;
                 return value;
@@ -523,17 +515,15 @@ public class StringJsonReader implements JsonReader {
     @Override
     public double readDouble() {
         char c1 = firstNotSpaceChar();
-        int startPos = pos;
         if (c1 == '-') {
             pos++;
-            return -readDouble0(startPos);
+            return -readDouble0();
         } else {
-            double v = readDouble0(startPos);
-            return v;
+            return readDouble0();
         }
     }
 
-    private double readDouble0(int startPos) {
+    private double readDouble0() {
         long value = readLong0(INVALID_CHAR_FOR_NUMBER);
         char c = json.charAt(pos);
         if (c == '.') {
@@ -582,16 +572,48 @@ public class StringJsonReader implements JsonReader {
         return (int)hashCode;
     }
 
-    protected int readNumberValue() {
-        int _pos = pos;
-        String _json = json;
-        for (;_pos<end;_pos++) {
-            char c = _json.charAt(_pos);
-            if (c <= ' ' || c == ',' || c == ']' || c == '}') {
-                return _pos;
+    protected Object readNumberValue() {
+        char c1 = firstNotSpaceChar();
+        int start = pos;
+        try {
+            if (c1 == '-') {
+                pos++;
+                return readNumber0(true);
+            } else {
+                return readNumber0(false);
             }
+        } catch (Exception e) {
+            for (int i=pos;i<end;i++) {
+                char c = json.charAt(i);
+                if (c == ' ' || c == ',' || c == ']' || c == '}') {
+                    String num = json.substring(start, i);
+                    pos = i;
+                    return Double.parseDouble(num);
+                }
+            }
+            String num = json.substring(start, end);
+            pos = end;
+            return Double.parseDouble(num);
         }
-        throw new JsonParseException("Json没有正确结束");
+    }
+
+    private Object readNumber0(boolean isNe) {
+        long value = readLong0(INVALID_CHAR_FOR_NUMBER);
+        char c = json.charAt(pos);
+        if (c == '.') {
+            pos++;
+            int dotPos = pos;
+            try {
+                long div = readLong0(INVALID_CHAR_FOR_NUMBER);
+                int len = pos - dotPos;
+                double v = value + ((double) div / POW10[len]);
+                return isNe?-v:v;
+            } catch (Exception e) {
+                throw new JsonParseException("double类型\".\"没有其他数字");
+            }
+        } else {
+            return isNe?-value:value;
+        }
     }
 
     protected JsonObject readObjectValue() {
@@ -614,7 +636,11 @@ public class StringJsonReader implements JsonReader {
                 jsonObject.put(key, value);
                 c = firstNotSpaceChar();
             } else {
-                throw new JsonParseException("key and value 后为不符合json字符[" + (char)c + "]");
+                if (pos < end) {
+                    throw new JsonParseException("key and value 后为不符合json字符[" + (char) c + "]");
+                } else {
+                    throw new JsonParseException("Json没有正确结束");
+                }
             }
         }
         return jsonObject;

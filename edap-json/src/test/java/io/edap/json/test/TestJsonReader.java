@@ -197,20 +197,20 @@ public class TestJsonReader {
         StringJsonReader parser = new StringJsonReader(json);
         List<Object> array = (List<Object>)parser.readObject();
         assertTrue(array != null);
-        assertArrayEquals((char[])array.get(0), "123".toCharArray());
-        assertArrayEquals((char[])array.get(1), "34".toCharArray());
-        assertArrayEquals((char[])array.get(2), "567".toCharArray());
-        assertArrayEquals((char[])array.get(3), "0.12".toCharArray());
-        assertArrayEquals((char[])array.get(4), "3.1415".toCharArray());
+        assertEquals((long)array.get(0), 123);
+        assertEquals((long)array.get(1), 34);
+        assertEquals((long)array.get(2), 567);
+        assertEquals(array.get(3), 0.12d);
+        assertEquals(array.get(4), 3.1415d);
 
         ByteArrayJsonReader reader = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
         array = (List<Object>)reader.readObject();
         assertTrue(array != null);
-        assertArrayEquals((byte[])array.get(0), "123".getBytes());
-        assertArrayEquals((byte[])array.get(1), "34".getBytes());
-        assertArrayEquals((byte[])array.get(2), "567".getBytes());
-        assertArrayEquals((byte[])array.get(3), "0.12".getBytes());
-        assertArrayEquals((byte[])array.get(4), "3.1415".getBytes());
+        assertEquals((long)array.get(0), 123);
+        assertEquals((long)array.get(1), 34);
+        assertEquals((long)array.get(2), 567);
+        assertEquals(array.get(3), 0.12d);
+        assertEquals(array.get(4), 3.1415d);
     }
 
     @Test
@@ -554,12 +554,12 @@ public class TestJsonReader {
         StringJsonReader parser = new StringJsonReader(json);
         JsonObject jsonObject = (JsonObject) parser.readObject();
         assertEquals(jsonObject.size(), 1);
-        assertArrayEquals((char[])jsonObject.get("value"), new char[]{'1','2','3','.','4','5'});
+        assertEquals(jsonObject.get("value"), 123.45d);
 
         ByteArrayJsonReader br = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
         jsonObject = (JsonObject) br.readObject();
         assertEquals(jsonObject.size(), 1);
-        assertArrayEquals((byte[])jsonObject.get("value"), new byte[]{'1','2','3','.','4','5'});
+        assertEquals(jsonObject.get("value"), 123.45d);
 
 
         JsonParseException thrown = assertThrows(JsonParseException.class,
