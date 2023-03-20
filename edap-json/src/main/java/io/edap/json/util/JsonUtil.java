@@ -91,6 +91,7 @@ public class JsonUtil {
         for (int i='0';i<='9';i++) {
             ECMAS_ALLOW_OTHER_CHARS[i] = true; // 小写字母
             INT_DIGITS[i] = i - '0';
+            HEX_DIGITS[i] = i - '0';
         }
     }
 
