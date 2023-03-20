@@ -18,6 +18,7 @@ package io.edap.json;
 
 import io.edap.json.decoders.ReflectDecoder;
 import io.edap.json.enums.DataType;
+import io.edap.json.enums.JsonVersion;
 import io.edap.util.internal.GeneratorClassInfo;
 
 import java.util.Map;
@@ -30,6 +31,8 @@ import static io.edap.util.CollectionUtils.isEmpty;
 
 public class JsonCodecRegister {
 
+
+
     private static final Map<String, JsonDecoder> DECODER_MAP = new ConcurrentHashMap<>();
 
     private final JsonCodecLoader codecLoader = new JsonCodecLoader(this.getClass().getClassLoader());
@@ -37,10 +40,14 @@ public class JsonCodecRegister {
     private JsonCodecRegister() {}
 
     public <T> JsonDecoder<T> getDecoder(Class<T> tClass, DataType dataType) {
-        String key = tClass.getName() + "-" + dataType;
+        return getDecoder(tClass, dataType, JsonVersion.JSON);
+    }
+
+    public <T> JsonDecoder<T> getDecoder(Class<T> tClass, DataType dataType, JsonVersion version) {
+        String key = tClass.getName() + "-" + dataType + "-" + version;
         JsonDecoder decoder = DECODER_MAP.get(key);
         if (decoder == null) {
-            decoder = generateDecoder(tClass, dataType);
+            decoder = generateDecoder(tClass, dataType, version);
             DECODER_MAP.put(key, decoder);
         }
 
@@ -51,9 +58,9 @@ public class JsonCodecRegister {
         return decoder;
     }
 
-    private JsonDecoder generateDecoder(Class cls, DataType dataType) {
+    private JsonDecoder generateDecoder(Class cls, DataType dataType, JsonVersion version) {
         JsonDecoder codec = null;
-        Class decoderCls = generateDecoderClass(cls, dataType);
+        Class decoderCls = generateDecoderClass(cls, dataType, version);
         if (decoderCls != null) {
             try {
                 codec = (JsonDecoder)decoderCls.newInstance();
@@ -65,12 +72,18 @@ public class JsonCodecRegister {
         return codec;
     }
 
-    private Class generateDecoderClass(Class cls, DataType dataType) {
-        Class decoderCls;
+    private Class generateDecoderClass(Class cls, DataType dataType, JsonVersion version) {
+        Class decoderCls = null;
         long start = System.currentTimeMillis();
-        String decoderName = buildDecoderName(cls, dataType);
+        String decoderName = buildDecoderName(cls, dataType, version);
         try {
-            JsonDecoderGenerator generator = new JsonDecoderGenerator(cls, dataType);
+            decoderCls = Class.forName(decoderName);
+            return decoderCls;
+        } catch (ClassNotFoundException e) {
+            System.err.println(e.getMessage());
+        }
+        try {
+            JsonDecoderGenerator generator = new JsonDecoderGenerator(cls, dataType, version);
             GeneratorClassInfo gci = generator.getClassInfo();
             byte[] bs = gci.clazzBytes;
             System.out.println("generate class time: " + (System.currentTimeMillis() - start));

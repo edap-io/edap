@@ -16,20 +16,22 @@
 
 package io.edap.json.test;
 
-import io.edap.json.StringJson5Reader;
+import io.edap.json.*;
 import io.edap.json.enums.CommentItemType;
 import io.edap.json.model.CommentItem;
+import io.edap.json.test.model.DemoPojo;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-public class TestStringJson5Reader {
+public class TestJson5Reader {
 
 
     @Test
@@ -49,6 +51,139 @@ public class TestStringJson5Reader {
         StringJson5Reader parser = new StringJson5Reader(json);
         Object object = parser.readObject();
         assertNotNull(object);
+    }
+
+    @Test
+    public void testReadString() {
+
+    }
+
+    @Test
+    public void testReadPojo() throws InvocationTargetException, InstantiationException, IllegalAccessException {
+        String json = "{\n// my is comment \n\"name\":\"john\",\"age\":0,\"integral\":0,\"balance\":0}";
+        DemoPojo pojo = new StringJson5Reader(json).readObject(DemoPojo.class);
+        assertNotNull(pojo);
+        assertEquals(pojo.getName(), "john");
+        assertEquals(pojo.getAge(), 0);
+        assertEquals(pojo.getBalance(), 0);
+        assertEquals(pojo.getIntegral(), 0);
+
+        pojo = new ByteArrayJson5Reader(json.getBytes(StandardCharsets.UTF_8))
+                .readObject(DemoPojo.class);
+        assertNotNull(pojo);
+        assertEquals(pojo.getName(), "john");
+        assertEquals(pojo.getAge(), 0);
+        assertEquals(pojo.getBalance(), 0);
+        assertEquals(pojo.getIntegral(), 0);
+
+        json = "{\"name\":\"john325\",age:549,\"integral\":1234567898776,\"balance\":12345.67898776}";
+        pojo = new StringJson5Reader(json).readObject(DemoPojo.class);
+        assertNotNull(pojo);
+        assertEquals(pojo.getName(), "john325");
+        assertEquals(pojo.getAge(), 549);
+        assertEquals(pojo.getIntegral(), 1234567898776L);
+        assertEquals(pojo.getBalance(), 12345.67898776D);
+
+        pojo = new ByteArrayJson5Reader(json.getBytes(StandardCharsets.UTF_8))
+                .readObject(DemoPojo.class);
+        assertNotNull(pojo);
+        assertEquals(pojo.getName(), "john325");
+        assertEquals(pojo.getAge(), 549);
+        assertEquals(pojo.getIntegral(), 1234567898776L);
+        assertEquals(pojo.getBalance(), 12345.67898776D);
+
+        json = "{\"name\":\"john325\",\"age\":549,\"integral\":1234567898776,\"balance\":12345.67898776}";
+        pojo = new StringJson5Reader(json).readObject(DemoPojo.class);
+        assertNotNull(pojo);
+        assertEquals(pojo.getName(), "john325");
+        assertEquals(pojo.getAge(), 549);
+        assertEquals(pojo.getIntegral(), 1234567898776L);
+        assertEquals(pojo.getBalance(), 12345.67898776D);
+
+        pojo = new ByteArrayJson5Reader(json.getBytes(StandardCharsets.UTF_8))
+                .readObject(DemoPojo.class);
+        assertNotNull(pojo);
+        assertEquals(pojo.getName(), "john325");
+        assertEquals(pojo.getAge(), 549);
+        assertEquals(pojo.getBalance(), 12345.67898776D);
+
+        json = "{\"name\":\"john325\",\"age\":549,\"integral\":1234567898776,\"balance\":12345}";
+        pojo = new StringJson5Reader(json).readObject(DemoPojo.class);
+        assertNotNull(pojo);
+        assertEquals(pojo.getName(), "john325");
+        assertEquals(pojo.getAge(), 549);
+        assertEquals(pojo.getIntegral(), 1234567898776L);
+        assertEquals(pojo.getBalance(), 12345D);
+
+        pojo = new ByteArrayJson5Reader(json.getBytes(StandardCharsets.UTF_8))
+                .readObject(DemoPojo.class);
+        assertNotNull(pojo);
+        assertEquals(pojo.getName(), "john325");
+        assertEquals(pojo.getAge(), 549);
+        assertEquals(pojo.getBalance(), 12345D);
+
+
+        JsonParseException thrown = assertThrows(JsonParseException.class,
+                () -> {
+                    String json2 = "{\"name\":\"john\",\"age\":中}";
+                    new StringJson5Reader(json2).readObject(DemoPojo.class);
+                });
+        assertTrue(thrown.getMessage().contains("整数不符合规范"));
+
+        thrown = assertThrows(JsonParseException.class,
+                () -> {
+                    String json2 = "{\"name\":\"john\",\"age\":中}";
+                    System.out.println("json2.leng=" + json2.length());
+                    System.out.println("json2.bs.leng=" + json2.getBytes(StandardCharsets.UTF_8).length);
+                    new ByteArrayJson5Reader(json2.getBytes(StandardCharsets.UTF_8))
+                            .readObject(DemoPojo.class);
+                });
+        assertTrue(thrown.getMessage().contains("整数不符合规范"));
+
+        thrown = assertThrows(JsonParseException.class,
+                () -> {
+                    String json2 = "{\"name\":\"john\",\"age\":01}";
+                    DemoPojo pojo2 = new StringJson5Reader(json2).readObject(DemoPojo.class);
+                });
+        assertTrue(thrown.getMessage().contains("整数不能有前导0的字符"));
+
+        thrown = assertThrows(JsonParseException.class,
+                () -> {
+                    String json2 = "{\"name\":\"john\",\"age\":01}";
+                    new ByteArrayJson5Reader(json2.getBytes(StandardCharsets.UTF_8))
+                            .readObject(DemoPojo.class);
+                });
+        assertTrue(thrown.getMessage().contains("整数不能有前导0的字符"));
+
+        thrown = assertThrows(JsonParseException.class,
+                () -> {
+                    String json2 = "{\"name\":\"john\",\"age\":a}";
+                    new StringJson5Reader(json2).readObject(DemoPojo.class);
+                });
+        assertTrue(thrown.getMessage().contains("整数不符合规范"));
+
+        thrown = assertThrows(JsonParseException.class,
+                () -> {
+                    String json2 = "{\"name\":\"john\",\"age\":a}";
+                    new ByteArrayJson5Reader(json2.getBytes(StandardCharsets.UTF_8))
+                            .readObject(DemoPojo.class);
+                });
+        assertTrue(thrown.getMessage().contains("整数不符合规范"));
+
+        thrown = assertThrows(JsonParseException.class,
+                () -> {
+                    String json2 = "{\"name\":\"john\",\"balance\":123.}";
+                    new StringJson5Reader(json2).readObject(DemoPojo.class);
+                });
+        assertTrue(thrown.getMessage().contains("double类型\".\"没有其他数字"));
+
+        thrown = assertThrows(JsonParseException.class,
+                () -> {
+                    String json2 = "{\"name\":\"john\",\"balance\":123.}";
+                    new ByteArrayJson5Reader(json2.getBytes(StandardCharsets.UTF_8))
+                            .readObject(DemoPojo.class);
+                });
+        assertTrue(thrown.getMessage().contains("double类型\".\"没有其他数字"));
     }
 
     @Test

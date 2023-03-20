@@ -30,7 +30,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-public class TestStringJsonReader {
+public class TestJsonReader {
 
     /**
      * 测试不以"{"和""开头数据抛异常的逻辑

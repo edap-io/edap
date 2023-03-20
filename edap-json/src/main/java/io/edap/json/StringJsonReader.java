@@ -16,10 +16,12 @@
 
 package io.edap.json;
 
+import io.edap.json.model.CommentItem;
 import io.edap.json.model.DataRange;
 import io.edap.json.model.StringDataRange;
 
 import java.lang.reflect.InvocationTargetException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -66,6 +68,11 @@ public class StringJsonReader implements JsonReader {
         } else {
             return null;
         }
+    }
+
+    @Override
+    public List<CommentItem> readComment() {
+        throw new UnsupportedOperationException("Standard json not support comments");
     }
 
     protected Object readValue() {

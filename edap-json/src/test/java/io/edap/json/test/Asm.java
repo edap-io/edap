@@ -19,10 +19,11 @@ public class Asm {
 
         MethodVisitor mv;
 
-        System.out.println("short Max=" + Short.MAX_VALUE);
+        System.out.println("short Max=" + Float.MAX_VALUE);
 
-        String clsPath = "/Users/louis/NetBeansProjects/edap/edap-json/target/test-classes/" +
-                "io/edap/json/test/DemoPojoDecoder.class";
+//        String clsPath = "/Users/louis/NetBeansProjects/edap/edap-json/target/test-classes/" +
+//                "io/edap/json/test/DemoPojoDecoder.class";
+        String clsPath = DemoPojoDecoder5.class.getName();
         ClassReader cr;
         if (clsPath.endsWith(".class") || clsPath.indexOf('\\') > -1
                 || clsPath.indexOf('/') > -1) {

@@ -1,6 +1,7 @@
 package io.edap.json;
 
 import io.edap.json.enums.DataType;
+import io.edap.json.enums.JsonVersion;
 import io.edap.json.model.ByteArrayDataRange;
 import io.edap.json.model.DataRange;
 import io.edap.json.model.JsonFieldInfo;
@@ -16,6 +17,8 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 
+import static io.edap.json.enums.JsonVersion.JSON;
+import static io.edap.json.enums.JsonVersion.JSON5;
 import static io.edap.json.util.JsonUtil.*;
 import static io.edap.util.AsmUtil.*;
 import static io.edap.util.ClazzUtil.getDescriptor;
@@ -43,17 +46,23 @@ public class JsonDecoderGenerator {
     private String pojoDecoderName;
     private final Class pojoCls;
     private final DataType dataType;
+    private final JsonVersion jsonVersion;
 
     public JsonDecoderGenerator(Class<?> pojoClass, DataType dataType) {
+        this(pojoClass, dataType, JSON);
+    }
+
+    public JsonDecoderGenerator(Class<?> pojoClass, DataType dataType, JsonVersion jsonVersion) {
         this.pojoCls = pojoClass;
         this.dataType = dataType;
+        this.jsonVersion = jsonVersion;
     }
 
     public GeneratorClassInfo getClassInfo() throws IOException {
         GeneratorClassInfo gci = new GeneratorClassInfo();
 
         pojoName = toInternalName(pojoCls.getName());
-        pojoDecoderName = toInternalName(buildDecoderName(pojoCls, dataType));
+        pojoDecoderName = toInternalName(buildDecoderName(pojoCls, dataType, jsonVersion));
         gci.clazzName = pojoDecoderName;
         String[] ifaceName = new String[]{IFACE_NAME};
         String pojoCodecDescriptor = getDecoderDescriptor(pojoCls);
@@ -140,6 +149,11 @@ public class JsonDecoderGenerator {
                 null, new String[] { "java/lang/reflect/InvocationTargetException",
                         "java/lang/InstantiationException", "java/lang/IllegalAccessException" });
         mv.visitCode();
+        if (jsonVersion == JSON5) {
+            mv.visitVarInsn(ALOAD, 1);
+            mv.visitMethodInsn(INVOKEINTERFACE, READER_NAME, "readComment", "()Ljava/util/List;", true);
+            mv.visitInsn(POP);
+        }
         mv.visitVarInsn(ALOAD, 1);
         mv.visitMethodInsn(INVOKEINTERFACE, READER_NAME, "firstNotSpaceChar", "()C", true);
         mv.visitVarInsn(ISTORE, 2);
@@ -155,6 +169,11 @@ public class JsonDecoderGenerator {
         mv.visitInsn(ICONST_1);
         mv.visitMethodInsn(INVOKEINTERFACE, READER_NAME, "nextPos",
                 "(I)V", true);
+        if (jsonVersion == JSON5) {
+            mv.visitVarInsn(ALOAD, 1);
+            mv.visitMethodInsn(INVOKEINTERFACE, READER_NAME, "readComment", "()Ljava/util/List;", true);
+            mv.visitInsn(POP);
+        }
         mv.visitVarInsn(ALOAD, 1);
         mv.visitMethodInsn(INVOKEINTERFACE, READER_NAME, "firstNotSpaceChar",
                 "()C", true);
@@ -171,6 +190,11 @@ public class JsonDecoderGenerator {
         mv.visitInsn(ARETURN);
         mv.visitLabel(labelJsonEnd);
         mv.visitFrame(Opcodes.F_APPEND,1, new Object[] {pojoName}, 0, null);
+        if (jsonVersion == JSON5) {
+            mv.visitVarInsn(ALOAD, 1);
+            mv.visitMethodInsn(INVOKEINTERFACE, READER_NAME, "readComment", "()Ljava/util/List;", true);
+            mv.visitInsn(POP);
+        }
         mv.visitVarInsn(ALOAD, 1);
         mv.visitMethodInsn(INVOKEINTERFACE, READER_NAME, "keyHash",
                 "()I", true);
@@ -229,6 +253,11 @@ public class JsonDecoderGenerator {
         mv.visitInsn(ICONST_1);
         mv.visitMethodInsn(INVOKEINTERFACE, READER_NAME, "nextPos", "(I)V", true);
         mv.visitVarInsn(ALOAD, 1);
+        if (jsonVersion == JSON5) {
+            mv.visitVarInsn(ALOAD, 1);
+            mv.visitMethodInsn(INVOKEINTERFACE, READER_NAME, "readComment", "()Ljava/util/List;", true);
+            mv.visitInsn(POP);
+        }
         mv.visitMethodInsn(INVOKEINTERFACE, READER_NAME, "keyHash",
                 "()I", true);
         mv.visitVarInsn(ISTORE, 4);
@@ -265,6 +294,11 @@ public class JsonDecoderGenerator {
 
         mv.visitLabel(lbWhileSwitchEnd);
         mv.visitFrame(Opcodes.F_SAME, 0, null, 0, null);
+        if (jsonVersion == JSON5) {
+            mv.visitVarInsn(ALOAD, 1);
+            mv.visitMethodInsn(INVOKEINTERFACE, READER_NAME, "readComment", "()Ljava/util/List;", true);
+            mv.visitInsn(POP);
+        }
         mv.visitVarInsn(ALOAD, 1);
         mv.visitMethodInsn(INVOKEINTERFACE, READER_NAME, "firstNotSpaceChar",
                 "()C", true);

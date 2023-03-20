@@ -17,6 +17,7 @@
 package io.edap.json.util;
 
 import io.edap.json.enums.DataType;
+import io.edap.json.enums.JsonVersion;
 import io.edap.json.model.JsonFieldInfo;
 import io.edap.util.StringUtil;
 
@@ -124,6 +125,13 @@ public class JsonUtil {
         return ECMAS_ALLOW_OTHER_CHARS[c];
     }
 
+    public static boolean isIdentifierNameOther(byte c) {
+        if (c >= 128) {
+            return false;
+        }
+        return ECMAS_ALLOW_OTHER_CHARS[c];
+    }
+
     public static String buildDecoderName(Class pojoCls) {
         if (pojoCls == null) {
             return "";
@@ -136,7 +144,7 @@ public class JsonUtil {
         return sb.toString();
     }
 
-    public static String buildDecoderName(Class pojoCls, DataType dataType) {
+    public static String buildDecoderName(Class pojoCls, DataType dataType, JsonVersion jsonVersion) {
         if (pojoCls == null) {
             return "";
         }
@@ -145,6 +153,9 @@ public class JsonUtil {
             sb.append('s');
         } else {
             sb.append('b');
+        }
+        if (jsonVersion == JsonVersion.JSON5) {
+            sb.append('5');
         }
         sb.append('.');
         if (pojoCls.getPackage() != null) {

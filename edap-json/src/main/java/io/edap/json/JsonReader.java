@@ -16,15 +16,19 @@
 
 package io.edap.json;
 
+import io.edap.json.model.CommentItem;
 import io.edap.json.model.DataRange;
 
 import java.lang.reflect.InvocationTargetException;
+import java.util.List;
 
 public interface JsonReader {
 
     DataRange readKeyRange();
 
     Object readObject();
+
+    List<CommentItem> readComment();
 
     <T> T readObject(Class<T> valueType) throws InvocationTargetException, InstantiationException,
             IllegalAccessException;

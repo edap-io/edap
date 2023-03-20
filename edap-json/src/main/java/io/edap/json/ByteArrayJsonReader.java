@@ -17,6 +17,7 @@
 package io.edap.json;
 
 import io.edap.json.model.ByteArrayDataRange;
+import io.edap.json.model.CommentItem;
 import io.edap.json.model.DataRange;
 
 import java.io.IOException;
@@ -870,6 +871,11 @@ public class ByteArrayJsonReader implements JsonReader {
             float v = readFloat0(startPos);
             return v;
         }
+    }
+
+    @Override
+    public List<CommentItem> readComment() {
+        throw new UnsupportedOperationException("Standard json not support comments");
     }
 
     private float readFloat0(int startPos) {

@@ -17,11 +17,14 @@
 package io.edap.json;
 
 import io.edap.json.enums.CommentItemType;
+import io.edap.json.enums.JsonVersion;
 import io.edap.json.model.CommentItem;
 
+import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
 import java.util.List;
 
+import static io.edap.json.enums.DataType.STRING;
 import static io.edap.json.model.CommentItem.emptyRow;
 import static io.edap.json.model.CommentItem.singleLineComment;
 import static io.edap.json.util.JsonUtil.isIdentifierNameFirst;
@@ -113,6 +116,15 @@ public class StringJson5Reader extends StringJsonReader {
     }
 
     @Override
+    public <T> T readObject(Class<T> valueType) throws InvocationTargetException, InstantiationException, IllegalAccessException {
+        JsonDecoder decoder = DECODER_REGISTE.getDecoder(valueType, STRING, JsonVersion.JSON5);
+        if (decoder != null) {
+            return (T)decoder.decode(this);
+        }
+        return null;
+    }
+
+    @Override
     protected String readQuotationMarksString(char quotation) {
         int _pos = pos;
         String _json = json;
@@ -132,11 +144,68 @@ public class StringJson5Reader extends StringJsonReader {
         return key.toString();
     }
 
+    @Override
+    public int keyHash() {
+        long hashCode = 0x811c9dc5;
+        char c = firstNotSpaceChar();
+        boolean keyFinish = false;
+        if (c == '"' || c == '\'') {
+            pos++;
+            int _pos = pos;
+            while (_pos < end) {
+                c = json.charAt(_pos++);
+                if (c == '"') {
+                    pos = _pos;
+                    keyFinish = true;
+                    break;
+                }
+                hashCode ^= c;
+                hashCode *= 0x1000193;
+            }
+        } else {
+            if (!isIdentifierNameFirst(c)) {
+                throw new JsonParseException("Key首字符不符合ECMAScript 5.1 IdentifierName标准");
+            }
+            hashCode ^= c;
+            hashCode *= 0x1000193;
+            int _pos = pos;
+            String _json = json;
+            _pos++;
+            for (;_pos<end;_pos++) {
+                c = _json.charAt(_pos);
+                if (c == ' ') {
+                    pos = _pos + 1;
+                    keyFinish = true;
+                    break;
+                } else if (c == ':') {
+                    pos = _pos;
+                    keyFinish = true;
+                    break;
+                }
+                if (!isIdentifierNameOther(c)) {
+                    throw new JsonParseException("Key字符不符合ECMAScript 5.1 IdentifierName标准");
+                }
+                hashCode ^= c;
+                hashCode *= 0x1000193;
+            }
+        }
+        if (!keyFinish) {
+            throw new JsonParseException("Key 没正常结束");
+        }
+        c = firstNotSpaceChar();
+        if (c != ':') {
+            throw new JsonParseException("Key and value must use colon split");
+        }
+        pos++;
+        return (int)hashCode;
+    }
+
     /**
      * 解析JSON内容之前空行以及注释的内容。
      * @return
      */
-    private List<CommentItem> readComment() {
+    @Override
+    public List<CommentItem> readComment() {
         List<CommentItem> items = new ArrayList();
 
         int _pos = pos;
