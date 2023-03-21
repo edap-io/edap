@@ -16,7 +16,6 @@
 
 package io.edap.json;
 
-import java.lang.reflect.InvocationTargetException;
 
 public class Eson {
 

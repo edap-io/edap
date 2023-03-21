@@ -7,7 +7,7 @@
     <groupId>io.edap</groupId>
     <artifactId>edap</artifactId>
     <packaging>pom</packaging>
-    <version>0.2-SNAPSHOT</version>
+    <version>0.1-SNAPSHOT</version>
 
     <developers>
         <developer>
@@ -179,9 +179,8 @@
     </build>
     <distributionManagement>
         <snapshotRepository>
-            <id>YonyouCloud-Snapshot</id>
-            <name>YonyouCloud-Snapshot</name>
-            <url>https://repo.yyrd.com/artifactory/YonyouCloud-Snapshot/</url>
+            <id>ossrh</id>
+            <url>https://oss.sonatype.org/content/repositories/snapshots/</url>
         </snapshotRepository>
         <repository>
             <id>ossrh</id>
