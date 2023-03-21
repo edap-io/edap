@@ -114,6 +114,70 @@ public class StringJson5Reader extends StringJsonReader {
     }
 
     @Override
+    protected Object readValue() {
+        char c = firstNotSpaceChar();
+        // 解析字符串
+        if (c == '"' || c == '\'') {
+            pos++;
+            return readQuotationMarksString(c);
+        } else if (c == '[') { // 数组对象
+            return readArrayValue();
+        } else if (c == '{') { // JSON对象
+            pos++;
+            return readObjectValue();
+        } else if (c == 'n') { //null空指针
+            int _pos = pos;
+            if (_pos+3 < end && json.charAt(_pos+1) == 'u' && json.charAt(_pos+2) == 'l'
+                    && json.charAt(_pos+3) == 'l') {
+                pos = _pos + 4;
+                return null;
+            } else {
+                throw new JsonParseException("null 格式错误");
+            }
+        } else if (c == 'N') {
+            int _pos = pos;
+            if (pos+2 < end && json.charAt(pos+1) == 'a' && json.charAt(pos+2) == 'N') {
+                pos = _pos + 3;
+                return Double.NaN;
+            } else {
+                throw new JsonParseException("NaN 格式错误");
+            }
+        } else if (c == 'I') { //Infinity
+            int _pos = pos;
+            if (pos+8 < end && json.charAt(_pos+1) == 'n' && json.charAt(_pos+2) == 'f' && json.charAt(_pos+3) == 'i'
+                    && json.charAt(_pos+4) == 'n' && json.charAt(_pos+5) == 'i' && json.charAt(_pos+6) == 't'
+                    && json.charAt(_pos+7) == 'y') {
+                pos = _pos + 8;
+                return Double.POSITIVE_INFINITY;
+            } else {
+                throw new JsonParseException("Infinity 格式错误");
+            } //Infinity
+        } else if (c == 't') {
+            int _pos = pos;
+            String _json = json;
+            if (_pos+3 < end && _json.charAt(_pos+1) == 'r' && _json.charAt(_pos+2) == 'u'
+                    && _json.charAt(_pos+3) == 'e') {
+                pos = _pos + 4;
+                return true;
+            } else {
+                throw new JsonParseException("boolean 格式错误");
+            }
+        } else if (c == 'f') {
+            int _pos = pos;
+            String _json = json;
+            if (_pos+4 < end && _json.charAt(_pos+1) == 'a' && _json.charAt(_pos+2) == 'l'
+                    && _json.charAt(_pos+3) == 's' && _json.charAt(_pos+4) == 'e') {
+                pos = _pos + 5;
+                return false;
+            } else {
+                throw new JsonParseException("boolean 格式错误");
+            }
+        } else {
+            return readNumberValue();
+        }
+    }
+
+    @Override
     public NodeType readStart() {
         readComment();
         return super.readStart();
@@ -313,6 +377,9 @@ public class StringJson5Reader extends StringJsonReader {
             if (c1 == '-') {
                 pos++;
                 return readNumber0(true);
+            } else if (c1 == '+') {
+                pos++;
+                return readNumber0(false);
             } else {
                 return readNumber0(false);
             }
@@ -321,7 +388,7 @@ public class StringJson5Reader extends StringJsonReader {
                 char c = json.charAt(i);
                 if (c == ' ' || c == ',' || c == ']' || c == '}') {
                     String num = json.substring(start, i);
-                    pos = i;
+                    pos = i + 1;
                     return Double.parseDouble(num);
                 }
             }
@@ -333,10 +400,37 @@ public class StringJson5Reader extends StringJsonReader {
 
     private Object readNumber0(boolean isNe) {
         int start = pos;
-        long value = readLong0(INVALID_CHAR_FOR_NUMBER);
         char c = json.charAt(pos);
+        if (c == 'I') {
+            int _pos = pos;
+            if (start + 7 < end && json.charAt(_pos+1) == 'n' && json.charAt(_pos+2) == 'f' && json.charAt(_pos+3) == 'i'
+                    && json.charAt(_pos+4) == 'n' && json.charAt(_pos+5) == 'i' && json.charAt(_pos+6) == 't'
+                    && json.charAt(_pos+7) == 'y') {
+                pos = _pos+7;
+                return isNe?Double.NEGATIVE_INFINITY:Double.POSITIVE_INFINITY;
+            } else {
+                throw new JsonParseException("Infinity format error");
+            }
+        } else if (c == '.') {
+            pos++;
+            int dotPos = pos;
+            try {
+                long div = readLong0(INVALID_CHAR_FOR_NUMBER);
+                int len = pos - dotPos;
+                double v = ((double) div / POW10[len]);
+                return isNe ? -v : v;
+            } catch (Exception e) {
+                throw new JsonParseException("double类型\".\"没有其他数字");
+            }
+        }
+        long value = readLong0(INVALID_CHAR_FOR_NUMBER);
+        c = json.charAt(pos);
         if (c == '.') {
             pos++;
+            c = firstNotSpaceChar();
+            if (c == ',' || c == ']' || c == '}') {
+                return (double)value;
+            }
             int dotPos = pos;
             try {
                 long div = readLong0(INVALID_CHAR_FOR_NUMBER);

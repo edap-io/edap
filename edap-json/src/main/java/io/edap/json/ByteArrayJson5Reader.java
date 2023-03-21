@@ -23,18 +23,34 @@ import io.edap.json.model.CommentItem;
 import java.lang.reflect.InvocationTargetException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
+import static io.edap.json.consts.JsonConsts.INVALID_CHAR_FOR_NUMBER;
 import static io.edap.json.enums.DataType.BYTE_ARRAY;
 import static io.edap.json.model.CommentItem.emptyRow;
 import static io.edap.json.model.CommentItem.singleLineComment;
-import static io.edap.json.util.JsonUtil.isIdentifierNameFirst;
-import static io.edap.json.util.JsonUtil.isIdentifierNameOther;
+import static io.edap.json.util.JsonUtil.*;
+import static io.edap.json.util.JsonUtil.HEX_DIGITS;
 
 public class ByteArrayJson5Reader extends ByteArrayJsonReader {
 
     public ByteArrayJson5Reader(byte[] bytes) {
         super(bytes);
+    }
+
+    @Override
+    public Object readObject() {
+        readComment();
+        NodeType nodeType = readStart();
+        if (nodeType == NodeType.OBJECT) {
+            pos++;
+            return readObjectValue();
+        } else if (nodeType == NodeType.ARRAY) {
+            return readArrayValue();
+        } else {
+            return null;
+        }
     }
 
     @Override
@@ -93,11 +109,360 @@ public class ByteArrayJson5Reader extends ByteArrayJsonReader {
         return (int)hashCode;
     }
 
+    protected String readKey() {
+        return readKey(firstNotSpaceChar());
+    }
+
+    protected String readKey(char c) {
+        if (c == '"' || c == '\'') {
+            pos++;
+            String key = readQuotationMarksString('"');
+            c = firstNotSpaceChar();
+            if (c != ':') {
+                throw new JsonParseException("Key and value must use colon split");
+            }
+            pos++;
+            return key;
+        } else {
+            if (!isIdentifierNameFirst(c)) {
+                throw new JsonParseException("Key[" + c + "]首字符不符合ECMAScript 5.1 IdentifierName标准");
+            }
+            int _pos = pos;
+            _pos++;
+            byte b;
+            for (;_pos<end;_pos++) {
+                b = json[_pos];
+                if (b == ' ' || b == ':') {
+                    String key = new String(json, pos, _pos-pos);
+                    pos = _pos + 1;
+                    return key;
+                }
+                if (!isIdentifierNameOther(c)) {
+                    throw new JsonParseException("Key字符不符合ECMAScript 5.1 IdentifierName标准");
+                }
+            }
+        }
+        return null;
+    }
+
     @Override
     public <T> T readObject(Class<T> valueType) throws InvocationTargetException, InstantiationException, IllegalAccessException {
         JsonDecoder decoder = DECODER_REGISTE.getDecoder(valueType, BYTE_ARRAY, JsonVersion.JSON5);
         if (decoder != null) {
             return (T)decoder.decode(this);
+        }
+        return null;
+    }
+
+    protected Object readValue() {
+        char c = firstNotSpaceChar();
+        // 解析字符串
+        if (c == '"' || c == '\'') {
+            pos++;
+            return readQuotationMarksString(c);
+        } else if (c == '[') { // 数组对象
+            return readArrayValue();
+        } else if (c == '{') { // JSON对象
+            pos++;
+            return readObjectValue();
+        } else if (c == 'n') { //null空指针
+            int _pos = pos;
+            byte[] _json = json;
+            if (_pos+3 < end && _json[_pos+1] == 'u' && _json[_pos+2] == 'l'
+                    && _json[_pos+3] == 'l') {
+                pos = _pos + 4;
+                return null;
+            } else {
+                throw new JsonParseException("null 格式错误");
+            }
+        } else if (c == 'N') { //null空指针
+            int _pos = pos;
+            if (_pos+2 < end && json[_pos+1] == 'a' && json[_pos+2] == 'N') {
+                pos = _pos + 3;
+                return Double.NaN;
+            } else {
+                throw new JsonParseException("NaN 格式错误");
+            }
+        } else if (c == 'I') { //null空指针
+            int _pos = pos;
+            if (pos+8 < end && json[_pos+1] == 'n' && json[_pos+2] == 'f' && json[_pos+3] == 'i'
+                    && json[_pos+4] == 'n' && json[_pos+5] == 'i' && json[_pos+6] == 't'
+                    && json[_pos+7] == 'y') {
+                pos = _pos + 8;
+                return Double.POSITIVE_INFINITY;
+            } else {
+                throw new JsonParseException("Infinity 格式错误");
+            }
+        } else if (c == 't') {
+            int _pos = pos;
+            byte[] _json = json;
+            if (_pos+3 < end && _json[_pos+1] == 'r' && _json[_pos+2] == 'u'
+                    && _json[_pos+3] == 'e') {
+                pos = _pos + 4;
+                return true;
+            } else {
+                throw new JsonParseException("boolean 格式错误");
+            }
+        } else if (c == 'f') {
+            int _pos = pos;
+            byte[] _json = json;
+            if (_pos+4 < end && _json[_pos+1] == 'a' && _json[_pos+2] == 'l'
+                    && _json[_pos+3] == 's' && _json[_pos+4] == 'e') {
+                pos = _pos + 5;
+                return false;
+            } else {
+                throw new JsonParseException("boolean 格式错误");
+            }
+        } else {
+            return readNumberValue();
+        }
+    }
+
+    @Override
+    protected String readQuotationMarksString(char quotation) {
+        int _pos = pos;
+        //byte[] _json = json;
+        int charLen = 0;
+        byte c = 0;
+        char[] chars = tmpChars;
+        int clen = chars.length;
+        try {
+            for (; charLen < clen; _pos++) {
+                c = json[_pos];
+                if (c == (byte) quotation) {
+                    pos = _pos + 1;
+                    return new String(chars, 0, charLen);
+                }
+                if ((c ^ '\\') < 1) {
+                    break;
+                }
+                chars[charLen++] = (char) c;
+            }
+            if (_pos >= end) {
+                throw new JsonParseException("JSON string was not closed with a char[" + quotation + "]");
+            }
+        } catch (ArrayIndexOutOfBoundsException ignore) {
+            throw new JsonParseException("JSON string was not closed with a char[" + quotation + "]");
+        }
+        if (charLen == clen) {
+            chars = tmpChars = Arrays.copyOf(chars, clen * 2);
+            clen = chars.length;
+        }
+        int bc;
+        while (_pos != end) {
+            bc = json[_pos++];
+            if (bc == quotation) {
+                this.pos = _pos--;
+                return new String(chars, 0, charLen);
+            }
+            if (bc == '\\') {
+                if (charLen == clen) {
+                    chars = tmpChars = Arrays.copyOf(chars, clen * 2);
+                    clen = chars.length;
+                }
+                bc = json[_pos++];
+                switch (bc) {
+                    case 'b':
+                        bc = '\b';
+                        break;
+                    case 't':
+                        bc = '\t';
+                        break;
+                    case 'n':
+                        bc = '\n';
+                        break;
+                    case 'f':
+                        bc = '\f';
+                        break;
+                    case 'r':
+                        bc = '\r';
+                        break;
+                    case '"':
+                    case '/':
+                    case '\\':
+                        break;
+                    case 'u':
+                        bc = (hexToInt(json[_pos++]) << 12) +
+                                (hexToInt(json[_pos++]) << 8) +
+                                (hexToInt(json[_pos++]) << 4) +
+                                hexToInt(json[_pos++]);
+                        break;
+                    case '\n':
+                        bc = '\n';
+                        break;
+                    default:
+                        throw new JsonParseException("Could not parse String at position: " + (pos - 1)
+                                + ". Invalid escape combination detected: '\\" + bc + "'");
+
+                }
+            } else if ((bc & 0x80) != 0) {
+                if (charLen + 1 == clen) {
+                    chars = tmpChars = Arrays.copyOf(chars, clen * 2);
+                    clen = chars.length;
+                }
+                final int u2 = json[_pos++];
+                if ((bc & 0xE0) == 0xC0) {
+                    bc = ((bc & 0x1F) << 6) + (u2 & 0x3F);
+                } else {
+                    final int u3 = json[_pos++];
+                    if ((bc & 0xF0) == 0xE0) {
+                        bc = ((bc & 0x0F) << 12) + ((u2 & 0x3F) << 6) + (u3 & 0x3F);
+                    } else {
+                        final int u4 = json[_pos++];
+                        if ((bc & 0xF8) == 0xF0) {
+                            bc = ((bc & 0x07) << 18) + ((u2 & 0x3F) << 12) + ((u3 & 0x3F) << 6) + (u4 & 0x3F);
+                        } else {
+                            // there are legal 5 & 6 byte combinations, but none are _valid_
+                            throw new JsonParseException("Invalid unicode character detected at: " + pos);
+                        }
+
+                        if (bc >= 0x10000) {
+                            // check if valid unicode
+                            if (bc >= 0x110000) {
+                                throw new JsonParseException("Invalid unicode character detected at: " + pos);
+                            }
+
+                            // split surrogates
+                            final int sup = bc - 0x10000;
+                            chars[charLen++] = (char) ((sup >>> 10) + 0xd800);
+                            chars[charLen++] = (char) ((sup & 0x3ff) + 0xdc00);
+                            continue;
+                        }
+                    }
+                }
+            } else if (charLen == clen) {
+                chars = tmpChars = Arrays.copyOf(chars, clen * 2);
+                clen = chars.length;
+            }
+            chars[charLen++] = (char) bc;
+        }
+        throw new JsonParseException("JSON string was not closed with a char[" + quotation + "]");
+
+    }
+
+    @Override
+    protected JsonObject readObjectValue() {
+        JsonObject jsonObject = new JsonObject();
+        char c = firstNotSpaceChar();
+        if (c == '}') {
+            return jsonObject;
+        }
+        readComment();
+        c = firstNotSpaceChar();
+        String key = readKey(c);
+        Object value = readValue();
+        jsonObject.put(key, value);
+        c = firstNotSpaceChar();
+        while (true) {
+            if (c == '}') {
+                break;
+            } else if (c == ',') {
+                pos++;
+                readComment();
+                c = firstNotSpaceChar();
+                if (c == '}') {
+                    break;
+                }
+                key = readKey(c);
+                value = readValue();
+                jsonObject.put(key, value);
+                c = firstNotSpaceChar();
+            } else {
+                if (pos < end) {
+                    throw new JsonParseException("key and value 后为不符合json字符[" + (char) c + "]");
+                } else {
+                    throw new JsonParseException("Json没有正确结束");
+                }
+            }
+        }
+        return jsonObject;
+    }
+
+    protected Object readNumberValue() {
+        char c1 = firstNotSpaceChar();
+        int start = pos;
+        try {
+            if (c1 == '-') {
+                pos++;
+                return readNumber0(true);
+            } else if (c1 == '+') {
+                pos++;
+                return readNumber0(false);
+            } else {
+                return readNumber0(false);
+            }
+        } catch (Exception e) {
+            for (int i=pos;i<end;i++) {
+                byte c = json[i];
+                if (c == ' ' || c == ',' || c == ']' || c == '}') {
+                    String num = new String(json, start, i-start);
+                    pos = i;
+                    return Double.parseDouble(num);
+                }
+            }
+            String num = new String(json, start, end-start);
+            pos = end;
+            return Double.parseDouble(num);
+        }
+    }
+
+    private Object readNumber0(boolean isNe) {
+        int start = pos;
+        byte c = json[pos];
+        if (c == 'I') {
+            int _pos = pos;
+            if (start + 7 < end && json[_pos+1] == 'n' && json[_pos+2] == 'f' && json[_pos+3] == 'i'
+                    && json[_pos+4] == 'n' && json[_pos+5] == 'i' && json[_pos+6] == 't'
+                    && json[_pos+7] == 'y') {
+                pos = _pos+8;
+                return isNe?Double.NEGATIVE_INFINITY:Double.POSITIVE_INFINITY;
+            } else {
+                throw new JsonParseException("Infinity format error");
+            }
+        } else if (c == '.') {
+            pos++;
+            int dotPos = pos;
+            try {
+                long div = readLong0(INVALID_CHAR_FOR_NUMBER);
+                int len = pos - dotPos;
+                double v = ((double) div / POW10[len]);
+                return isNe ? -v : v;
+            } catch (Exception e) {
+                throw new JsonParseException("double类型\".\"没有其他数字");
+            }
+        }
+        long value = readLong0(INVALID_CHAR_FOR_NUMBER);
+        c = json[pos];
+        if (c == '.') {
+            pos++;
+            c = (byte)firstNotSpaceChar();
+            if (c == ',' || c == ']' || c == '}') {
+                return (double)value;
+            }
+            int dotPos = pos;
+            try {
+                long div = readLong0(INVALID_CHAR_FOR_NUMBER);
+                int len = pos - dotPos;
+                double v = value + ((double) div / POW10[len]);
+                return isNe ? -v : v;
+            } catch (Exception e) {
+                throw new JsonParseException("double类型\".\"没有其他数字");
+            }
+        } else if (c == 'x') {
+            if (pos - start == 1) {
+                pos++;
+                value = 0;
+                for (int i=pos;i<end;i++) {
+                    int ind = HEX_DIGITS[json[i]];
+                    if (ind == INVALID_CHAR_FOR_NUMBER) {
+                        pos = i;
+                        return value;
+                    }
+                    value = (value  << 4) + ind;
+                }
+            }
+        } else {
+            return isNe ? -value : value;
         }
         return null;
     }

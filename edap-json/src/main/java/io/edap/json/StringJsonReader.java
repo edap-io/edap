@@ -55,6 +55,11 @@ public class StringJsonReader implements JsonReader {
         tmpChars = new char[64];
     }
 
+    public void setJsonData(String jsonStr) {
+        json = jsonStr;
+        end = json.length();
+    }
+
     @Override
     public Object readObject() {
         NodeType nodeType = readStart();

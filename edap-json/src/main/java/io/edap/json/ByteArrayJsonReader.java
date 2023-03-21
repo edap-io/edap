@@ -42,9 +42,7 @@ public class ByteArrayJsonReader implements JsonReader {
     protected byte[] json;
     protected int end;
 
-    protected boolean needExpandChars;
-
-    private char[] tmpChars;
+    protected char[] tmpChars;
 
     static ByteArrayDataRange byteArrayDataRange = new ByteArrayDataRange();
 
@@ -59,7 +57,11 @@ public class ByteArrayJsonReader implements JsonReader {
         this.pos = 0;
         this.end = bytes.length;
         this.tmpChars = new char[tmpChars];
-        this.needExpandChars = false;
+    }
+
+    public void setJsonData(byte[] json) {
+        this.json = json;
+        this.end = json.length;
     }
 
     @Override
@@ -255,7 +257,7 @@ public class ByteArrayJsonReader implements JsonReader {
 
     }
 
-    private static int hexToInt(final byte value) {
+    protected static int hexToInt(final byte value) {
         if (value >= '0' && value <= '9') return value - 0x30;
         if (value >= 'A' && value <= 'F') return value - 0x37;
         if (value >= 'a' && value <= 'f') return value - 0x57;
@@ -697,7 +699,7 @@ public class ByteArrayJsonReader implements JsonReader {
             if (end - _pos > 8) {
                 int ind2 = INT_DIGITS[json[_pos++]];
                 if (ind2 == endType) {
-                    pos = _pos;
+                    pos = _pos - 1;
                     return ind;
                 }
                 int ind3 = INT_DIGITS[json[_pos++]];

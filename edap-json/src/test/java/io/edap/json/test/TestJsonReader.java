@@ -1969,4 +1969,22 @@ public class TestJsonReader {
         assertTrue(thrown.getMessage().contains("pos + count > 2"));
     }
 
+    @Test
+    public void testJsonReadComment() {
+        String json = "{}";
+        UnsupportedOperationException thrown = assertThrows(UnsupportedOperationException.class,
+                () -> {
+                    StringJsonReader reader = new StringJsonReader(json);
+                    reader.readComment();
+                });
+        assertTrue(thrown.getMessage().contains("Standard json not support comments"));
+
+        thrown = assertThrows(UnsupportedOperationException.class,
+                () -> {
+                    ByteArrayJsonReader reader = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
+                    reader.readComment();
+                });
+        assertTrue(thrown.getMessage().contains("Standard json not support comments"));
+    }
+
 }

@@ -51,11 +51,48 @@ public class TestJson5Reader {
         StringJson5Reader parser = new StringJson5Reader(json);
         Object object = parser.readObject();
         assertNotNull(object);
+
+        ByteArrayJson5Reader br = new ByteArrayJson5Reader(json.getBytes(StandardCharsets.UTF_8));
+        object = br.readObject();
+        assertNotNull(object);
     }
 
     @Test
     public void testReadString() {
 
+    }
+
+    @Test
+    public void testReadNumber() {
+        String json = "{value:NaN}";
+        StringJson5Reader reader = new StringJson5Reader(json);
+        Object obj = reader.readObject();
+        assertNotNull(obj);
+        assertEquals(obj instanceof JsonObject, true);
+        JsonObject jobj = (JsonObject) obj;
+        assertEquals(Double.isNaN((Double) jobj.get("value")), true);
+
+        ByteArrayJson5Reader br = new ByteArrayJson5Reader(json.getBytes(StandardCharsets.UTF_8));
+        obj = br.readObject();
+        assertNotNull(obj);
+        assertEquals(obj instanceof JsonObject, true);
+        jobj = (JsonObject) obj;
+        assertEquals(Double.isNaN((Double) jobj.get("value")), true);
+
+        json = "{value:Infinity}";
+        reader = new StringJson5Reader(json);
+        obj = reader.readObject();
+        assertNotNull(obj);
+        assertEquals(obj instanceof JsonObject, true);
+        jobj = (JsonObject) obj;
+        assertEquals(Double.isInfinite((Double) jobj.get("value")), true);
+
+        br = new ByteArrayJson5Reader(json.getBytes(StandardCharsets.UTF_8));
+        obj = br.readObject();
+        assertNotNull(obj);
+        assertEquals(obj instanceof JsonObject, true);
+        jobj = (JsonObject) obj;
+        assertEquals(Double.isInfinite((Double) jobj.get("value")), true);
     }
 
     @Test
@@ -197,6 +234,13 @@ public class TestJson5Reader {
         Map<String, Object> map = (Map<String, Object>)object;
         assertTrue(map.isEmpty());
 
+        ByteArrayJson5Reader br = new ByteArrayJson5Reader(json.getBytes(StandardCharsets.UTF_8));
+        object = br.readObject();
+        assertNotNull(object);
+        assertTrue(object instanceof Map);
+        map = (Map<String, Object>)object;
+        assertTrue(map.isEmpty());
+
         json = "// An object with two properties\n" +
                 "// and a trailing comma\n" +
                 "{\n" +
@@ -209,6 +253,12 @@ public class TestJson5Reader {
         map = (Map<String, Object>)object;
         assertEquals(map.size(), 1);
 
+        br = new ByteArrayJson5Reader(json.getBytes(StandardCharsets.UTF_8));
+        object = br.readObject();
+        assertNotNull(object);
+        assertTrue(object instanceof Map);
+        map = (Map<String, Object>)object;
+        assertEquals(map.size(), 1);
     }
 
     @Test
@@ -235,10 +285,38 @@ public class TestJson5Reader {
 
         assertEquals(commentItems.get(2).getType(), CommentItemType.EMPTY_ROW);
 
+        Method methodByte = ByteArrayJson5Reader.class.getDeclaredMethod("readComment", new Class[0]);
+        methodByte.setAccessible(true);
+        ByteArrayJson5Reader br = new ByteArrayJson5Reader(json.getBytes(StandardCharsets.UTF_8));
+        commentItems = (List<CommentItem>)methodByte.invoke(br, new Object[0]);
+        assertNotNull(commentItems);
+        assertEquals(commentItems.size(), 3);
+        assertEquals(commentItems.get(0).getComments().size(), 1);
+        assertEquals(commentItems.get(0).getType(), CommentItemType.SINGLE_COMMENT);
+        assertEquals(commentItems.get(0).getComments().get(0),
+                "This file is written in JSON5 syntax, naturally, but npm needs a regular");
+
+        assertEquals(commentItems.get(1).getComments().size(), 1);
+        assertEquals(commentItems.get(1).getType(), CommentItemType.SINGLE_COMMENT);
+        assertEquals(commentItems.get(1).getComments().get(0),
+                "JSON file, so compile via `npm run build`. Be sure to keep both in sync!");
+
+        assertEquals(commentItems.get(2).getType(), CommentItemType.EMPTY_ROW);
+
+
         json = "//This file is written in JSON5 syntax, naturally, but npm needs a regular\n" +
                 "{}";
         parser = new StringJson5Reader(json);
         commentItems = (List<CommentItem>)method.invoke(parser, new Object[0]);
+        assertNotNull(commentItems);
+        assertEquals(commentItems.size(), 1);
+        assertEquals(commentItems.get(0).getComments().size(), 1);
+        assertEquals(commentItems.get(0).getType(), CommentItemType.SINGLE_COMMENT);
+        assertEquals(commentItems.get(0).getComments().get(0),
+                "This file is written in JSON5 syntax, naturally, but npm needs a regular");
+
+        br = new ByteArrayJson5Reader(json.getBytes(StandardCharsets.UTF_8));
+        commentItems = (List<CommentItem>)methodByte.invoke(br, new Object[0]);
         assertNotNull(commentItems);
         assertEquals(commentItems.size(), 1);
         assertEquals(commentItems.get(0).getComments().size(), 1);
