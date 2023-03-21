@@ -48,6 +48,7 @@ public class TestJson5Reader {
                 "  hexadecimal: 0xdecaf,\n" +
                 "  leadingDecimalPoint: .8675309, andTrailing: 8675309.,\n" +
                 "  positiveSign: +1,\n" +
+                "  fullDouble: 12.8675309,\n" +
                 "  trailingComma: 'in objects', andIn: ['arrays',],\n" +
                 "  \"backwardsCompatible\": \"with JSON\",\n" +
                 "}";
@@ -96,6 +97,35 @@ public class TestJson5Reader {
         assertEquals(obj instanceof JsonObject, true);
         jobj = (JsonObject) obj;
         assertEquals(Double.isInfinite((Double) jobj.get("value")), true);
+
+        json = "{value:-Infinity}";
+        reader = new StringJson5Reader(json);
+        obj = reader.readObject();
+        assertNotNull(obj);
+        assertEquals(obj instanceof JsonObject, true);
+        jobj = (JsonObject) obj;
+        assertEquals(Double.isInfinite((Double) jobj.get("value")), true);
+
+        br = new ByteArrayJson5Reader(json.getBytes(StandardCharsets.UTF_8));
+        obj = br.readObject();
+        assertNotNull(obj);
+        assertEquals(obj instanceof JsonObject, true);
+        jobj = (JsonObject) obj;
+        assertEquals(Double.isInfinite((Double) jobj.get("value")), true);
+
+        json = "{\n" +
+                "    integer: 123,\n" +
+                "    withFractionPart: 123.456,\n" +
+                "    onlyFractionPart: .456,\n" +
+                "    withExponent: 123e-452,\n" +
+                "}";
+        reader = new StringJson5Reader(json);
+        obj = reader.readObject();
+        assertNotNull(obj);
+
+        br = new ByteArrayJson5Reader(json.getBytes(StandardCharsets.UTF_8));
+        obj = br.readObject();
+        assertNotNull(obj);
     }
 
     @Test
@@ -355,6 +385,32 @@ public class TestJson5Reader {
                     method.invoke(parser, new Object[0]);
                 });
         assertTrue(thrown.getCause().getMessage().contains("多行注释没正常结束"));
+
+        Method methodBr = ByteArrayJson5Reader.class.getDeclaredMethod("readComment", new Class[0]);
+        methodBr.setAccessible(true);
+        thrown = assertThrows(InvocationTargetException.class,
+                () -> {
+                    String json = "/";
+                    ByteArrayJson5Reader parser = new ByteArrayJson5Reader(json.getBytes(StandardCharsets.UTF_8));
+                    methodBr.invoke(parser, new Object[0]);
+                });
+        assertTrue(thrown.getCause().getMessage().contains("注释非正常结束"));
+
+        thrown = assertThrows(InvocationTargetException.class,
+                () -> {
+                    String json = "/a";
+                    ByteArrayJson5Reader parser = new ByteArrayJson5Reader(json.getBytes(StandardCharsets.UTF_8));
+                    methodBr.invoke(parser, new Object[0]);
+                });
+        assertTrue(thrown.getCause().getMessage().contains("注释需要以\"//\"后者\"/*\"开始"));
+
+        thrown = assertThrows(InvocationTargetException.class,
+                () -> {
+                    String json = "/* \n";
+                    ByteArrayJson5Reader parser = new ByteArrayJson5Reader(json.getBytes(StandardCharsets.UTF_8));
+                    methodBr.invoke(parser, new Object[0]);
+                });
+        assertTrue(thrown.getCause().getMessage().contains("多行注释没正常结束"));
     }
 
     @Test
@@ -376,12 +432,36 @@ public class TestJson5Reader {
         assertEquals(commentItems.get(0).getComments().get(1),
                 "JSON file, so compile via `npm run build`. Be sure to keep both in sync!");
 
+        Method methodBr = ByteArrayJson5Reader.class.getDeclaredMethod("readComment", new Class[0]);
+        methodBr.setAccessible(true);
+        ByteArrayJson5Reader br = new ByteArrayJson5Reader(json.getBytes(StandardCharsets.UTF_8));
+        commentItems = (List<CommentItem>) methodBr.invoke(br, new Object[0]);
+        assertNotNull(commentItems);
+        assertEquals(commentItems.size(), 1);
+        assertEquals(commentItems.get(0).getComments().size(), 2);
+        assertEquals(commentItems.get(0).getType(), CommentItemType.MULTILINE);
+        assertEquals(commentItems.get(0).getComments().get(0),
+                "This file is written in JSON5 syntax, naturally, but npm needs a regular");
+        assertEquals(commentItems.get(0).getComments().get(1),
+                "JSON file, so compile via `npm run build`. Be sure to keep both in sync!");
+
         json = "/* This file is written in JSON5 syntax, naturally, but npm needs a regular\n" +
                 " *JSON file, so compile via `npm run build`. Be sure to keep both in sync!\n" +
                 " */" +
                 "{}";
         parser = new StringJson5Reader(json);
         commentItems = (List<CommentItem>) method.invoke(parser, new Object[0]);
+        assertNotNull(commentItems);
+        assertEquals(commentItems.size(), 1);
+        assertEquals(commentItems.get(0).getComments().size(), 2);
+        assertEquals(commentItems.get(0).getType(), CommentItemType.MULTILINE);
+        assertEquals(commentItems.get(0).getComments().get(0),
+                "This file is written in JSON5 syntax, naturally, but npm needs a regular");
+        assertEquals(commentItems.get(0).getComments().get(1),
+                "JSON file, so compile via `npm run build`. Be sure to keep both in sync!");
+
+        br = new ByteArrayJson5Reader(json.getBytes(StandardCharsets.UTF_8));
+        commentItems = (List<CommentItem>) methodBr.invoke(br, new Object[0]);
         assertNotNull(commentItems);
         assertEquals(commentItems.size(), 1);
         assertEquals(commentItems.get(0).getComments().size(), 2);
@@ -411,6 +491,18 @@ public class TestJson5Reader {
                 "{}";
         parser = new StringJson5Reader(json);
         commentItems = (List<CommentItem>) method.invoke(parser, new Object[0]);
+        assertNotNull(commentItems);
+        assertEquals(commentItems.size(), 1);
+        assertEquals(commentItems.get(0).getComments().size(), 2);
+        assertEquals(commentItems.get(0).getType(), CommentItemType.MULTILINE);
+        assertEquals(commentItems.get(0).getComments().get(0),
+                "This file is written in JSON5 syntax, naturally, but npm needs a regular");
+        assertEquals(commentItems.get(0).getComments().get(1),
+                "JSON file, so compile via `npm run build`. Be sure to keep both in sync!");
+
+
+        br = new ByteArrayJson5Reader(json.getBytes(StandardCharsets.UTF_8));
+        commentItems = (List<CommentItem>) methodBr.invoke(br, new Object[0]);
         assertNotNull(commentItems);
         assertEquals(commentItems.size(), 1);
         assertEquals(commentItems.get(0).getComments().size(), 2);

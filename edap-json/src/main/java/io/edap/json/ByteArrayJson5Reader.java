@@ -418,14 +418,10 @@ public class ByteArrayJson5Reader extends ByteArrayJsonReader {
         } else if (c == '.') {
             pos++;
             int dotPos = pos;
-            try {
-                long div = readLong0(INVALID_CHAR_FOR_NUMBER);
-                int len = pos - dotPos;
-                double v = ((double) div / POW10[len]);
-                return isNe ? -v : v;
-            } catch (Exception e) {
-                throw new JsonParseException("double类型\".\"没有其他数字");
-            }
+            long div = readLong0(INVALID_CHAR_FOR_NUMBER);
+            int len = pos - dotPos;
+            double v = ((double) div / POW10[len]);
+            return isNe ? -v : v;
         }
         long value = readLong0(INVALID_CHAR_FOR_NUMBER);
         c = json[pos];
@@ -436,14 +432,10 @@ public class ByteArrayJson5Reader extends ByteArrayJsonReader {
                 return (double)value;
             }
             int dotPos = pos;
-            try {
-                long div = readLong0(INVALID_CHAR_FOR_NUMBER);
-                int len = pos - dotPos;
-                double v = value + ((double) div / POW10[len]);
-                return isNe ? -v : v;
-            } catch (Exception e) {
-                throw new JsonParseException("double类型\".\"没有其他数字");
-            }
+            long div = readLong0(INVALID_CHAR_FOR_NUMBER);
+            int len = pos - dotPos;
+            double v = value + ((double) div / POW10[len]);
+            return isNe ? -v : v;
         } else if (c == 'x') {
             if (pos - start == 1) {
                 pos++;
@@ -457,6 +449,8 @@ public class ByteArrayJson5Reader extends ByteArrayJsonReader {
                     value = (value  << 4) + ind;
                 }
             }
+        } else if (c != '\n' && c != ' ' && c != ',' && c != ']' && c != '}' && c != '\r') {
+            throw new RuntimeException("");
         } else {
             return isNe ? -value : value;
         }

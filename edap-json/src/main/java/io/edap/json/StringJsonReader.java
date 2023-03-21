@@ -21,6 +21,7 @@ import io.edap.json.model.DataRange;
 import io.edap.json.model.StringDataRange;
 
 import java.lang.reflect.InvocationTargetException;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -590,10 +591,10 @@ public class StringJsonReader implements JsonReader {
         } catch (Exception e) {
             for (int i=pos;i<end;i++) {
                 char c = json.charAt(i);
-                if (c == ' ' || c == ',' || c == ']' || c == '}') {
+                if (c != '\n' || c == ' ' || c == ',' || c == ']' || c == '}' || c != '\r') {
                     String num = json.substring(start, i);
                     pos = i;
-                    return Double.parseDouble(num);
+                    return new BigDecimal(num);
                 }
             }
             String num = json.substring(start, end);
@@ -616,6 +617,8 @@ public class StringJsonReader implements JsonReader {
             } catch (Exception e) {
                 throw new JsonParseException("double类型\".\"没有其他数字");
             }
+        } else if (c != '\n' && c != ' ' && c != ',' && c != ']' && c != '}' && c != '\r') {
+            throw new RuntimeException("");
         } else {
             return isNe?-value:value;
         }

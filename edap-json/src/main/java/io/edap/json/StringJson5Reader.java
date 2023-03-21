@@ -21,6 +21,7 @@ import io.edap.json.enums.JsonVersion;
 import io.edap.json.model.CommentItem;
 
 import java.lang.reflect.InvocationTargetException;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -386,10 +387,11 @@ public class StringJson5Reader extends StringJsonReader {
         } catch (Exception e) {
             for (int i=pos;i<end;i++) {
                 char c = json.charAt(i);
-                if (c == ' ' || c == ',' || c == ']' || c == '}') {
+                if (c != '\n' || c == ' ' || c == ',' || c == ']' || c == '}' || c != '\r') {
                     String num = json.substring(start, i);
                     pos = i + 1;
-                    return Double.parseDouble(num);
+                    BigDecimal bd = new BigDecimal(num);
+                    return bd;
                 }
             }
             String num = json.substring(start, end);
@@ -403,10 +405,10 @@ public class StringJson5Reader extends StringJsonReader {
         char c = json.charAt(pos);
         if (c == 'I') {
             int _pos = pos;
-            if (start + 7 < end && json.charAt(_pos+1) == 'n' && json.charAt(_pos+2) == 'f' && json.charAt(_pos+3) == 'i'
+            if (start + 8 < end && json.charAt(_pos+1) == 'n' && json.charAt(_pos+2) == 'f' && json.charAt(_pos+3) == 'i'
                     && json.charAt(_pos+4) == 'n' && json.charAt(_pos+5) == 'i' && json.charAt(_pos+6) == 't'
                     && json.charAt(_pos+7) == 'y') {
-                pos = _pos+7;
+                pos = _pos+8;
                 return isNe?Double.NEGATIVE_INFINITY:Double.POSITIVE_INFINITY;
             } else {
                 throw new JsonParseException("Infinity format error");
@@ -414,14 +416,10 @@ public class StringJson5Reader extends StringJsonReader {
         } else if (c == '.') {
             pos++;
             int dotPos = pos;
-            try {
-                long div = readLong0(INVALID_CHAR_FOR_NUMBER);
-                int len = pos - dotPos;
-                double v = ((double) div / POW10[len]);
-                return isNe ? -v : v;
-            } catch (Exception e) {
-                throw new JsonParseException("double类型\".\"没有其他数字");
-            }
+            long div = readLong0(INVALID_CHAR_FOR_NUMBER);
+            int len = pos - dotPos;
+            double v = ((double) div / POW10[len]);
+            return isNe ? -v : v;
         }
         long value = readLong0(INVALID_CHAR_FOR_NUMBER);
         c = json.charAt(pos);
@@ -432,14 +430,10 @@ public class StringJson5Reader extends StringJsonReader {
                 return (double)value;
             }
             int dotPos = pos;
-            try {
-                long div = readLong0(INVALID_CHAR_FOR_NUMBER);
-                int len = pos - dotPos;
-                double v = value + ((double) div / POW10[len]);
-                return isNe ? -v : v;
-            } catch (Exception e) {
-                throw new JsonParseException("double类型\".\"没有其他数字");
-            }
+            long div = readLong0(INVALID_CHAR_FOR_NUMBER);
+            int len = pos - dotPos;
+            double v = value + ((double) div / POW10[len]);
+            return isNe ? -v : v;
         } else if (c == 'x') {
             if (pos - start == 1) {
                 pos++;
@@ -453,6 +447,8 @@ public class StringJson5Reader extends StringJsonReader {
                     value = (value  << 4) + ind;
                 }
             }
+        } else if (c != '\n' && c != ' ' && c != ',' && c != ']' && c != '}') {
+            throw new RuntimeException("");
         } else {
             return isNe ? -value : value;
         }

@@ -22,6 +22,7 @@ import io.edap.json.model.DataRange;
 
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -326,7 +327,7 @@ public class ByteArrayJsonReader implements JsonReader {
                 if (c == ' ' || c == ',' || c == ']' || c == '}') {
                     String num = new String(json, start, i-start);
                     pos = i;
-                    return Double.parseDouble(num);
+                    return new BigDecimal(num);
                 }
             }
             String num = new String(json, start, end-start);
@@ -349,6 +350,8 @@ public class ByteArrayJsonReader implements JsonReader {
             } catch (Exception e) {
                 throw new JsonParseException("double类型\".\"没有其他数字");
             }
+        } else if (c != '\n' && c != ' ' && c != ',' && c != ']' && c != '}' && c != '\r') {
+            throw new RuntimeException("");
         } else {
             return isNe?-value:value;
         }
