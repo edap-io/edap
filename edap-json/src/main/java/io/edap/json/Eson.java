@@ -28,21 +28,13 @@ public class Eson {
     private static final ThreadLocal<ByteArrayJson5Reader> THREAD_BYTEARRAY_JSON5READER;
 
     static  {
-        THREAD_STRING_JSONREADER  = ThreadLocal.withInitial(() -> {
-            return new StringJsonReader("");
-        });
+        THREAD_STRING_JSONREADER  = ThreadLocal.withInitial(() -> new StringJsonReader(""));
 
-        THREAD_BYTEARRAY_JSONREADER  = ThreadLocal.withInitial(() -> {
-            return new ByteArrayJsonReader(new byte[0]);
-        });
+        THREAD_BYTEARRAY_JSONREADER  = ThreadLocal.withInitial(() -> new ByteArrayJsonReader(new byte[0]));
 
-        THREAD_STRING_JSON5READER  = ThreadLocal.withInitial(() -> {
-            return new StringJson5Reader("");
-        });
+        THREAD_STRING_JSON5READER  = ThreadLocal.withInitial(() -> new StringJson5Reader(""));
 
-        THREAD_BYTEARRAY_JSON5READER  = ThreadLocal.withInitial(() -> {
-            return new ByteArrayJson5Reader(new byte[0]);
-        });
+        THREAD_BYTEARRAY_JSON5READER  = ThreadLocal.withInitial(() -> new ByteArrayJson5Reader(new byte[0]));
     }
 
     public static JsonObject parseJsonObject(String json) {
