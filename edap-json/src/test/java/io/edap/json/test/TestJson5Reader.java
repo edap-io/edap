@@ -38,6 +38,9 @@ public class TestJson5Reader {
     public void testRead() {
         String json = "{\n" +
                 "  // comments\n" +
+                "  /**\n" +
+                "   *\n" +
+                "   */\n" +
                 "  unquoted: 'and you can quote me on that',\n" +
                 "  singleQuotes: 'I can use \"double quotes\" here',\n" +
                 "  lineBreaks: \"Look, Mom! \\\n" +

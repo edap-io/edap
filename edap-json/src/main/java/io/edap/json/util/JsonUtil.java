@@ -138,18 +138,6 @@ public class JsonUtil {
         return ECMAS_ALLOW_OTHER_CHARS[c];
     }
 
-    public static String buildDecoderName(Class pojoCls) {
-        if (pojoCls == null) {
-            return "";
-        }
-        StringBuilder sb = new StringBuilder("ejd.");
-        if (pojoCls.getPackage() != null) {
-            sb.append(pojoCls.getPackage().getName()).append(".");
-        }
-        sb.append(pojoCls.getSimpleName()).append("Encoder");
-        return sb.toString();
-    }
-
     public static String buildDecoderName(Class pojoCls, DataType dataType, JsonVersion jsonVersion) {
         if (pojoCls == null) {
             return "";

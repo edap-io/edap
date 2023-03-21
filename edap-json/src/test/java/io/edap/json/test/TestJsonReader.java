@@ -53,6 +53,31 @@ public class TestJsonReader {
     }
 
     @Test
+    public void testSetJsonData() {
+        StringJsonReader reader = new StringJsonReader("{}");
+        JsonObject jsonObject = (JsonObject) reader.readObject();
+        assertNotNull(jsonObject);
+        assertEquals(jsonObject.size(), 0);
+        reader.reset();
+        reader.setJsonData("{\"name\":\"louis\"}");
+        jsonObject = (JsonObject) reader.readObject();
+        assertNotNull(jsonObject);
+        assertEquals(jsonObject.size(), 1);
+        assertEquals(jsonObject.get("name"), "louis");
+
+        ByteArrayJsonReader br = new ByteArrayJson5Reader("{}".getBytes(StandardCharsets.UTF_8));
+        jsonObject = (JsonObject) br.readObject();
+        assertNotNull(jsonObject);
+        assertEquals(jsonObject.size(), 0);
+        br.reset();
+        br.setJsonData("{\"name\":\"louis\"}".getBytes(StandardCharsets.UTF_8));
+        jsonObject = (JsonObject) br.readObject();
+        assertNotNull(jsonObject);
+        assertEquals(jsonObject.size(), 1);
+        assertEquals(jsonObject.get("name"), "louis");
+    }
+
+    @Test
     public void testParseEmptyDocument() {
         StringJsonReader parser = new StringJsonReader("    \n\t   \r\n");
         JsonObject jsonObject = (JsonObject) parser.readObject();

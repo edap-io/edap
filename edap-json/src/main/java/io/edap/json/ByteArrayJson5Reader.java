@@ -109,10 +109,6 @@ public class ByteArrayJson5Reader extends ByteArrayJsonReader {
         return (int)hashCode;
     }
 
-    protected String readKey() {
-        return readKey(firstNotSpaceChar());
-    }
-
     protected String readKey(char c) {
         if (c == '"' || c == '\'') {
             pos++;
