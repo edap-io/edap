@@ -23,4 +23,8 @@ public class JsonConsts {
     public final static int INVALID_CHAR_FOR_NUMBER = -1;
 
     public final static int END_OF_NUMBER = -2;
+
+    public final static byte[] POSITIVE_INFINITY_BYTES = "\"Infinity\"".getBytes();
+
+    public final static byte[] NEGATIVE_INFINITY_BYTES = "\"-Infinity\"".getBytes();
 }

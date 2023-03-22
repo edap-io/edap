@@ -12,10 +12,13 @@ import io.edap.util.StringUtil;
 import java.io.IOException;
 import java.io.OutputStream;
 
+import static io.edap.json.consts.JsonConsts.NEGATIVE_INFINITY_BYTES;
+import static io.edap.json.consts.JsonConsts.POSITIVE_INFINITY_BYTES;
 import static io.edap.util.FastNum.uncheckWriteInt;
 import static io.edap.util.FastNum.uncheckWriteLong;
 import static io.edap.util.StringUtil.IS_BYTE_ARRAY;
 import static io.edap.util.StringUtil.isLatin1;
+import static java.lang.Float.NEGATIVE_INFINITY;
 
 /**
  * @author : luysh@yonyou.com
@@ -47,9 +50,17 @@ public class ByteArrayJsonWriter extends AbstractJsonWriter implements JsonWrite
 
     @Override
     public void write(byte b1, byte b2) {
-        expand(1);
+        expand(2);
         buf[pos++] = b1;
         buf[pos++] = b2;
+    }
+
+    @Override
+    public void write(byte b1, byte b2, byte b3) {
+        expand(3);
+        buf[pos++] = b1;
+        buf[pos++] = b2;
+        buf[pos++] = b3;
     }
 
     @Override
@@ -84,31 +95,52 @@ public class ByteArrayJsonWriter extends AbstractJsonWriter implements JsonWrite
 
     @Override
     public void write(float f) {
-
+        if (f == Float.POSITIVE_INFINITY) {
+            write(POSITIVE_INFINITY_BYTES, 0, POSITIVE_INFINITY_BYTES.length);
+        } else if (f == Float.NEGATIVE_INFINITY) {
+            write(NEGATIVE_INFINITY_BYTES, 0, NEGATIVE_INFINITY_BYTES.length);
+        } else if (f != f) {
+            write((byte)'N', (byte)'a', (byte)'N');
+        } else {
+            Grisu3.tryConvert(f, builder);
+            int len = builder.getLength();
+            expand(len);
+            pos += builder.copyTo(buf, pos);
+        }
     }
 
     @Override
     public void write(Float f) {
-
+        if (f == null) {
+            writeNull();
+            return;
+        }
+        write(f.doubleValue());
     }
 
     @Override
     public void write(double d) {
-        //write(Double.toString(d));
-        Grisu3.tryConvert(d, builder);
-        int len = builder.getLength();
-        expand(len);
-        pos += builder.copyTo(buf, pos);
-//        pos += len;
-        //expand(40);
-        pos += Grisu.fmt.doubleToBytes(buf, pos, d);
-
-        //write(Grisu.fmt.doubleToBytes(d));
+        if (d == Double.POSITIVE_INFINITY) {
+            write(POSITIVE_INFINITY_BYTES, 0, POSITIVE_INFINITY_BYTES.length);
+        } else if (d == Double.NEGATIVE_INFINITY) {
+            write(NEGATIVE_INFINITY_BYTES, 0, NEGATIVE_INFINITY_BYTES.length);
+        } else if (d != d) {
+            write((byte)'N', (byte)'a', (byte)'N');
+        } else {
+            Grisu3.tryConvert(d, builder);
+            int len = builder.getLength();
+            expand(len);
+            pos += builder.copyTo(buf, pos);
+        }
     }
 
     @Override
     public void write(Double d) {
-
+        if (d == null) {
+            writeNull();
+            return;
+        }
+        write(d.doubleValue());
     }
 
     @Override
