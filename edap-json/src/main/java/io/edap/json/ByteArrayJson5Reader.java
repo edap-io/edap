@@ -390,7 +390,7 @@ public class ByteArrayJson5Reader extends ByteArrayJsonReader {
         } catch (Exception e) {
             for (int i=pos;i<end;i++) {
                 byte c = json[i];
-                if (c == ' ' || c == ',' || c == ']' || c == '}') {
+                if (isNumberEnd(c)) {
                     String num = new String(json, start, i-start);
                     pos = i;
                     return Double.parseDouble(num);
@@ -428,7 +428,7 @@ public class ByteArrayJson5Reader extends ByteArrayJsonReader {
         if (c == '.') {
             pos++;
             c = (byte)firstNotSpaceChar();
-            if (c == ',' || c == ']' || c == '}') {
+            if (isNumberEnd(c)) {
                 return (double)value;
             }
             int dotPos = pos;
@@ -449,7 +449,7 @@ public class ByteArrayJson5Reader extends ByteArrayJsonReader {
                     value = (value  << 4) + ind;
                 }
             }
-        } else if (c != '\n' && c != ' ' && c != ',' && c != ']' && c != '}' && c != '\r') {
+        } else if (!isNumberEnd(c)) {
             throw new RuntimeException("");
         } else {
             return isNe ? -value : value;

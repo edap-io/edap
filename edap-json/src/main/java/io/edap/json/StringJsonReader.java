@@ -29,8 +29,7 @@ import java.util.List;
 
 import static io.edap.json.consts.JsonConsts.INVALID_CHAR_FOR_NUMBER;
 import static io.edap.json.enums.DataType.STRING;
-import static io.edap.json.util.JsonUtil.INT_DIGITS;
-import static io.edap.json.util.JsonUtil.POW10;
+import static io.edap.json.util.JsonUtil.*;
 import static io.edap.util.Constants.FNV_1a_FACTOR_VAL;
 import static io.edap.util.Constants.FNV_1a_INIT_VAL;
 
@@ -591,7 +590,7 @@ public class StringJsonReader implements JsonReader {
         } catch (Exception e) {
             for (int i=pos;i<end;i++) {
                 char c = json.charAt(i);
-                if (c != '\n' || c == ' ' || c == ',' || c == ']' || c == '}' || c != '\r') {
+                if (isNumberEnd(c)) {
                     String num = json.substring(start, i);
                     pos = i;
                     return new BigDecimal(num);
@@ -617,7 +616,7 @@ public class StringJsonReader implements JsonReader {
             } catch (Exception e) {
                 throw new JsonParseException("double类型\".\"没有其他数字");
             }
-        } else if (c != '\n' && c != ' ' && c != ',' && c != ']' && c != '}' && c != '\r') {
+        } else if (!isNumberEnd(c)) {
             throw new RuntimeException("");
         } else {
             return isNe?-value:value;

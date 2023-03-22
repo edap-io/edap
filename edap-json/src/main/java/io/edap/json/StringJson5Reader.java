@@ -387,7 +387,7 @@ public class StringJson5Reader extends StringJsonReader {
         } catch (Exception e) {
             for (int i=pos;i<end;i++) {
                 char c = json.charAt(i);
-                if (c != '\n' || c == ' ' || c == ',' || c == ']' || c == '}' || c != '\r') {
+                if (isNumberEnd(c)) {
                     String num = json.substring(start, i);
                     pos = i + 1;
                     BigDecimal bd = new BigDecimal(num);
@@ -426,7 +426,7 @@ public class StringJson5Reader extends StringJsonReader {
         if (c == '.') {
             pos++;
             c = firstNotSpaceChar();
-            if (c == ',' || c == ']' || c == '}') {
+            if (isNumberEnd(c)) {
                 return (double)value;
             }
             int dotPos = pos;
@@ -447,7 +447,7 @@ public class StringJson5Reader extends StringJsonReader {
                     value = (value  << 4) + ind;
                 }
             }
-        } else if (c != '\n' && c != ' ' && c != ',' && c != ']' && c != '}') {
+        } else if (!isNumberEnd(c)) {
             throw new RuntimeException("");
         } else {
             return isNe ? -value : value;

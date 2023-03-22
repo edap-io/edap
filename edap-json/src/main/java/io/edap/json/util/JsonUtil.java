@@ -110,6 +110,10 @@ public class JsonUtil {
     }
 
     public static boolean isNumberEnd(byte b) {
+        return isNumberEnd((char)b);
+    }
+
+    public static boolean isNumberEnd(char b) {
         switch (b) {
             case ',':
             case ']':

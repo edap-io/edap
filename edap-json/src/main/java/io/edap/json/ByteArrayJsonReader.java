@@ -324,7 +324,7 @@ public class ByteArrayJsonReader implements JsonReader {
         } catch (Exception e) {
             for (int i=pos;i<end;i++) {
                 byte c = json[i];
-                if (c == ' ' || c == ',' || c == ']' || c == '}') {
+                if (isNumberEnd(c)) {
                     String num = new String(json, start, i-start);
                     pos = i;
                     return new BigDecimal(num);
@@ -350,7 +350,7 @@ public class ByteArrayJsonReader implements JsonReader {
             } catch (Exception e) {
                 throw new JsonParseException("double类型\".\"没有其他数字");
             }
-        } else if (c != '\n' && c != ' ' && c != ',' && c != ']' && c != '}' && c != '\r') {
+        } else if (!isNumberEnd(c)) {
             throw new RuntimeException("");
         } else {
             return isNe?-value:value;
