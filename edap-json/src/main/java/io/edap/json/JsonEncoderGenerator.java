@@ -18,7 +18,7 @@ import static org.objectweb.asm.ClassWriter.COMPUTE_FRAMES;
 import static org.objectweb.asm.ClassWriter.COMPUTE_MAXS;
 import static org.objectweb.asm.Opcodes.*;
 
-public class EncoderGenerator {
+public class JsonEncoderGenerator {
 
     private static final String IFACE_NAME = toInternalName(JsonEncoder.class.getName());
     private static final String PARENT_NAME = toInternalName(AbstractEncoder.class.getName());
@@ -43,7 +43,7 @@ public class EncoderGenerator {
     private final int varWriter = 1;
     private final int varPojo   = 2;
     
-    public <T extends Object> EncoderGenerator(Class<T> msgCls) {
+    public <T extends Object> JsonEncoderGenerator(Class<T> msgCls) {
         this.pojoCls     = msgCls;
         this.encoderName = toInternalName(buildEncoderName(pojoCls));
         this.pojoName    = toInternalName(pojoCls.getName());

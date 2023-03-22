@@ -16,11 +16,14 @@
 
 package io.edap.json.test;
 
+import io.edap.io.ByteArrayBufOut;
 import io.edap.json.JsonCodecRegister;
 import io.edap.json.JsonDecoderGenerator;
+import io.edap.json.JsonEncoder;
 import io.edap.json.enums.DataType;
 import io.edap.json.test.model.DemoOneString;
 import io.edap.json.test.model.DemoPojo;
+import io.edap.json.writer.ByteArrayJsonWriter;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -28,38 +31,10 @@ import java.nio.charset.StandardCharsets;
 public class T {
 
     public static void main(String[] args) throws IOException {
-        String str = "中文";
-        char c = str.charAt(0);
-        byte[] bs = str.getBytes(StandardCharsets.UTF_8);
-        System.out.println("9=" + (int)'9');
-        System.out.println("a=" + (int)'a');
-        System.out.println("A=" + (int)'A');
-        System.out.println("d=" + (int)'d');
-        System.out.println("c=" + (char)bs[0]);
-        System.out.println("c=" + (int)c);
-        System.out.println("b=" + (byte)c);
-        System.out.println("0xdecaf=" + Integer.parseInt("decaf", 16));
+        JsonEncoder<DemoPojo> pojoJsonEncoder = JsonCodecRegister.instance().getEncoder(DemoPojo.class);
 
-        int value = 5;
-        System.out.println("value=" + ((value << 3) + (value << 1)));
-        System.out.println("value=" + ((value << 6) + (value << 5) + (value << 2)));
-
-        long start = System.currentTimeMillis();
-        JsonCodecRegister.instance().getDecoder(DemoPojo.class, DataType.BYTE_ARRAY);
-        System.out.println("time=" + (System.currentTimeMillis() - start));
-
-        for (int i=0;i<10;i++) {
-            start = System.nanoTime();
-            JsonDecoderGenerator generator = new JsonDecoderGenerator(DemoOneString.class, DataType.BYTE_ARRAY);
-            generator.getClassInfo();
-            System.out.println("time" + i + ": " + (System.nanoTime() - start));
-        }
-
-        start = System.currentTimeMillis();
-        JsonCodecRegister.instance().getDecoder(DemoOneString.class, DataType.BYTE_ARRAY);
-        System.out.println("time=" + (System.currentTimeMillis() - start));
-        System.out.println("unicode:" + Integer.toHexString("中".charAt(0)));
-        System.out.println("unicode:" + Integer.toHexString("文".charAt(0)));
-        // 2,4,8,16,32,64,
+        ByteArrayJsonWriter writer = new ByteArrayJsonWriter(new ByteArrayBufOut());
+        writer.write(123.45678);
+        System.out.println(new String(writer.toByteArray()));
     }
 }

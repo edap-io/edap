@@ -815,8 +815,12 @@ public abstract class Grisu3 {
         private int end = 0;
         private int point;
 
-        void reset() {
+        public void reset() {
             end = 0;
+        }
+
+        public int getLength() {
+            return end;
         }
 
         void append(byte c) {

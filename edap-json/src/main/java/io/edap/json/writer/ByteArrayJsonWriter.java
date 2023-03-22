@@ -5,6 +5,8 @@ import io.edap.io.BufOut;
 import io.edap.io.ByteArrayBufOut;
 import io.edap.json.JsonEncoder;
 import io.edap.json.JsonWriter;
+import io.edap.util.Grisu;
+import io.edap.util.Grisu3;
 import io.edap.util.StringUtil;
 
 import java.io.IOException;
@@ -26,6 +28,8 @@ public class ByteArrayJsonWriter extends AbstractJsonWriter implements JsonWrite
     BufOut.WriteBuf wbuf;
     BufOut out;
     int wpos;
+
+    Grisu3.FastDtoaBuilder builder = new Grisu3.FastDtoaBuilder();
 
     public ByteArrayJsonWriter(ByteArrayBufOut out) {
         this.out = out;
@@ -76,6 +80,35 @@ public class ByteArrayJsonWriter extends AbstractJsonWriter implements JsonWrite
             return;
         }
         write(l.longValue());
+    }
+
+    @Override
+    public void write(float f) {
+
+    }
+
+    @Override
+    public void write(Float f) {
+
+    }
+
+    @Override
+    public void write(double d) {
+        //write(Double.toString(d));
+        Grisu3.tryConvert(d, builder);
+        int len = builder.getLength();
+        expand(len);
+        pos += builder.copyTo(buf, pos);
+//        pos += len;
+        //expand(40);
+        pos += Grisu.fmt.doubleToBytes(buf, pos, d);
+
+        //write(Grisu.fmt.doubleToBytes(d));
+    }
+
+    @Override
+    public void write(Double d) {
+
     }
 
     @Override

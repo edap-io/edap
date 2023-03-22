@@ -234,7 +234,11 @@ public class JsonUtil {
         switch (type) {
             case "java.lang.String":
             case "int":
+            case "java.lang.Integer":
             case "long":
+            case "java.long.Long":
+            case "double":
+            case "java.lang.Double":
                 method = "write";
                 break;
             default:

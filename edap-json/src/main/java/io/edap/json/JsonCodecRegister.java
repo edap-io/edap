@@ -25,6 +25,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 import static io.edap.json.util.JsonUtil.buildDecoderName;
+import static io.edap.json.util.JsonUtil.buildEncoderName;
 import static io.edap.util.AsmUtil.saveJavaFile;
 import static io.edap.util.AsmUtil.toLangName;
 import static io.edap.util.CollectionUtils.isEmpty;
@@ -35,9 +36,21 @@ public class JsonCodecRegister {
 
     private static final Map<String, JsonDecoder> DECODER_MAP = new ConcurrentHashMap<>();
 
+    private static final Map<String, JsonEncoder> ENCODER_MAP = new ConcurrentHashMap<>();
+
     private final JsonCodecLoader codecLoader = new JsonCodecLoader(this.getClass().getClassLoader());
 
     private JsonCodecRegister() {}
+
+    public <T> JsonEncoder<T> getEncoder(Class<T> tClass) {
+        String key = tClass.getName();
+        JsonEncoder encoder = ENCODER_MAP.get(key);
+        if (encoder == null) {
+            encoder = generateEncoder(tClass);
+            ENCODER_MAP.put(key, encoder);
+        }
+        return encoder;
+    }
 
     public <T> JsonDecoder<T> getDecoder(Class<T> tClass, DataType dataType) {
         return getDecoder(tClass, dataType, JsonVersion.JSON);
@@ -70,6 +83,61 @@ public class JsonCodecRegister {
             }
         }
         return codec;
+    }
+
+    private JsonEncoder generateEncoder(Class cls) {
+        JsonEncoder codec = null;
+        Class encoderCls = generateEncoderClass(cls);
+        if (encoderCls != null) {
+            try {
+                codec = (JsonEncoder)encoderCls.newInstance();
+            } catch (InstantiationException | IllegalAccessException ex) {
+                throw new RuntimeException("generateDecoder "
+                        + cls.getName() + " error", ex);
+            }
+        }
+        return codec;
+    }
+
+    private Class generateEncoderClass(Class cls) {
+        Class encoderCls = null;
+        long start = System.currentTimeMillis();
+        String encoderName = buildEncoderName(cls);
+        try {
+            encoderCls = Class.forName(encoderName);
+            return encoderCls;
+        } catch (ClassNotFoundException e) {
+            System.err.println(e.getMessage());
+        }
+        try {
+            JsonEncoderGenerator generator = new JsonEncoderGenerator(cls);
+            GeneratorClassInfo gci = generator.getClassInfo();
+            byte[] bs = gci.clazzBytes;
+            System.out.println("generate class time: " + (System.currentTimeMillis() - start));
+            saveJavaFile("./" + gci.clazzName + ".class", bs);
+            encoderCls = codecLoader.define(encoderName, bs, 0, bs.length);
+            if (!isEmpty(gci.inners)) {
+                for (GeneratorClassInfo inner : gci.inners) {
+                    bs = inner.clazzBytes;
+                    String innerName = toLangName(inner.clazzName);
+                    saveJavaFile("./" + inner.clazzName + ".class", bs);
+                    codecLoader.define(innerName, bs, 0, bs.length);
+                }
+            }
+        } catch (Throwable e) {
+            try {
+                if (codecLoader.loadClass(encoderName) != null) {
+                    return codecLoader.loadClass(encoderName);
+                }
+            } catch (ClassNotFoundException ex) {
+                throw new RuntimeException("generateDecoder "
+                        + cls.getName() + " error", ex);
+            }
+            throw new RuntimeException("generateDecoder "
+                    + cls.getName() + " error", e);
+        }
+
+        return encoderCls;
     }
 
     private Class generateDecoderClass(Class cls, DataType dataType, JsonVersion version) {
