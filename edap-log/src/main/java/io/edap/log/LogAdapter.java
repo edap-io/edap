@@ -13,30 +13,25 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-
 package io.edap.log;
 
-import io.edap.log.config.LoggerConfig;
-
-import java.util.Arrays;
-
-public class LogConfigManager {
-
-    private static LoggerConfig DEFAULT_ROOT_LOGGER_CONFIG;
-
-    static {
-        LoggerConfig config = new LoggerConfig();
-        config.setLevel("INFO");
-        config.setName("ROOT");
-        config.setAppenderRefs(Arrays.asList("console"));
-        DEFAULT_ROOT_LOGGER_CONFIG = config;
-    }
+/**
+ * 日志适配器，当edap-log和logback等日志框架并存时可以通过适配logback等日志框框架的配置以及相应的日志文件，将edap的日志打印到
+ * logback的日志文件中
+ */
+public interface LogAdapter {
 
     /**
-     * 获取默认ROOT的logger的配置
-     * @return
+     * 启动时从配置文件解析为edap-log的配置文件
+     * @return 返回edap-log的配置文件
      */
-    public static LoggerConfig getDefaultRootLoggerConfig() {
-        return DEFAULT_ROOT_LOGGER_CONFIG;
-    }
+    LogConfig loadConfig();
+
+    /**
+     * 当时日志的配置文件有变更时重新加载配置文件
+     * @return 最新的edap-log的配置文件
+     */
+    LogConfig reloadConfig();
+
+    LogWriter getLogWriter(String appenderName);
 }

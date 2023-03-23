@@ -25,4 +25,28 @@ public class AppenderConfigSection {
     private List<AppenderConfig> appenderConfigs;
     private boolean needReload;
     private long lastReloadTime;
+
+    public List<AppenderConfig> getAppenderConfigs() {
+        return appenderConfigs;
+    }
+
+    public void setAppenderConfigs(List<AppenderConfig> appenderConfigs) {
+        this.appenderConfigs = appenderConfigs;
+    }
+
+    public boolean isNeedReload() {
+        return needReload;
+    }
+
+    public void setNeedReload(boolean needReload) {
+        this.needReload = needReload;
+    }
+
+    public long getLastReloadTime() {
+        return lastReloadTime;
+    }
+
+    public void setLastReloadTime(long lastReloadTime) {
+        this.lastReloadTime = lastReloadTime;
+    }
 }

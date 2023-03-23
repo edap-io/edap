@@ -24,6 +24,7 @@ import org.junit.jupiter.api.Test;
 
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
+import java.io.UnsupportedEncodingException;
 import java.nio.charset.StandardCharsets;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
@@ -647,7 +648,7 @@ public class TestLogger {
     }
 
     @Test
-    public void testAppendError() {
+    public void testAppendError() throws UnsupportedEncodingException {
         String logName = TestLogger.class.getName();
         LoggerImpl logger = new LoggerImpl(logName);
 
@@ -665,9 +666,9 @@ public class TestLogger {
 
         try {
             logger.trace("trace message!");
-            System.out.println(outContent.toString(StandardCharsets.UTF_8));
+            System.out.println(outContent.toString("utf-8"));
             System.setOut(originalOut);
-            String errorMsg = errContent.toString(StandardCharsets.UTF_8);
+            String errorMsg = errContent.toString("utf-8");
             assertEquals(errorMsg.contains("Reported exception:")
                     && errorMsg.contains("file not exists"), true);
             System.out.println(errorMsg);

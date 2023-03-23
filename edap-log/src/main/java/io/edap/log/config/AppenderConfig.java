@@ -16,12 +16,16 @@
 
 package io.edap.log.config;
 
+import io.edap.log.LogConfig;
+
+import java.util.List;
 import java.util.Map;
 
 public class AppenderConfig {
     private String name;
     private String clazzName;
-    private Map<String, Object> config;
+
+    private List<LogConfig.ArgNode> args;
 
     public String getName() {
         return name;
@@ -39,11 +43,11 @@ public class AppenderConfig {
         this.clazzName = clazzName;
     }
 
-    public Map<String, Object> getConfig() {
-        return config;
+    public List<LogConfig.ArgNode> getArgs() {
+        return args;
     }
 
-    public void setConfig(Map<String, Object> config) {
-        this.config = config;
+    public void setArgs(List<LogConfig.ArgNode> args) {
+        this.args = args;
     }
 }

@@ -17,6 +17,7 @@
 package io.edap.log.spi;
 
 import io.edap.log.*;
+import io.edap.log.config.ConfigManager;
 import io.edap.log.config.LoggerConfig;
 import io.edap.log.config.LoggerConfigSection;
 import io.edap.util.EdapTime;
@@ -92,7 +93,7 @@ public class EdapLogFactory implements LoggerFactory, ConfigReload<LoggerConfigS
             }
         }
         if (rootConfig == null) {
-            rootConfig = LogConfigManager.getDefaultRootLoggerConfig();
+            rootConfig = ConfigManager.createDefaultRootLoggerConfig();
             loggerConfigs.put(ROOT_LOGGER_NAME, rootConfig);
         }
         if (matchConfig == null) {
@@ -110,7 +111,7 @@ public class EdapLogFactory implements LoggerFactory, ConfigReload<LoggerConfigS
         // 如果没有任何Logger的配置则使用根节点的默认配置
         if (logConfigSection.getLoggerConfigs() == null
                 || logConfigSection.getLoggerConfigs().size() == 0) {
-            LoggerConfig config = LogConfigManager.getDefaultRootLoggerConfig();
+            LoggerConfig config = ConfigManager.createDefaultRootLoggerConfig();
             loggerConfigs.put(ROOT_LOGGER_NAME, config);
             for (Map.Entry<String, LoggerImpl> entry : loggerCache.entrySet()) {
                 LoggerImpl logger = entry.getValue();

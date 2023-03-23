@@ -486,7 +486,7 @@ public class ByteArrayBuilder {
 
     private ByteArrayBuilder appendSlow(String s) {
         int slen = s.length();
-        ensureCapacity((slen << 2) + (slen << 1));
+        ensureCapacity(count + (slen << 2) + (slen << 1));
         byte[] _buf = value;
         int index = count;
         count = index;

@@ -22,6 +22,7 @@ public class LoggerConfig {
 
     private String name;
     private String level;
+    private String additivity;
 
     private List<String> appenderRefs;
 
@@ -47,5 +48,13 @@ public class LoggerConfig {
 
     public void setAppenderRefs(List<String> appenderRefs) {
         this.appenderRefs = appenderRefs;
+    }
+
+    public String getAdditivity() {
+        return additivity;
+    }
+
+    public void setAdditivity(String additivity) {
+        this.additivity = additivity;
     }
 }

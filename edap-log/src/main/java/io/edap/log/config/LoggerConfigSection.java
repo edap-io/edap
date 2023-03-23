@@ -23,6 +23,8 @@ public class LoggerConfigSection {
     private boolean needReload;
     private long lastReloadTime;
 
+    private LoggerConfig rootLoggerConfig;
+
     public List<LoggerConfig> getLoggerConfigs() {
         return loggerConfigs;
     }
@@ -45,5 +47,13 @@ public class LoggerConfigSection {
 
     public void setLastReloadTime(long lastReloadTime) {
         this.lastReloadTime = lastReloadTime;
+    }
+
+    public LoggerConfig getRootLoggerConfig() {
+        return rootLoggerConfig;
+    }
+
+    public void setRootLoggerConfig(LoggerConfig rootLoggerConfig) {
+        this.rootLoggerConfig = rootLoggerConfig;
     }
 }

@@ -18,20 +18,45 @@ package io.edap.log;
 
 import io.edap.log.config.AppenderConfigSection;
 import io.edap.log.config.LoggerConfig;
+import io.edap.log.config.LoggerConfigSection;
 
 import java.util.List;
+import java.util.Map;
 
 public class LogConfig {
-    private List<LoggerConfig> loggerSection;
+
+    public static class ArgNode {
+        private String name;
+        private Map<String, String> attributes;
+        private List<ArgNode> childs;
+
+        public String getName() {
+            return name;
+        }
+
+        public void setName(String name) {
+            this.name = name;
+        }
+
+        public Map<String, String> getAttributes() {
+            return attributes;
+        }
+
+        public void setAttributes(Map<String, String> attributes) {
+            this.attributes = attributes;
+        }
+
+        public List<ArgNode> getChilds() {
+            return childs;
+        }
+
+        public void setChilds(List<ArgNode> childs) {
+            this.childs = childs;
+        }
+    }
+
+    private LoggerConfigSection loggerSection;
     private AppenderConfigSection appenderSection;
-
-    public List<LoggerConfig> getLoggerSection() {
-        return loggerSection;
-    }
-
-    public void setLoggerSection(List<LoggerConfig> loggerSection) {
-        this.loggerSection = loggerSection;
-    }
 
     public AppenderConfigSection getAppenderSection() {
         return appenderSection;
@@ -39,5 +64,13 @@ public class LogConfig {
 
     public void setAppenderSection(AppenderConfigSection appenderSection) {
         this.appenderSection = appenderSection;
+    }
+
+    public LoggerConfigSection getLoggerSection() {
+        return loggerSection;
+    }
+
+    public void setLoggerSection(LoggerConfigSection loggerSection) {
+        this.loggerSection = loggerSection;
     }
 }
