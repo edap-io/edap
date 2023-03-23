@@ -30,6 +30,8 @@ public class LogConfig {
         private Map<String, String> attributes;
         private List<ArgNode> childs;
 
+        private String value;
+
         public String getName() {
             return name;
         }
@@ -52,6 +54,14 @@ public class LogConfig {
 
         public void setChilds(List<ArgNode> childs) {
             this.childs = childs;
+        }
+
+        public String getValue() {
+            return value;
+        }
+
+        public void setValue(String value) {
+            this.value = value;
         }
     }
 

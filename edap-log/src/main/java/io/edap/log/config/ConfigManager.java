@@ -3,6 +3,7 @@ package io.edap.log.config;
 import io.edap.log.LogAdapter;
 import io.edap.log.LogConfig;
 import io.edap.util.CollectionUtils;
+import io.edap.util.StringUtil;
 import org.w3c.dom.*;
 import org.xml.sax.SAXException;
 
@@ -165,7 +166,7 @@ public class ConfigManager {
         loggerConfigSection.setLoggerConfigs(loggerConfigs);
 
         config.setLoggerSection(loggerConfigSection);
-        return null;
+        return config;
     }
 
     private List<AppenderConfig> parseAppenders(NodeList appenders) {
@@ -187,6 +188,7 @@ public class ConfigManager {
             config.setName(name);
             config.setClazzName(clsName);
             config.setArgs(parseArgNodes(node.getChildNodes()));
+            configs.add(config);
         }
         return configs;
     }
@@ -198,9 +200,11 @@ public class ConfigManager {
         List<LogConfig.ArgNode> argNodes = new ArrayList<>();
         for (int i=0;i<childNodes.getLength();i++) {
             Node child = childNodes.item(i);
-            LogConfig.ArgNode node = parseArgNode(child);
-            if (node != null) {
-                argNodes.add(node);
+            if (child.getNodeType() == Node.ELEMENT_NODE) {
+                LogConfig.ArgNode node = parseArgNode(child);
+                if (node != null) {
+                    argNodes.add(node);
+                }
             }
         }
         return argNodes;
@@ -217,9 +221,14 @@ public class ConfigManager {
             }
             argNode.setAttributes(attrs);
         }
-        List<LogConfig.ArgNode> childs = parseArgNodes(child.getChildNodes());
-        if (childs != null) {
-            argNode.setChilds(childs);
+        NodeList childen = child.getChildNodes();
+        if (childen.getLength() == 1) {
+            argNode.setValue(childen.item(0).getTextContent());
+        } else {
+            List<LogConfig.ArgNode> childs = parseArgNodes(child.getChildNodes());
+            if (childs != null) {
+                argNode.setChilds(childs);
+            }
         }
         return argNode;
     }
