@@ -17,6 +17,7 @@
 package io.edap.log.converter;
 
 import io.edap.log.helps.ByteArrayBuilder;
+import io.edap.util.StringUtil;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
@@ -30,6 +31,8 @@ public class DateFormatterConverter implements DateConverter {
 
     final DateTimeFormatter formatter;
 
+    private final byte[] postfixData;
+
     public DateFormatterConverter(String format) {
         this(format, null);
     }
@@ -38,6 +41,11 @@ public class DateFormatterConverter implements DateConverter {
         this.format = format;
         this.formatter = DateTimeFormatter.ofPattern(format)
                 .withLocale(Locale.getDefault()).withZone(ZoneId.systemDefault());
+        if (StringUtil.isEmpty(nextText)) {
+            postfixData = null;
+        } else {
+            postfixData = nextText.getBytes(StandardCharsets.UTF_8);
+        }
     }
 
     @Override
@@ -46,5 +54,8 @@ public class DateFormatterConverter implements DateConverter {
             return;
         }
         out.append(formatter.format(Instant.ofEpochMilli(mills)).getBytes(StandardCharsets.UTF_8));
+        if (postfixData != null) {
+            out.append(postfixData);
+        }
     }
 }

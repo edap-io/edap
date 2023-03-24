@@ -1,5 +1,6 @@
 package io.edap.log.test;
 
+import io.edap.log.test.encoder.DemoEncoder;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.util.ASMifier;
@@ -21,8 +22,7 @@ public class Asm {
 
         System.out.println("short Max=" + Short.MAX_VALUE);
 
-        String clsPath = "/Users/louis/NetBeansProjects/edap/edap-log/target/test-classes/" +
-                "io/edap/log/test/converter/DemoTwoByteTextConverter.class";
+        String clsPath = DemoEncoder.class.getName();
         ClassReader cr;
         if (clsPath.endsWith(".class") || clsPath.indexOf('\\') > -1
                 || clsPath.indexOf('/') > -1) {

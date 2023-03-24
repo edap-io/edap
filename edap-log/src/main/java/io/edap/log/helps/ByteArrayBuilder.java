@@ -3,6 +3,8 @@ package io.edap.log.helps;
 import io.edap.util.Grisu3;
 import io.edap.util.StringUtil;
 
+import java.io.IOException;
+import java.io.OutputStream;
 import java.util.Arrays;
 
 import static io.edap.util.StringUtil.IS_BYTE_ARRAY;
@@ -628,5 +630,9 @@ public class ByteArrayBuilder {
         byte[] bs = new byte[count];
         System.arraycopy(value, 0, bs, 0, count);
         return bs;
+    }
+
+    public void writeTo(OutputStream out) throws IOException {
+        out.write(value, 0, count);
     }
 }

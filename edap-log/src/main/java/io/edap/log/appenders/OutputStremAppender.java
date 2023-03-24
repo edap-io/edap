@@ -39,17 +39,9 @@ public class OutputStremAppender implements Appender {
         if (encoder == null) {
             return;
         }
-        byte[] data = encoder.encode(logEvent);
-        writeBytes(data);
-    }
-
-    private void writeBytes(byte[] byteArray) throws IOException {
-        if(byteArray == null || byteArray.length == 0) {
-            return;
-        }
         lock.lock();
         try {
-            this.outputStream.write(byteArray);
+            encoder.encode(outputStream, logEvent);
             if (immediateFlush) {
                 this.outputStream.flush();
             }

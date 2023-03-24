@@ -25,6 +25,10 @@ public class BaseTextConverter implements TextConverter {
     private final byte[] bytes;
 
     public BaseTextConverter(String text) {
+        this(text, null);
+    }
+
+    public BaseTextConverter(String text, String nextText) {
         bytes = text.getBytes(StandardCharsets.UTF_8);
     }
     @Override

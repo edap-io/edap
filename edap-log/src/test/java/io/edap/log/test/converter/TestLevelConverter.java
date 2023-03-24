@@ -17,17 +17,22 @@
 package io.edap.log.test.converter;
 
 import io.edap.log.LogLevel;
+import io.edap.log.converter.LevelConverter;
+import io.edap.log.helps.ByteArrayBuilder;
 import org.junit.jupiter.api.Test;
+
+import static io.edap.log.LogLevel.*;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 
 public class TestLevelConverter {
 
     @Test
     public void testConverte() {
-        int level = LogLevel.TRACE;
+        int level = TRACE;
         System.out.println("TRACE=" + (level >> 8));
         level = LogLevel.DEBUG;
         System.out.println("DEBUG=" + (level >> 8));
-        level = LogLevel.CONF;
+        level = CONF;
         System.out.println("CONF=" + (level >> 8));
         level = LogLevel.INFO;
         System.out.println("INFO=" + (level >> 8));
@@ -37,5 +42,59 @@ public class TestLevelConverter {
         System.out.println("ERROR=" + (level >> 8));
         level = LogLevel.OFF;
         System.out.println("OFF=" + (level >> 8));
+
+        LevelConverter levelConverter = new LevelConverter("", " ");
+        ByteArrayBuilder out = new ByteArrayBuilder();
+        levelConverter.convertTo(out, TRACE);
+        assertArrayEquals(out.toByteArray(), "TRACE ".getBytes());
+        out.reset();
+        levelConverter.convertTo(out, DEBUG);
+        assertArrayEquals(out.toByteArray(), "DEBUG ".getBytes());
+        out.reset();
+        levelConverter.convertTo(out, CONF);
+        assertArrayEquals(out.toByteArray(), " CONF ".getBytes());
+        out.reset();
+        levelConverter.convertTo(out, INFO);
+        assertArrayEquals(out.toByteArray(), " INFO ".getBytes());
+        out.reset();
+        levelConverter.convertTo(out, WARN);
+        assertArrayEquals(out.toByteArray(), " WARN ".getBytes());
+        out.reset();
+        levelConverter.convertTo(out, ERROR);
+        assertArrayEquals(out.toByteArray(), "ERROR ".getBytes());
+        out.reset();
+        levelConverter.convertTo(out, OFF);
+        assertArrayEquals(out.toByteArray(), "  OFF ".getBytes());
+
+        out.reset();
+        levelConverter = new LevelConverter("");
+        levelConverter.convertTo(out, TRACE);
+        assertArrayEquals(out.toByteArray(), "TRACE".getBytes());
+        out.reset();
+        levelConverter.convertTo(out, DEBUG);
+        assertArrayEquals(out.toByteArray(), "DEBUG".getBytes());
+        out.reset();
+        levelConverter.convertTo(out, CONF);
+        assertArrayEquals(out.toByteArray(), " CONF".getBytes());
+        out.reset();
+        levelConverter.convertTo(out, INFO);
+        assertArrayEquals(out.toByteArray(), " INFO".getBytes());
+        out.reset();
+        levelConverter.convertTo(out, WARN);
+        assertArrayEquals(out.toByteArray(), " WARN".getBytes());
+        out.reset();
+        levelConverter.convertTo(out, ERROR);
+        assertArrayEquals(out.toByteArray(), "ERROR".getBytes());
+        out.reset();
+        levelConverter.convertTo(out, OFF);
+        assertArrayEquals(out.toByteArray(), "  OFF".getBytes());
+
+        out.reset();
+        levelConverter.convertTo(out, 8);
+        assertArrayEquals(out.toByteArray(), "  OFF".getBytes());
+
+        out.reset();
+        levelConverter.convertTo(out, -1);
+        assertArrayEquals(out.toByteArray(), "  OFF".getBytes());
     }
 }

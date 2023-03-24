@@ -26,6 +26,15 @@ import java.io.IOException;
 
 public class MessageConverter implements Converter<LogEvent> {
 
+
+    public MessageConverter(String token) {
+        this(token, null);
+    }
+
+    public MessageConverter(String token, String nextText) {
+
+    }
+
     @Override
     public void convertTo(ByteArrayBuilder out, LogEvent logEvent) {
         try {

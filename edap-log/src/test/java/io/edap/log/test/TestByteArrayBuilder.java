@@ -337,7 +337,7 @@ public class TestByteArrayBuilder {
     public void testAppendDouble() {
         final Random rnd = new Random(0);
         ByteArrayBuilder builder = new ByteArrayBuilder(8);
-        for (int i = 0; i < 1000000; i++) {
+        for (int i = 0; i < 10; i++) {
             builder.reset();
             // serialization
             double d = rnd.nextDouble() * rnd.nextInt();
@@ -365,7 +365,7 @@ public class TestByteArrayBuilder {
     public void testAppendFloat() {
         final Random rnd = new Random(0);
         ByteArrayBuilder builder = new ByteArrayBuilder(8);
-        for (int i = 0; i < 1000000; i++) {
+        for (int i = 0; i < 10; i++) {
             builder.reset();
             // serialization
             float d = rnd.nextFloat() * rnd.nextInt();

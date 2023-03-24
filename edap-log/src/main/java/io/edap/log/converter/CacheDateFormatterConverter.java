@@ -17,6 +17,7 @@
 package io.edap.log.converter;
 
 import io.edap.log.helps.ByteArrayBuilder;
+import io.edap.util.StringUtil;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
@@ -31,6 +32,8 @@ public class CacheDateFormatterConverter implements DateConverter {
 
     final AtomicReference<CacheData> atomicReference;
 
+    private final byte[] postfixData;
+
     public CacheDateFormatterConverter(String format) {
         this(format, null);
     }
@@ -44,6 +47,11 @@ public class CacheDateFormatterConverter implements DateConverter {
         byte[] result = dateFormatter.format(instant).getBytes(StandardCharsets.UTF_8);
         CacheData cacheData = new CacheData(now, result);
         this.atomicReference = new AtomicReference<>(cacheData);
+        if (StringUtil.isEmpty(nextText)) {
+            postfixData = null;
+        } else {
+            postfixData = nextText.getBytes(StandardCharsets.UTF_8);
+        }
     }
 
     @Override
@@ -56,6 +64,12 @@ public class CacheDateFormatterConverter implements DateConverter {
         if (localCacheData.mills != mills) {
             Instant instant = Instant.ofEpochMilli(mills);
             byte[] result = dateFormatter.format(instant).getBytes(StandardCharsets.UTF_8);
+            if (postfixData != null) {
+                byte[] tmp = new byte[result.length + postfixData.length];
+                System.arraycopy(result, 0, tmp, 0, result.length);
+                System.arraycopy(postfixData, 0, tmp, result.length, postfixData.length);
+                result = tmp;
+            }
             out.append(result);
             localCacheData = new CacheData(mills, result);
             atomicReference.compareAndSet(oldCacheData, localCacheData);

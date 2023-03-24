@@ -19,6 +19,7 @@ package io.edap.log.converter;
 import io.edap.log.Converter;
 import io.edap.log.LogLevel;
 import io.edap.log.helps.ByteArrayBuilder;
+import io.edap.util.StringUtil;
 
 public class LevelConverter implements Converter<Integer> {
 
@@ -39,7 +40,20 @@ public class LevelConverter implements Converter<Integer> {
      */
     public LevelConverter(String encoderPattern, String nextText) {
         byte[][] levelBytes = new byte[8][];
-
+        String postfix;
+        if (!StringUtil.isEmpty(nextText)) {
+            postfix = nextText;
+        } else {
+            postfix = "";
+        }
+        levelBytes[0] = ("  OFF" + postfix).getBytes();
+        levelBytes[1] = ("TRACE" + postfix).getBytes();
+        levelBytes[2] = ("DEBUG" + postfix).getBytes();
+        levelBytes[3] = (" CONF" + postfix).getBytes();
+        levelBytes[4] = (" INFO" + postfix).getBytes();
+        levelBytes[5] = (" WARN" + postfix).getBytes();
+        levelBytes[6] = ("ERROR" + postfix).getBytes();
+        levelBytes[7] = ("  OFF" + postfix).getBytes();
         LEVEL_BYTES_ARRAY = levelBytes;
     }
 
@@ -52,5 +66,6 @@ public class LevelConverter implements Converter<Integer> {
         if (levelValue < 0 || levelValue > 7) {
             levelValue = 0;
         }
+        out.append(LEVEL_BYTES_ARRAY[levelValue]);
     }
 }

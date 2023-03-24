@@ -1,9 +1,9 @@
 package io.edap.log.config;
 
+import io.edap.log.Json5ConfigParser;
 import io.edap.log.LogAdapter;
 import io.edap.log.LogConfig;
 import io.edap.util.CollectionUtils;
-import io.edap.util.StringUtil;
 import org.w3c.dom.*;
 import org.xml.sax.SAXException;
 
@@ -84,6 +84,35 @@ public class ConfigManager {
         return null;
     }
 
+    private Json5ConfigParser findJson5ConfigParser() {
+        try {
+            ClassLoader managerClassLoader = ConfigManager.class.getClassLoader();
+            ServiceLoader<Json5ConfigParser> loader;
+            loader = ServiceLoader.load(Json5ConfigParser.class, managerClassLoader);
+            Iterator<Json5ConfigParser> iterator = loader.iterator();
+            while (iterator.hasNext()) {
+                Json5ConfigParser parser = safelyInstantiateParser(iterator);
+                if (parser != null) {
+                    return parser;
+                }
+            }
+            printError("find Json5ConfigParser not found!");
+        } catch (Throwable t) {
+            printError("find Json5ConfigParser error!\n", t);
+        }
+        return null;
+    }
+
+    private static Json5ConfigParser safelyInstantiateParser(Iterator<Json5ConfigParser> iterator) {
+        try {
+            Json5ConfigParser parser = iterator.next();
+            return parser;
+        } catch (ServiceConfigurationError e) {
+            printError("A edap-log json5ConfigParser eror:", e);
+        }
+        return null;
+    }
+
     private static LogAdapter safelyInstantiate(Iterator<LogAdapter> iterator) {
         try {
             LogAdapter provider = iterator.next();
@@ -101,35 +130,27 @@ public class ConfigManager {
      */
     private LogConfig findEdapLogConfig() {
         InputStream configInStream = null;
+        LogConfig logConfig = null;
         try {
             configInStream = ConfigManager.class.getResourceAsStream("/edap-log.xml");
+            logConfig = parseXmlConfig(configInStream);
         } catch (Throwable t) {
             System.err.println("findEdapLogConfig \"edap-log.xml\" error " + t.getMessage() + "\n");
         }
-        if (configInStream == null) {
-            try {
-                configInStream = ConfigManager.class.getResourceAsStream("/edap-log.json5");
-            } catch (Throwable t) {
-                System.err.println("findEdapLogConfig \"edap-log.json5\" error " + t.getMessage() + "\n");
-            }
-            if (configInStream != null) {
-                try {
-                    return parseJson5Config(configInStream);
-                } catch (Throwable t) {
-                    printError("parse \"edap-log.json5\" error " + t.getMessage() + "\n", t);
-                }
-            }
-        } else {
-            try {
-                return parseXmlConfig(configInStream);
-            } catch (Throwable t) {
-                printError("parse \"edap-log.xml\" error " + t.getMessage() + "\n", t);
+        if (logConfig != null) {
+            return logConfig;
+        }
+        try {
+            configInStream = ConfigManager.class.getResourceAsStream("/edap-log.json5");
+        } catch (Throwable t) {
+            System.err.println("findEdapLogConfig \"edap-log.json5\" error " + t.getMessage() + "\n");
+        }
+        if (configInStream != null) {
+            Json5ConfigParser parser = findJson5ConfigParser();
+            if (parser != null) {
+                return parser.parseConfig(configInStream);
             }
         }
-        return null;
-    }
-
-    private LogConfig parseJson5Config(InputStream configInStream) {
         return null;
     }
 
@@ -276,19 +297,21 @@ public class ConfigManager {
         List<String> reflist = new ArrayList<>();
         for (int i=0;i<refs.getLength();i++) {
             Node node = refs.item(i);
-            String ref = getAttributeValue(node.getAttributes(), "ref");
-            if (ref == null) {
-                continue;
-            }
-            if (!reflist.contains(ref)) {
-                reflist.add(ref);
+            if (node.getNodeType() == Node.ELEMENT_NODE) {
+                String ref = getAttributeValue(node.getAttributes(), "ref");
+                if (ref == null) {
+                    continue;
+                }
+                if (!reflist.contains(ref)) {
+                    reflist.add(ref);
+                }
             }
         }
         return reflist;
     }
 
     private String getAttributeValue(NamedNodeMap namedNodeMap, String name) {
-        if (namedNodeMap == null) {
+        if (namedNodeMap == null || namedNodeMap.getLength() <= 0) {
             return null;
         }
         Node node = namedNodeMap.getNamedItem(name);

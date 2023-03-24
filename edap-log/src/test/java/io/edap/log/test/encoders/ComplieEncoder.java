@@ -24,6 +24,7 @@ import io.edap.log.helps.EncoderPatternParser;
 import io.edap.log.helps.EncoderPatternToken;
 import io.edap.util.StringUtil;
 
+import java.io.OutputStream;
 import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.List;
@@ -63,7 +64,7 @@ public class ComplieEncoder extends AbstractEncoder {
     }
 
     @Override
-    public byte[] encode(LogEvent logEvent) {
+    public void encode(OutputStream out, LogEvent logEvent) {
         ByteArrayBuilder builder = LOCAL_BYTE_ARRAY_BUILDER.get();
         for (int i=0;i<converters.length;i++) {
             Converter converter = converters[i];
@@ -94,6 +95,10 @@ public class ComplieEncoder extends AbstractEncoder {
 
             }
         }
-        return new byte[0];
+        try {
+            builder.writeTo(out);
+        } catch (Throwable e) {
+
+        }
     }
 }

@@ -16,6 +16,8 @@
 
 package io.edap.log;
 
+import java.io.OutputStream;
+
 /**
  * 日志事件的编码器，将日志事件编码为字节数组，然后有Appender进行持久化
  */
@@ -25,5 +27,5 @@ public interface Encoder {
      * @param logEvent 日志事件
      * @return 返回自己数组
      */
-    byte[] encode(LogEvent logEvent);
+    void encode(OutputStream out, LogEvent logEvent);
 }

@@ -15,6 +15,8 @@
  */
 package io.edap.log;
 
+import java.io.OutputStream;
+
 /**
  * 日志适配器，当edap-log和logback等日志框架并存时可以通过适配logback等日志框框架的配置以及相应的日志文件，将edap的日志打印到
  * logback的日志文件中
@@ -33,5 +35,5 @@ public interface LogAdapter {
      */
     LogConfig reloadConfig();
 
-    LogWriter getLogWriter(String appenderName);
+    OutputStream getOutputStream(String appenderName);
 }
