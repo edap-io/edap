@@ -16,6 +16,7 @@
 
 package io.edap.log.converter;
 
+import io.edap.log.LogEvent;
 import io.edap.log.helps.ByteArrayBuilder;
 import io.edap.util.StringUtil;
 
@@ -24,6 +25,8 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.Locale;
+
+import static io.edap.log.util.LogUtil.ISO8601_PATTERN;
 
 public class DateFormatterConverter implements DateConverter {
 
@@ -38,9 +41,10 @@ public class DateFormatterConverter implements DateConverter {
     }
 
     public DateFormatterConverter(String format, String nextText) {
-        this.format = format;
+        TimeZoneInfo timeZoneInfo = DateConverter.parseTimeZoneInfo(format);
+        this.format = timeZoneInfo.format;
         this.formatter = DateTimeFormatter.ofPattern(format)
-                .withLocale(Locale.getDefault()).withZone(ZoneId.systemDefault());
+                .withLocale(timeZoneInfo.locale).withZone(timeZoneInfo.zoneId);
         if (StringUtil.isEmpty(nextText)) {
             postfixData = null;
         } else {
@@ -49,10 +53,8 @@ public class DateFormatterConverter implements DateConverter {
     }
 
     @Override
-    public void convertTo(ByteArrayBuilder out, Long mills) {
-        if (mills == null) {
-            return;
-        }
+    public void convertTo(ByteArrayBuilder out, LogEvent logEvent) {
+        long mills = logEvent.getLogTime();
         out.append(formatter.format(Instant.ofEpochMilli(mills)).getBytes(StandardCharsets.UTF_8));
         if (postfixData != null) {
             out.append(postfixData);

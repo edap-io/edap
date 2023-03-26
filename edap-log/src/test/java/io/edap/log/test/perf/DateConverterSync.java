@@ -16,6 +16,7 @@
 
 package io.edap.log.test.perf;
 
+import io.edap.log.LogEvent;
 import io.edap.log.converter.DateConverter;
 import io.edap.log.helps.ByteArrayBuilder;
 
@@ -49,10 +50,8 @@ public class DateConverterSync implements DateConverter {
     }
 
     @Override
-    public void convertTo(ByteArrayBuilder out, Long mills) {
-        if (mills == null) {
-            return;
-        }
+    public void convertTo(ByteArrayBuilder out, LogEvent logEvent) {
+        long mills = logEvent.getLogTime();
         synchronized (this) {
             if (lastTimestamp != mills) {
                 buf.delete(0, buf.length());

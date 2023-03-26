@@ -62,7 +62,7 @@ public class EncoderPatternParser {
         } else {
             int rightBrackets = token.indexOf("}", leftBrackets);
             if (rightBrackets == -1) {
-                throw new ParseException("EncoderPattern is abnormal end", leftBrackets);
+                throw new ParseException("EncoderPattern is abnormal end pos:" + leftBrackets, leftBrackets);
             } else {
                 keyword = token.substring(start, leftBrackets);
             }
@@ -104,6 +104,7 @@ public class EncoderPatternParser {
         int tokenStart = pos;
         StringBuilder token = new StringBuilder();
         token.append(pattern.charAt(pos++));
+        boolean has = false;
         for (;pos<pattern.length();pos++) {
             char c = pattern.charAt(pos);
             switch (c) {
@@ -111,9 +112,22 @@ public class EncoderPatternParser {
                 case '[':
                 case ']':
                 case '%':
-                    pos--;
+                    if (!has) {
+                        pos--;
+                        return new EncoderPatternToken(token.toString(),
+                                EncoderPatternToken.TokenType.ENCODER_FUNC, tokenStart);
+                    } else {
+                        token.append(c);
+                    }
+                    break;
+                case '}':
+                    token.append(c);
                     return new EncoderPatternToken(token.toString(),
                             EncoderPatternToken.TokenType.ENCODER_FUNC, tokenStart);
+                case '{':
+                    has = true;
+                    token.append(c);
+                    break;
                 default:
                     token.append(c);
             }

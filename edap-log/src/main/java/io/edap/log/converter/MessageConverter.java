@@ -26,13 +26,15 @@ import java.io.IOException;
 
 public class MessageConverter implements Converter<LogEvent> {
 
-
-    public MessageConverter(String token) {
-        this(token, null);
+    private final String format;
+    private final String nextText;
+    public MessageConverter(String format) {
+        this(format, null);
     }
 
-    public MessageConverter(String token, String nextText) {
-
+    public MessageConverter(String format, String nextText) {
+        this.format = format;
+        this.nextText = nextText;
     }
 
     @Override

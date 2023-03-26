@@ -16,6 +16,8 @@
 
 package io.edap.log.test.converter;
 
+import io.edap.log.LogEvent;
+import io.edap.log.converter.CacheDateFormatterConverter;
 import io.edap.log.converter.DateFormatterConverter;
 import io.edap.log.test.perf.SimpleDateConverter;
 import io.edap.log.helps.ByteArrayBuilder;
@@ -38,16 +40,21 @@ public class TestDateFormatterConverter {
         ByteArrayBuilder bbuf = new ByteArrayBuilder();
         DateFormatterConverter dateFormatterConverter = new DateFormatterConverter(format);
         bbuf.reset();
-        dateFormatterConverter.convertTo(bbuf, now);
+        LogEvent logEvent = new LogEvent();
+        logEvent.setLogTime(now);
+        dateFormatterConverter.convertTo(bbuf, logEvent);
         assertArrayEquals(bbuf.toByteArray(), datef.format(new Date(now)).getBytes(StandardCharsets.UTF_8));
         bbuf.reset();
-        dateFormatterConverter.convertTo(bbuf, now);
+        dateFormatterConverter.convertTo(bbuf, logEvent);
         assertArrayEquals(bbuf.toByteArray(), datef.format(new Date(now)).getBytes(StandardCharsets.UTF_8));
 
         Thread.sleep(5);
         now = System.currentTimeMillis();
         bbuf.reset();
-        dateFormatterConverter.convertTo(bbuf, now);
+        logEvent.setLogTime(now);
+        dateFormatterConverter.convertTo(bbuf, logEvent);
         assertArrayEquals(bbuf.toByteArray(), datef.format(new Date(now)).getBytes(StandardCharsets.UTF_8));
+
+        new CacheDateFormatterConverter("%d{ISO8601}");
     }
 }

@@ -16,6 +16,7 @@
 
 package io.edap.log.test.perf;
 
+import io.edap.log.LogEvent;
 import io.edap.log.converter.DateConverter;
 import io.edap.log.helps.ByteArrayBuilder;
 
@@ -65,7 +66,8 @@ public class LogbackCacheDateConverter implements DateConverter {
     }
 
     @Override
-    public void convertTo(ByteArrayBuilder out, Long now) {
+    public void convertTo(ByteArrayBuilder out, LogEvent logEvent) {
+        long now = logEvent.getLogTime();
         CacheTuple localCacheTuple = atomicReference.get();
         CacheTuple oldCacheTuple = localCacheTuple;
 

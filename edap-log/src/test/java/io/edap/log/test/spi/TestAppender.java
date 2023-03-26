@@ -39,7 +39,7 @@ public class TestAppender implements Appender {
         if (logEvent.getLevel() < level) {
             return;
         }
-        dateConverter.convertTo(byteArrayBuilder, logEvent.getLogTime());
+        dateConverter.convertTo(byteArrayBuilder, logEvent);
         byteArrayBuilder.append(levelLabel(logEvent.getLevel())).append((byte)' ');
         byteArrayBuilder.append(logEvent.getThreadName()).append((byte)' ');
         byteArrayBuilder.append(logEvent.getLoggerName()).append((byte)' ', (byte)'-', (byte)' ');

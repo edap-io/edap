@@ -16,7 +16,9 @@
 
 package io.edap.log.helps;
 
+import io.edap.log.AbstractEncoder;
 import io.edap.log.Encoder;
+import io.edap.log.converter.*;
 import io.edap.util.StringUtil;
 import io.edap.util.internal.GeneratorClassInfo;
 import org.objectweb.asm.*;
@@ -37,9 +39,13 @@ public class EncoderGenerator {
 
     static final String IFACE_NAME = toInternalName(Encoder.class.getName());
 
-    static final String PARENT_NAME = toInternalName(Object.class.getName());
+    static final String PARENT_NAME = toInternalName(AbstractEncoder.class.getName());
 
     static final String BUILDER_NAME = toInternalName(ByteArrayBuilder.class.getName());
+
+    static final String TEXT_CONV_FACTORY = toInternalName(TextConverterFactory.class.getName());
+
+    static final String TEXT_CONV_NAME = toInternalName(TextConverter.class.getName());
 
     private String format;
 
@@ -52,7 +58,7 @@ public class EncoderGenerator {
         this.encoderName = toInternalName(getEncoderName(format));
     }
 
-    private String getEncoderName(String format) {
+    public static String getEncoderName(String format) {
         StringBuilder sb = new StringBuilder("io.edap.log.encoder.gen.FormatEncoder");
         sb.append(md5(format));
         return sb.toString();
@@ -68,7 +74,47 @@ public class EncoderGenerator {
                 null, PARENT_NAME, ifaceName);
 
 
+        FieldVisitor fvPattern = cw.visitField(ACC_PRIVATE | ACC_FINAL, "pattern",
+                "Ljava/lang/String;", null, null);
+        fvPattern.visitEnd();
+
         MethodVisitor cinitMethod = createCinitMethod();
+
+        visitEncodeMethod(cinitMethod);
+
+        //lambda的线程变量
+        visitThreadLocalBuilderMethod();
+
+        visitInitMethod();
+
+        cinitMethod.visitInsn(RETURN);
+        cinitMethod.visitMaxs(4, 0);
+        cinitMethod.visitEnd();
+
+        cw.visitEnd();
+
+        classInfo.clazzName = encoderName;
+        classInfo.clazzBytes = cw.toByteArray();
+        return classInfo;
+    }
+
+    private void visitEncodeMethod(MethodVisitor cinitMethod) throws ParseException {
+        MethodVisitor mv = cw.visitMethod(ACC_PUBLIC, "encode",
+                "(Ljava/io/OutputStream;Lio/edap/log/LogEvent;)V",
+                null, null);
+        mv.visitCode();
+
+        Label label0 = new Label();
+        Label label1 = new Label();
+        Label label2 = new Label();
+
+        mv.visitTryCatchBlock(label0, label1, label2, "java/lang/Exception");
+        mv.visitFieldInsn(GETSTATIC, encoderName, "LOCAL_BYTE_ARRAY_BUILDER",
+                "Ljava/lang/ThreadLocal;");
+        mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/ThreadLocal", "get",
+                "()Ljava/lang/Object;", false);
+        mv.visitTypeInsn(CHECKCAST, BUILDER_NAME);
+        mv.visitVarInsn(ASTORE, 3);
 
         EncoderPatternParser patternParser = new EncoderPatternParser(format);
         List<EncoderPatternToken> tokens = patternParser.parse();
@@ -76,24 +122,73 @@ public class EncoderGenerator {
         EncoderPatternToken token;
         for (int i=0;i<size;i++) {
             token = tokens.get(i);
-            if (token.getType() == ENCODER_FUNC) {
-                Class converterCls = getKeywordConverter(token.getKeyword());
-                if (i < size - 1) {
-                    EncoderPatternToken nextToken = tokens.get(i+1);
-                    if (nextToken.getType() == TEXT) {
+            if (token.getType() == TEXT) {
+                String converterName = getConverterName(TEXT_CONV_NAME, token.getPattern(), null);
+                FieldVisitor fv1 = cw.visitField(ACC_PRIVATE | ACC_STATIC,
+                        converterName, "L" + TEXT_CONV_NAME + ";", null, null);
+                fv1.visitEnd();
+                visitTextConverterInit(cinitMethod, token.getPattern());
 
-                        i++;
-                    }
+                mv.visitFieldInsn(GETSTATIC, encoderName, converterName,
+                        "L" + TEXT_CONV_NAME  + ";");
+                mv.visitVarInsn(ALOAD, 3);
+                mv.visitInsn(ACONST_NULL);
+                mv.visitMethodInsn(INVOKEINTERFACE, TEXT_CONV_NAME, "convertTo",
+                        "(L" + BUILDER_NAME + ";Ljava/lang/Object;)V", true);
+                continue;
+            }
+            Class converterCls = getKeywordConverter(token.getKeyword());
+            String converterType = toInternalName(converterCls.getName());
+            String nextText = null;
+            if (i < size - 1) {
+                EncoderPatternToken nextToken = tokens.get(i+1);
+                if (nextToken.getType() == TEXT) {
+                    nextText = nextToken.getPattern();
+                    i++;
                 }
             }
+            String convName = getConverterName(converterCls.getName(), token.getPattern(), nextText);
+            FieldVisitor fv1 = cw.visitField(ACC_PRIVATE | ACC_STATIC,
+                    convName, "L" + converterType + ";", null, null);
+            fv1.visitEnd();
+            visitConverterInit(cinitMethod, converterCls.getName(), token.getPattern(), nextText);
+
+            visitFuncConvertBlock(mv, converterCls, token.getPattern(), nextText);
         }
 
-        //lambda的线程变量
-        visitThreadLocalBuilderMethod();
+        mv.visitLabel(label0);
+        mv.visitVarInsn(ALOAD, 3);
+        mv.visitVarInsn(ALOAD, 1);
+        mv.visitMethodInsn(INVOKEVIRTUAL, BUILDER_NAME, "writeTo",
+                "(Ljava/io/OutputStream;)V", false);
+        mv.visitLabel(label1);
+        Label label3 = new Label();
+        mv.visitJumpInsn(GOTO, label3);
+        mv.visitLabel(label2);
+        mv.visitFrame(Opcodes.F_FULL, 4, new Object[] {encoderName, "java/io/OutputStream",
+                "io/edap/log/LogEvent", BUILDER_NAME}, 1, new Object[] {"java/lang/Exception"});
+        mv.visitVarInsn(ASTORE, 4);
+        mv.visitLdcInsn("writeTo error");
+        mv.visitVarInsn(ALOAD, 4);
+        mv.visitMethodInsn(INVOKESTATIC, "io/edap/log/helpers/Util", "printError",
+                "(Ljava/lang/String;Ljava/lang/Throwable;)V", false);
+        mv.visitLabel(label3);
+        mv.visitFrame(Opcodes.F_SAME, 0, null, 0, null);
+        mv.visitInsn(RETURN);
+        mv.visitMaxs(4, 5);
+        mv.visitEnd();
+    }
 
+    private void visitFuncConvertBlock(MethodVisitor mv, Class converterCls, String pattern,
+                                       String nextText) {
+        String convName = getConverterName(converterCls.getName(), pattern, nextText);
+        String convType = toInternalName(converterCls.getName());
+        mv.visitFieldInsn(GETSTATIC, encoderName, convName, "L" + convType + ";");
+        mv.visitVarInsn(ALOAD, 3);
+        mv.visitVarInsn(ALOAD, 2);
+        mv.visitMethodInsn(INVOKEVIRTUAL, convType, "convertTo",
+                "(L" + BUILDER_NAME + ";Lio/edap/log/LogEvent;)V", false);
 
-
-        return classInfo;
     }
 
     private void visitConverterInit(MethodVisitor mv, String clazzName, String format, String nextText) {
@@ -105,10 +200,34 @@ public class EncoderGenerator {
             mv.visitLdcInsn(stringToInternal(nextText));
             nextTextDesc = "Ljava/lang/String;";
         }
+        String converterName = getConverterName(clazzName, format, nextText);
         mv.visitMethodInsn(INVOKESPECIAL, toInternalName(clazzName), "<init>",
                 "(Ljava/lang/String;" + nextTextDesc + ")V", false);
-        mv.visitFieldInsn(PUTSTATIC, encoderName, "CACHE_DATE_CONVERT",
+        mv.visitFieldInsn(PUTSTATIC, encoderName, converterName,
                 "L" + toInternalName(clazzName) + ";");
+    }
+
+    private void visitTextConverterInit(MethodVisitor mv, String text) {
+        String converterName = getConverterName(TEXT_CONV_NAME, text, null);
+        mv.visitLdcInsn(stringToInternal(text));
+        mv.visitMethodInsn(INVOKESTATIC, TEXT_CONV_FACTORY, "getTextConverter",
+                "(Ljava/lang/String;)L" + TEXT_CONV_NAME + ";", false);
+        mv.visitFieldInsn(PUTSTATIC, encoderName, converterName, "L" + TEXT_CONV_NAME + ";");
+    }
+
+    private void visitInitMethod() {
+        MethodVisitor mv;
+        mv = cw.visitMethod(ACC_PUBLIC, "<init>", "()V", null, null);
+        mv.visitCode();
+        mv.visitVarInsn(ALOAD, 0);
+        mv.visitMethodInsn(INVOKESPECIAL, PARENT_NAME, "<init>", "()V",
+                false);
+        mv.visitVarInsn(ALOAD, 0);
+        mv.visitLdcInsn(stringToInternal(format));
+        mv.visitFieldInsn(PUTFIELD, encoderName, "pattern", "Ljava/lang/String;");
+        mv.visitInsn(RETURN);
+        mv.visitMaxs(2, 1);
+        mv.visitEnd();
     }
 
      public String stringToInternal(String text) {
@@ -138,24 +257,14 @@ public class EncoderGenerator {
         MethodVisitor mv;
         mv = cw.visitMethod(ACC_STATIC, "<clinit>", "()V", null, null);
         mv.visitCode();
-        mv.visitInvokeDynamicInsn("get", "()Ljava/util/function/Supplier;",
-                new Handle(Opcodes.H_INVOKESTATIC, "java/lang/invoke/LambdaMetafactory",
-                        "metafactory",
-                        "(Ljava/lang/invoke/MethodHandles$Lookup;Ljava/lang/String;" +
-                                "Ljava/lang/invoke/MethodType;Ljava/lang/invoke/MethodType;" +
-                                "Ljava/lang/invoke/MethodHandle;Ljava/lang/invoke/MethodType;)" +
-                                "Ljava/lang/invoke/CallSite;", false),
-                new Object[]{Type.getType("()Ljava/lang/Object;"),
-                        new Handle(Opcodes.H_INVOKESTATIC, "io/edap/log/test/encoder/DemoEncoder",
-                                "lambda$static$0",
-                                "()L" + BUILDER_NAME +";", false),
-                        Type.getType("()L\" + BUILDER_NAME +\";")});
-        mv.visitMethodInsn(INVOKESTATIC, "java/lang/ThreadLocal", "withInitial",
-                "(Ljava/util/function/Supplier;)Ljava/lang/ThreadLocal;", false);
-        mv.visitFieldInsn(PUTSTATIC, encoderName,
-                "LOCAL_BYTE_ARRAY_BUILDER", "Ljava/lang/ThreadLocal;");
 
         return mv;
+    }
+
+    private String getConverterName(String clsName, String format, String nextText) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("CONVERTER_").append(md5(clsName + "_" + format + "_" + nextText));
+        return sb.toString();
     }
 
     private void visitThreadLocalBuilderMethod() {

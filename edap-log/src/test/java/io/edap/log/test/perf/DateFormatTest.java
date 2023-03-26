@@ -16,6 +16,7 @@
 
 package io.edap.log.test.perf;
 
+import io.edap.log.LogEvent;
 import io.edap.log.converter.CacheDateFormatterConverter;
 import io.edap.log.converter.DateFormatterConverter;
 import io.edap.log.helps.ByteArrayBuilder;
@@ -84,54 +85,67 @@ public class DateFormatTest {
     @Benchmark
     public void simpleDateFormat() throws Exception {
         long now = System.currentTimeMillis();
+        LogEvent event = new LogEvent();
         for (int i=0;i<100;i++) {
             builder.reset();
-            simpleDateConverter.convertTo(builder, now+i/20);
+            event.setLogTime(now);
+            simpleDateConverter.convertTo(builder, event);
         }
     }
 
     @Benchmark
     public void simpleDateFormatSameTime() throws Exception {
         long now = System.currentTimeMillis();
+        LogEvent event = new LogEvent();
         for (int i=0;i<100;i++) {
             builder.reset();
-            simpleDateConverter.convertTo(builder, now);
+            event.setLogTime(now);
+            simpleDateConverter.convertTo(builder, event);
         }
     }
 
     @Benchmark
     public void simpleDateFormatDiffTime() throws Exception {
         long now = System.currentTimeMillis();
+        LogEvent event = new LogEvent();
+
         for (int i=0;i<100;i++) {
             builder.reset();
-            simpleDateConverter.convertTo(builder, now + i);
+            event.setLogTime(now + i);
+            simpleDateConverter.convertTo(builder, event);
         }
     }
 
     @Benchmark
     public void simpleDateFormatterFormat() throws Exception {
         long now = System.currentTimeMillis();
+        LogEvent logEvent = new LogEvent();
         for (int i=0;i<100;i++) {
             builder.reset();
-            simpleDateFormatterConverter.convertTo(builder, now+i/20);
+            logEvent.setLogTime(now+i/20);
+            simpleDateFormatterConverter.convertTo(builder, logEvent);
         }
     }
 
     @Benchmark
     public void simpleDateFormatterFormatSameTime() throws Exception {
         long now = System.currentTimeMillis();
+        LogEvent logEvent = new LogEvent();
         for (int i=0;i<100;i++) {
             builder.reset();
-            simpleDateFormatterConverter.convertTo(builder, now);
+            logEvent.setLogTime(now);
+            simpleDateFormatterConverter.convertTo(builder, logEvent);
         }
     }
 
     @Benchmark
     public void simpleDateFormatterFormatDiffTime() throws Exception {
         long now = System.currentTimeMillis();
+        LogEvent logEvent = new LogEvent();
         for (int i=0;i<100;i++) {
             builder.reset();
-            simpleDateFormatterConverter.convertTo(builder, now + i);
+            logEvent.setLogTime(now);
+            simpleDateFormatterConverter.convertTo(builder, logEvent);
         }
     }
 //

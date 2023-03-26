@@ -16,6 +16,7 @@
 
 package io.edap.log.converter;
 
+import io.edap.log.LogEvent;
 import io.edap.log.helps.ByteArrayBuilder;
 import io.edap.util.StringUtil;
 
@@ -39,9 +40,11 @@ public class CacheDateFormatterConverter implements DateConverter {
     }
 
     public CacheDateFormatterConverter(String format, String nextText) {
-        ZoneId zoneId = ZoneId.systemDefault();
-        Locale locale = Locale.getDefault();
-        dateFormatter = DateTimeFormatter.ofPattern(format).withZone(zoneId).withLocale(locale);
+        TimeZoneInfo timeZoneInfo = DateConverter.parseTimeZoneInfo(format);
+        ZoneId zoneId = timeZoneInfo.zoneId;
+        Locale locale = timeZoneInfo.locale;
+        dateFormatter = DateTimeFormatter.ofPattern(timeZoneInfo.format)
+                .withZone(zoneId).withLocale(locale);
         long now = System.currentTimeMillis();
         Instant instant = Instant.ofEpochMilli(now);
         byte[] result = dateFormatter.format(instant).getBytes(StandardCharsets.UTF_8);
@@ -55,10 +58,8 @@ public class CacheDateFormatterConverter implements DateConverter {
     }
 
     @Override
-    public void convertTo(ByteArrayBuilder out, Long mills) {
-        if (mills == null) {
-            return;
-        }
+    public void convertTo(ByteArrayBuilder out, LogEvent logEvent) {
+        long mills = logEvent.getLogTime();
         CacheData localCacheData = atomicReference.get();
         CacheData oldCacheData = localCacheData;
         if (localCacheData.mills != mills) {

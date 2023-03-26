@@ -31,14 +31,14 @@ public class TestEncoderPatternParseTest {
 
     @Test
     public void testBaseParse() throws ParseException {
-        String pattern = "%d %-4relative [%thread] %-5level %logger{35} - %msg%n";
+        String pattern = "%d{yyyy-MM-dd HH:mm:ss.SSS} %-4relative [%thread] %-5level %logger{35} - %msg%n";
         EncoderPatternParser parser = new EncoderPatternParser(pattern);
         List<EncoderPatternToken> tokens = parser.parse();
         assertEquals(tokens.size(), 12);
         int pos = 0;
         int tokenIndex = 0;
         EncoderPatternToken token = tokens.get(tokenIndex++);
-        assertEquals(token.getPattern(), "%d");
+        assertEquals(token.getPattern(), "%d{yyyy-MM-dd HH:mm:ss.SSS}");
         assertEquals(token.getStartPos(), pos);
         assertEquals(token.getType(), EncoderPatternToken.TokenType.ENCODER_FUNC);
         pos += token.getPattern().length();

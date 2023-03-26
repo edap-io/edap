@@ -14,34 +14,34 @@
  * under the License.
  */
 
-package io.edap.log.test.perf;
+package io.edap.log.converter;
 
+import io.edap.log.Converter;
 import io.edap.log.LogEvent;
-import io.edap.log.converter.DateConverter;
 import io.edap.log.helps.ByteArrayBuilder;
 
-import java.nio.charset.StandardCharsets;
-import java.text.SimpleDateFormat;
-import java.util.Date;
+public class LineSeparatorConverter implements Converter<LogEvent> {
 
-public class SimpleDateConverter implements DateConverter {
+    private final String format;
+    private final String nextText;
 
-    protected final String format;
+    private static final boolean has = System.lineSeparator().length()>1?true:false;
 
-    final ThreadLocal<SimpleDateFormat> LOCAL_DATEFORMAT = new ThreadLocal<>();
+    public LineSeparatorConverter(String format) {
+        this(format, null);
+    }
 
-    public SimpleDateConverter(String format) {
+    public LineSeparatorConverter(String format, String nextText) {
         this.format = format;
+        this.nextText = nextText;
     }
 
     @Override
     public void convertTo(ByteArrayBuilder out, LogEvent logEvent) {
-        long mills = logEvent.getLogTime();
-        SimpleDateFormat dateF = LOCAL_DATEFORMAT.get();
-        if (dateF == null) {
-            dateF = new SimpleDateFormat(format);
-            LOCAL_DATEFORMAT.set(dateF);
+        if (has) {
+            out.append((byte)'\r', (byte)'\n');
+        } else {
+            out.append((byte)'\n');
         }
-        out.append(dateF.format(new Date(mills)).getBytes(StandardCharsets.UTF_8));
     }
 }

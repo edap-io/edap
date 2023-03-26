@@ -17,11 +17,14 @@
 package io.edap.log.converter;
 
 import io.edap.log.Converter;
+import io.edap.log.LogEvent;
 import io.edap.log.LogLevel;
 import io.edap.log.helps.ByteArrayBuilder;
 import io.edap.util.StringUtil;
 
-public class LevelConverter implements Converter<Integer> {
+import static io.edap.log.helpers.Util.printError;
+
+public class LevelConverter implements Converter<LogEvent> {
 
     private static byte[][] LEVEL_BYTES_ARRAY;
 
@@ -39,6 +42,24 @@ public class LevelConverter implements Converter<Integer> {
      * @param nextText
      */
     public LevelConverter(String encoderPattern, String nextText) {
+        if (StringUtil.isEmpty(encoderPattern)) {
+            encoderPattern = "level";
+        }
+        String format;
+        if (encoderPattern.charAt(0) == '%') {
+            format = encoderPattern.substring(1);
+        } else {
+            format = encoderPattern;
+        }
+        int fillLen = 0;
+        if (format.charAt(0) == '-') {
+            try {
+                String snum = format.substring(1, format.length() - 5);
+                fillLen = Integer.parseInt(snum);
+            } catch (Exception e) {
+                printError("parseInt error", e);
+            }
+        }
         byte[][] levelBytes = new byte[8][];
         String postfix;
         if (!StringUtil.isEmpty(nextText)) {
@@ -46,23 +67,32 @@ public class LevelConverter implements Converter<Integer> {
         } else {
             postfix = "";
         }
-        levelBytes[0] = ("  OFF" + postfix).getBytes();
-        levelBytes[1] = ("TRACE" + postfix).getBytes();
-        levelBytes[2] = ("DEBUG" + postfix).getBytes();
-        levelBytes[3] = (" CONF" + postfix).getBytes();
-        levelBytes[4] = (" INFO" + postfix).getBytes();
-        levelBytes[5] = (" WARN" + postfix).getBytes();
-        levelBytes[6] = ("ERROR" + postfix).getBytes();
-        levelBytes[7] = ("  OFF" + postfix).getBytes();
+        levelBytes[0] = (lefFillLenStr("OFF",   fillLen) + postfix).getBytes();
+        levelBytes[1] = (lefFillLenStr("TRACE", fillLen) + postfix).getBytes();
+        levelBytes[2] = (lefFillLenStr("DEBUG", fillLen) + postfix).getBytes();
+        levelBytes[3] = (lefFillLenStr("CONF",  fillLen) + postfix).getBytes();
+        levelBytes[4] = (lefFillLenStr("INFO",  fillLen) + postfix).getBytes();
+        levelBytes[5] = (lefFillLenStr("WARN",  fillLen) + postfix).getBytes();
+        levelBytes[6] = (lefFillLenStr("ERROR", fillLen) + postfix).getBytes();
+        levelBytes[7] = (lefFillLenStr("OFF",   fillLen) + postfix).getBytes();
         LEVEL_BYTES_ARRAY = levelBytes;
     }
 
-    @Override
-    public void convertTo(ByteArrayBuilder out, Integer level) {
-        if (level == null) {
-            return;
+    private String lefFillLenStr(String levelName, int len) {
+        if (len <= 0 || len < levelName.length()) {
+            return levelName;
         }
-        int levelValue = level >> 8;
+        StringBuilder sb = new StringBuilder();
+        for (int i=0;i<len-levelName.length();i++) {
+            sb.append(' ');
+        }
+        sb.append(levelName);
+        return sb.toString();
+    }
+
+    @Override
+    public void convertTo(ByteArrayBuilder out, LogEvent logEvent) {
+        int levelValue = logEvent.getLevel() >> 8;
         if (levelValue < 0 || levelValue > 7) {
             levelValue = 0;
         }
