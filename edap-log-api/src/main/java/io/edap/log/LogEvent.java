@@ -31,6 +31,10 @@ public class LogEvent {
     private int level;
     private Map<String, Object> mdc;
 
+    private int nanoSeconds;
+
+    private StackTraceElement[] callerData;
+
     public long getLogTime() {
         return logTime;
     }
@@ -93,5 +97,21 @@ public class LogEvent {
 
     public void setLevel(int level) {
         this.level = level;
+    }
+
+    public int getNanoSeconds() {
+        return nanoSeconds;
+    }
+
+    public void setNanoSeconds(int nanoSeconds) {
+        this.nanoSeconds = nanoSeconds;
+    }
+
+    public StackTraceElement[] getCallerData() {
+        return callerData;
+    }
+
+    public void setCallerData(StackTraceElement[] callerData) {
+        this.callerData = callerData;
     }
 }
