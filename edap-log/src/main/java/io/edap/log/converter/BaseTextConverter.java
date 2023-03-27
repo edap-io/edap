@@ -17,6 +17,7 @@
 package io.edap.log.converter;
 
 import io.edap.log.helps.ByteArrayBuilder;
+import io.edap.util.StringUtil;
 
 import java.nio.charset.StandardCharsets;
 
@@ -29,7 +30,11 @@ public class BaseTextConverter implements TextConverter {
     }
 
     public BaseTextConverter(String text, String nextText) {
-        bytes = text.getBytes(StandardCharsets.UTF_8);
+        if (StringUtil.isEmpty(nextText)) {
+            bytes = text.getBytes(StandardCharsets.UTF_8);
+        } else {
+            bytes = (text + nextText).getBytes(StandardCharsets.UTF_8);
+        }
     }
     @Override
     public void convertTo(ByteArrayBuilder out, String s) {

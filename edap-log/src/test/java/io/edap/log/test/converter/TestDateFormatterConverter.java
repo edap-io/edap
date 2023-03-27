@@ -55,6 +55,22 @@ public class TestDateFormatterConverter {
         dateFormatterConverter.convertTo(bbuf, logEvent);
         assertArrayEquals(bbuf.toByteArray(), datef.format(new Date(now)).getBytes(StandardCharsets.UTF_8));
 
+        dateFormatterConverter = new DateFormatterConverter(format, " [");
+        bbuf.reset();
+        logEvent = new LogEvent();
+        logEvent.setLogTime(now);
+        dateFormatterConverter.convertTo(bbuf, logEvent);
+        assertArrayEquals(bbuf.toByteArray(), (datef.format(new Date(now)) + " [").getBytes(StandardCharsets.UTF_8));
+
+        CacheDateFormatterConverter cacheDateFormatterConverter = new CacheDateFormatterConverter(format, " - [");
+        bbuf.reset();
+        logEvent = new LogEvent();
+        logEvent.setLogTime(now);
+        cacheDateFormatterConverter.convertTo(bbuf, logEvent);
+        assertArrayEquals(bbuf.toByteArray(), (datef.format(new Date(now)) + " - [").getBytes(StandardCharsets.UTF_8));
+
         new CacheDateFormatterConverter("%d{ISO8601}");
+
+
     }
 }

@@ -1,6 +1,7 @@
 package io.edap.log.util;
 
 import io.edap.log.converter.*;
+import io.edap.util.StringUtil;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -51,7 +52,7 @@ public class LogUtil {
         map.put("message", msgCls);
 
         Class clsCls = ClassOfCallerConverter.class;
-        map.put("c", clsCls);
+        map.put("C", clsCls);
         map.put("class", clsCls);
 
         Class methodCls = MethodOfCallerConverter.class;
@@ -117,5 +118,66 @@ public class LogUtil {
             }
         }
         return as.toArray(new String[0]);
+    }
+
+    public static String abbreviateClassName(String name, int maxLength) {
+        if (StringUtil.isEmpty(name)) {
+            return name;
+        }
+        if (name.length() < maxLength) {
+            return name;
+        }
+        int dotIndex = name.lastIndexOf('.');
+        if (dotIndex == -1) {
+            return name;
+        }
+        StringBuilder buf = new StringBuilder();
+        int leftLen = maxLength - (name.length() - dotIndex);
+        if (leftLen <= 0) {
+            return name.substring(dotIndex);
+        }
+        int start = 0;
+        List<Integer> groupLenths = new ArrayList<>();
+        int dot;
+        while (true) {
+            dot = name.indexOf('.', start);
+            if (dot != -1) {
+                if (start == 0) {
+                    groupLenths.add(dot - start);
+                } else {
+                    groupLenths.add(dot - start + 1);
+                }
+                start = dot + 1;
+            } else {
+                break;
+            }
+        }
+        groupLenths.add(name.length() - start + 1);
+        start = 0;
+        for (int c=0;c<groupLenths.size()-1;c++) {
+            if (leftLen <= 0) {
+                break;
+            }
+            if (c == 0) {
+                leftLen -= 1;
+                buf.append(name.substring(0, 1));
+                start += groupLenths.get(c);
+            } else if (c == groupLenths.size() - 2) {
+                int size = groupLenths.get(c);
+                if (size <= leftLen) {
+                    buf.append(name.substring(start, start+size));
+                } else {
+                    buf.append(name.substring(start, start+2));
+                }
+                start += groupLenths.get(c);
+                leftLen -= size;
+            } else {
+                leftLen -= 2;
+                buf.append(name.substring(start, start+2));
+                start += groupLenths.get(c);
+            }
+        }
+        buf.append(name.substring(dotIndex));
+        return buf.toString();
     }
 }

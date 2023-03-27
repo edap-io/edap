@@ -45,16 +45,23 @@ public class CacheDateFormatterConverter implements DateConverter {
         Locale locale = timeZoneInfo.locale;
         dateFormatter = DateTimeFormatter.ofPattern(timeZoneInfo.format)
                 .withZone(zoneId).withLocale(locale);
-        long now = System.currentTimeMillis();
-        Instant instant = Instant.ofEpochMilli(now);
-        byte[] result = dateFormatter.format(instant).getBytes(StandardCharsets.UTF_8);
-        CacheData cacheData = new CacheData(now, result);
-        this.atomicReference = new AtomicReference<>(cacheData);
         if (StringUtil.isEmpty(nextText)) {
             postfixData = null;
         } else {
             postfixData = nextText.getBytes(StandardCharsets.UTF_8);
         }
+        long now = System.currentTimeMillis();
+        Instant instant = Instant.ofEpochMilli(now);
+        byte[] result = dateFormatter.format(instant).getBytes(StandardCharsets.UTF_8);
+        if (postfixData != null) {
+            byte[] tmp = new byte[result.length + postfixData.length];
+            System.arraycopy(result, 0, tmp, 0, result.length);
+            System.arraycopy(postfixData, 0, tmp, result.length, postfixData.length);
+            result = tmp;
+        }
+        CacheData cacheData = new CacheData(now, result);
+        this.atomicReference = new AtomicReference<>(cacheData);
+
     }
 
     @Override

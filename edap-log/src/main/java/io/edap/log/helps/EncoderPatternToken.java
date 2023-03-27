@@ -45,6 +45,10 @@ public class EncoderPatternToken {
         this.startPos = pos;
     }
 
+    public static EncoderPatternToken of(String pattern, TokenType type) {
+        return new EncoderPatternToken(pattern, type, 0);
+    }
+
     /**
      * token类型
      */

@@ -20,12 +20,14 @@ import io.edap.log.Converter;
 import io.edap.log.LogEvent;
 import io.edap.log.helps.ByteArrayBuilder;
 
+import java.nio.charset.StandardCharsets;
+
 public class LineSeparatorConverter implements Converter<LogEvent> {
 
     private final String format;
-    private final String nextText;
+    private final byte[] nextText;
 
-    private static final boolean has = System.lineSeparator().length()>1?true:false;
+    private static final boolean win = System.lineSeparator().length()>1?true:false;
 
     public LineSeparatorConverter(String format) {
         this(format, null);
@@ -33,15 +35,22 @@ public class LineSeparatorConverter implements Converter<LogEvent> {
 
     public LineSeparatorConverter(String format, String nextText) {
         this.format = format;
-        this.nextText = nextText;
+        if (nextText != null) {
+            this.nextText = nextText.getBytes(StandardCharsets.UTF_8);
+        } else {
+            this.nextText = null;
+        }
     }
 
     @Override
     public void convertTo(ByteArrayBuilder out, LogEvent logEvent) {
-        if (has) {
+        if (win) {
             out.append((byte)'\r', (byte)'\n');
         } else {
             out.append((byte)'\n');
+        }
+        if (nextText != null) {
+            out.append(nextText);
         }
     }
 }

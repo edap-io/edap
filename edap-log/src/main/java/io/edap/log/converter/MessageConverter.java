@@ -21,20 +21,26 @@ import io.edap.log.LogEvent;
 import io.edap.log.helpers.Util;
 import io.edap.log.helps.ByteArrayBuilder;
 import io.edap.log.helps.MessageFormatter;
+import io.edap.util.StringUtil;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 
 public class MessageConverter implements Converter<LogEvent> {
 
     private final String format;
-    private final String nextText;
+    private final byte[] nextText;
     public MessageConverter(String format) {
         this(format, null);
     }
 
     public MessageConverter(String format, String nextText) {
         this.format = format;
-        this.nextText = nextText;
+        if (!StringUtil.isEmpty(nextText)) {
+            this.nextText = nextText.getBytes(StandardCharsets.UTF_8);
+        } else {
+            this.nextText = null;
+        }
     }
 
     @Override
@@ -43,6 +49,9 @@ public class MessageConverter implements Converter<LogEvent> {
             MessageFormatter.formatTo(out, logEvent.getFormat(), logEvent.getArgv());
         } catch (IOException e) {
             Util.printError(e.getMessage(), e);
+        }
+        if (nextText != null) {
+            out.append(nextText);
         }
     }
 }
