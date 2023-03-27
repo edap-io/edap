@@ -17,6 +17,13 @@
 package io.edap.json;
 
 
+import io.edap.io.ByteArrayBufOut;
+import io.edap.json.writer.ByteArrayJsonWriter;
+import io.edap.util.CollectionUtils;
+
+import java.io.UnsupportedEncodingException;
+import java.util.Collection;
+
 public class Eson {
 
     private static final ThreadLocal<StringJsonReader> THREAD_STRING_JSONREADER;
@@ -35,6 +42,76 @@ public class Eson {
         THREAD_STRING_JSON5READER  = ThreadLocal.withInitial(() -> new StringJson5Reader(""));
 
         THREAD_BYTEARRAY_JSON5READER  = ThreadLocal.withInitial(() -> new ByteArrayJson5Reader(new byte[0]));
+    }
+
+    /**
+     * 本地线程的ProtoBuf的Writer减少内存分配次数
+     */
+    public static final ThreadLocal<JsonWriter> THREAD_WRITER;
+
+    static {
+        THREAD_WRITER = ThreadLocal.withInitial(() -> {
+            ByteArrayBufOut out    = new ByteArrayBufOut();
+            return new ByteArrayJsonWriter(out);
+        });
+    }
+
+    public static String toJsonString(Object obj) {
+        JsonWriter writer = THREAD_WRITER.get();
+        writer.reset();
+        serialize(obj, writer);
+        try {
+            return new String(writer.toByteArray(), "utf-8");
+        } catch (UnsupportedEncodingException e) {
+            e.printStackTrace();
+        }
+        return "";
+    }
+
+    public static void serialize(Object obj, JsonWriter writer) {
+        if (obj == null) {
+            return;
+        }
+        if (obj instanceof Collection) {
+            Collection list = (Collection)obj;
+            if (CollectionUtils.isEmpty(list)) {
+                writer.write((byte)'[', (byte)']');
+                return;
+            }
+            JsonEncoder codec;
+            int i = 0;
+            for (Object c : list) {
+                if (i == 0) {
+                    writer.write((byte)'[');
+                } else {
+                    writer.write((byte)',');
+                }
+                i++;
+                codec = JsonCodecRegister.instance().getEncoder(c.getClass());
+                codec.encode(writer, c);
+            }
+            writer.write((byte)']');
+        } else if (obj.getClass().isArray()) {
+            Class<?> cType = obj.getClass().getComponentType();
+            Object[] array = (Object[])obj;
+            if (CollectionUtils.isEmpty(array)) {
+                writer.write((byte)'[', (byte)']');
+                return;
+            }
+            JsonEncoder codec = JsonCodecRegister.instance().getEncoder(cType);
+            for (int i=0;i<array.length;i++) {
+                if (i == 0) {
+                    writer.write((byte)'[');
+                } else {
+                    writer.write((byte)',');
+                }
+                codec.encode(writer, array[i]);
+            }
+            writer.write((byte)']');
+        } else {
+            JsonEncoder codec = JsonCodecRegister.instance().getEncoder(obj.getClass());
+            codec.encode(writer, obj);
+        }
     }
 
     public static JsonObject parseJsonObject(String json) {
