@@ -382,6 +382,15 @@ public class ByteArrayJsonWriter extends AbstractJsonWriter implements JsonWrite
     }
 
     @Override
+    public void writeObject(Object obj) {
+        if (obj == null) {
+            writeNull();
+            return;
+        }
+        write(obj.toString());
+    }
+
+    @Override
     public void write(Object obj, JsonEncoder encoder) {
         encoder.encode(this, obj);
     }

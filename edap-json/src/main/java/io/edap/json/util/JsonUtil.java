@@ -201,21 +201,26 @@ public class JsonUtil {
         String type = jfi.field.getType().getName();
         String method = "";
         switch (type) {
+            case "java.lang.Boolean":
             case "boolean":
                 method = "readBoolean";
                 break;
             case "java.lang.String":
                 method = "readString";
                 break;
+            case "java.lang.Integer":
             case "int":
                 method = "readInt";
                 break;
+            case "java.lang.Long":
             case "long":
                 method = "readLong";
                 break;
+            case "java.lang.Double":
             case "double":
                 method = "readDouble";
                 break;
+            case "java.lang.Float":
             case "float":
                 method = "readFloat";
                 break;
@@ -239,6 +244,8 @@ public class JsonUtil {
             case "java.long.Long":
             case "double":
             case "java.lang.Double":
+            case "float":
+            case "java.lang.Float":
                 method = "write";
                 break;
             default:

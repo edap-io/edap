@@ -171,6 +171,9 @@ public class JsonEncoderGenerator {
                     mv.visitFieldInsn(GETFIELD, pojoName, jfi.field.getName(), typeString);
                 }
                 String writeMethod = getWriteMethod(jfi.field);
+                if (writeMethod.equals("writeObject")) {
+                    typeString = "Ljava/lang/Object;";
+                }
                 visitMethod(mv, INVOKEINTERFACE, WRITER_NAME, writeMethod, "(" + typeString + ")V", true);
             }
             if (!isBaseType(jfi.field)) {
