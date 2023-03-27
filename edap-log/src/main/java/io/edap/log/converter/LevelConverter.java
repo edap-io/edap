@@ -52,12 +52,29 @@ public class LevelConverter implements Converter<LogEvent> {
             format = encoderPattern;
         }
         int fillLen = 0;
-        if (format.charAt(0) == '-') {
-            try {
-                String snum = format.substring(1, format.length() - 5);
-                fillLen = Integer.parseInt(snum);
-            } catch (Exception e) {
-                printError("parseInt error", e);
+        String fillType = "right";
+        if (format.length() > 1) {
+            char c = format.charAt(0);
+            int end = format.indexOf("le");
+            if (end == -1) {
+                end = format.indexOf("p");
+            }
+            if (c == '-') {
+                try {
+                    String snum = format.substring(1, end);
+                    fillLen = Integer.parseInt(snum);
+                } catch (Exception e) {
+                    printError("parseInt error", e);
+                }
+                fillType = "right";
+            } else if (c != 'l' && c != 'p') {
+                fillType = "left";
+                try {
+                    String snum = format.substring(0, end);
+                    fillLen = Integer.parseInt(snum);
+                } catch (Exception e) {
+                    printError("parseInt error", e);
+                }
             }
         }
         byte[][] levelBytes = new byte[8][];
@@ -67,26 +84,33 @@ public class LevelConverter implements Converter<LogEvent> {
         } else {
             postfix = "";
         }
-        levelBytes[0] = (lefFillLenStr("OFF",   fillLen) + postfix).getBytes();
-        levelBytes[1] = (lefFillLenStr("TRACE", fillLen) + postfix).getBytes();
-        levelBytes[2] = (lefFillLenStr("DEBUG", fillLen) + postfix).getBytes();
-        levelBytes[3] = (lefFillLenStr("CONF",  fillLen) + postfix).getBytes();
-        levelBytes[4] = (lefFillLenStr("INFO",  fillLen) + postfix).getBytes();
-        levelBytes[5] = (lefFillLenStr("WARN",  fillLen) + postfix).getBytes();
-        levelBytes[6] = (lefFillLenStr("ERROR", fillLen) + postfix).getBytes();
-        levelBytes[7] = (lefFillLenStr("OFF",   fillLen) + postfix).getBytes();
+        levelBytes[0] = (lefFillLenStr("OFF",   fillLen, fillType) + postfix).getBytes();
+        levelBytes[1] = (lefFillLenStr("TRACE", fillLen, fillType) + postfix).getBytes();
+        levelBytes[2] = (lefFillLenStr("DEBUG", fillLen, fillType) + postfix).getBytes();
+        levelBytes[3] = (lefFillLenStr("CONF",  fillLen, fillType) + postfix).getBytes();
+        levelBytes[4] = (lefFillLenStr("INFO",  fillLen, fillType) + postfix).getBytes();
+        levelBytes[5] = (lefFillLenStr("WARN",  fillLen, fillType) + postfix).getBytes();
+        levelBytes[6] = (lefFillLenStr("ERROR", fillLen, fillType) + postfix).getBytes();
+        levelBytes[7] = (lefFillLenStr("OFF",   fillLen, fillType) + postfix).getBytes();
         LEVEL_BYTES_ARRAY = levelBytes;
     }
 
-    private String lefFillLenStr(String levelName, int len) {
+    private String lefFillLenStr(String levelName, int len, String fillType) {
         if (len <= 0 || len < levelName.length()) {
             return levelName;
         }
         StringBuilder sb = new StringBuilder();
-        for (int i=0;i<len-levelName.length();i++) {
-            sb.append(' ');
+        if ("left".equalsIgnoreCase(fillType)) {
+            for (int i = 0; i < len - levelName.length(); i++) {
+                sb.append(' ');
+            }
         }
         sb.append(levelName);
+        if (!"left".equalsIgnoreCase(fillType)) {
+            for (int i = 0; i < len - levelName.length(); i++) {
+                sb.append(' ');
+            }
+        }
         return sb.toString();
     }
 

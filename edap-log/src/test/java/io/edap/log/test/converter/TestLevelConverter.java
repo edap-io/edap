@@ -44,7 +44,7 @@ public class TestLevelConverter {
         level = LogLevel.OFF;
         System.out.println("OFF=" + (level >> 8));
 
-        LevelConverter levelConverter = new LevelConverter("%-5level", " ");
+        LevelConverter levelConverter = new LevelConverter("%5level", " ");
         ByteArrayBuilder out = new ByteArrayBuilder();
         LogEvent logEvent = new LogEvent();
         logEvent.setLevel(TRACE);
@@ -74,6 +74,68 @@ public class TestLevelConverter {
         logEvent.setLevel(OFF);
         levelConverter.convertTo(out, logEvent);
         assertArrayEquals(out.toByteArray(), "  OFF ".getBytes());
+
+        levelConverter = new LevelConverter("%-5level", " ");
+        out = new ByteArrayBuilder();
+        logEvent = new LogEvent();
+        logEvent.setLevel(TRACE);
+        levelConverter.convertTo(out, logEvent);
+        assertArrayEquals(out.toByteArray(), "TRACE ".getBytes());
+        out.reset();
+        logEvent.setLevel(DEBUG);
+        levelConverter.convertTo(out, logEvent);
+        assertArrayEquals(out.toByteArray(), "DEBUG ".getBytes());
+        out.reset();
+        logEvent.setLevel(CONF);
+        levelConverter.convertTo(out, logEvent);
+        assertArrayEquals(out.toByteArray(), "CONF  ".getBytes());
+        out.reset();
+        logEvent.setLevel(INFO);
+        levelConverter.convertTo(out, logEvent);
+        assertArrayEquals(out.toByteArray(), "INFO  ".getBytes());
+        out.reset();
+        logEvent.setLevel(WARN);
+        levelConverter.convertTo(out, logEvent);
+        assertArrayEquals(out.toByteArray(), "WARN  ".getBytes());
+        out.reset();
+        logEvent.setLevel(ERROR);
+        levelConverter.convertTo(out, logEvent);
+        assertArrayEquals(out.toByteArray(), "ERROR ".getBytes());
+        out.reset();
+        logEvent.setLevel(OFF);
+        levelConverter.convertTo(out, logEvent);
+        assertArrayEquals(out.toByteArray(), "OFF   ".getBytes());
+
+        levelConverter = new LevelConverter("%-5p", " ");
+        out = new ByteArrayBuilder();
+        logEvent = new LogEvent();
+        logEvent.setLevel(TRACE);
+        levelConverter.convertTo(out, logEvent);
+        assertArrayEquals(out.toByteArray(), "TRACE ".getBytes());
+        out.reset();
+        logEvent.setLevel(DEBUG);
+        levelConverter.convertTo(out, logEvent);
+        assertArrayEquals(out.toByteArray(), "DEBUG ".getBytes());
+        out.reset();
+        logEvent.setLevel(CONF);
+        levelConverter.convertTo(out, logEvent);
+        assertArrayEquals(out.toByteArray(), "CONF  ".getBytes());
+        out.reset();
+        logEvent.setLevel(INFO);
+        levelConverter.convertTo(out, logEvent);
+        assertArrayEquals(out.toByteArray(), "INFO  ".getBytes());
+        out.reset();
+        logEvent.setLevel(WARN);
+        levelConverter.convertTo(out, logEvent);
+        assertArrayEquals(out.toByteArray(), "WARN  ".getBytes());
+        out.reset();
+        logEvent.setLevel(ERROR);
+        levelConverter.convertTo(out, logEvent);
+        assertArrayEquals(out.toByteArray(), "ERROR ".getBytes());
+        out.reset();
+        logEvent.setLevel(OFF);
+        levelConverter.convertTo(out, logEvent);
+        assertArrayEquals(out.toByteArray(), "OFF   ".getBytes());
 
         out.reset();
         levelConverter = new LevelConverter("");
@@ -107,6 +169,8 @@ public class TestLevelConverter {
 
 
         levelConverter = new LevelConverter("%-ilevel");
+
+        levelConverter = new LevelConverter("%tlevel");
 
         out.reset();
         logEvent.setLevel(8 << 8);
