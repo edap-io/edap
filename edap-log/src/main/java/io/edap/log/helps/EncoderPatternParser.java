@@ -55,6 +55,14 @@ public class EncoderPatternParser {
                     break;
                 }
             }
+        } else {
+            for (int i=1;i<token.length();i++) {
+                char c = token.charAt(i);
+                if (!Character.isDigit(c)) {
+                    start = i;
+                    break;
+                }
+            }
         }
         int leftBrackets = token.indexOf("{", start);
         if (leftBrackets == -1) {

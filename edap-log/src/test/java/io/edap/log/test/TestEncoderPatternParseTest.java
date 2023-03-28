@@ -162,6 +162,10 @@ public class TestEncoderPatternParseTest {
         String keyword = parseKeyword(token);
         assertEquals(keyword, "relative");
 
+        token = "%4relative";
+        keyword = parseKeyword(token);
+        assertEquals(keyword, "relative");
+
         token = "%d";
         keyword = parseKeyword(token);
         assertEquals(keyword, "d");
