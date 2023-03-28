@@ -13,8 +13,8 @@ public class LogbackDemoAdapter implements LogAdapter {
     }
 
     @Override
-    public void registerListener(ConfigAlterationListener listener) {
-
+    public boolean registerListener(ConfigAlterationListener listener) {
+        return false;
     }
 
 

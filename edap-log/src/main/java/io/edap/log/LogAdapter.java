@@ -31,9 +31,14 @@ public interface LogAdapter {
 
     /**
      * 为配置文件的更新增加监听器，当配置文件有变更时通知监听器，来重新加载配置文件
-     * @return 最新的edap-log的配置文件
+     * @return 是否支持配置文件动态更新，如果不支持则注册监听器时返回false
      */
-    void registerListener(ConfigAlterationListener listener);
+    boolean registerListener(ConfigAlterationListener listener);
 
+    /**
+     * 日志输出流对象，通过该输出流将日志的内容持久化
+     * @param appenderName appender的名称
+     * @return 用于持久化日志的输出流
+     */
     OutputStream getOutputStream(String appenderName);
 }
