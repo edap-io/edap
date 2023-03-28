@@ -30,10 +30,10 @@ public interface LogAdapter {
     LogConfig loadConfig();
 
     /**
-     * 当时日志的配置文件有变更时重新加载配置文件
+     * 为配置文件的更新增加监听器，当配置文件有变更时通知监听器，来重新加载配置文件
      * @return 最新的edap-log的配置文件
      */
-    LogConfig reloadConfig();
+    void registerListener(ConfigAlterationListener listener);
 
     OutputStream getOutputStream(String appenderName);
 }

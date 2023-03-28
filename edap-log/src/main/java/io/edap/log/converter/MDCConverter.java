@@ -29,7 +29,7 @@ public class MDCConverter implements Converter<LogEvent> {
         try {
             int keyworkIndex = format.indexOf(token.getKeyword());
             if (format.length() > token.getKeyword().length() + 2) {
-                key = format.substring(keyworkIndex+1, format.indexOf("}"));
+                key = format.substring(keyworkIndex + token.getKeyword().length()+1, format.indexOf("}"));
             }
         } catch (Throwable t) {
             printError("Get Logger length error!", t);

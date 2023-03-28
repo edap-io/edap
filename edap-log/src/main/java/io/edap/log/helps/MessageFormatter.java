@@ -31,7 +31,7 @@ public class MessageFormatter {
 
     public static void formatTo(ByteArrayBuilder bytesBuilder,
                                 String messagePattern,
-                                Object[] args) throws IOException {
+                                Object[] args) {
         if (args == null || args.length == 0) {
             bytesBuilder.append(messagePattern.getBytes(StandardCharsets.UTF_8));
             return;

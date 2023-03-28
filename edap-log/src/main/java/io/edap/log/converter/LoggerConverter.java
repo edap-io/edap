@@ -10,6 +10,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 import static io.edap.log.helpers.Util.printError;
+import static io.edap.log.util.LogUtil.abbreviateClassName;
 
 public class LoggerConverter implements Converter<LogEvent> {
 
@@ -18,7 +19,7 @@ public class LoggerConverter implements Converter<LogEvent> {
 
     private final int loggerNameLength;
 
-    private static final Map<String, Map<Integer, byte[]>> CACHE_LOGGER_BYTES = new ConcurrentHashMap<>();
+    private final Map<String, Map<Integer, byte[]>> CACHE_LOGGER_BYTES = new ConcurrentHashMap<>();
 
     public LoggerConverter(String format) {
         this(format, null);
@@ -58,7 +59,7 @@ public class LoggerConverter implements Converter<LogEvent> {
             out.append(data);
             return;
         }
-        String name = buildLoggerName(logEvent.getLoggerName(), loggerNameLength);
+        String name = abbreviateClassName(logEvent.getLoggerName(), loggerNameLength);
         if (nextText == null) {
             data = name.getBytes(StandardCharsets.UTF_8);
         } else {
@@ -68,11 +69,4 @@ public class LoggerConverter implements Converter<LogEvent> {
         out.append(data);
     }
 
-    private String buildLoggerName(String loggerName, int loggerNameLength) {
-        if (loggerName.length() > loggerNameLength) {
-            return loggerName;
-        }
-        String name = "";
-        return name;
-    }
 }

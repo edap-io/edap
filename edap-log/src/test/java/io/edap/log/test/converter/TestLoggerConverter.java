@@ -35,5 +35,32 @@ public class TestLoggerConverter {
         logEvent.setLoggerName("org.junit.platform.engine.support.hierarchical.NodeTestTask");
         loggerConverter.convertTo(out, logEvent);
         assertArrayEquals(out.toByteArray(), "o.j.p.e.s.hierarchical.NodeTestTask".getBytes());
+
+        out.reset();
+        logEvent = new LogEvent();
+        logEvent.setLoggerName("org.junit.platform.engine.support.hierarchical.NodeTestTask");
+        loggerConverter.convertTo(out, logEvent);
+        assertArrayEquals(out.toByteArray(), "o.j.p.e.s.hierarchical.NodeTestTask".getBytes());
+
+        out.reset();
+        loggerConverter = new LoggerConverter("%logger{36}", " [");
+        logEvent = new LogEvent();
+        logEvent.setLoggerName("org.junit.platform.engine.support.hierarchical.NodeTestTask");
+        loggerConverter.convertTo(out, logEvent);
+        assertArrayEquals(out.toByteArray(), "o.j.p.e.s.hierarchical.NodeTestTask [".getBytes());
+
+        out.reset();
+        loggerConverter = new LoggerConverter("logger{36}", " [");
+        logEvent = new LogEvent();
+        logEvent.setLoggerName("org.junit.platform.engine.support.hierarchical.NodeTestTask");
+        loggerConverter.convertTo(out, logEvent);
+        assertArrayEquals(out.toByteArray(), "o.j.p.e.s.hierarchical.NodeTestTask [".getBytes());
+
+        out.reset();
+        loggerConverter = new LoggerConverter("logger{vs}", " [");
+        logEvent = new LogEvent();
+        logEvent.setLoggerName("org.junit.platform.engine.support.hierarchical.NodeTestTask");
+        loggerConverter.convertTo(out, logEvent);
+        assertArrayEquals(out.toByteArray(), "org.junit.platform.engine.support.hierarchical.NodeTestTask [".getBytes());
     }
 }

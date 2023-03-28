@@ -45,11 +45,7 @@ public class MessageConverter implements Converter<LogEvent> {
 
     @Override
     public void convertTo(ByteArrayBuilder out, LogEvent logEvent) {
-        try {
-            MessageFormatter.formatTo(out, logEvent.getFormat(), logEvent.getArgv());
-        } catch (IOException e) {
-            Util.printError(e.getMessage(), e);
-        }
+        MessageFormatter.formatTo(out, logEvent.getFormat(), logEvent.getArgv());
         if (nextText != null) {
             out.append(nextText);
         }

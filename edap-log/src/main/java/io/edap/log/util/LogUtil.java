@@ -121,6 +121,9 @@ public class LogUtil {
     }
 
     public static String abbreviateClassName(String name, int maxLength) {
+        if (maxLength == 0) {
+            return name;
+        }
         if (StringUtil.isEmpty(name)) {
             return name;
         }
