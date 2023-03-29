@@ -246,6 +246,7 @@ public class JsonUtil {
             case "java.lang.Double":
             case "float":
             case "java.lang.Float":
+            case "java.math.BigDecimal":
                 method = "write";
                 break;
             default:
