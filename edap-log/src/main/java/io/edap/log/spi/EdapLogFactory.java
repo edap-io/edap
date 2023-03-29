@@ -124,7 +124,9 @@ public class EdapLogFactory implements LoggerFactory, ConfigReload<LoggerConfigS
             return;
         }
         loggerConfigs.clear();
-        loggerConfigs.put(ROOT_LOGGER_NAME, logConfigSection.getRootLoggerConfig());
+        if (logConfigSection != null && logConfigSection.getRootLoggerConfig() != null) {
+            loggerConfigs.put(ROOT_LOGGER_NAME, logConfigSection.getRootLoggerConfig());
+        }
         for (LoggerConfig config : logConfigSection.getLoggerConfigs()) {
             loggerConfigs.put(config.getName(), config);
         }
