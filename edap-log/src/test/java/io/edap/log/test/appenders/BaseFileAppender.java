@@ -4,6 +4,7 @@ import io.edap.log.Appender;
 import io.edap.log.Encoder;
 import io.edap.log.LogEvent;
 import io.edap.log.LogOutputStream;
+import io.edap.log.helps.ByteArrayBuilder;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -29,7 +30,12 @@ public class BaseFileAppender implements Appender {
             printError("appender 还没初始化");
             return;
         }
-        encoder.encode(logOutputStream, logEvent);
+        ByteArrayBuilder builder = encoder.encode(logEvent);
+        try {
+            builder.writeToLogOut(logOutputStream);
+        } catch (IOException e) {
+            printError("writeToLogOut error", e);
+        }
     }
 
     @Override
@@ -55,6 +61,21 @@ public class BaseFileAppender implements Appender {
     @Override
     public LogOutputStream getLogoutStream() {
         return logOutputStream;
+    }
+
+    @Override
+    public void start() {
+
+    }
+
+    @Override
+    public void stop() {
+
+    }
+
+    @Override
+    public boolean isStarted() {
+        return false;
     }
 
     class FileLogOutputStream implements LogOutputStream {

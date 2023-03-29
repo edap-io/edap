@@ -66,8 +66,9 @@ public class ComplieEncoder extends AbstractEncoder {
     }
 
     @Override
-    public void encode(LogOutputStream out, LogEvent logEvent) {
+    public ByteArrayBuilder encode(LogEvent logEvent) {
         ByteArrayBuilder builder = LOCAL_BYTE_ARRAY_BUILDER.get();
+        builder.reset();
         for (int i=0;i<converters.length;i++) {
             Converter converter = converters[i];
             String keyword = keywords[i];
@@ -97,10 +98,6 @@ public class ComplieEncoder extends AbstractEncoder {
 
             }
         }
-        try {
-            builder.writeTo(out);
-        } catch (Throwable e) {
-
-        }
+        return builder;
     }
 }

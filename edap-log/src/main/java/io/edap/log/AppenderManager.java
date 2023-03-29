@@ -39,6 +39,21 @@ public class AppenderManager {
     static {
         DEFAULT_CONSOLE_APPENDER = new Appender() {
 
+            @Override
+            public void start() {
+
+            }
+
+            @Override
+            public void stop() {
+
+            }
+
+            @Override
+            public boolean isStarted() {
+                return true;
+            }
+
             private String name = "console";
             @Override
             public void append(LogEvent logEvent) throws IOException {
@@ -100,6 +115,7 @@ public class AppenderManager {
                     method.invoke(appender, file);
                 }
             }
+            appender.start();
         } catch (ClassNotFoundException e) {
             throw new RuntimeException(e);
         } catch (InstantiationException e) {

@@ -99,4 +99,19 @@ public class TestAppender implements Appender {
     public void setLevel(int level) {
         this.level = level;
     }
+
+    @Override
+    public void start() {
+
+    }
+
+    @Override
+    public void stop() {
+
+    }
+
+    @Override
+    public boolean isStarted() {
+        return false;
+    }
 }

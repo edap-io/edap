@@ -21,7 +21,7 @@ import java.io.IOException;
 /**
  * 定义记录日志的Appender接口
  */
-public interface Appender {
+public interface Appender extends LifeCycle {
 
     /**
      * 拼写日志事件到存储中

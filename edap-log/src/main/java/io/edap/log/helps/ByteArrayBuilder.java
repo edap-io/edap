@@ -637,7 +637,7 @@ public class ByteArrayBuilder {
         out.write(value, 0, count);
     }
 
-    public void writeTo(LogOutputStream out) throws IOException {
+    public void writeToLogOut(LogOutputStream out) throws IOException {
         out.writeLog(value, 0, count);
     }
 }

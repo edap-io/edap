@@ -103,21 +103,18 @@ public class EncoderGenerator {
 
     private void visitEncodeMethod(MethodVisitor cinitMethod) throws ParseException {
         MethodVisitor mv = cw.visitMethod(ACC_PUBLIC, "encode",
-                "(L" + LOG_DATA_OUTPUT_STREAM + ";Lio/edap/log/LogEvent;)V",
+                "(Lio/edap/log/LogEvent;)L" + BUILDER_NAME + ";",
                 null, null);
         mv.visitCode();
 
-        Label label0 = new Label();
-        Label label1 = new Label();
-        Label label2 = new Label();
-
-        mv.visitTryCatchBlock(label0, label1, label2, "java/lang/Exception");
         mv.visitFieldInsn(GETSTATIC, encoderName, "LOCAL_BYTE_ARRAY_BUILDER",
                 "Ljava/lang/ThreadLocal;");
         mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/ThreadLocal", "get",
                 "()Ljava/lang/Object;", false);
         mv.visitTypeInsn(CHECKCAST, BUILDER_NAME);
-        mv.visitVarInsn(ASTORE, 3);
+        mv.visitVarInsn(ASTORE, 2);
+        mv.visitVarInsn(ALOAD, 2);
+        mv.visitMethodInsn(INVOKEVIRTUAL, BUILDER_NAME, "reset", "()V", false);
 
         EncoderPatternParser patternParser = new EncoderPatternParser(format);
         List<EncoderPatternToken> tokens = patternParser.parse();
@@ -134,7 +131,7 @@ public class EncoderGenerator {
 
                 mv.visitFieldInsn(GETSTATIC, encoderName, converterName,
                         "L" + TEXT_CONV_NAME  + ";");
-                mv.visitVarInsn(ALOAD, 3);
+                mv.visitVarInsn(ALOAD, 2);
                 mv.visitInsn(ACONST_NULL);
                 mv.visitMethodInsn(INVOKEINTERFACE, TEXT_CONV_NAME, "convertTo",
                         "(L" + BUILDER_NAME + ";Ljava/lang/Object;)V", true);
@@ -159,25 +156,8 @@ public class EncoderGenerator {
             visitFuncConvertBlock(mv, converterCls, token.getPattern(), nextText);
         }
 
-        mv.visitLabel(label0);
-        mv.visitVarInsn(ALOAD, 3);
-        mv.visitVarInsn(ALOAD, 1);
-        mv.visitMethodInsn(INVOKEVIRTUAL, BUILDER_NAME, "writeTo",
-                "(L" + LOG_DATA_OUTPUT_STREAM + ";)V", false);
-        mv.visitLabel(label1);
-        Label label3 = new Label();
-        mv.visitJumpInsn(GOTO, label3);
-        mv.visitLabel(label2);
-        mv.visitFrame(Opcodes.F_FULL, 4, new Object[] {encoderName, LOG_DATA_OUTPUT_STREAM,
-                "io/edap/log/LogEvent", BUILDER_NAME}, 1, new Object[] {"java/lang/Exception"});
-        mv.visitVarInsn(ASTORE, 4);
-        mv.visitLdcInsn("writeTo error");
-        mv.visitVarInsn(ALOAD, 4);
-        mv.visitMethodInsn(INVOKESTATIC, "io/edap/log/helpers/Util", "printError",
-                "(Ljava/lang/String;Ljava/lang/Throwable;)V", false);
-        mv.visitLabel(label3);
-        mv.visitFrame(Opcodes.F_SAME, 0, null, 0, null);
-        mv.visitInsn(RETURN);
+        mv.visitVarInsn(ALOAD, 2);
+        mv.visitInsn(ARETURN);
         mv.visitMaxs(4, 5);
         mv.visitEnd();
     }
@@ -187,8 +167,8 @@ public class EncoderGenerator {
         String convName = getConverterName(converterCls.getName(), pattern, nextText);
         String convType = toInternalName(converterCls.getName());
         mv.visitFieldInsn(GETSTATIC, encoderName, convName, "L" + convType + ";");
-        mv.visitVarInsn(ALOAD, 3);
         mv.visitVarInsn(ALOAD, 2);
+        mv.visitVarInsn(ALOAD, 1);
         mv.visitMethodInsn(INVOKEVIRTUAL, convType, "convertTo",
                 "(L" + BUILDER_NAME + ";Lio/edap/log/LogEvent;)V", false);
 

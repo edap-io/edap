@@ -45,7 +45,7 @@ public class DemoEncoder extends AbstractEncoder implements Encoder {
 
 
     @Override
-    public void encode(LogOutputStream out, LogEvent logEvent) {
+    public ByteArrayBuilder encode(LogEvent logEvent) {
         ByteArrayBuilder builder = LOCAL_BYTE_ARRAY_BUILDER.get();
         builder.reset();
         CACHE_DATE_CONVERT.convertTo(builder, logEvent);
@@ -60,10 +60,6 @@ public class DemoEncoder extends AbstractEncoder implements Encoder {
         lineOfCallerConverter.convertTo(builder, logEvent);
         fileOfCallerConverter.convertTo(builder, logEvent);
         mdcConverter.convertTo(builder, logEvent);
-        try {
-            builder.writeTo(out);
-        } catch (Exception e) {
-            printError("writeTo error", e);
-        }
+        return builder;
     }
 }

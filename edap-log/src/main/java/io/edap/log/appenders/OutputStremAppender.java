@@ -20,16 +20,15 @@ import io.edap.log.Appender;
 import io.edap.log.Encoder;
 import io.edap.log.LogEvent;
 import io.edap.log.LogOutputStream;
+import io.edap.log.helps.ByteArrayBuilder;
 import io.edap.log.io.BaseLogOutputStream;
-import sun.rmi.runtime.Log;
 
 import java.io.IOException;
-import java.io.OutputStream;
 import java.util.concurrent.locks.ReentrantLock;
 
 public class OutputStremAppender implements Appender {
 
-    private final ReentrantLock lock = new ReentrantLock(false);
+    protected final ReentrantLock lock = new ReentrantLock(false);
 
     private Encoder encoder;
 
@@ -37,15 +36,20 @@ public class OutputStremAppender implements Appender {
 
     private boolean immediateFlush;
 
+    private String name;
+
+    private boolean started;
+
     @Override
     public void append(LogEvent logEvent) throws IOException {
         if (encoder == null) {
             return;
         }
+        ByteArrayBuilder builder = encoder.encode(logEvent);
         lock.lock();
         try {
-            encoder.encode(outputStream, logEvent);
-            if (immediateFlush) {
+            builder.writeToLogOut(outputStream);
+            if (isImmediateFlush()) {
                 this.outputStream.flush();
             }
         } finally {
@@ -55,12 +59,12 @@ public class OutputStremAppender implements Appender {
 
     @Override
     public String getName() {
-        return null;
+        return name;
     }
 
     @Override
     public void setName(String name) {
-
+        this.name = name;
     }
 
     @Override
@@ -86,5 +90,30 @@ public class OutputStremAppender implements Appender {
 
     public void setOutputStream(BaseLogOutputStream outputStream) {
         this.outputStream = outputStream;
+    }
+
+    public boolean isImmediateFlush() {
+        return immediateFlush;
+    }
+
+    public void setImmediateFlush(boolean immediateFlush) {
+        this.immediateFlush = immediateFlush;
+    }
+
+    @Override
+    public void start() {
+        if (!started) {
+            started = true;
+        }
+    }
+
+    @Override
+    public void stop() {
+
+    }
+
+    @Override
+    public boolean isStarted() {
+        return started;
     }
 }

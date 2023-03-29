@@ -16,18 +16,11 @@
 
 package io.edap.log;
 
-import io.edap.log.helps.ByteArrayBuilder;
+public interface LifeCycle {
 
-import java.io.OutputStream;
+    void start();
 
-/**
- * 日志事件的编码器，将日志事件编码为字节数组，然后有Appender进行持久化
- */
-public interface Encoder {
-    /**
-     * 编码日志事件为字节数组
-     * @param logEvent 日志事件
-     * @return 返回自己数组
-     */
-    ByteArrayBuilder encode(LogEvent logEvent);
+    void stop();
+
+    boolean isStarted();
 }
