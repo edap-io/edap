@@ -151,7 +151,6 @@ public class Eson {
             throw new JsonParseException("不是JsonObject的数据");
         }
         reader.nextPos(1);
-        reader.nextPos(1);
         return reader.readObjectValue();
     }
 
