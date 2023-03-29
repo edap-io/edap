@@ -18,6 +18,7 @@ package io.edap.log.test.spi;
 
 import io.edap.log.Appender;
 import io.edap.log.LogEvent;
+import io.edap.log.LogOutputStream;
 
 import java.io.IOException;
 
@@ -28,6 +29,21 @@ public class TestErrorAppender implements Appender {
     @Override
     public void append(LogEvent logEvent) throws IOException {
         throw  new IOException("file not exists");
+    }
+
+    @Override
+    public String getName() {
+        return null;
+    }
+
+    @Override
+    public void setName(String name) {
+
+    }
+
+    @Override
+    public LogOutputStream getLogoutStream() {
+        return null;
     }
 
     public int getLevel() {

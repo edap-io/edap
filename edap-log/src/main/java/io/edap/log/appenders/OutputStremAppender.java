@@ -19,6 +19,9 @@ package io.edap.log.appenders;
 import io.edap.log.Appender;
 import io.edap.log.Encoder;
 import io.edap.log.LogEvent;
+import io.edap.log.LogOutputStream;
+import io.edap.log.io.BaseLogOutputStream;
+import sun.rmi.runtime.Log;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -30,7 +33,7 @@ public class OutputStremAppender implements Appender {
 
     private Encoder encoder;
 
-    private OutputStream outputStream;
+    private BaseLogOutputStream outputStream;
 
     private boolean immediateFlush;
 
@@ -50,6 +53,21 @@ public class OutputStremAppender implements Appender {
         }
     }
 
+    @Override
+    public String getName() {
+        return null;
+    }
+
+    @Override
+    public void setName(String name) {
+
+    }
+
+    @Override
+    public LogOutputStream getLogoutStream() {
+        return outputStream;
+    }
+
     public ReentrantLock getLock() {
         return lock;
     }
@@ -62,11 +80,11 @@ public class OutputStremAppender implements Appender {
         this.encoder = encoder;
     }
 
-    public OutputStream getOutputStream() {
+    public BaseLogOutputStream getOutputStream() {
         return outputStream;
     }
 
-    public void setOutputStream(OutputStream outputStream) {
+    public void setOutputStream(BaseLogOutputStream outputStream) {
         this.outputStream = outputStream;
     }
 }

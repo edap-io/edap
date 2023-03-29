@@ -1,5 +1,6 @@
 package io.edap.log.helps;
 
+import io.edap.log.LogOutputStream;
 import io.edap.util.Grisu3;
 import io.edap.util.StringUtil;
 
@@ -634,5 +635,9 @@ public class ByteArrayBuilder {
 
     public void writeTo(OutputStream out) throws IOException {
         out.write(value, 0, count);
+    }
+
+    public void writeTo(LogOutputStream out) throws IOException {
+        out.writeLog(value, 0, count);
     }
 }

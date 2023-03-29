@@ -18,6 +18,7 @@ package io.edap.log.helps;
 
 import io.edap.log.AbstractEncoder;
 import io.edap.log.Encoder;
+import io.edap.log.LogOutputStream;
 import io.edap.log.converter.*;
 import io.edap.util.StringUtil;
 import io.edap.util.internal.GeneratorClassInfo;
@@ -46,6 +47,8 @@ public class EncoderGenerator {
     static final String TEXT_CONV_FACTORY = toInternalName(TextConverterFactory.class.getName());
 
     static final String TEXT_CONV_NAME = toInternalName(TextConverter.class.getName());
+
+    static final String LOG_DATA_OUTPUT_STREAM = toInternalName(LogOutputStream.class.getName());
 
     private String format;
 
@@ -100,7 +103,7 @@ public class EncoderGenerator {
 
     private void visitEncodeMethod(MethodVisitor cinitMethod) throws ParseException {
         MethodVisitor mv = cw.visitMethod(ACC_PUBLIC, "encode",
-                "(Ljava/io/OutputStream;Lio/edap/log/LogEvent;)V",
+                "(L" + LOG_DATA_OUTPUT_STREAM + ";Lio/edap/log/LogEvent;)V",
                 null, null);
         mv.visitCode();
 
@@ -160,12 +163,12 @@ public class EncoderGenerator {
         mv.visitVarInsn(ALOAD, 3);
         mv.visitVarInsn(ALOAD, 1);
         mv.visitMethodInsn(INVOKEVIRTUAL, BUILDER_NAME, "writeTo",
-                "(Ljava/io/OutputStream;)V", false);
+                "(L" + LOG_DATA_OUTPUT_STREAM + ";)V", false);
         mv.visitLabel(label1);
         Label label3 = new Label();
         mv.visitJumpInsn(GOTO, label3);
         mv.visitLabel(label2);
-        mv.visitFrame(Opcodes.F_FULL, 4, new Object[] {encoderName, "java/io/OutputStream",
+        mv.visitFrame(Opcodes.F_FULL, 4, new Object[] {encoderName, LOG_DATA_OUTPUT_STREAM,
                 "io/edap/log/LogEvent", BUILDER_NAME}, 1, new Object[] {"java/lang/Exception"});
         mv.visitVarInsn(ASTORE, 4);
         mv.visitLdcInsn("writeTo error");

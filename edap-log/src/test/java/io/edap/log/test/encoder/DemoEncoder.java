@@ -3,6 +3,7 @@ package io.edap.log.test.encoder;
 import io.edap.log.AbstractEncoder;
 import io.edap.log.Encoder;
 import io.edap.log.LogEvent;
+import io.edap.log.LogOutputStream;
 import io.edap.log.converter.*;
 import io.edap.log.helps.ByteArrayBuilder;
 import io.edap.log.helps.TextConverterFactory;
@@ -44,7 +45,7 @@ public class DemoEncoder extends AbstractEncoder implements Encoder {
 
 
     @Override
-    public void encode(OutputStream out, LogEvent logEvent) {
+    public void encode(LogOutputStream out, LogEvent logEvent) {
         ByteArrayBuilder builder = LOCAL_BYTE_ARRAY_BUILDER.get();
         builder.reset();
         CACHE_DATE_CONVERT.convertTo(builder, logEvent);

@@ -20,16 +20,17 @@ public class TestConfig {
 
     @Test
     public void testParseXmlConfig() throws NoSuchMethodException, InvocationTargetException, IllegalAccessException {
-        Method method = ConfigManager.class.getDeclaredMethod("parseXmlConfig", new Class[]{InputStream.class});
+        Method method = ConfigManager.class.getDeclaredMethod("parseXmlConfig", new Class[]{InputStream.class, long.class});
         method.setAccessible(true);
         InputStream inputStream = TestConfig.class.getResourceAsStream("/edap-log-demo.xml");
         ConfigManager manager = new ConfigManager();
-        method.invoke(manager, inputStream);
+        long now = System.currentTimeMillis();
+        method.invoke(manager, inputStream, now);
 
         String xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
                 "<configuration></configuration>";
         inputStream = new ByteArrayInputStream(xml.getBytes(StandardCharsets.UTF_8));
-        LogConfig config = (LogConfig) method.invoke(manager, inputStream);
+        LogConfig config = (LogConfig) method.invoke(manager, inputStream, now);
 
         assertNull(config);
 
@@ -43,7 +44,7 @@ public class TestConfig {
                 "    </appender>\n" +
                 "</configuration>";
         inputStream = new ByteArrayInputStream(xml.getBytes(StandardCharsets.UTF_8));
-        config = (LogConfig) method.invoke(manager, inputStream);
+        config = (LogConfig) method.invoke(manager, inputStream, now);
         assertNotNull(config);
         LoggerConfigSection loggerSection = config.getLoggerSection();
         assertNotNull(loggerSection);
@@ -98,7 +99,7 @@ public class TestConfig {
                 "              class=\"ch.qos.logback.core.ConsoleAppender\" />\n" +
                 "</configuration>";
         inputStream = new ByteArrayInputStream(xml.getBytes(StandardCharsets.UTF_8));
-        config = (LogConfig) method.invoke(manager, inputStream);
+        config = (LogConfig) method.invoke(manager, inputStream, now);
         assertNotNull(config);
         appenderSection = config.getAppenderSection();
         assertNotNull(appenderSection);
@@ -148,7 +149,7 @@ public class TestConfig {
                 "    </logger>" +
                 "</configuration>";
         inputStream = new ByteArrayInputStream(xml.getBytes(StandardCharsets.UTF_8));
-        config = (LogConfig) method.invoke(manager, inputStream);
+        config = (LogConfig) method.invoke(manager, inputStream, now);
         assertNotNull(config);
 
         loggerSection = config.getLoggerSection();

@@ -16,7 +16,9 @@
 
 package io.edap.log.spi;
 
+import io.edap.log.EdapLogContext;
 import io.edap.log.LoggerFactory;
+import io.edap.log.config.ConfigManager;
 
 import static io.edap.log.helpers.Util.printMsg;
 
@@ -25,7 +27,10 @@ public class EdapLogServiceProvider implements LoggerServiceProvider {
     EdapLogFactory edapLogFactory;
 
     public EdapLogServiceProvider() {
+        ConfigManager configManager = new ConfigManager();
+        configManager.loadConfig();
         edapLogFactory = new EdapLogFactory();
+        EdapLogContext.instance().setEdapLogFactory(edapLogFactory);
     }
 
     @Override

@@ -29,4 +29,10 @@ public interface Appender {
      */
     void append(LogEvent logEvent) throws IOException;
 
+    String getName();
+
+    void setName(String name);
+
+    LogOutputStream getLogoutStream();
+
 }

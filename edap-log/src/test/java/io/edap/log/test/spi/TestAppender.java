@@ -18,6 +18,7 @@ package io.edap.log.test.spi;
 
 import io.edap.log.Appender;
 import io.edap.log.LogEvent;
+import io.edap.log.LogOutputStream;
 import io.edap.log.converter.CacheDateFormatterConverter;
 import io.edap.log.helps.ByteArrayBuilder;
 
@@ -45,6 +46,21 @@ public class TestAppender implements Appender {
         byteArrayBuilder.append(logEvent.getLoggerName()).append((byte)' ', (byte)'-', (byte)' ');
         formatTo(byteArrayBuilder, logEvent.getFormat(), logEvent.getArgv());
         byteArrayBuilder.append((byte)'\n');
+    }
+
+    @Override
+    public String getName() {
+        return null;
+    }
+
+    @Override
+    public void setName(String name) {
+
+    }
+
+    @Override
+    public LogOutputStream getLogoutStream() {
+        return null;
     }
 
     private byte[] levelLabel(int level) {

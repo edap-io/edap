@@ -109,8 +109,9 @@ public class EdapLogFactory implements LoggerFactory, ConfigReload<LoggerConfigS
             return;
         }
         // 如果没有任何Logger的配置则使用根节点的默认配置
-        if (logConfigSection.getLoggerConfigs() == null
-                || logConfigSection.getLoggerConfigs().size() == 0) {
+        if ((logConfigSection.getLoggerConfigs() == null
+                || logConfigSection.getLoggerConfigs().size() == 0)
+                && logConfigSection.getRootLoggerConfig() == null) {
             LoggerConfig config = ConfigManager.createDefaultRootLoggerConfig();
             loggerConfigs.put(ROOT_LOGGER_NAME, config);
             for (Map.Entry<String, LoggerImpl> entry : loggerCache.entrySet()) {
@@ -123,9 +124,11 @@ public class EdapLogFactory implements LoggerFactory, ConfigReload<LoggerConfigS
             return;
         }
         loggerConfigs.clear();
+        loggerConfigs.put(ROOT_LOGGER_NAME, logConfigSection.getRootLoggerConfig());
         for (LoggerConfig config : logConfigSection.getLoggerConfigs()) {
             loggerConfigs.put(config.getName(), config);
         }
+
         for (Map.Entry<String, LoggerImpl> entry : loggerCache.entrySet()) {
             LoggerImpl logger = entry.getValue();
             LoggerConfig loggerConfig = setLoggerLevel(logger);

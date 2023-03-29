@@ -1,8 +1,6 @@
 package io.edap.log.config;
 
-import io.edap.log.Json5ConfigParser;
-import io.edap.log.LogAdapter;
-import io.edap.log.LogConfig;
+import io.edap.log.*;
 import io.edap.util.CollectionUtils;
 import org.w3c.dom.*;
 import org.xml.sax.SAXException;
@@ -35,7 +33,7 @@ public class ConfigManager {
     /**
      * edap-log到其他日志框架的适配器
      */
-    private LogAdapter logAdapter;
+    private static LogAdapter logAdapter;
 
     public ConfigManager() {
         lastUpdateTime = System.currentTimeMillis();
@@ -45,7 +43,7 @@ public class ConfigManager {
      * 先在资源文件中查询edap-log.xml和edap-log.json5的文件如果找到并且解析成功则使用edap-log的配置文件。如果找不到则试图找实现
      * LogAdapter的SPI是否有提供其他日志框架适配器，有适配器则加载适配器的配置文件，否则生成一个默认的配置文件。
      */
-    public void loadConfig() {
+    public LogConfig loadConfig() {
         LogConfig config = findEdapLogConfig();
         if (config == null) {
             config = findAdapterConfig();
@@ -53,9 +51,10 @@ public class ConfigManager {
         if (config == null) {
             config = createDefaultLogConfig();
         }
+        return config;
     }
 
-    private LogConfig createDefaultLogConfig() {
+    public static LogConfig createDefaultLogConfig() {
         LogConfig config = new LogConfig();
 
         return config;
@@ -73,6 +72,12 @@ public class ConfigManager {
                     LogConfig config = provider.loadConfig();
                     if (config != null) {
                         logAdapter = provider;
+                        provider.registerListener(new ConfigAlterationListener() {
+                            @Override
+                            public void listen(LogConfig logConfig) {
+                                EdapLogContext.instance().reloadConfig(logConfig);
+                            }
+                        });
                         return config;
                     }
                 }
@@ -133,7 +138,7 @@ public class ConfigManager {
         LogConfig logConfig = null;
         try {
             configInStream = ConfigManager.class.getResourceAsStream("/edap-log.xml");
-            logConfig = parseXmlConfig(configInStream);
+            logConfig = parseXmlConfig(configInStream, lastUpdateTime);
         } catch (Throwable t) {
             System.err.println("findEdapLogConfig \"edap-log.xml\" error " + t.getMessage() + "\n");
         }
@@ -154,7 +159,7 @@ public class ConfigManager {
         return null;
     }
 
-    private LogConfig parseXmlConfig(InputStream configInStream) throws ParserConfigurationException, IOException, SAXException {
+    public static LogConfig parseXmlConfig(InputStream configInStream, long lastTime) throws ParserConfigurationException, IOException, SAXException {
         DocumentBuilderFactory dbf = DocumentBuilderFactory.newInstance();
         DocumentBuilder builder = dbf.newDocumentBuilder();
         Document doc = builder.parse(configInStream);
@@ -177,20 +182,20 @@ public class ConfigManager {
         AppenderConfigSection appenderSection = new AppenderConfigSection();
         appenderSection.setAppenderConfigs(appenderConfigs);
         appenderSection.setNeedReload(false);
-        appenderSection.setLastReloadTime(lastUpdateTime);
+        appenderSection.setLastReloadTime(lastTime);
         config.setAppenderSection(appenderSection);
 
         LoggerConfigSection loggerConfigSection = new LoggerConfigSection();
         loggerConfigSection.setRootLoggerConfig(rootLoggerConfig);
         loggerConfigSection.setNeedReload(false);
-        loggerConfigSection.setLastReloadTime(lastUpdateTime);
+        loggerConfigSection.setLastReloadTime(lastTime);
         loggerConfigSection.setLoggerConfigs(loggerConfigs);
 
         config.setLoggerSection(loggerConfigSection);
         return config;
     }
 
-    private List<AppenderConfig> parseAppenders(NodeList appenders) {
+    private static List<AppenderConfig> parseAppenders(NodeList appenders) {
         if (appenders == null || appenders.getLength() <= 0) {
             return EMPTY_LIST;
         }
@@ -214,7 +219,7 @@ public class ConfigManager {
         return configs;
     }
 
-    private List<LogConfig.ArgNode> parseArgNodes(NodeList childNodes) {
+    private static List<LogConfig.ArgNode> parseArgNodes(NodeList childNodes) {
         if (childNodes == null || childNodes.getLength() <= 0) {
             return EMPTY_LIST;
         }
@@ -231,7 +236,7 @@ public class ConfigManager {
         return argNodes;
     }
 
-    private LogConfig.ArgNode parseArgNode(Node child) {
+    private static LogConfig.ArgNode parseArgNode(Node child) {
         LogConfig.ArgNode argNode = new LogConfig.ArgNode();
         argNode.setName(child.getNodeName());
         if (child.hasAttributes()) {
@@ -254,7 +259,7 @@ public class ConfigManager {
         return argNode;
     }
 
-    private List<LoggerConfig> parseLoggerConfigs(NodeList loggers) {
+    private static List<LoggerConfig> parseLoggerConfigs(NodeList loggers) {
         if (loggers == null || loggers.getLength() <= 0) {
             return EMPTY_LIST;
         }
@@ -290,7 +295,7 @@ public class ConfigManager {
         return loggerConfigs;
     }
 
-    private List<String> parseAppenderRefs(NodeList refs) {
+    private static List<String> parseAppenderRefs(NodeList refs) {
         if (refs == null || refs.getLength() <= 0) {
             return null;
         }
@@ -310,7 +315,7 @@ public class ConfigManager {
         return reflist;
     }
 
-    private String getAttributeValue(NamedNodeMap namedNodeMap, String name) {
+    private static String getAttributeValue(NamedNodeMap namedNodeMap, String name) {
         if (namedNodeMap == null || namedNodeMap.getLength() <= 0) {
             return null;
         }
@@ -321,7 +326,7 @@ public class ConfigManager {
         return node.getNodeValue();
     }
 
-    public LogAdapter getLogAdapter() {
+    public static LogAdapter getLogAdapter() {
         return logAdapter;
     }
 

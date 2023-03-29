@@ -27,5 +27,5 @@ public interface Encoder {
      * @param logEvent 日志事件
      * @return 返回自己数组
      */
-    void encode(OutputStream out, LogEvent logEvent);
+    void encode(LogOutputStream out, LogEvent logEvent);
 }

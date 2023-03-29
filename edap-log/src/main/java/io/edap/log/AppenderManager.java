@@ -16,9 +16,19 @@
 
 package io.edap.log;
 
+import io.edap.log.config.AppenderConfig;
+import io.edap.log.config.AppenderConfigSection;
+import io.edap.log.helps.LogEncoderRegister;
+import io.edap.util.CollectionUtils;
+import io.edap.util.StringUtil;
+
 import java.io.IOException;
-import java.util.Map;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+
+import static io.edap.log.helpers.Util.printError;
 
 public class AppenderManager {
 
@@ -28,15 +38,111 @@ public class AppenderManager {
 
     static {
         DEFAULT_CONSOLE_APPENDER = new Appender() {
+
+            private String name = "console";
             @Override
             public void append(LogEvent logEvent) throws IOException {
 
+            }
+
+            @Override
+            public String getName() {
+                return name;
+            }
+
+            @Override
+            public void setName(String name) {
+                this.name = name;
+            }
+
+            @Override
+            public LogOutputStream getLogoutStream() {
+                return null;
             }
         };
     }
 
     private AppenderManager() {
         appenderMap = new ConcurrentHashMap<>();
+    }
+
+    public Appender createAppender(AppenderConfig appenderConfig) {
+        Appender appender = null;
+        String clazzName = appenderConfig.getClazzName();
+        try {
+            List<LogConfig.ArgNode> args = appenderConfig.getArgs();
+            appender = (Appender)Class.forName(clazzName).newInstance();
+            Encoder encoder = null;
+            String name = appenderConfig.getName();
+            if (StringUtil.isEmpty(name)) {
+                throw new RuntimeException("appender's name cann't null");
+            }
+            appender.setName(name);
+            String file = null;
+            if (!CollectionUtils.isEmpty(args)) {
+                for (LogConfig.ArgNode argNode : args) {
+                    if ("encoder".equals(argNode.getName())) {
+                        encoder = getEncoder(argNode);
+                    } else if ("file".equals(argNode.getName())) {
+                        file = argNode.getValue();
+                    }
+                }
+            }
+            if (encoder != null) {
+                Method method = getMethod(appender, "encoder", Encoder.class);
+                if (method != null) {
+                    method.invoke(appender, encoder);
+                }
+            }
+            if (!StringUtil.isEmpty(file)) {
+                Method method = getMethod(appender, "file", String.class);
+                if (method != null) {
+                    method.invoke(appender, file);
+                }
+            }
+        } catch (ClassNotFoundException e) {
+            throw new RuntimeException(e);
+        } catch (InstantiationException e) {
+            throw new RuntimeException(e);
+        } catch (IllegalAccessException e) {
+            throw new RuntimeException(e);
+        } catch (InvocationTargetException e) {
+            throw new RuntimeException(e);
+        }
+        return appender;
+    }
+
+    private Method getMethod(Appender appender, String name, Class type) {
+        try {
+            Method method = appender.getClass().getMethod(
+                    "set" + name.substring(0, 1).toUpperCase(Locale.ENGLISH) + name.substring(1),
+                    type);
+            method.setAccessible(true);
+            return method;
+        } catch (Throwable t) {
+            printError("getMethod " + name + " error", t);
+        }
+        return null;
+    }
+
+    private Encoder getEncoder(LogConfig.ArgNode encoderNode) {
+        if (encoderNode == null) {
+            return null;
+        }
+        List<LogConfig.ArgNode> childNodes = encoderNode.getChilds();
+        if (CollectionUtils.isEmpty(childNodes)) {
+            return null;
+        }
+        String pattern = null;
+        for (LogConfig.ArgNode node : childNodes) {
+            if ("pattern".equals(node.getName())) {
+                pattern = node.getValue();
+            }
+        }
+        if (StringUtil.isEmpty(pattern)) {
+            return null;
+        }
+        return LogEncoderRegister.instance().getEncoder(pattern);
     }
 
     public Appender getAppender(String name) {
@@ -49,6 +155,34 @@ public class AppenderManager {
 
     public static final AppenderManager instance() {
         return AppenderManager.SingletonHolder.INSTANCE;
+    }
+
+    public void reloadConfig(AppenderConfigSection appenderSection) {
+        List<AppenderConfig> appenderConfigList = appenderSection.getAppenderConfigs();
+        if (CollectionUtils.isEmpty(appenderConfigList)) {
+            return;
+        }
+        synchronized (appenderSection) {
+            List<String> allAppenderNames = new ArrayList<>();
+            for (String key : appenderMap.keySet()) {
+                allAppenderNames.add(key);
+            }
+            for (AppenderConfig appenderConfig : appenderConfigList) {
+                Appender appender = AppenderManager.instance().createAppender(appenderConfig);
+                if (appender == null) {
+                    continue;
+                }
+                String name = appender.getName();
+                appenderMap.put(name, appender);
+                allAppenderNames.remove(name);
+            }
+            // 清除没有使用的appender实例
+            if (!CollectionUtils.isEmpty(allAppenderNames)) {
+                for (String key : allAppenderNames) {
+                    appenderMap.remove(key);
+                }
+            }
+        }
     }
 
     private static class SingletonHolder {

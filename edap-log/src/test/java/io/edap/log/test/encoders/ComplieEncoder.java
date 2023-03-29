@@ -18,10 +18,12 @@ package io.edap.log.test.encoders;
 
 import io.edap.log.Converter;
 import io.edap.log.LogEvent;
+import io.edap.log.LogOutputStream;
 import io.edap.log.encoders.AbstractEncoder;
 import io.edap.log.helps.ByteArrayBuilder;
 import io.edap.log.helps.EncoderPatternParser;
 import io.edap.log.helps.EncoderPatternToken;
+import io.edap.log.io.BaseLogOutputStream;
 import io.edap.util.StringUtil;
 
 import java.io.OutputStream;
@@ -64,7 +66,7 @@ public class ComplieEncoder extends AbstractEncoder {
     }
 
     @Override
-    public void encode(OutputStream out, LogEvent logEvent) {
+    public void encode(LogOutputStream out, LogEvent logEvent) {
         ByteArrayBuilder builder = LOCAL_BYTE_ARRAY_BUILDER.get();
         for (int i=0;i<converters.length;i++) {
             Converter converter = converters[i];
