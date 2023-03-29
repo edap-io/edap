@@ -4,6 +4,7 @@ import io.edap.io.BufWriter;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.math.BigDecimal;
 
 /**
  * @author : luysh@yonyou.com
@@ -30,6 +31,8 @@ public interface JsonWriter extends BufWriter {
 
     void write(String s);
     void write(byte[] bs, int offset, int length);
+
+    void write(BigDecimal bigDecimal);
 
     void writeObject(Object obj);
 

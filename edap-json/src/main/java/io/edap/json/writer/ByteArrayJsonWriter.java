@@ -11,6 +11,8 @@ import io.edap.util.StringUtil;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 
 import static io.edap.json.consts.JsonConsts.NEGATIVE_INFINITY_BYTES;
 import static io.edap.json.consts.JsonConsts.POSITIVE_INFINITY_BYTES;
@@ -379,6 +381,16 @@ public class ByteArrayJsonWriter extends AbstractJsonWriter implements JsonWrite
 //            _buf[cur++] = bs[i];
 //        }
 //        pos = cur;
+    }
+
+    @Override
+    public void write(BigDecimal bigDecimal) {
+        if (bigDecimal == null) {
+            writeNull();
+            return;
+        }
+        byte[] bytes = bigDecimal.toString().getBytes(StandardCharsets.UTF_8);
+        write(bytes, 0, bytes.length);
     }
 
     @Override
