@@ -19,5 +19,13 @@ public class TestEncoderGenerator {
                         "${spring.application.name},%X{sysId},%X{tenantId},%X{userId},%X{profile}," +
                         "%X{agentId}] - %msg %ex%n");
         System.out.println(encoder);
+
+        encoder = LogEncoderRegister.instance().getEncoder(
+                "### %date{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] [%logger{36}] " +
+                        "用户id: [%X{traceId}] [%X{spanId}] [%X{pSpanId}] [%X{rpcOccurrence}] [%X{code}] " +
+                        "[%X{req.requestURL}] [%X{req.queryString}] [${spring.domain.name}," +
+                        "${spring.application.name},%X{sysId},%X{tenantId},%X{userId},%X{profile}," +
+                        "%X{agentId}] - %msg %ex%n");
+        System.out.println(encoder);
     }
 }

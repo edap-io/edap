@@ -30,7 +30,7 @@ public class OutputStremAppender implements Appender {
 
     protected final ReentrantLock lock = new ReentrantLock(false);
 
-    private Encoder encoder;
+    protected Encoder encoder;
 
     private BaseLogOutputStream outputStream;
 
@@ -46,6 +46,10 @@ public class OutputStremAppender implements Appender {
             return;
         }
         ByteArrayBuilder builder = encoder.encode(logEvent);
+        writeData(builder);
+    }
+
+    protected void writeData(ByteArrayBuilder builder) throws IOException {
         lock.lock();
         try {
             builder.writeToLogOut(outputStream);

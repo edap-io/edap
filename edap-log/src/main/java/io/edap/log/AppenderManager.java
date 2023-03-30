@@ -25,6 +25,7 @@ import io.edap.util.StringUtil;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.text.ParseException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -94,12 +95,18 @@ public class AppenderManager {
             }
             appender.setName(name);
             String file = null;
+            String prudentStr = null;
+            String immediateFlushStr = null;
             if (!CollectionUtils.isEmpty(args)) {
                 for (LogConfig.ArgNode argNode : args) {
                     if ("encoder".equals(argNode.getName())) {
                         encoder = getEncoder(argNode);
                     } else if ("file".equals(argNode.getName())) {
                         file = argNode.getValue();
+                    } else if ("prudent".equals(argNode.getName())) {
+                        prudentStr = argNode.getValue();
+                    } else if ("immediateFlush".equals(argNode.getName())) {
+                        immediateFlushStr = argNode.getValue();
                     }
                 }
             }
@@ -115,6 +122,28 @@ public class AppenderManager {
                     method.invoke(appender, file);
                 }
             }
+            if (!StringUtil.isEmpty(prudentStr)) {
+                try {
+                    boolean prudent = Boolean.parseBoolean(prudentStr);
+                    Method method = getMethod(appender, "prudent", boolean.class);
+                    if (method != null) {
+                        method.invoke(appender, prudent);
+                    }
+                } catch (Throwable t) {
+                    printError("parse prudent error", t);
+                }
+            }
+            if (!StringUtil.isEmpty(immediateFlushStr)) {
+                try {
+                    boolean immediate = Boolean.parseBoolean(immediateFlushStr);
+                    Method method = getMethod(appender, "immediateFlush", boolean.class);
+                    if (method != null) {
+                        method.invoke(appender, immediate);
+                    }
+                } catch (Throwable t) {
+                    printError("parse immediateFlush error", t);
+                }
+            }
             appender.start();
         } catch (ClassNotFoundException e) {
             throw new RuntimeException(e);
@@ -123,6 +152,8 @@ public class AppenderManager {
         } catch (IllegalAccessException e) {
             throw new RuntimeException(e);
         } catch (InvocationTargetException e) {
+            throw new RuntimeException(e);
+        } catch (ParseException e) {
             throw new RuntimeException(e);
         }
         return appender;

@@ -16,9 +16,11 @@
 
 package io.edap.log;
 
+import java.text.ParseException;
+
 public interface LifeCycle {
 
-    void start();
+    void start() throws ParseException;
 
     void stop();
 

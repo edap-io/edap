@@ -23,7 +23,13 @@ public class BaseLogOutputStream extends OutputStream implements LogOutputStream
         outputStream.write(data, offset, length);
     }
 
+    @Override
     public void close() throws IOException {
-        super.close();
+        outputStream.close();
+    }
+
+    @Override
+    public void flush() throws IOException {
+        outputStream.flush();
     }
 }
