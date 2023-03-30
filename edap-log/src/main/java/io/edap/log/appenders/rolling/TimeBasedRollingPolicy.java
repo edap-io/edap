@@ -25,12 +25,16 @@ public class TimeBasedRollingPolicy extends RollingPolicyBase {
 
     private ReentrantLock lock = new ReentrantLock(false);
 
+    private List<EncoderPatternToken> patternTokens;
+
 
     @Override
     public void start() {
         try {
             EncoderPatternParser epp = new EncoderPatternParser(fileNamePatternStr);
-            String dateFormat = getDateFormat(epp.parse());
+            List<EncoderPatternToken> tokens = epp.parse();
+            this.patternTokens = tokens;
+            String dateFormat = getDateFormat(tokens);
             if (!StringUtil.isEmpty(dateFormat)) {
                 long maxTime = getCurrentMaxTime(dateFormat);
                 if (maxTime > 0) {
@@ -116,14 +120,43 @@ public class TimeBasedRollingPolicy extends RollingPolicyBase {
     }
 
     @Override
-    public String getActiveFileName() {
+    public String getActiveFileName() throws ParseException {
         String rawFileName = getParent().rawFileProperty();
         if (!StringUtil.isEmpty(rawFileName)) {
             return rawFileName;
         } else {
-
+            return getCurrentFileNameWithoutCompressionSuffix();
         }
-        return null;
+    }
+
+    private String getCurrentFileNameWithoutCompressionSuffix() throws ParseException {
+        StringBuilder name = new StringBuilder();
+        for (EncoderPatternToken token : patternTokens) {
+            if (token.getType() == EncoderPatternToken.TokenType.TEXT) {
+                name.append(token.getPattern());
+            } else if (token.getType() == EncoderPatternToken.TokenType.ENCODER_FUNC) {
+                String keyword = token.getKeyword();
+                if ("d".equals(keyword) || "date".equals(keyword)) {
+                    String pattern = token.getPattern();
+                    int kwIndex = pattern.indexOf(keyword);
+                    int kuoIndex = pattern.indexOf("}");
+                    String dateFormat = pattern.substring(kwIndex + keyword.length() + 1, kuoIndex);
+                    name.append(getCurrentDateStr(dateFormat));
+                }
+            }
+        }
+
+        return removeCompressionSuffix(name.toString());
+    }
+
+    private String getCurrentDateStr(String dateFormat) {
+        if (StringUtil.isEmpty(dateFormat)) {
+            return "";
+        }
+        Calendar cal = Calendar.getInstance();
+        cal.setTimeInMillis(currentMaxTime);
+        SimpleDateFormat simpleDateFormat = new SimpleDateFormat(dateFormat);
+        return simpleDateFormat.format(cal.getTime());
     }
 
 }

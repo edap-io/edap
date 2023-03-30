@@ -4,6 +4,8 @@ import io.edap.log.LifeCycle;
 import io.edap.log.LogEvent;
 import io.edap.log.appenders.FileAppender;
 
+import java.text.ParseException;
+
 public interface RollingPolicy extends LifeCycle {
     /**
      * 日志文件切换,判断当前的日志是否需要进行日志文件的切换如果需要切换则切换日志文件后在记录日志到切换后的日志文件，并启动清理和归档相当的程序
@@ -15,7 +17,7 @@ public interface RollingPolicy extends LifeCycle {
      * 当前使用的日志文件的文件名
      * @return
      */
-    String getActiveFileName();
+    String getActiveFileName() throws ParseException;
 
     /**
      * 历史日志文件压缩模式

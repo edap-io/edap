@@ -32,6 +32,15 @@ public abstract  class RollingPolicyBase implements RollingPolicy {
         }
     }
 
+    public String removeCompressionSuffix(String name) {
+        if (name.endsWith(".gz")) {
+            return name.substring(0, name.length() - 3);
+        } else if (name.endsWith(".zip")) {
+            return name.substring(0, name.length() - 4);
+        }
+        return name;
+    }
+
     public CompressionMode getCompressionMode() {
         return compressionMode;
     }
