@@ -162,6 +162,17 @@ public class JsonEncoderGenerator {
                     mv.visitFieldInsn(GETFIELD, pojoName, jfi.field.getName(), typeString);
                 }
                 visitMethod(mv, INVOKEINTERFACE, IFACE_NAME, "encode", "(L" + WRITER_NAME + ";Ljava/lang/Object;)V", true);
+            } else if (isPojo(jfi.field.getGenericType())) {
+                mv.visitFieldInsn(GETSTATIC, encoderName, getCodecFieldName(jfi.field.getGenericType()),
+                        "L" + IFACE_NAME + ";");
+                mv.visitVarInsn(ALOAD, 1);
+                mv.visitVarInsn(ALOAD, 2);
+                if (jfi.method != null) {
+                    visitMethod(mv, INVOKEVIRTUAL, pojoName, jfi.method.getName(), "()" + typeString, false);
+                } else {
+                    mv.visitFieldInsn(GETFIELD, pojoName, jfi.field.getName(), typeString);
+                }
+                mv.visitMethodInsn(INVOKEINTERFACE, encoderName, "encode", "(L" + WRITER_NAME + ";Ljava/lang/Object;)V", true);
             } else {
                 mv.visitVarInsn(ALOAD, 1);
                 mv.visitVarInsn(ALOAD, 2);
