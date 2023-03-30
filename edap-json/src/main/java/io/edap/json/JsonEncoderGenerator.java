@@ -362,8 +362,7 @@ public class JsonEncoderGenerator {
     private void assignPojoEncoders(MethodVisitor mv, Type type) {
         String pojoCodecName = getCodecFieldName(type);
         String pojoType = getDescriptor(type);
-        mv.visitFieldInsn(GETSTATIC, REGISTER_NAME, "INSTANCE",
-                "L" + REGISTER_NAME + ";");
+        mv.visitMethodInsn(INVOKESTATIC, REGISTER_NAME, "instance", "()L" + REGISTER_NAME + ";", false);
         mv.visitLdcInsn(org.objectweb.asm.Type.getType(pojoType));
         visitMethod(mv, INVOKEVIRTUAL, REGISTER_NAME, "getEncoder",
                 "(Ljava/lang/Class;)L" + IFACE_NAME + ";", false);
