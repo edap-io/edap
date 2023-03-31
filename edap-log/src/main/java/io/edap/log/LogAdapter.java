@@ -38,5 +38,5 @@ public interface LogAdapter {
      * @param appenderName appender的名称
      * @return 用于持久化日志的输出流
      */
-    LogOutputStream getLogDataWriter(String appenderName);
+    LogWriter getLogDataWriter(String appenderName);
 }

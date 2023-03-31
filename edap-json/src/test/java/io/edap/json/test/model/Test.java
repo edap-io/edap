@@ -6,6 +6,9 @@ import io.edap.json.writer.ByteArrayJsonWriter;
 
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 
 public class Test {
     public long id;
@@ -14,7 +17,11 @@ public class Test {
     public float aFloat;
     public BigDecimal num;
 
-    public Test2 test2;
+    public List<Integer> orderIds;
+    public List<Test2> test2List;
+
+    public Test2[] test2Array;
+    public int[] ageArray;
 
     public static void main(String[] args) throws IOException {
         Test test1 = new Test();
@@ -23,6 +30,8 @@ public class Test {
         test1.age = 26;
         test1.aFloat = 1F;
         test1.num = new BigDecimal("123.2");
+        test1.orderIds = Arrays.asList(12,23,34,45);
+
 
         Test2 test2 = new Test2();
         test2.id = 2L;
@@ -31,7 +40,16 @@ public class Test {
         test2.aFloat = 21F;
         test2.num = new BigDecimal("2123.2");
 
-        test1.test2 = test2;
+        Test2 test21 = new Test2();
+        test21.id = 21L;
+        test21.name = "默默21";
+        test21.age = 2126;
+        test21.aFloat = 211F;
+        test21.num = new BigDecimal("21123.2");
+
+        test1.test2List = Arrays.asList(test2, test21);
+        test1.test2Array = new Test2[]{test2, test21};
+        test1.ageArray = new int[]{23,34,456};
 
 
         ByteArrayJsonWriter writer = new ByteArrayJsonWriter(new ByteArrayBufOut());

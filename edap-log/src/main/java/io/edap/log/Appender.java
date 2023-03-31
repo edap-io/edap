@@ -33,6 +33,6 @@ public interface Appender extends LifeCycle {
 
     void setName(String name);
 
-    LogOutputStream getLogoutStream();
+    LogWriter getLogoutStream();
 
 }

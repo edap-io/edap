@@ -1,5 +1,6 @@
 package io.edap.json.test;
 
+import eje.io.edap.json.test.eje.io.edap.json.test.model.TestEncoder2;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.util.ASMifier;
@@ -23,7 +24,7 @@ public class Asm {
 
 //        String clsPath = "/Users/louis/NetBeansProjects/edap/edap-json/target/test-classes/" +
 //                "io/edap/json/test/DemoPojoDecoder.class";
-        String clsPath = DemoPojoDecoder5.class.getName();
+        String clsPath = TestEncoder2.class.getName();
         ClassReader cr;
         if (clsPath.endsWith(".class") || clsPath.indexOf('\\') > -1
                 || clsPath.indexOf('/') > -1) {

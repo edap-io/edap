@@ -88,7 +88,7 @@ public class EdapTestAdapter implements LogAdapter {
     }
 
     @Override
-    public LogOutputStream getLogDataWriter(String appenderName) {
+    public LogWriter getLogDataWriter(String appenderName) {
         Appender appender = appenderMap.get(appenderName);
         return appender.getLogoutStream();
     }

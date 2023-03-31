@@ -18,7 +18,7 @@ package io.edap.log.test.spi;
 
 import io.edap.log.Appender;
 import io.edap.log.LogEvent;
-import io.edap.log.LogOutputStream;
+import io.edap.log.LogWriter;
 
 import java.io.IOException;
 
@@ -42,7 +42,7 @@ public class TestErrorAppender implements Appender {
     }
 
     @Override
-    public LogOutputStream getLogoutStream() {
+    public LogWriter getLogoutStream() {
         return null;
     }
 

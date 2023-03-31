@@ -1,9 +1,6 @@
 package io.edap.log.test.appenders;
 
-import io.edap.log.Appender;
-import io.edap.log.Encoder;
-import io.edap.log.LogEvent;
-import io.edap.log.LogOutputStream;
+import io.edap.log.*;
 import io.edap.log.helps.ByteArrayBuilder;
 
 import java.io.File;
@@ -18,7 +15,7 @@ public class BaseFileAppender implements Appender {
 
     private String name;
 
-    private LogOutputStream logOutputStream;
+    private FileLogWriter logWriter;
 
     public void setEncoder(Encoder encoder) {
         this.encoder = encoder;
@@ -26,13 +23,14 @@ public class BaseFileAppender implements Appender {
 
     @Override
     public void append(LogEvent logEvent) {
-        if (encoder == null || logOutputStream == null) {
+        if (encoder == null || logWriter == null) {
             printError("appender 还没初始化");
             return;
         }
         ByteArrayBuilder builder = encoder.encode(logEvent);
+        logWriter.rollover(logEvent);
         try {
-            builder.writeToLogOut(logOutputStream);
+            builder.writeToLogOut(logWriter);
         } catch (IOException e) {
             printError("writeToLogOut error", e);
         }
@@ -49,18 +47,18 @@ public class BaseFileAppender implements Appender {
     }
 
     public void setFile(String file) {
-        FileLogOutputStream out = null;
+        FileLogWriter out = null;
         try {
-            out = new FileLogOutputStream(file);
-            this.logOutputStream = out;
+            out = new FileLogWriter(file);
+            this.logWriter = out;
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
     }
 
     @Override
-    public LogOutputStream getLogoutStream() {
-        return logOutputStream;
+    public LogWriter getLogoutStream() {
+        return logWriter;
     }
 
     @Override
@@ -78,11 +76,11 @@ public class BaseFileAppender implements Appender {
         return false;
     }
 
-    class FileLogOutputStream implements LogOutputStream {
+    class FileLogWriter implements RolloverLogWriter {
 
         FileOutputStream fos;
 
-        public FileLogOutputStream(String file) throws IOException {
+        public FileLogWriter(String file) throws IOException {
             File f = new File(file);
             if (!f.exists()) {
                 if (!f.getParentFile().exists()) {
@@ -99,6 +97,11 @@ public class BaseFileAppender implements Appender {
                 fos = new FileOutputStream(f, true);
                 System.out.println(f.getAbsolutePath());
             }
+        }
+
+        @Override
+        public void rollover(LogEvent event) {
+
         }
 
         @Override

@@ -19,7 +19,7 @@ package io.edap.log.appenders;
 import io.edap.log.Appender;
 import io.edap.log.Encoder;
 import io.edap.log.LogEvent;
-import io.edap.log.LogOutputStream;
+import io.edap.log.LogWriter;
 import io.edap.log.helps.ByteArrayBuilder;
 import io.edap.log.io.BaseLogOutputStream;
 
@@ -72,7 +72,7 @@ public class OutputStremAppender implements Appender {
     }
 
     @Override
-    public LogOutputStream getLogoutStream() {
+    public LogWriter getLogoutStream() {
         return outputStream;
     }
 

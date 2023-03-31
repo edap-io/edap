@@ -72,7 +72,7 @@ public class AppenderManager {
             }
 
             @Override
-            public LogOutputStream getLogoutStream() {
+            public LogWriter getLogoutStream() {
                 return null;
             }
         };

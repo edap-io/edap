@@ -3,12 +3,9 @@ package io.edap.log.test.encoder;
 import io.edap.log.AbstractEncoder;
 import io.edap.log.Encoder;
 import io.edap.log.LogEvent;
-import io.edap.log.LogOutputStream;
 import io.edap.log.converter.*;
 import io.edap.log.helps.ByteArrayBuilder;
 import io.edap.log.helps.TextConverterFactory;
-
-import java.io.OutputStream;
 
 import static io.edap.log.helpers.Util.printError;
 

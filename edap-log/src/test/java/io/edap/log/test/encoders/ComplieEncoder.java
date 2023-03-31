@@ -18,15 +18,12 @@ package io.edap.log.test.encoders;
 
 import io.edap.log.Converter;
 import io.edap.log.LogEvent;
-import io.edap.log.LogOutputStream;
 import io.edap.log.encoders.AbstractEncoder;
 import io.edap.log.helps.ByteArrayBuilder;
 import io.edap.log.helps.EncoderPatternParser;
 import io.edap.log.helps.EncoderPatternToken;
-import io.edap.log.io.BaseLogOutputStream;
 import io.edap.util.StringUtil;
 
-import java.io.OutputStream;
 import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.List;

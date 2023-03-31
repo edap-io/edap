@@ -175,6 +175,8 @@ public class JsonEncoderGenerator {
                 mv.visitMethodInsn(INVOKEINTERFACE, IFACE_NAME, "encode", "(L" + WRITER_NAME + ";Ljava/lang/Object;)V", true);
             } else if (isList(jfi.field.getGenericType())) {
                 visitListFiledMethod(mv, jfi, l0);
+            } else if (jfi.field.getType().isArray()) {
+                visitArrayFieldMethod(mv, jfi, l0);
             } else {
                 mv.visitVarInsn(ALOAD, 1);
                 mv.visitVarInsn(ALOAD, 2);
@@ -213,6 +215,72 @@ public class JsonEncoderGenerator {
         mv.visitMaxs(4, 4);
         mv.visitEnd();
 
+    }
+
+    private void visitArrayFieldMethod(MethodVisitor mv, JsonFieldInfo jfi, Label nextFieldLabel) {
+        mv.visitVarInsn(ALOAD, 1);
+        mv.visitIntInsn(BIPUSH, 91);
+        mv.visitMethodInsn(INVOKEINTERFACE, WRITER_NAME, "write", "(B)V", true);
+        mv.visitInsn(ICONST_0);
+        mv.visitVarInsn(ISTORE, 4);
+        mv.visitInsn(ICONST_0);
+        mv.visitVarInsn(ISTORE, 5);
+        Label label12 = new Label();
+        mv.visitLabel(label12);
+        mv.visitFrame(Opcodes.F_APPEND,2, new Object[] {Opcodes.INTEGER, Opcodes.INTEGER}, 0, null);
+        mv.visitVarInsn(ILOAD, 5);
+        mv.visitVarInsn(ALOAD, 2);
+
+        Class pojoCls = jfi.field.getType().getComponentType();
+        String typeString = getDescriptor(jfi.field.getType());
+        //mv.visitFieldInsn(GETFIELD, pojoName, "test2Array", "[Lio/edap/json/test/model/Test2;");
+        if (jfi.method != null) {
+            visitMethod(mv, INVOKEVIRTUAL, pojoName, jfi.method.getName(), "()" + typeString, false);
+        } else {
+            mv.visitFieldInsn(GETFIELD, pojoName, jfi.field.getName(), typeString);
+        }
+        mv.visitInsn(ARRAYLENGTH);
+        Label label13 = new Label();
+        mv.visitJumpInsn(IF_ICMPGE, label13);
+        mv.visitVarInsn(ILOAD, 4);
+        Label label14 = new Label();
+        mv.visitJumpInsn(IFEQ, label14);
+        mv.visitVarInsn(ALOAD, 1);
+        mv.visitIntInsn(BIPUSH, 44);
+        mv.visitMethodInsn(INVOKEINTERFACE, WRITER_NAME, "write", "(B)V", true);
+        Label label15 = new Label();
+        mv.visitJumpInsn(GOTO, label15);
+        mv.visitLabel(label14);
+        mv.visitFrame(Opcodes.F_SAME, 0, null, 0, null);
+        mv.visitInsn(ICONST_1);
+        mv.visitVarInsn(ISTORE, 4);
+        mv.visitLabel(label15);
+        mv.visitFrame(Opcodes.F_SAME, 0, null, 0, null);
+        mv.visitFieldInsn(GETSTATIC, encoderName, getCodecFieldName(pojoCls), "L" + IFACE_NAME + ";");
+        mv.visitVarInsn(ALOAD, 1);
+        mv.visitVarInsn(ALOAD, 2);
+        //mv.visitFieldInsn(GETFIELD, pojoName, "test2Array", "[Lio/edap/json/test/model/Test2;");
+        if (jfi.method != null) {
+            visitMethod(mv, INVOKEVIRTUAL, pojoName, jfi.method.getName(), "()" + typeString, false);
+        } else {
+            mv.visitFieldInsn(GETFIELD, pojoName, jfi.field.getName(), typeString);
+        }
+        mv.visitVarInsn(ILOAD, 5);
+        if (isPojo(pojoCls)) {
+            mv.visitInsn(AALOAD);
+            mv.visitMethodInsn(INVOKEINTERFACE, IFACE_NAME, "encode", "(L" + WRITER_NAME + ";Ljava/lang/Object;)V", true);
+        } else {
+            typeString = getDescriptor(jfi.field.getType().getComponentType());
+            mv.visitInsn(IALOAD);
+            mv.visitMethodInsn(INVOKEINTERFACE, WRITER_NAME, "write", "(" + typeString  +")V", true);
+        }
+        mv.visitIincInsn(5, 1);
+        mv.visitJumpInsn(GOTO, label12);
+        mv.visitLabel(label13);
+        mv.visitFrame(Opcodes.F_CHOP,1, null, 0, null);
+        mv.visitVarInsn(ALOAD, 1);
+        mv.visitIntInsn(BIPUSH, 93);
+        mv.visitMethodInsn(INVOKEINTERFACE, WRITER_NAME, "write", "(B)V", true);
     }
 
 
@@ -276,7 +344,6 @@ public class JsonEncoderGenerator {
         mv.visitVarInsn(ISTORE, 4);
         mv.visitLabel(label6);
         if (isPojo(pojoType)) {
-
             mv.visitFrame(Opcodes.F_SAME, 0, null, 0, null);
             mv.visitFieldInsn(GETSTATIC, encoderName, getCodecFieldName(pojoCls), "L" + IFACE_NAME + ";");
             mv.visitVarInsn(ALOAD, 1);

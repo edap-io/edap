@@ -18,21 +18,18 @@ package io.edap.log.helps;
 
 import io.edap.log.AbstractEncoder;
 import io.edap.log.Encoder;
-import io.edap.log.LogOutputStream;
+import io.edap.log.LogWriter;
 import io.edap.log.converter.*;
 import io.edap.util.StringUtil;
 import io.edap.util.internal.GeneratorClassInfo;
 import org.objectweb.asm.*;
 
-import java.lang.reflect.Method;
 import java.text.ParseException;
 import java.util.List;
 
-import static io.edap.log.helps.EncoderPatternToken.TokenType.ENCODER_FUNC;
 import static io.edap.log.helps.EncoderPatternToken.TokenType.TEXT;
 import static io.edap.log.util.LogUtil.getKeywordConverter;
 import static io.edap.util.AsmUtil.toInternalName;
-import static io.edap.util.AsmUtil.visitMethod;
 import static io.edap.util.CryptUtil.md5;
 import static org.objectweb.asm.Opcodes.*;
 
@@ -48,7 +45,7 @@ public class EncoderGenerator {
 
     static final String TEXT_CONV_NAME = toInternalName(TextConverter.class.getName());
 
-    static final String LOG_DATA_OUTPUT_STREAM = toInternalName(LogOutputStream.class.getName());
+    static final String LOG_DATA_OUTPUT_STREAM = toInternalName(LogWriter.class.getName());
 
     private String format;
 

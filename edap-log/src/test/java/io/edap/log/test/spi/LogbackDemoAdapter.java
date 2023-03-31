@@ -3,7 +3,7 @@ package io.edap.log.test.spi;
 import io.edap.log.ConfigAlterationListener;
 import io.edap.log.LogAdapter;
 import io.edap.log.LogConfig;
-import io.edap.log.LogOutputStream;
+import io.edap.log.LogWriter;
 
 public class LogbackDemoAdapter implements LogAdapter {
     @Override
@@ -18,7 +18,7 @@ public class LogbackDemoAdapter implements LogAdapter {
 
 
     @Override
-    public LogOutputStream getLogDataWriter(String appenderName) {
+    public LogWriter getLogDataWriter(String appenderName) {
         return null;
     }
 

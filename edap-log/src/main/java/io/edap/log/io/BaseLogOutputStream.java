@@ -1,11 +1,12 @@
 package io.edap.log.io;
 
-import io.edap.log.LogOutputStream;
+import io.edap.log.LogEvent;
+import io.edap.log.RolloverLogWriter;
 
 import java.io.IOException;
 import java.io.OutputStream;
 
-public class BaseLogOutputStream extends OutputStream implements LogOutputStream {
+public class BaseLogOutputStream extends OutputStream implements RolloverLogWriter {
 
     private OutputStream outputStream;
 
@@ -16,6 +17,11 @@ public class BaseLogOutputStream extends OutputStream implements LogOutputStream
     @Override
     public void write(int b) throws IOException {
         outputStream.write(b);
+    }
+
+    @Override
+    public void rollover(LogEvent event) {
+
     }
 
     @Override
