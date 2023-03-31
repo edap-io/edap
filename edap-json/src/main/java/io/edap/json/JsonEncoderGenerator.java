@@ -172,7 +172,7 @@ public class JsonEncoderGenerator {
                 } else {
                     mv.visitFieldInsn(GETFIELD, pojoName, jfi.field.getName(), typeString);
                 }
-                mv.visitMethodInsn(INVOKEINTERFACE, encoderName, "encode", "(L" + WRITER_NAME + ";Ljava/lang/Object;)V", true);
+                mv.visitMethodInsn(INVOKEINTERFACE, IFACE_NAME, "encode", "(L" + WRITER_NAME + ";Ljava/lang/Object;)V", true);
             } else {
                 mv.visitVarInsn(ALOAD, 1);
                 mv.visitVarInsn(ALOAD, 2);
