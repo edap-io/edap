@@ -23,6 +23,8 @@ public class Test {
     public Test2[] test2Array;
     public int[] ageArray;
 
+    public float[] fArray;
+
     public static void main(String[] args) throws IOException {
         Test test1 = new Test();
         test1.id = 1L;
@@ -31,6 +33,7 @@ public class Test {
         test1.aFloat = 1F;
         test1.num = new BigDecimal("123.2");
         test1.orderIds = Arrays.asList(12,23,34,45);
+        test1.fArray = new float[]{1.2f,2.3f,34.5f};
 
 
         Test2 test2 = new Test2();

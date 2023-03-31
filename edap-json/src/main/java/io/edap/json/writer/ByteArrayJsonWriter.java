@@ -104,10 +104,14 @@ public class ByteArrayJsonWriter extends AbstractJsonWriter implements JsonWrite
         } else if (f != f) {
             write((byte)'N', (byte)'a', (byte)'N');
         } else {
-            Grisu3.tryConvert(f, builder);
-            int len = builder.getLength();
-            expand(len);
-            pos += builder.copyTo(buf, pos);
+//            Grisu3.tryConvert(f, builder);
+//            int len = builder.getLength();
+//            expand(len);
+//            pos += builder.copyTo(buf, pos);
+//            expand(30);
+//            pos += Grisu.fmt.doubleToBytes(buf, pos, f);
+            byte[] bs = (String.valueOf(f)).getBytes();
+            write(bs, 0, bs.length);
         }
     }
 
@@ -117,7 +121,7 @@ public class ByteArrayJsonWriter extends AbstractJsonWriter implements JsonWrite
             writeNull();
             return;
         }
-        write(f.doubleValue());
+        write(f.floatValue());
     }
 
     @Override

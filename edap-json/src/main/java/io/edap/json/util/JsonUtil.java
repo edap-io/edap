@@ -194,6 +194,10 @@ public class JsonUtil {
         return field.getType().isPrimitive();
     }
 
+    public static boolean isBaseType(Class type) {
+        return type.isPrimitive();
+    }
+
     public static String getReadMethod(JsonFieldInfo jfi) {
         String type = jfi.field.getType().getName();
         String method = "";

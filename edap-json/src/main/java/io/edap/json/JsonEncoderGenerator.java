@@ -220,67 +220,106 @@ public class JsonEncoderGenerator {
     private void visitArrayFieldMethod(MethodVisitor mv, JsonFieldInfo jfi, Label nextFieldLabel) {
         mv.visitVarInsn(ALOAD, 1);
         mv.visitIntInsn(BIPUSH, 91);
-        mv.visitMethodInsn(INVOKEINTERFACE, WRITER_NAME, "write", "(B)V", true);
+        mv.visitMethodInsn(INVOKEINTERFACE, WRITER_NAME, "write",
+                "(B)V", true);
         mv.visitInsn(ICONST_0);
         mv.visitVarInsn(ISTORE, 4);
         mv.visitInsn(ICONST_0);
         mv.visitVarInsn(ISTORE, 5);
-        Label label12 = new Label();
-        mv.visitLabel(label12);
+        Label label17 = new Label();
+        mv.visitLabel(label17);
         mv.visitFrame(Opcodes.F_APPEND,2, new Object[] {Opcodes.INTEGER, Opcodes.INTEGER}, 0, null);
         mv.visitVarInsn(ILOAD, 5);
         mv.visitVarInsn(ALOAD, 2);
-
-        Class pojoCls = jfi.field.getType().getComponentType();
+        //mv.visitFieldInsn(GETFIELD, pojoName, jfi, "[I");
         String typeString = getDescriptor(jfi.field.getType());
-        //mv.visitFieldInsn(GETFIELD, pojoName, "test2Array", "[Lio/edap/json/test/model/Test2;");
         if (jfi.method != null) {
-            visitMethod(mv, INVOKEVIRTUAL, pojoName, jfi.method.getName(), "()" + typeString, false);
+            visitMethod(mv, INVOKEVIRTUAL, pojoName, jfi.method.getName(), "()" + typeString,
+                    false);
         } else {
             mv.visitFieldInsn(GETFIELD, pojoName, jfi.field.getName(), typeString);
         }
         mv.visitInsn(ARRAYLENGTH);
-        Label label13 = new Label();
-        mv.visitJumpInsn(IF_ICMPGE, label13);
+        Label label18 = new Label();
+        mv.visitJumpInsn(IF_ICMPGE, label18);
         mv.visitVarInsn(ILOAD, 4);
-        Label label14 = new Label();
-        mv.visitJumpInsn(IFEQ, label14);
+        Label label19 = new Label();
+        mv.visitJumpInsn(IFEQ, label19);
         mv.visitVarInsn(ALOAD, 1);
         mv.visitIntInsn(BIPUSH, 44);
-        mv.visitMethodInsn(INVOKEINTERFACE, WRITER_NAME, "write", "(B)V", true);
-        Label label15 = new Label();
-        mv.visitJumpInsn(GOTO, label15);
-        mv.visitLabel(label14);
+        mv.visitMethodInsn(INVOKEINTERFACE, WRITER_NAME, "write", "(B)V",
+                true);
+        Label label20 = new Label();
+        mv.visitJumpInsn(GOTO, label20);
+        mv.visitLabel(label19);
         mv.visitFrame(Opcodes.F_SAME, 0, null, 0, null);
         mv.visitInsn(ICONST_1);
         mv.visitVarInsn(ISTORE, 4);
-        mv.visitLabel(label15);
+        mv.visitLabel(label20);
         mv.visitFrame(Opcodes.F_SAME, 0, null, 0, null);
-        mv.visitFieldInsn(GETSTATIC, encoderName, getCodecFieldName(pojoCls), "L" + IFACE_NAME + ";");
-        mv.visitVarInsn(ALOAD, 1);
-        mv.visitVarInsn(ALOAD, 2);
-        //mv.visitFieldInsn(GETFIELD, pojoName, "test2Array", "[Lio/edap/json/test/model/Test2;");
-        if (jfi.method != null) {
-            visitMethod(mv, INVOKEVIRTUAL, pojoName, jfi.method.getName(), "()" + typeString, false);
+        if (isBaseType(jfi.field.getType().getComponentType())) {
+            mv.visitVarInsn(ALOAD, 1);
+            mv.visitVarInsn(ALOAD, 2);
+            if (jfi.method != null) {
+                visitMethod(mv, INVOKEVIRTUAL, pojoName, jfi.method.getName(), "()" + typeString, false);
+            } else {
+                mv.visitFieldInsn(GETFIELD, pojoName, jfi.field.getName(), typeString);
+            }
+            mv.visitVarInsn(ILOAD, 5);
+            int opcode = IALOAD;
+            String itemTypeString = getDescriptor(jfi.field.getType().getComponentType());
+            switch (itemTypeString) {
+                case "B":
+                    opcode = BALOAD;
+                    break;
+                case "C":
+                    opcode = CALOAD;
+                    break;
+                case "S":
+                    opcode = SALOAD;
+                    break;
+                case "I":
+                    opcode = IALOAD;
+                    break;
+                case "J":
+                    opcode = LALOAD;
+                    break;
+                case "F":
+                    opcode = FALOAD;
+                    break;
+                case "D":
+                    opcode = DALOAD;
+                    break;
+                default:
+                    opcode = IALOAD;
+            }
+            mv.visitInsn(opcode);
+            mv.visitMethodInsn(INVOKEINTERFACE, WRITER_NAME, "write",
+                    "(" + itemTypeString + ")V", true);
         } else {
-            mv.visitFieldInsn(GETFIELD, pojoName, jfi.field.getName(), typeString);
-        }
-        mv.visitVarInsn(ILOAD, 5);
-        if (isPojo(pojoCls)) {
+            mv.visitFieldInsn(GETSTATIC, encoderName,
+                    getCodecFieldName(jfi.field.getType().getComponentType()),
+                    "L" + IFACE_NAME + ";");
+            mv.visitVarInsn(ALOAD, 1);
+            mv.visitVarInsn(ALOAD, 2);
+            if (jfi.method != null) {
+                visitMethod(mv, INVOKEVIRTUAL, pojoName, jfi.method.getName(), "()" + typeString, false);
+            } else {
+                mv.visitFieldInsn(GETFIELD, pojoName, jfi.field.getName(), typeString);
+            }
+            mv.visitVarInsn(ILOAD, 5);
             mv.visitInsn(AALOAD);
-            mv.visitMethodInsn(INVOKEINTERFACE, IFACE_NAME, "encode", "(L" + WRITER_NAME + ";Ljava/lang/Object;)V", true);
-        } else {
-            typeString = getDescriptor(jfi.field.getType().getComponentType());
-            mv.visitInsn(IALOAD);
-            mv.visitMethodInsn(INVOKEINTERFACE, WRITER_NAME, "write", "(" + typeString  +")V", true);
+            mv.visitMethodInsn(INVOKEINTERFACE, IFACE_NAME, "encode",
+                    "(L" + WRITER_NAME +  ";Ljava/lang/Object;)V", true);
         }
         mv.visitIincInsn(5, 1);
-        mv.visitJumpInsn(GOTO, label12);
-        mv.visitLabel(label13);
+        mv.visitJumpInsn(GOTO, label17);
+        mv.visitLabel(label18);
         mv.visitFrame(Opcodes.F_CHOP,1, null, 0, null);
         mv.visitVarInsn(ALOAD, 1);
         mv.visitIntInsn(BIPUSH, 93);
-        mv.visitMethodInsn(INVOKEINTERFACE, WRITER_NAME, "write", "(B)V", true);
+        mv.visitMethodInsn(INVOKEINTERFACE, WRITER_NAME, "write",
+                "(B)V", true);
     }
 
 

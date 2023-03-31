@@ -93,6 +93,20 @@ public class TestEncoder2 extends AbstractEncoder implements JsonEncoder<Test> {
             }
             var1.write(']');
         }
+        if (var2.fArray != null) {
+            var1.writeField(KBS_TEST2LIST, var3, 13);
+            var1.write('[');
+            boolean hasWrite = false;
+            for (int i=0;i<var2.fArray.length;i++) {
+                if (hasWrite) {
+                    var1.write(',');
+                } else {
+                    hasWrite = true;
+                }
+                var1.write(var2.fArray[i]);
+            }
+            var1.write(']');
+        }
         var1.write('}');
     }
 }
