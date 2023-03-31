@@ -22,10 +22,7 @@ import io.edap.json.model.JsonFieldInfo;
 import io.edap.util.StringUtil;
 
 import java.lang.annotation.Annotation;
-import java.lang.reflect.Field;
-import java.lang.reflect.Method;
-import java.lang.reflect.Modifier;
-import java.lang.reflect.ParameterizedType;
+import java.lang.reflect.*;
 import java.util.*;
 
 import static io.edap.json.consts.JsonConsts.END_OF_NUMBER;
@@ -236,6 +233,28 @@ public class JsonUtil {
         if (isMap(field.getGenericType())) {
             return "write";
         }
+        switch (type) {
+            case "java.lang.String":
+            case "int":
+            case "java.lang.Integer":
+            case "long":
+            case "java.long.Long":
+            case "double":
+            case "java.lang.Double":
+            case "float":
+            case "java.lang.Float":
+            case "java.math.BigDecimal":
+                method = "write";
+                break;
+            default:
+                method = "writeObject";
+        }
+        return method;
+    }
+
+    public static String getWriteMethod(Class fieldType) {
+        String type = fieldType.getName();
+        String method = "";
         switch (type) {
             case "java.lang.String":
             case "int":

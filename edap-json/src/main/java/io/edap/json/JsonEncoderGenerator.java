@@ -173,6 +173,8 @@ public class JsonEncoderGenerator {
                     mv.visitFieldInsn(GETFIELD, pojoName, jfi.field.getName(), typeString);
                 }
                 mv.visitMethodInsn(INVOKEINTERFACE, IFACE_NAME, "encode", "(L" + WRITER_NAME + ";Ljava/lang/Object;)V", true);
+            } else if (isList(jfi.field.getGenericType())) {
+                visitListFiledMethod(mv, jfi, l0);
             } else {
                 mv.visitVarInsn(ALOAD, 1);
                 mv.visitVarInsn(ALOAD, 2);
@@ -211,66 +213,92 @@ public class JsonEncoderGenerator {
         mv.visitMaxs(4, 4);
         mv.visitEnd();
 
+    }
 
-//        // 循环属性
-//        boolean hasWrite = false; // 是否已经有写入数据，如果有基本类型写就会有输出
-//        for (int i=0;i<encodeFields.size();i++) {
-//            if (i > 0) {
-//                mv.visitFrame(Opcodes.F_APPEND,1, new Object[] {Opcodes.INTEGER}, 0, null);
-//            }
-//            JsonFieldInfo jfi = encodeFields.get(i);
-//            Label l = null;
-//            String typeString = getDescriptor(jfi.field.getType());
-//            int duo = hasWrite?4:3;
-//            if (!isBaseType(jfi.field)) {
-//                if (jfi.method != null) {
-//                    visitMethod(mv, INVOKEVIRTUAL, pojoName, jfi.method.getName(), "()" + typeString, false);
-//                } else {
-//                    mv.visitFieldInsn(GETFIELD, pojoName, jfi.field.getName(), typeString);
-//                }
-//                l = new Label();
-//                mv.visitJumpInsn(IFNULL, l);
-//            }
-//
-//            mv.visitVarInsn(ALOAD, 1);
-//            mv.visitFieldInsn(GETSTATIC, encoderName, "KBS_" + jfi.field.getName(), "[B");
-//            mv.visitVarInsn(ILOAD, varOffset);
-//            mv.visitIntInsn(BIPUSH, jfi.field.getName().length() + duo);
-//            mv.visitMethodInsn(INVOKEINTERFACE, WRITER_NAME, "writeBytes", "([BII)V", true);
-//            mv.visitVarInsn(ALOAD, 1);
-//            mv.visitVarInsn(ALOAD, 2);
-//            if (jfi.method != null) {
-//                visitMethod(mv, INVOKEVIRTUAL, pojoName, jfi.method.getName(), "()" + typeString, false);
-//            } else {
-//                mv.visitFieldInsn(GETFIELD, pojoName, jfi.field.getName(), typeString);
-//            }
-//            String writeMethod = getWriteMethod(jfi.field);
-//            visitMethod(mv, INVOKEINTERFACE, WRITER_NAME, writeMethod, "(" + typeString + ")V", true);
-//            // offset = 0;
-//            if (!isBaseType(jfi.field)) {
-//                mv.visitInsn(ICONST_0);
-//                mv.visitVarInsn(ISTORE, varOffset);
-//            } else {
-//                if (duo == 3) {
-//                    mv.visitInsn(ICONST_0);
-//                    mv.visitVarInsn(ISTORE, varOffset);
-//                    hasWrite = true;
-//                }
-//            }
-//
-//            if (!isBaseType(jfi.field)) {
-//                mv.visitLabel(l);
-//            }
-//        }
-//
-//        // write.write((byte)'}')
-//        mv.visitVarInsn(ALOAD, 1);
-//        mv.visitIntInsn(BIPUSH, 125);
-//        mv.visitMethodInsn(INVOKEINTERFACE, WRITER_NAME, "writeByte", "(B)V", true);
-//        mv.visitInsn(RETURN);
-//        mv.visitMaxs(4, 4);
-//        mv.visitEnd();
 
+    private void visitListFiledMethod(MethodVisitor mv, JsonFieldInfo jfi, Label nextFieldLabel) {
+        //Label label2 = new Label();
+        mv.visitVarInsn(ALOAD, 1);
+        mv.visitIntInsn(BIPUSH, 91);
+        mv.visitMethodInsn(INVOKEINTERFACE, WRITER_NAME, "write", "(B)V", true);
+        mv.visitInsn(ICONST_0);
+        mv.visitVarInsn(ISTORE, 4);
+        mv.visitVarInsn(ALOAD, 2);
+        //mv.visitFieldInsn(GETFIELD, "io/edap/json/test/model/Test", "test2List", "Ljava/util/List;");
+        Type type = jfi.field.getGenericType();
+        Class pojoCls = null;
+        Type pojoType = null;
+        if (type instanceof ParameterizedType) {
+            ParameterizedType pt = (ParameterizedType)type;
+            if (pt.getActualTypeArguments() != null
+                    && pt.getActualTypeArguments().length > 0) {
+                for (Type t : pt.getActualTypeArguments()) {
+                    if (t instanceof Class) {
+                        pojoCls = (Class) t;
+                    }
+                    pojoType = t;
+                }
+            }
+        }
+        String pojoTypeName = toInternalName(pojoCls.getName());
+        String typeString = getDescriptor(jfi.field.getType());
+        if (jfi.method != null) {
+            visitMethod(mv, INVOKEVIRTUAL, pojoName, jfi.method.getName(), "()" + typeString, false);
+        } else {
+            mv.visitFieldInsn(GETFIELD, pojoName, jfi.field.getName(), typeString);
+        }
+        mv.visitMethodInsn(INVOKEINTERFACE, "java/util/List", "iterator",
+                "()Ljava/util/Iterator;", true);
+        mv.visitVarInsn(ASTORE, 5);
+        Label label3 = new Label();
+        mv.visitLabel(label3);
+        mv.visitFrame(Opcodes.F_APPEND,2, new Object[] {Opcodes.INTEGER, "java/util/Iterator"}, 0, null);
+        mv.visitVarInsn(ALOAD, 5);
+        mv.visitMethodInsn(INVOKEINTERFACE, "java/util/Iterator", "hasNext", "()Z", true);
+        Label label4 = new Label();
+        mv.visitJumpInsn(IFEQ, label4);
+        mv.visitVarInsn(ALOAD, 5);
+        mv.visitMethodInsn(INVOKEINTERFACE, "java/util/Iterator", "next",
+                "()Ljava/lang/Object;", true);
+        mv.visitTypeInsn(CHECKCAST, pojoTypeName);
+        mv.visitVarInsn(ASTORE, 6);
+        mv.visitVarInsn(ILOAD, 4);
+        Label label5 = new Label();
+        mv.visitJumpInsn(IFEQ, label5);
+        mv.visitVarInsn(ALOAD, 1);
+        mv.visitIntInsn(BIPUSH, 44);
+        mv.visitMethodInsn(INVOKEINTERFACE, WRITER_NAME, "write", "(B)V", true);
+        Label label6 = new Label();
+        mv.visitJumpInsn(GOTO, label6);
+        mv.visitLabel(label5);
+        mv.visitFrame(Opcodes.F_APPEND, 1, new Object[]{pojoType}, 0, null);
+        mv.visitInsn(ICONST_1);
+        mv.visitVarInsn(ISTORE, 4);
+        mv.visitLabel(label6);
+        if (isPojo(pojoType)) {
+
+            mv.visitFrame(Opcodes.F_SAME, 0, null, 0, null);
+            mv.visitFieldInsn(GETSTATIC, encoderName, getCodecFieldName(pojoCls), "L" + IFACE_NAME + ";");
+            mv.visitVarInsn(ALOAD, 1);
+            mv.visitVarInsn(ALOAD, 6);
+            mv.visitMethodInsn(INVOKEINTERFACE, IFACE_NAME, "encode",
+                    "(L" + WRITER_NAME + ";Ljava/lang/Object;)V", true);
+        } else {
+            mv.visitVarInsn(ALOAD, 1);
+            mv.visitVarInsn(ALOAD, 6);
+            String writeMethod = getWriteMethod(pojoCls);
+            typeString = getDescriptor(pojoCls);
+            if (writeMethod.equals("writeObject")) {
+                typeString = "Ljava/lang/Object;";
+            }
+            visitMethod(mv, INVOKEINTERFACE, WRITER_NAME, writeMethod, "(" + typeString + ")V", true);
+        }
+        mv.visitJumpInsn(GOTO, label3);
+        mv.visitLabel(label4);
+        mv.visitFrame(Opcodes.F_CHOP,2, null, 0, null);
+        mv.visitVarInsn(ALOAD, 1);
+        mv.visitIntInsn(BIPUSH, 93);
+        mv.visitMethodInsn(INVOKEINTERFACE, WRITER_NAME, "write", "(B)V", true);
     }
 
     private void visitClInit(List<JsonFieldInfo> fields, List<Type> allPojos) {
