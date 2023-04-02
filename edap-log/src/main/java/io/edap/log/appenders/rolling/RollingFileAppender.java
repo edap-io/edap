@@ -1,7 +1,9 @@
 package io.edap.log.appenders.rolling;
 
+import io.edap.log.LogEvent;
 import io.edap.log.appenders.FileAppender;
 
+import java.io.IOException;
 import java.text.ParseException;
 
 import static io.edap.log.helpers.Util.printError;
@@ -28,7 +30,18 @@ public class RollingFileAppender extends FileAppender {
             } catch (Throwable e) {
                 printError("rollingPolicy.getActiveFileName error", e);
             }
+            if (file == null && activeFileName != null) {
+                setFile(activeFileName);
+            }
         }
+        super.start();
+    }
 
+    @Override
+    public void append(LogEvent logEvent) throws IOException {
+        if (rollingPolicy != null) {
+            rollingPolicy.rollover(logEvent);
+        }
+        super.append(logEvent);
     }
 }

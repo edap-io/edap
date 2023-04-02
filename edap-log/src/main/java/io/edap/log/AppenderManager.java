@@ -16,6 +16,8 @@
 
 package io.edap.log;
 
+import io.edap.log.appenders.FileAppender;
+import io.edap.log.appenders.rolling.RollingPolicy;
 import io.edap.log.config.AppenderConfig;
 import io.edap.log.config.AppenderConfigSection;
 import io.edap.log.helps.LogEncoderRegister;
@@ -97,6 +99,7 @@ public class AppenderManager {
             String file = null;
             String prudentStr = null;
             String immediateFlushStr = null;
+            RollingPolicy rollingPolicy = null;
             if (!CollectionUtils.isEmpty(args)) {
                 for (LogConfig.ArgNode argNode : args) {
                     if ("encoder".equals(argNode.getName())) {
@@ -107,6 +110,8 @@ public class AppenderManager {
                         prudentStr = argNode.getValue();
                     } else if ("immediateFlush".equals(argNode.getName())) {
                         immediateFlushStr = argNode.getValue();
+                    } else if ("rollingPolicy".equals(argNode.getName())) {
+                        rollingPolicy = createRollingPolicy(argNode);
                     }
                 }
             }
@@ -144,6 +149,14 @@ public class AppenderManager {
                     printError("parse immediateFlush error", t);
                 }
             }
+            if (rollingPolicy != null) {
+                rollingPolicy.start();
+                rollingPolicy.setParent((FileAppender) appender);
+                Method method = getMethod(appender, "rollingPolicy", RollingPolicy.class);
+                if (method != null) {
+                    method.invoke(appender, rollingPolicy);
+                }
+            }
             appender.start();
         } catch (ClassNotFoundException e) {
             throw new RuntimeException(e);
@@ -159,9 +172,34 @@ public class AppenderManager {
         return appender;
     }
 
-    private Method getMethod(Appender appender, String name, Class type) {
+    private RollingPolicy createRollingPolicy(LogConfig.ArgNode argNode) {
+        String clsName = argNode.getAttributes().get("class");
+        if (StringUtil.isEmpty(clsName)) {
+            return null;
+        }
         try {
-            Method method = appender.getClass().getMethod(
+            Class cls = Class.forName(clsName);
+            RollingPolicy rollingPolicy = (RollingPolicy) cls.newInstance();
+            if (argNode.getChilds() != null) {
+                for (LogConfig.ArgNode node : argNode.getChilds()) {
+                    String fieldName = node.getName();
+                    Method method = getMethod(rollingPolicy, fieldName, String.class);
+                    if (method == null) {
+                        continue;
+                    }
+                    method.invoke(rollingPolicy, node.getValue());
+                }
+            }
+            return rollingPolicy;
+        } catch (Throwable t) {
+            printError("createRollingPolicy error", t);
+        }
+        return null;
+    }
+
+    private Method getMethod(Object obj, String name, Class type) {
+        try {
+            Method method = obj.getClass().getMethod(
                     "set" + name.substring(0, 1).toUpperCase(Locale.ENGLISH) + name.substring(1),
                     type);
             method.setAccessible(true);

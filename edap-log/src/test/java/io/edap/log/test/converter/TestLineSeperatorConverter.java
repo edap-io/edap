@@ -55,5 +55,6 @@ public class TestLineSeperatorConverter {
         logEvent = new LogEvent();
         loggerConverter.convertTo(out, logEvent);
         assertArrayEquals(out.toByteArray(), "\r\n - [".getBytes());
+        winField.set(loggerConverter, false);
     }
 }

@@ -117,7 +117,7 @@ public class TestLog {
 
     }
 
-    private static String readFile(File f) throws IOException {
+    public static String readFile(File f) throws IOException {
         FileInputStream fis = new FileInputStream(f);
         byte[] data = new byte[1024];
         int len = fis.read(data);

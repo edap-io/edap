@@ -26,6 +26,8 @@ import io.edap.log.io.BaseLogOutputStream;
 import java.io.IOException;
 import java.util.concurrent.locks.ReentrantLock;
 
+import static io.edap.log.helpers.Util.printError;
+
 public class OutputStremAppender implements Appender {
 
     protected final ReentrantLock lock = new ReentrantLock(false);
@@ -42,7 +44,10 @@ public class OutputStremAppender implements Appender {
 
     @Override
     public void append(LogEvent logEvent) throws IOException {
-        if (encoder == null) {
+        if (!started || encoder == null) {
+            if (!started) {
+                printError("Apppender 还没有启动完成");
+            }
             return;
         }
         ByteArrayBuilder builder = encoder.encode(logEvent);
@@ -113,7 +118,17 @@ public class OutputStremAppender implements Appender {
 
     @Override
     public void stop() {
-
+        try {
+            this.outputStream.flush();
+        } catch (IOException e) {
+            printError("OutputStream.flush error", e);
+        }
+        try {
+            this.outputStream.close();
+        } catch (IOException e) {
+            printError("OutputStream.flush error", e);
+        }
+        started = false;
     }
 
     @Override

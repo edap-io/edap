@@ -243,7 +243,7 @@ public class ConfigManager {
             Map<String, String> attrs = new HashMap<>();
             NamedNodeMap attrMap = child.getAttributes();
             for (int i=0;i<attrMap.getLength();i++) {
-
+                attrs.put(attrMap.item(i).getNodeName(), attrMap.item(i).getNodeValue());
             }
             argNode.setAttributes(attrs);
         }
