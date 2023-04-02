@@ -19,6 +19,7 @@ package io.edap.log.appenders;
 import io.edap.log.LogEvent;
 import io.edap.log.helps.ByteArrayBuilder;
 import io.edap.log.io.BaseLogOutputStream;
+import javafx.util.Builder;
 
 import java.io.*;
 import java.nio.channels.FileChannel;
@@ -116,19 +117,19 @@ public class FileAppender extends OutputStremAppender {
 
     @Override
     public void append(LogEvent logEvent) throws IOException {
+        ByteArrayBuilder builder = encoder.encode(logEvent);
         if (prudent) {
-            safeWrite(logEvent);
+            safeWrite(builder);
         } else {
-            super.append(logEvent);
+            super.writeData(builder);
         }
     }
 
-    public void safeWrite(LogEvent logEvent) throws IOException {
+    public void safeWrite(ByteArrayBuilder builder) throws IOException {
         if (fileChannel == null || encoder == null) {
             return;
         }
         boolean interrupted = Thread.interrupted();
-        ByteArrayBuilder builder = encoder.encode(logEvent);
         FileLock fileLock = null;
         try {
             fileLock = fileChannel.lock();

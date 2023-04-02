@@ -1,7 +1,9 @@
 package io.edap.log.test.appenders;
 
 import io.edap.log.*;
+import io.edap.log.appenders.rolling.DefaultTimeBasedFileNamingAndTriggeringPolicy;
 import io.edap.log.appenders.rolling.RollingFileAppender;
+import io.edap.log.appenders.rolling.TimeBasedFileNamingAndTriggeringPolicy;
 import io.edap.log.appenders.rolling.TimeBasedRollingPolicy;
 import io.edap.log.config.ConfigManager;
 import io.edap.log.test.TestLog;
@@ -22,6 +24,7 @@ import java.util.Calendar;
 import java.util.Date;
 
 import static io.edap.log.test.TestLog.readFile;
+import static io.edap.util.ClazzUtil.getDeclaredField;
 import static org.junit.jupiter.api.Assertions.*;
 
 public class TestTimeBasedRollingPolicy {
@@ -41,9 +44,13 @@ public class TestTimeBasedRollingPolicy {
         TimeBasedRollingPolicy policy = new TimeBasedRollingPolicy();
         policy.setFileNamePattern("${logging.path}/javascript-${spring.application.name}.%d{" + dateFormat + "}.log.bak");
         policy.start();
-        Field currentMaxTimeField = policy.getClass().getDeclaredField("currentMaxTime");
+
+        Field triggeringField = policy.getClass().getDeclaredField("timeBasedFileNamingAndTriggeringPolicy");
+        triggeringField.setAccessible(true);
+        TimeBasedFileNamingAndTriggeringPolicy tfat = (DefaultTimeBasedFileNamingAndTriggeringPolicy)triggeringField.get(policy);
+        Field currentMaxTimeField = getDeclaredField(tfat.getClass(),"currentMaxTime");
         currentMaxTimeField.setAccessible(true);
-        long currentMaxTime = (long)currentMaxTimeField.get(policy);
+        long currentMaxTime = (long)currentMaxTimeField.get(tfat);
         Calendar cal = Calendar.getInstance();
         cal.setTimeInMillis(currentMaxTime);
 
@@ -63,18 +70,24 @@ public class TestTimeBasedRollingPolicy {
         TimeBasedRollingPolicy policy = new TimeBasedRollingPolicy();
         policy.setFileNamePattern("${logging.path}/javascript-${spring.application.name}.%d{}.log.bak");
         policy.start();
-        Field currentMaxTimeField = policy.getClass().getDeclaredField("currentMaxTime");
+
+        Field triggeringField = policy.getClass().getDeclaredField("timeBasedFileNamingAndTriggeringPolicy");
+        triggeringField.setAccessible(true);
+        TimeBasedFileNamingAndTriggeringPolicy tfat = (DefaultTimeBasedFileNamingAndTriggeringPolicy)triggeringField.get(policy);
+
+        Field currentMaxTimeField = getDeclaredField(tfat.getClass(),"currentMaxTime");
         currentMaxTimeField.setAccessible(true);
-        long currentMaxTime = (long)currentMaxTimeField.get(policy);
+        long currentMaxTime = (long)currentMaxTimeField.get(tfat);
 
         assertEquals(currentMaxTime, Long.MAX_VALUE);
 
         policy = new TimeBasedRollingPolicy();
         policy.setFileNamePattern("${logging.path}/javascript-${spring.application.name}.%p{}.log.bak");
         policy.start();
-        currentMaxTimeField = policy.getClass().getDeclaredField("currentMaxTime");
-        currentMaxTimeField.setAccessible(true);
-        currentMaxTime = (long)currentMaxTimeField.get(policy);
+        triggeringField = policy.getClass().getDeclaredField("timeBasedFileNamingAndTriggeringPolicy");
+        triggeringField.setAccessible(true);
+        tfat = (TimeBasedFileNamingAndTriggeringPolicy)triggeringField.get(policy);
+        currentMaxTime = (long)currentMaxTimeField.get(tfat);
 
         assertEquals(currentMaxTime, Long.MAX_VALUE);
 
@@ -86,9 +99,8 @@ public class TestTimeBasedRollingPolicy {
         policy = new TimeBasedRollingPolicy();
         policy.setFileNamePattern("");
         policy.start();
-        currentMaxTimeField = policy.getClass().getDeclaredField("currentMaxTime");
-        currentMaxTimeField.setAccessible(true);
-        currentMaxTime = (long)currentMaxTimeField.get(policy);
+        tfat = (TimeBasedFileNamingAndTriggeringPolicy)triggeringField.get(policy);
+        currentMaxTime = (long)currentMaxTimeField.get(tfat);
     }
 
     @Test
@@ -99,9 +111,13 @@ public class TestTimeBasedRollingPolicy {
         policy.setFileNamePattern("${logging.path}/javascript-${spring.application.name}.%d{yyyy-MM-dd}.log");
         policy.start();
         String activeFileName = policy.getActiveFileName();
-        Field currentMaxTimeField = policy.getClass().getDeclaredField("currentMaxTime");
+
+        Field triggeringField = policy.getClass().getDeclaredField("timeBasedFileNamingAndTriggeringPolicy");
+        triggeringField.setAccessible(true);
+        TimeBasedFileNamingAndTriggeringPolicy tfat = (DefaultTimeBasedFileNamingAndTriggeringPolicy)triggeringField.get(policy);
+        Field currentMaxTimeField = getDeclaredField(tfat.getClass(),"currentMaxTime");
         currentMaxTimeField.setAccessible(true);
-        long currentMaxTime = (long)currentMaxTimeField.get(policy);
+        long currentMaxTime = (long)currentMaxTimeField.get(tfat);
         assertEquals(activeFileName,
                 "${logging.path}/javascript-${spring.application.name}." +
                         new SimpleDateFormat("yyyy-MM-dd").format(new Date(currentMaxTime))+ ".log");
