@@ -17,14 +17,15 @@
 package io.edap.log.appenders.rolling;
 
 import io.edap.log.LogEvent;
-import io.edap.log.appenders.FileAppender;
 import io.edap.log.helps.ByteArrayBuilder;
+
+import java.io.File;
 
 public class DefaultTimeBasedFileNamingAndTriggeringPolicy
         extends TimeBasedFileNamingAndTriggeringPolicyBase{
 
     @Override
-    public boolean isTriggeringEvent(FileAppender appender, LogEvent event, ByteArrayBuilder builder) {
+    public boolean isTriggeringEvent(final File activeFile, LogEvent event, ByteArrayBuilder builder) {
         if (event.getLogTime() <= currentMaxTime) {
             return false;
         }

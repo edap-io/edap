@@ -16,24 +16,19 @@
 
 package io.edap.log.appenders.rolling;
 
-import io.edap.log.LifeCycle;
-import io.edap.log.LogEvent;
-import io.edap.log.appenders.FileAppender;
-import io.edap.log.helps.ByteArrayBuilder;
+public abstract class TriggeringPolicyBase implements TriggeringPolicy {
 
-import java.io.File;
+    private boolean start;
 
-/**
- * 触发日志滚动的触发器接口
- */
-public interface TriggeringPolicy extends LifeCycle {
+    public void start() {
+        start = true;
+    }
 
-    /**
-     * 判断当前日志事件是否达到滚动的条件
-     * @param activeFile 当前使用的FileAppender实例
-     * @param event 日志事件
-     * @param builder 日志Encoder编码后的数据对象
-     * @return 是否达到触发日志文件滚动的条件
-     */
-    boolean isTriggeringEvent(final File activeFile, LogEvent event, ByteArrayBuilder builder);
+    public void stop() {
+        start = false;
+    }
+
+    public boolean isStarted() {
+        return start;
+    }
 }

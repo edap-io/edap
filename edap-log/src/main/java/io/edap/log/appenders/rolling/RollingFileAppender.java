@@ -4,11 +4,14 @@ import io.edap.log.LogEvent;
 import io.edap.log.appenders.FileAppender;
 import io.edap.log.helps.ByteArrayBuilder;
 
+import java.io.File;
 import java.io.IOException;
 
 import static io.edap.log.helpers.Util.printError;
 
 public class RollingFileAppender extends FileAppender {
+
+    File currentlyActiveFile;
 
     private RollingPolicy rollingPolicy;
 
@@ -41,6 +44,7 @@ public class RollingFileAppender extends FileAppender {
         if (rollingPolicy != null) {
             try {
                 activeFileName = rollingPolicy.getActiveFileName();
+                currentlyActiveFile = new File(activeFileName);
             } catch (Throwable e) {
                 printError("rollingPolicy.getActiveFileName error", e);
             }
@@ -58,10 +62,10 @@ public class RollingFileAppender extends FileAppender {
         // 为了降低加锁频率所以先判断后如果需要滚动再加锁然后再次判断，因为当前线程判断时需要加锁，但是加锁后
         // 可能其他线程已经进行了日志滚动，所以需要再次判断是否需要滚动，因为需要滚次频次比非滚动频次低的多，所以
         // 这个操作会比每次都加锁效率高。
-        if (triggeringPolicy.isTriggeringEvent(this, logEvent, builder)) {
+        if (triggeringPolicy.isTriggeringEvent(currentlyActiveFile, logEvent, builder)) {
             try {
                 lock.lock();
-                if (triggeringPolicy.isTriggeringEvent(this, logEvent, builder)) {
+                if (triggeringPolicy.isTriggeringEvent(currentlyActiveFile, logEvent, builder)) {
                     rollingPolicy.rollover();
                 }
             } finally {

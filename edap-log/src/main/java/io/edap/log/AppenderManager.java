@@ -27,6 +27,7 @@ import io.edap.util.StringUtil;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.text.ParseException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -202,7 +203,8 @@ public class AppenderManager {
         String setName = "set" + name.substring(0, 1).toUpperCase(Locale.ENGLISH) + name.substring(1);
         for (Method m : methods) {
             String methodName = m.getName();
-            if (methodName.equals(setName) && m.getParameterTypes().length == 1) {
+            if (methodName.equals(setName) && m.getParameterTypes().length == 1
+                    && Modifier.isPublic(m.getModifiers())) {
                 Class type = m.getParameterTypes()[0];
                 m.setAccessible(true);
                 switch (type.getName()) {

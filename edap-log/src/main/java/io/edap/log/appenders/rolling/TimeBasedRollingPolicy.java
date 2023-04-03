@@ -86,7 +86,15 @@ public class TimeBasedRollingPolicy extends RollingPolicyBase implements Trigger
         if (compression != null) {
             String zipName = currentFileName.endsWith("." + compression.getSuffix())
                     ?currentFileName:currentFileName + "." + compression.getSuffix();
-            compression.compress(currentFileName, zipName);
+            try {
+                compression.compress(currentFileName, zipName);
+                File f = new File(currentFileName);
+                if (f.exists()) {
+                    f.delete();
+                }
+            } catch (Throwable t) {
+                printError("compression.compress error", t);
+            }
         }
         // 删除过时的日志文件
         printError("maxHistory=" + maxHistory);
@@ -131,8 +139,8 @@ public class TimeBasedRollingPolicy extends RollingPolicyBase implements Trigger
 
 
     @Override
-    public boolean isTriggeringEvent(FileAppender appender, LogEvent event, ByteArrayBuilder builder) {
-        return timeBasedFileNamingAndTriggeringPolicy.isTriggeringEvent(appender, event, builder);
+    public boolean isTriggeringEvent(final File activeFile, LogEvent event, ByteArrayBuilder builder) {
+        return timeBasedFileNamingAndTriggeringPolicy.isTriggeringEvent(activeFile, event, builder);
     }
 
     /**

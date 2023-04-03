@@ -119,6 +119,7 @@ public class EncoderPatternParser {
                 case ' ':
                 case '[':
                 case ']':
+                case '.':
                 case '%':
                     if (!has) {
                         pos--;

@@ -22,6 +22,7 @@ import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
 import static io.edap.log.helpers.Util.printError;
@@ -42,8 +43,17 @@ public class ZipCompression implements LogCompression {
             throw new RuntimeException("[" + plainName + "] not founc");
         }
 
+        String innerEntryName;
+        int lastSlash = gzName.lastIndexOf('/');
+        if (lastSlash == -1) {
+            innerEntryName = gzName;
+        } else {
+            innerEntryName = gzName.substring(lastSlash+1);
+        }
         if (!gzName.endsWith(".zip")) {
             gzName = gzName + ".zip";
+        } else {
+            innerEntryName = innerEntryName.substring(0, innerEntryName.length()-4);
         }
 
         File gzedFile = new File(gzName);
@@ -55,6 +65,9 @@ public class ZipCompression implements LogCompression {
 
         try (BufferedInputStream bis = new BufferedInputStream(new FileInputStream(plainName));
              ZipOutputStream zos = new ZipOutputStream(new FileOutputStream(gzedFile))) {
+
+            ZipEntry zipEntry = new ZipEntry(innerEntryName);
+            zos.putNextEntry(zipEntry);
 
             byte[] inbuf = new byte[BUFFER_SIZE];
             int n;

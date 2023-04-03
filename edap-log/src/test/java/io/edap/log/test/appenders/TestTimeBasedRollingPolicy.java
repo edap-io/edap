@@ -281,7 +281,7 @@ public class TestTimeBasedRollingPolicy {
     }
 
     @Test
-    public void testRolloverArchive() throws ParserConfigurationException, IOException, SAXException {
+    public void testRolloverArchive() throws ParserConfigurationException, IOException, SAXException, InterruptedException {
         try {
             EdapTestAdapter edapTestAdapter = (EdapTestAdapter) ConfigManager.getLogAdapter();
             File f = new File("./logs/");
@@ -312,6 +312,9 @@ public class TestTimeBasedRollingPolicy {
                 logEvent.setLogTime(now + (i*24*60*60*1000));
                 appender.append(logEvent);
             }
+
+            Thread.sleep(1000);
+
             f = new File("./logs/");
             assertEquals(f.exists(), true);
             File[] files = f.listFiles();
@@ -347,7 +350,7 @@ public class TestTimeBasedRollingPolicy {
     }
 
     @Test
-    public void testRolloverGzCompress() throws ParserConfigurationException, IOException, SAXException {
+    public void testRolloverGzCompress() throws ParserConfigurationException, IOException, SAXException, InterruptedException {
         try {
             EdapTestAdapter edapTestAdapter = (EdapTestAdapter) ConfigManager.getLogAdapter();
             File f = new File("./logs/");
@@ -378,6 +381,7 @@ public class TestTimeBasedRollingPolicy {
                 logEvent.setLogTime(now + (i*24*60*60*1000));
                 appender.append(logEvent);
             }
+            Thread.sleep(1000);
             f = new File("./logs/");
             assertEquals(f.exists(), true);
             File[] files = f.listFiles();
@@ -389,25 +393,25 @@ public class TestTimeBasedRollingPolicy {
                 logNames.add(logFile.getName());
             }
             SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd");
-            for (int i=0;i<5;i++) {
+            for (int i=0;i<4;i++) {
                 logDate.add(Calendar.DAY_OF_MONTH, 1);
-                String name = "edap-day-rollover-" + dateFormat.format(logDate.getTime()) + ".log";
+                String name = "edap-day-rollover-" + dateFormat.format(logDate.getTime()) + ".log.gz";
                 assertEquals(logNames.contains(name), true);
             }
         } finally {
-//            File f = new File("./logs/");
-//            if (f.exists()) {
-//                File[] files = f.listFiles();
-//                for (File child : files) {
-//                    child.delete();
-//                }
-//                f.delete();
-//            }
+            File f = new File("./logs/");
+            if (f.exists()) {
+                File[] files = f.listFiles();
+                for (File child : files) {
+                    child.delete();
+                }
+                f.delete();
+            }
         }
     }
 
     @Test
-    public void testRolloverZipCompress() throws ParserConfigurationException, IOException, SAXException {
+    public void testRolloverZipCompress() throws ParserConfigurationException, IOException, SAXException, InterruptedException {
         try {
             EdapTestAdapter edapTestAdapter = (EdapTestAdapter) ConfigManager.getLogAdapter();
             File f = new File("./logs/");
@@ -438,10 +442,11 @@ public class TestTimeBasedRollingPolicy {
                 logEvent.setLogTime(now + (i*24*60*60*1000));
                 appender.append(logEvent);
             }
+            Thread.sleep(1000);
             f = new File("./logs/");
             assertEquals(f.exists(), true);
             File[] files = f.listFiles();
-            assertEquals(files.length, 5);
+
             Calendar logDate = Calendar.getInstance();
             logDate.add(Calendar.DAY_OF_MONTH, -1);
             List<String> logNames = new ArrayList<>();
@@ -449,20 +454,22 @@ public class TestTimeBasedRollingPolicy {
                 logNames.add(logFile.getName());
             }
             SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd");
-            for (int i=0;i<5;i++) {
+            for (int i=0;i<4;i++) {
                 logDate.add(Calendar.DAY_OF_MONTH, 1);
-                String name = "edap-day-rollover-" + dateFormat.format(logDate.getTime()) + ".log";
+                String name = "edap-day-rollover-" + dateFormat.format(logDate.getTime()) + ".log.zip";
                 assertEquals(logNames.contains(name), true);
             }
+
+            assertEquals(files.length, 5);
         } finally {
-//            File f = new File("./logs/");
-//            if (f.exists()) {
-//                File[] files = f.listFiles();
-//                for (File child : files) {
-//                    child.delete();
-//                }
-//                f.delete();
-//            }
+            File f = new File("./logs/");
+            if (f.exists()) {
+                File[] files = f.listFiles();
+                for (File child : files) {
+                    child.delete();
+                }
+                f.delete();
+            }
         }
     }
 }
