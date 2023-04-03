@@ -257,7 +257,8 @@ public class JsonEncoderGenerator {
         mv.visitVarInsn(ISTORE, 4);
         mv.visitLabel(label20);
         mv.visitFrame(Opcodes.F_SAME, 0, null, 0, null);
-        if (isBaseType(jfi.field.getType().getComponentType())) {
+        Class itemType = jfi.field.getType().getComponentType();
+        if (isBaseType(itemType) || isBaseObjectType(itemType)) {
             mv.visitVarInsn(ALOAD, 1);
             mv.visitVarInsn(ALOAD, 2);
             if (jfi.method != null) {
@@ -272,23 +273,44 @@ public class JsonEncoderGenerator {
                 case "B":
                     opcode = BALOAD;
                     break;
+                case "Ljava/lang/Byte;":
+                    opcode = AALOAD;
+                    break;
                 case "C":
                     opcode = CALOAD;
+                    break;
+                case "Ljava/lang/Character;":
+                    opcode = AALOAD;
                     break;
                 case "S":
                     opcode = SALOAD;
                     break;
+                case "Ljava/lang/Short;":
+                    opcode = AALOAD;
+                    break;
                 case "I":
                     opcode = IALOAD;
+                    break;
+                case "Ljava/lang/Integer;":
+                    opcode = AALOAD;
                     break;
                 case "J":
                     opcode = LALOAD;
                     break;
+                case "Ljava/lang/Long;":
+                    opcode = AALOAD;
+                    break;
                 case "F":
                     opcode = FALOAD;
                     break;
+                case "Ljava/lang/Float;":
+                    opcode = AALOAD;
+                    break;
                 case "D":
                     opcode = DALOAD;
+                    break;
+                case "Ljava/lang/Double;":
+                    opcode = AALOAD;
                     break;
                 default:
                     opcode = IALOAD;

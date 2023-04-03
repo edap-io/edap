@@ -198,6 +198,22 @@ public class JsonUtil {
         return type.isPrimitive();
     }
 
+    public static boolean isBaseObjectType(Class type) {
+        switch (type.getName()) {
+            case "java.lang.Integer":
+            case "java.lang.Boolean":
+            case "java.lang.Long":
+            case "java.lang.Byte":
+            case "java.lang.Short":
+            case "java.lang.Float":
+            case "java.lang.Double":
+            case "java.lang.Character":
+                return true;
+            default:
+                return false;
+        }
+    }
+
     public static String getReadMethod(JsonFieldInfo jfi) {
         String type = jfi.field.getType().getName();
         String method = "";

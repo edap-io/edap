@@ -7,14 +7,20 @@ import io.edap.json.JsonWriter;
 import io.edap.json.test.model.Test;
 import io.edap.json.test.model.Test2;
 
+import java.util.Iterator;
+
 public class TestEncoder2 extends AbstractEncoder implements JsonEncoder<Test> {
     private static final byte[] KBS_AFLOAT = ",\"aFloat\":null".getBytes();
     private static final byte[] KBS_AGE = ",\"age\":null".getBytes();
     private static final byte[] KBS_ID = ",\"id\":null".getBytes();
     private static final byte[] KBS_NAME = ",\"name\":null".getBytes();
     private static final byte[] KBS_NUM = ",\"num\":null".getBytes();
+    private static final byte[] KBS_ORDERIDS = ",\"orderIds\":null".getBytes();
     private static final byte[] KBS_TEST2LIST = ",\"test2List\":null".getBytes();
     private static final JsonEncoder<Test2> ENCODER_0 = JsonCodecRegister.instance().getEncoder(Test2.class);
+    private static final byte[] KBS_TEST2ARRAY = ",\"test2Array\":null".getBytes();
+    private static final byte[] KBS_AGEARRAY = ",\"ageArray\":null".getBytes();
+    private static final byte[] KBS_FARRAY = ",\"fArray\":null".getBytes();
 
     public TestEncoder2() {
     }
@@ -38,75 +44,100 @@ public class TestEncoder2 extends AbstractEncoder implements JsonEncoder<Test> {
             var1.writeField(KBS_NUM, var3, 7);
             var1.write(var2.num);
         }
+
+        boolean var4;
+        Iterator var5;
         if (var2.orderIds != null) {
-            boolean hasWrite = false;
-            for (Integer oid : var2.orderIds) {
-                if (hasWrite) {
-                    var1.write(',');
+            var1.writeField(KBS_ORDERIDS, var3, 12);
+            var1.write((byte) 91);
+            var4 = false;
+
+            Integer var6;
+            for (var5 = var2.orderIds.iterator(); var5.hasNext(); var1.write(var6)) {
+                var6 = (Integer) var5.next();
+                if (var4) {
+                    var1.write((byte) 44);
                 } else {
-                    hasWrite = true;
+                    var4 = true;
                 }
-                var1.write(oid);
             }
+
+            var1.write((byte) 93);
         }
 
         if (var2.test2List != null) {
             var1.writeField(KBS_TEST2LIST, var3, 13);
-            var1.write('[');
-            boolean hasWrite = false;
-            for (Test2 t : var2.test2List) {
-                if (hasWrite) {
-                    var1.write(',');
+            var1.write((byte) 91);
+            var4 = false;
+
+            Test2 var8;
+            for (var5 = var2.test2List.iterator(); var5.hasNext(); ENCODER_0.encode(var1, var8)) {
+                var8 = (Test2) var5.next();
+                if (var4) {
+                    var1.write((byte) 44);
                 } else {
-                    hasWrite = true;
+                    var4 = true;
                 }
-                ENCODER_0.encode(var1, t);
             }
-            var1.write(']');
+
+            var1.write((byte) 93);
         }
 
+        int var7;
         if (var2.test2Array != null) {
-            var1.writeField(KBS_TEST2LIST, var3, 13);
-            var1.write('[');
-            boolean hasWrite = false;
-            for (int i=0;i<var2.test2Array.length;i++) {
-                if (hasWrite) {
-                    var1.write(',');
+            var1.writeField(KBS_TEST2ARRAY, var3, 14);
+            var1.write((byte) 91);
+            var4 = false;
+
+            for (var7 = 0; var7 < var2.test2Array.length; ++var7) {
+                if (var4) {
+                    var1.write((byte) 44);
                 } else {
-                    hasWrite = true;
+                    var4 = true;
                 }
-                ENCODER_0.encode(var1, var2.test2Array[i]);
+
+                ENCODER_0.encode(var1, var2.test2Array[var7]);
             }
-            var1.write(']');
+
+            var1.write((byte) 93);
         }
+
         if (var2.ageArray != null) {
-            var1.writeField(KBS_TEST2LIST, var3, 13);
-            var1.write('[');
-            boolean hasWrite = false;
-            for (int i=0;i<var2.ageArray.length;i++) {
-                if (hasWrite) {
-                    var1.write(',');
+            var1.writeField(KBS_AGEARRAY, var3, 12);
+            var1.write((byte) 91);
+            var4 = false;
+
+            for (var7 = 0; var7 < var2.ageArray.length; ++var7) {
+                if (var4) {
+                    var1.write((byte) 44);
                 } else {
-                    hasWrite = true;
+                    var4 = true;
                 }
-                var1.write(var2.ageArray[i]);
+
+                var1.write(var2.ageArray[var7]);
             }
-            var1.write(']');
+
+            var1.write((byte) 93);
         }
+
         if (var2.fArray != null) {
-            var1.writeField(KBS_TEST2LIST, var3, 13);
-            var1.write('[');
-            boolean hasWrite = false;
-            for (int i=0;i<var2.fArray.length;i++) {
-                if (hasWrite) {
-                    var1.write(',');
+            var1.writeField(KBS_FARRAY, var3, 10);
+            var1.write((byte) 91);
+            var4 = false;
+
+            for (var7 = 0; var7 < var2.fArray.length; ++var7) {
+                if (var4) {
+                    var1.write((byte) 44);
                 } else {
-                    hasWrite = true;
+                    var4 = true;
                 }
-                var1.write(var2.fArray[i]);
+
+                var1.write(var2.fArray[var7]);
             }
-            var1.write(']');
+
+            var1.write((byte) 93);
         }
-        var1.write('}');
+
+        var1.write((byte) 125);
     }
 }

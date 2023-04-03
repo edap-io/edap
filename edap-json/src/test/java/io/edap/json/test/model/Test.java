@@ -21,7 +21,7 @@ public class Test {
     public List<Test2> test2List;
 
     public Test2[] test2Array;
-    public int[] ageArray;
+    public Integer[] ageArray;
 
     public float[] fArray;
 
@@ -52,7 +52,7 @@ public class Test {
 
         test1.test2List = Arrays.asList(test2, test21);
         test1.test2Array = new Test2[]{test2, test21};
-        test1.ageArray = new int[]{23,34,456};
+        test1.ageArray = new Integer[]{23,34,456};
 
 
         ByteArrayJsonWriter writer = new ByteArrayJsonWriter(new ByteArrayBufOut());
