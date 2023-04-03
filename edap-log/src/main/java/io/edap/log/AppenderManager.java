@@ -32,6 +32,7 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 import static io.edap.log.helpers.Util.printError;
+import static io.edap.util.ClazzUtil.getClassMethods;
 
 public class AppenderManager {
 
@@ -183,11 +184,7 @@ public class AppenderManager {
             if (argNode.getChilds() != null) {
                 for (LogConfig.ArgNode node : argNode.getChilds()) {
                     String fieldName = node.getName();
-                    Method method = getMethod(rollingPolicy, fieldName, String.class);
-                    if (method == null) {
-                        continue;
-                    }
-                    method.invoke(rollingPolicy, node.getValue());
+                    setObjectField(rollingPolicy, fieldName, node.getValue());
                 }
             }
             return rollingPolicy;
@@ -195,6 +192,40 @@ public class AppenderManager {
             printError("createRollingPolicy error", t);
         }
         return null;
+    }
+
+    private void setObjectField(Object obj, String name, String value) throws InvocationTargetException, IllegalAccessException {
+        List<Method> methods = getClassMethods(obj.getClass());
+        if (methods == null) {
+            return;
+        }
+        String setName = "set" + name.substring(0, 1).toUpperCase(Locale.ENGLISH) + name.substring(1);
+        for (Method m : methods) {
+            String methodName = m.getName();
+            if (methodName.equals(setName) && m.getParameterTypes().length == 1) {
+                Class type = m.getParameterTypes()[0];
+                m.setAccessible(true);
+                switch (type.getName()) {
+                    case "java.lang.String":
+                        m.invoke(obj, value);
+                        break;
+                    case "int":
+                        m.invoke(obj, Integer.parseInt(value));
+                        break;
+                    case "java.lang.Integer":
+                        m.invoke(obj, new Integer(Integer.parseInt(value)));
+                        break;
+                    case "boolean":
+                        m.invoke(obj, Boolean.parseBoolean(value));
+                        break;
+                    case "java.lang.Boolean":
+                        m.invoke(obj, new Boolean(Boolean.parseBoolean(value)));
+                        break;
+                    default:
+
+                }
+            }
+        }
     }
 
     private Method getMethod(Object obj, String name, Class type) {

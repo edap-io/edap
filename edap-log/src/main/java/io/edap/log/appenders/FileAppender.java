@@ -78,6 +78,10 @@ public class FileAppender extends OutputStremAppender {
         if (getFile() == null) {
             return;
         }
+        openFile();
+    }
+
+    public void openFile() {
         try {
             lock.lock();
             if (!checkAndCreateFile()) {

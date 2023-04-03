@@ -24,6 +24,11 @@ public interface TimeBasedFileNamingAndTriggeringPolicy extends TriggeringPolicy
 
     String getCurrentPeriodsFileNameWithoutCompressionSuffix();
 
-    void startArchiveTask(String currentFileName, String nextPeriodName);
+    void rollover();
 
+    /**
+     * 根据保留的日志文件的数量来获取过期的日志文件名
+     * @return
+     */
+    String getExpireName(int count);
 }

@@ -4,7 +4,7 @@ import io.edap.log.appenders.FileAppender;
 
 import java.text.ParseException;
 
-public abstract  class RollingPolicyBase implements RollingPolicy {
+public abstract class RollingPolicyBase implements RollingPolicy {
 
     protected String fileNamePatternStr;
 
@@ -41,6 +41,7 @@ public abstract  class RollingPolicyBase implements RollingPolicy {
     }
 
     public void start() throws ParseException {
+        determineCompressionMode();
         started = true;
     }
 
@@ -55,4 +56,5 @@ public abstract  class RollingPolicyBase implements RollingPolicy {
     public FileAppender getParent() {
         return this.parent;
     }
+
 }

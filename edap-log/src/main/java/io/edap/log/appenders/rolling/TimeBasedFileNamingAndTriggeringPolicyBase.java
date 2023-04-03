@@ -72,7 +72,7 @@ public abstract class TimeBasedFileNamingAndTriggeringPolicyBase
     }
 
     @Override
-    public void startArchiveTask(String currentFileName, String nextPeriodName) {
+    public void rollover() {
         this.currentMaxTime = getMaxTime(dateFormat, currentMaxTime + 1);
     }
 
@@ -100,28 +100,7 @@ public abstract class TimeBasedFileNamingAndTriggeringPolicyBase
 
     private long getMaxTime(String dateFormat, long mills) {
         char c;
-        int minTimeUnit = Calendar.YEAR;
-        for (int i=0;i<dateFormat.length();i++) {
-            c = dateFormat.charAt(i);
-            switch (c) {
-                case 'M':
-                    minTimeUnit = Calendar.MONTH;
-                    break;
-                case 'd':
-                    minTimeUnit = Calendar.DAY_OF_MONTH;
-                    break;
-                case 'H':
-                    minTimeUnit = Calendar.HOUR_OF_DAY;
-                    break;
-                case 'm':
-                    minTimeUnit = Calendar.MINUTE;
-                    break;
-                case 's':
-                    minTimeUnit = Calendar.SECOND;
-                    break;
-                default:
-            }
-        }
+        int minTimeUnit = getRolloverTimeUnit();
         Calendar cal = Calendar.getInstance();
         cal.setTimeInMillis(mills);
         String dateStr = new SimpleDateFormat(dateFormat).format(cal.getTime());
@@ -138,6 +117,18 @@ public abstract class TimeBasedFileNamingAndTriggeringPolicyBase
     }
 
     private long getCurrentMaxTime(String dateFormat) throws ParseException {
+        char c;
+        int minTimeUnit = getRolloverTimeUnit();
+        Calendar cal = Calendar.getInstance();
+        String dateStr = new SimpleDateFormat(dateFormat).format(cal.getTime());
+        Date date = new SimpleDateFormat(dateFormat).parse(dateStr);
+        cal.setTime(date);
+        cal.add(minTimeUnit, 1);
+        cal.add(Calendar.MILLISECOND, -1);
+        return cal.getTimeInMillis();
+    }
+
+    private int getRolloverTimeUnit() {
         char c;
         int minTimeUnit = Calendar.YEAR;
         for (int i=0;i<dateFormat.length();i++) {
@@ -161,13 +152,7 @@ public abstract class TimeBasedFileNamingAndTriggeringPolicyBase
                 default:
             }
         }
-        Calendar cal = Calendar.getInstance();
-        String dateStr = new SimpleDateFormat(dateFormat).format(cal.getTime());
-        Date date = new SimpleDateFormat(dateFormat).parse(dateStr);
-        cal.setTime(date);
-        cal.add(minTimeUnit, 1);
-        cal.add(Calendar.MILLISECOND, -1);
-        return cal.getTimeInMillis();
+        return minTimeUnit;
     }
 
     @Override
@@ -239,6 +224,41 @@ public abstract class TimeBasedFileNamingAndTriggeringPolicyBase
         cal.setTimeInMillis(currentMaxTime + 1);
         SimpleDateFormat simpleDateFormat = new SimpleDateFormat(dateFormat);
         return simpleDateFormat.format(cal.getTime());
+    }
+
+    @Override
+    public String getExpireName(int count) {
+        if (count <= 0) {
+            return null;
+        }
+        SimpleDateFormat dateFormat1 = new SimpleDateFormat(dateFormat);
+        Calendar now = Calendar.getInstance();
+        now.setTimeInMillis(currentMaxTime);
+        System.out.println("now=" + dateFormat1.format(now.getTime()));
+        int minTimeUnit = getRolloverTimeUnit();
+        now.add(minTimeUnit, -(count+1));
+        System.out.println("now count=" + dateFormat1.format(now.getTime()));
+        StringBuilder name = new StringBuilder();
+        for (EncoderPatternToken token : patternTokens) {
+            if (token.getType() == EncoderPatternToken.TokenType.TEXT) {
+                name.append(token.getPattern());
+            } else if (token.getType() == EncoderPatternToken.TokenType.ENCODER_FUNC) {
+                String keyword = null;
+                try {
+                    keyword = token.getKeyword();
+                } catch (ParseException e) {
+                    throw new RuntimeException(e);
+                }
+                if ("d".equals(keyword) || "date".equals(keyword)) {
+                    String pattern = token.getPattern();
+                    int kwIndex = pattern.indexOf(keyword);
+                    int kuoIndex = pattern.indexOf("}");
+                    String dateFormat = pattern.substring(kwIndex + keyword.length() + 1, kuoIndex);
+                    name.append(new SimpleDateFormat(dateFormat).format(now.getTime()));
+                }
+            }
+        }
+        return name.toString();
     }
 
     private String getCurrentDateStr(String dateFormat) {

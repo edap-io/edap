@@ -131,6 +131,22 @@ public class OutputStremAppender implements Appender {
         started = false;
     }
 
+    public void closeOutputStream() {
+        if (outputStream == null) {
+            return;
+        }
+        try {
+            this.outputStream.flush();
+        } catch (IOException e) {
+            printError("OutputStream.flush error", e);
+        }
+        try {
+            this.outputStream.close();
+        } catch (IOException e) {
+            printError("OutputStream.flush error", e);
+        }
+    }
+
     @Override
     public boolean isStarted() {
         return started;

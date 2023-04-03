@@ -5,13 +5,14 @@ import io.edap.log.appenders.FileAppender;
 import io.edap.log.helps.ByteArrayBuilder;
 
 import java.io.IOException;
-import java.text.ParseException;
 
 import static io.edap.log.helpers.Util.printError;
 
 public class RollingFileAppender extends FileAppender {
 
     private RollingPolicy rollingPolicy;
+
+    public static final int UNBOUNDED_HISTORY = 0;
 
     private TriggeringPolicy triggeringPolicy;
 
