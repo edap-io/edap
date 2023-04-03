@@ -83,15 +83,10 @@ public class TimeBasedRollingPolicy extends RollingPolicyBase implements Trigger
             return;
         }
         // 如果有设置压缩则先压缩刚切换的日志文件
-        switch (compressionMode) {
-            case GZ:
-                compressionFile(currentFileName, compressionMode);
-                break;
-            case ZIP:
-                compressionFile(currentFileName, compressionMode);
-                break;
-            default:
-
+        if (compression != null) {
+            String zipName = currentFileName.endsWith("." + compression.getSuffix())
+                    ?currentFileName:currentFileName + "." + compression.getSuffix();
+            compression.compress(currentFileName, zipName);
         }
         // 删除过时的日志文件
         printError("maxHistory=" + maxHistory);
@@ -108,7 +103,7 @@ public class TimeBasedRollingPolicy extends RollingPolicyBase implements Trigger
                 f.delete();
             } else {
                 printError("exists is false=" + needDeleteFileName);
-                if (compressionMode != CompressionMode.NONE) {
+                if (compression != null) {
                     int lastDot = needDeleteFileName.lastIndexOf(".");
                     if (lastDot != -1) {
                         String noCompressionName = needDeleteFileName.substring(0, lastDot);
@@ -121,10 +116,6 @@ public class TimeBasedRollingPolicy extends RollingPolicyBase implements Trigger
                 }
             }
         }
-    }
-
-    private void compressionFile(String currentFileName, CompressionMode compressionMode) {
-
     }
 
     @Override

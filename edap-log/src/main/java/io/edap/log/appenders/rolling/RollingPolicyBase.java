@@ -1,14 +1,17 @@
 package io.edap.log.appenders.rolling;
 
+import io.edap.log.LogCompression;
 import io.edap.log.appenders.FileAppender;
+import io.edap.log.compression.CompressionManager;
 
 import java.text.ParseException;
+import java.util.Map;
 
 public abstract class RollingPolicyBase implements RollingPolicy {
 
     protected String fileNamePatternStr;
 
-    protected CompressionMode compressionMode = CompressionMode.NONE;
+    protected LogCompression compression = null;
 
     private boolean started;
 
@@ -23,17 +26,18 @@ public abstract class RollingPolicyBase implements RollingPolicy {
     }
 
     protected void determineCompressionMode() {
-        if (fileNamePatternStr.endsWith(".gz")) {
-            compressionMode = CompressionMode.GZ;
-        } else if (fileNamePatternStr.endsWith(".zip")) {
-            compressionMode = CompressionMode.ZIP;
-        } else {
-            compressionMode = CompressionMode.NONE;
+        Map<String, LogCompression> compressions = CompressionManager.getInstance().getCompressionMap();
+        int lastDot = fileNamePatternStr.lastIndexOf(".");
+        if (lastDot == -1) {
+            return;
         }
+        String suffix = fileNamePatternStr.substring(lastDot+1);
+        compression = compressions.get(suffix);
     }
 
-    public CompressionMode getCompressionMode() {
-        return compressionMode;
+    @Override
+    public LogCompression getCompression() {
+        return compression;
     }
 
     public boolean isStarted() {

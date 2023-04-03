@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 The edap Project
+ * Copyright 2022 The edap Project
  *
  * The Netty Project licenses this file to you under the Apache License,
  * version 2.0 (the "License"); you may not use this file except in compliance
@@ -14,8 +14,23 @@
  * under the License.
  */
 
-package io.edap.log.appenders.rolling;
+package io.edap.log;
 
-public enum CompressionMode {
-    NONE, GZ, ZIP;
+/**
+ * 日志文件压缩SPI定义
+ */
+public interface LogCompression {
+
+    /**
+     * 压缩引擎的后缀名
+     * @return
+     */
+    String getSuffix();
+
+    /**
+     * 压缩指定的原文件到目标文件中
+     * @param plainName
+     * @param gzName
+     */
+    void compress(String plainName, String gzName);
 }

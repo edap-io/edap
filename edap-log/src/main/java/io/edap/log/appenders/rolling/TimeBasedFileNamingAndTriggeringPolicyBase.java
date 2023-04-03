@@ -208,10 +208,10 @@ public abstract class TimeBasedFileNamingAndTriggeringPolicyBase
     }
 
     public String removeCompressionSuffix(String name) {
-        if (name.endsWith(".gz")) {
-            return name.substring(0, name.length() - 3);
-        } else if (name.endsWith(".zip")) {
-            return name.substring(0, name.length() - 4);
+        if (tbrp.getCompression() != null) {
+            if (name.endsWith("." + tbrp.getCompression().getSuffix())) {
+                return name.substring(0, name.length() - tbrp.getCompression().getSuffix().length() - 1);
+            }
         }
         return name;
     }

@@ -1,6 +1,7 @@
 package io.edap.log.appenders.rolling;
 
 import io.edap.log.LifeCycle;
+import io.edap.log.LogCompression;
 import io.edap.log.appenders.FileAppender;
 
 import java.text.ParseException;
@@ -22,7 +23,7 @@ public interface RollingPolicy extends LifeCycle {
      * 历史日志文件压缩模式
      * @return
      */
-    CompressionMode getCompressionMode();
+    LogCompression getCompression();
 
     /**
      * 设置改日志切换器的FileAppender实例
