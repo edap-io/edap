@@ -170,4 +170,60 @@ public class TestFixWindowRollingPolicy {
             }
         }
     }
+
+    @Test
+    public void testSizeBaseRollingPolicyLz4Compress() {
+        try {
+            EdapTestAdapter edapTestAdapter = (EdapTestAdapter) ConfigManager.getLogAdapter();
+            File f = new File("./logs/");
+            if (f.exists()) {
+                File[] files = f.listFiles();
+                for (File child : files) {
+                    child.delete();
+                }
+                f.delete();
+            }
+            if (edapTestAdapter != null) {
+                edapTestAdapter.reloadConfig("/edap-log-size-rollover-lz4compress.xml");
+            }
+
+            for (int i=0;i<100;i++) {
+                LOG.info("name: {},height: {}", l -> l.arg("edap").arg(90.0));
+            }
+
+            Thread.sleep(1000);
+
+            f = new File("./logs/");
+            assertEquals(f.exists(), true);
+            File[] files = f.listFiles();
+            List<String> logNames = new ArrayList<>();
+            for (File logFile : files) {
+                logNames.add(logFile.getName());
+            }
+            SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd");
+            for (int i=1;i<2;i++) {
+                String name = "edap-size-rollover." + i + ".log.lz4";
+                assertEquals(logNames.contains(name), true);
+            }
+
+            assertEquals(files.length, 2);
+        } catch (ParserConfigurationException e) {
+            throw new RuntimeException(e);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        } catch (SAXException e) {
+            throw new RuntimeException(e);
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        } finally {
+//            File f = new File("./logs/");
+//            if (f.exists()) {
+//                File[] files = f.listFiles();
+//                for (File child : files) {
+//                    child.delete();
+//                }
+//                f.delete();
+//            }
+        }
+    }
 }
