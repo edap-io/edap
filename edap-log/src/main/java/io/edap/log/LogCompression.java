@@ -16,6 +16,8 @@
 
 package io.edap.log;
 
+import java.io.File;
+
 /**
  * 日志文件压缩SPI定义
  */
@@ -32,5 +34,5 @@ public interface LogCompression {
      * @param plainName
      * @param gzName
      */
-    void compress(String plainName, String gzName);
+    void compress(File plainName, File gzName);
 }

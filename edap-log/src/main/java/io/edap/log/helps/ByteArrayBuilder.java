@@ -66,6 +66,10 @@ public class ByteArrayBuilder {
         return value.length - count;
     }
 
+    public int length() {
+        return count;
+    }
+
     public ByteArrayBuilder(int cap) {
         initValue(cap);
         this.count = 0;

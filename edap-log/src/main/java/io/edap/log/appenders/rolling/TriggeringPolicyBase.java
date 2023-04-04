@@ -16,7 +16,11 @@
 
 package io.edap.log.appenders.rolling;
 
+import io.edap.log.appenders.FileAppender;
+
 public abstract class TriggeringPolicyBase implements TriggeringPolicy {
+
+    protected FileAppender fileAppender;
 
     private boolean start;
 
@@ -30,5 +34,10 @@ public abstract class TriggeringPolicyBase implements TriggeringPolicy {
 
     public boolean isStarted() {
         return start;
+    }
+
+    @Override
+    public void setFileAppender(FileAppender fileAppender) {
+        this.fileAppender = fileAppender;
     }
 }

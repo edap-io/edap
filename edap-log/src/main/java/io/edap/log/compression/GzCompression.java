@@ -24,8 +24,6 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.util.zip.GZIPOutputStream;
 
-import static io.edap.log.helpers.Util.printError;
-
 public class GzCompression implements LogCompression {
 
     private static final int BUFFER_SIZE = 8192;
@@ -35,25 +33,18 @@ public class GzCompression implements LogCompression {
     }
 
     @Override
-    public void compress(String plainName, String gzName) {
-        File file2gz = new File(plainName);
+    public void compress(File file2gz, File gzFile) {
         if (!file2gz.exists()) {
-            throw new RuntimeException(plainName + " file not founc");
+            throw new RuntimeException(file2gz.getAbsolutePath() + " file not founc");
         }
 
-        if (!gzName.endsWith(".gz")) {
-            gzName = gzName + ".gz";
-        }
-
-        File gzedFile = new File(gzName);
-
-        if (gzedFile.exists()) {
-            throw new RuntimeException("The target compressed file named [" + gzName
+        if (gzFile.exists()) {
+            throw new RuntimeException("The target compressed file named [" + gzFile.getName()
                     + "] exist already. Aborting file compression.");
         }
 
         try (BufferedInputStream bis = new BufferedInputStream(new FileInputStream(file2gz));
-             GZIPOutputStream gzos = new GZIPOutputStream(new FileOutputStream(gzedFile))) {
+             GZIPOutputStream gzos = new GZIPOutputStream(new FileOutputStream(gzFile))) {
 
             byte[] inbuf = new byte[BUFFER_SIZE];
             int n;

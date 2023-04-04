@@ -7,14 +7,10 @@ import io.edap.util.StringUtil;
 
 import java.io.File;
 import java.text.ParseException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 import static io.edap.log.helpers.Util.printError;
 
 public class TimeBasedRollingPolicy extends RollingPolicyBase implements TriggeringPolicy {
-
-    ExecutorService executorService = Executors.newSingleThreadExecutor();
 
     TimeBasedFileNamingAndTriggeringPolicy timeBasedFileNamingAndTriggeringPolicy;
 
@@ -72,6 +68,13 @@ public class TimeBasedRollingPolicy extends RollingPolicyBase implements Trigger
         }
     }
 
+    @Override
+    public void setFileAppender(FileAppender fileAppender) {
+        if (getParent() == null) {
+            setParent(fileAppender);
+        }
+    }
+
     public void startArchiveTask(final String currentFileName, final String nextPeriodName) {
         String fileName = timeBasedFileNamingAndTriggeringPolicy.getExpireName(maxHistory);
         executorService.submit(() -> doArchive(currentFileName, fileName));
@@ -87,7 +90,7 @@ public class TimeBasedRollingPolicy extends RollingPolicyBase implements Trigger
             String zipName = currentFileName.endsWith("." + compression.getSuffix())
                     ?currentFileName:currentFileName + "." + compression.getSuffix();
             try {
-                compression.compress(currentFileName, zipName);
+                compression.compress(new File(currentFileName), new File(zipName));
                 File f = new File(currentFileName);
                 if (f.exists()) {
                     f.delete();

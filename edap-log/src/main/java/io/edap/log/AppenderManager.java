@@ -18,6 +18,7 @@ package io.edap.log;
 
 import io.edap.log.appenders.FileAppender;
 import io.edap.log.appenders.rolling.RollingPolicy;
+import io.edap.log.appenders.rolling.TriggeringPolicy;
 import io.edap.log.config.AppenderConfig;
 import io.edap.log.config.AppenderConfigSection;
 import io.edap.log.helps.LogEncoderRegister;
@@ -102,6 +103,7 @@ public class AppenderManager {
             String prudentStr = null;
             String immediateFlushStr = null;
             RollingPolicy rollingPolicy = null;
+            TriggeringPolicy triggeringPolicy = null;
             if (!CollectionUtils.isEmpty(args)) {
                 for (LogConfig.ArgNode argNode : args) {
                     if ("encoder".equals(argNode.getName())) {
@@ -114,6 +116,8 @@ public class AppenderManager {
                         immediateFlushStr = argNode.getValue();
                     } else if ("rollingPolicy".equals(argNode.getName())) {
                         rollingPolicy = createRollingPolicy(argNode);
+                    } else if ("triggeringPolicy".equals(argNode.getName())) {
+                        triggeringPolicy = createTriggeringPolicy(argNode);
                     }
                 }
             }
@@ -159,6 +163,16 @@ public class AppenderManager {
                     method.invoke(appender, rollingPolicy);
                 }
             }
+            if (triggeringPolicy != null) {
+                if (appender instanceof FileAppender) {
+                    triggeringPolicy.setFileAppender((FileAppender) appender);
+                }
+                triggeringPolicy.start();
+                Method method = getMethod(appender, "triggeringPolicy", TriggeringPolicy.class);
+                if (method != null) {
+                    method.invoke(appender, triggeringPolicy);
+                }
+            }
             appender.start();
         } catch (ClassNotFoundException e) {
             throw new RuntimeException(e);
@@ -182,6 +196,27 @@ public class AppenderManager {
         try {
             Class cls = Class.forName(clsName);
             RollingPolicy rollingPolicy = (RollingPolicy) cls.newInstance();
+            if (argNode.getChilds() != null) {
+                for (LogConfig.ArgNode node : argNode.getChilds()) {
+                    String fieldName = node.getName();
+                    setObjectField(rollingPolicy, fieldName, node.getValue());
+                }
+            }
+            return rollingPolicy;
+        } catch (Throwable t) {
+            printError("createRollingPolicy error", t);
+        }
+        return null;
+    }
+
+    private TriggeringPolicy createTriggeringPolicy(LogConfig.ArgNode argNode) {
+        String clsName = argNode.getAttributes().get("class");
+        if (StringUtil.isEmpty(clsName)) {
+            return null;
+        }
+        try {
+            Class cls = Class.forName(clsName);
+            TriggeringPolicy rollingPolicy = (TriggeringPolicy) cls.newInstance();
             if (argNode.getChilds() != null) {
                 for (LogConfig.ArgNode node : argNode.getChilds()) {
                     String fieldName = node.getName();

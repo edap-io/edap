@@ -6,8 +6,12 @@ import io.edap.log.compression.CompressionManager;
 
 import java.text.ParseException;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public abstract class RollingPolicyBase implements RollingPolicy {
+
+    ExecutorService executorService = Executors.newSingleThreadExecutor();
 
     protected String fileNamePatternStr;
 
@@ -59,6 +63,10 @@ public abstract class RollingPolicyBase implements RollingPolicy {
 
     public FileAppender getParent() {
         return this.parent;
+    }
+
+    public String getParentsRawFileProperty() {
+        return parent.rawFileProperty();
     }
 
 }

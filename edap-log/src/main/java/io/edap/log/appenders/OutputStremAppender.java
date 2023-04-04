@@ -24,6 +24,7 @@ import io.edap.log.helps.ByteArrayBuilder;
 import io.edap.log.io.BaseLogOutputStream;
 
 import java.io.IOException;
+import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
 import static io.edap.log.helpers.Util.printError;
@@ -31,6 +32,8 @@ import static io.edap.log.helpers.Util.printError;
 public class OutputStremAppender implements Appender {
 
     protected final ReentrantLock lock = new ReentrantLock(false);
+
+    public final ReentrantLock compressLock = new ReentrantLock(false);
 
     protected Encoder encoder;
 
@@ -41,6 +44,10 @@ public class OutputStremAppender implements Appender {
     private String name;
 
     private boolean started;
+
+    public ReentrantLock getCompressLock() {
+        return compressLock;
+    }
 
     @Override
     public void append(LogEvent logEvent) throws IOException {

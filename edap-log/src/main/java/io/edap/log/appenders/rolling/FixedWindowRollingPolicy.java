@@ -16,13 +16,15 @@
 
 package io.edap.log.appenders.rolling;
 
+import io.edap.log.appenders.FileAppender;
 import io.edap.log.helps.EncoderPatternParser;
 import io.edap.log.helps.EncoderPatternToken;
 import io.edap.util.CollectionUtils;
-import io.edap.util.StringUtil;
 
+import java.io.File;
 import java.text.ParseException;
 import java.util.List;
+import java.util.concurrent.locks.ReentrantLock;
 
 import static io.edap.log.helpers.Util.printError;
 
@@ -39,6 +41,8 @@ public class FixedWindowRollingPolicy extends RollingPolicyBase {
      * 最大的窗口大小，强烈不建议窗口大小大于20
      */
     private static int MAX_WINDOW_SIZE = 20;
+
+    private List<EncoderPatternToken> patternTokens;
 
     public FixedWindowRollingPolicy() {
         minIndex = 1;
@@ -77,7 +81,7 @@ public class FixedWindowRollingPolicy extends RollingPolicyBase {
         String fileNamePattern = getFileNamePattern();
         EncoderPatternParser epp = new EncoderPatternParser(fileNamePattern);
         try {
-            List<EncoderPatternToken> patternTokens = epp.parse();
+            patternTokens = epp.parse();
             if (CollectionUtils.isEmpty(patternTokens)) {
                 return false;
             }
@@ -95,14 +99,84 @@ public class FixedWindowRollingPolicy extends RollingPolicyBase {
         return false;
     }
 
-    @Override
-    public void rollover() {
-
+    private String buildFileName(int num) {
+        if (CollectionUtils.isEmpty(patternTokens)) {
+            throw new RuntimeException("havn't fileNamePattern set");
+        }
+        StringBuilder name = new StringBuilder();
+        try {
+            for (EncoderPatternToken token : patternTokens) {
+                if (token.getType() == EncoderPatternToken.TokenType.ENCODER_FUNC) {
+                    if ("i".equals(token.getKeyword())) {
+                        name.append(num);
+                    } else {
+                        name.append(token.getPattern());
+                    }
+                } else {
+                    name.append(token.getPattern());
+                }
+            }
+        } catch (ParseException e) {
+            printError("buildFileName error", e);
+        }
+        return name.toString();
     }
 
     @Override
-    public String getActiveFileName() throws ParseException {
-        return null;
+    public void rollover() {
+        if (maxIndex < 1) {
+            return;
+        }
+        File maxFile = new File(buildFileName(maxIndex));
+        if (maxFile.exists()) {
+            maxFile.delete();
+        }
+        for (int i=maxIndex-1;i>=minIndex;i--) {
+            File renameFile = new File(buildFileName(i));
+            if (renameFile.exists()) {
+                renameFile.renameTo(new File(buildFileName(i+1)));
+            }
+        }
+        try {
+            String minFileName = buildFileName(minIndex);
+            if (compression != null && minFileName.endsWith("." + compression.getSuffix())) {
+                minFileName = minFileName.substring(0, minFileName.length() - compression.getSuffix().length() - 1);
+            }
+            File minFile = new File(minFileName);
+            File curFile = new File(getActiveFileName());
+            curFile.renameTo(minFile);
+            FileAppender fileAppender = getParent();
+            fileAppender.closeOutputStream();
+            fileAppender.setFile(getActiveFileName());
+            fileAppender.openFile();
+            if (compression != null) {
+                File compressionFile = new File(minFileName + "." + compression.getSuffix());
+                doCompress(minFile, compressionFile);
+            }
+
+        } catch (Throwable t) {
+            printError("FixedWindowRollingPolicy rollover error", t);
+        }
+    }
+
+    private void doCompress(File minFile, File compressFile) {
+        executorService.submit(() -> {
+            ReentrantLock lock = getParent().getCompressLock();
+            try {
+                lock.lock();
+                compression.compress(minFile, compressFile);
+                minFile.delete();
+            } catch (Throwable t) {
+                printError("Log file compress error", t);
+            } finally {
+                lock.unlock();
+            }
+        });
+    }
+
+    @Override
+    public String getActiveFileName() {
+        return getParentsRawFileProperty();
     }
 
     /**

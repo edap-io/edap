@@ -14,36 +14,31 @@
  * under the License.
  */
 
-package io.edap.log.test.converter;
+package io.edap.log.test.encoder.converter;
 
 import io.edap.log.converter.TextConverter;
 import io.edap.log.helps.ByteArrayBuilder;
 
 import java.nio.charset.StandardCharsets;
 
-public class DemoFourByteTextConverter implements TextConverter {
+public class DemoTwoByteTextConverter implements TextConverter {
 
     private static final byte b1;
     private static final byte b2;
 
-    private static final byte b3;
-
-    private static final byte b4;
-
     static {
-        byte[] bytes = "b2b1".getBytes(StandardCharsets.UTF_8);
+        byte[] bytes = "b2".getBytes(StandardCharsets.UTF_8);
         b1 = bytes[0];
         b2 = bytes[1];
-        b3 = bytes[2];
-        b4 = bytes[3];
     }
 
-    public DemoFourByteTextConverter() {
+    public DemoTwoByteTextConverter() {
 
     }
+
 
     @Override
     public void convertTo(ByteArrayBuilder out, String s) {
-        out.append(b1, b2, b3, b4);
+        out.append(b1, b2);
     }
 }

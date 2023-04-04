@@ -36,4 +36,6 @@ public interface TriggeringPolicy extends LifeCycle {
      * @return 是否达到触发日志文件滚动的条件
      */
     boolean isTriggeringEvent(final File activeFile, LogEvent event, ByteArrayBuilder builder);
+
+    void setFileAppender(FileAppender fileAppender);
 }

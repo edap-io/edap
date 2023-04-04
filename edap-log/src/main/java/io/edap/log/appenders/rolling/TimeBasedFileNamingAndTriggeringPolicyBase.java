@@ -16,6 +16,7 @@
 
 package io.edap.log.appenders.rolling;
 
+import io.edap.log.appenders.FileAppender;
 import io.edap.log.helps.EncoderPatternParser;
 import io.edap.log.helps.EncoderPatternToken;
 import io.edap.util.StringUtil;
@@ -68,6 +69,13 @@ public abstract class TimeBasedFileNamingAndTriggeringPolicyBase
             }
         } catch (Throwable t) {
             printError("parse fileNamePattern error", t);
+        }
+    }
+
+    @Override
+    public void setFileAppender(FileAppender fileAppender) {
+        if (tbrp.getParent() == null) {
+            tbrp.setFileAppender(fileAppender);
         }
     }
 

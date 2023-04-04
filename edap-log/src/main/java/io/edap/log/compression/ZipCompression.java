@@ -25,8 +25,6 @@ import java.io.FileOutputStream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
-import static io.edap.log.helpers.Util.printError;
-
 public class ZipCompression implements LogCompression {
 
     private static final int BUFFER_SIZE = 8192;
@@ -37,34 +35,30 @@ public class ZipCompression implements LogCompression {
     }
 
     @Override
-    public void compress(String plainName, String gzName) {
-        File file2gz = new File(plainName);
+    public void compress(File file2gz, File gzFile) {
         if (!file2gz.exists()) {
-            throw new RuntimeException("[" + plainName + "] not founc");
+            throw new RuntimeException("[" + file2gz.getAbsolutePath() + "] not found");
         }
 
         String innerEntryName;
+        String gzName = gzFile.getAbsolutePath();
         int lastSlash = gzName.lastIndexOf('/');
         if (lastSlash == -1) {
             innerEntryName = gzName;
         } else {
             innerEntryName = gzName.substring(lastSlash+1);
         }
-        if (!gzName.endsWith(".zip")) {
-            gzName = gzName + ".zip";
-        } else {
+        if (gzName.endsWith(".zip")) {
             innerEntryName = innerEntryName.substring(0, innerEntryName.length()-4);
         }
 
-        File gzedFile = new File(gzName);
-
-        if (gzedFile.exists()) {
+        if (gzFile.exists()) {
             throw new RuntimeException("The target compressed file named [" + gzName
                     + "] exist already. Aborting file compression.");
         }
 
-        try (BufferedInputStream bis = new BufferedInputStream(new FileInputStream(plainName));
-             ZipOutputStream zos = new ZipOutputStream(new FileOutputStream(gzedFile))) {
+        try (BufferedInputStream bis = new BufferedInputStream(new FileInputStream(file2gz));
+             ZipOutputStream zos = new ZipOutputStream(new FileOutputStream(gzFile))) {
 
             ZipEntry zipEntry = new ZipEntry(innerEntryName);
             zos.putNextEntry(zipEntry);
