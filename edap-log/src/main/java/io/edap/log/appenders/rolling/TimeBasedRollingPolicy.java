@@ -3,10 +3,12 @@ package io.edap.log.appenders.rolling;
 import io.edap.log.LogEvent;
 import io.edap.log.appenders.FileAppender;
 import io.edap.log.helps.ByteArrayBuilder;
+import io.edap.util.CollectionUtils;
 import io.edap.util.StringUtil;
 
 import java.io.File;
 import java.text.ParseException;
+import java.util.List;
 
 import static io.edap.log.helpers.Util.printError;
 
@@ -62,7 +64,8 @@ public class TimeBasedRollingPolicy extends RollingPolicyBase implements Trigger
                 fileAppender.openFile();
             }
             timeBasedFileNamingAndTriggeringPolicy.rollover();
-            startArchiveTask(datePatternFileName, nextFileName);
+            List<String> fileNames = timeBasedFileNamingAndTriggeringPolicy.getExpireNames(maxHistory);
+            startArchiveTask(datePatternFileName, fileNames);
         } catch (ParseException e) {
             throw new RuntimeException(e);
         }
@@ -75,12 +78,12 @@ public class TimeBasedRollingPolicy extends RollingPolicyBase implements Trigger
         }
     }
 
-    public void startArchiveTask(final String currentFileName, final String nextPeriodName) {
-        String fileName = timeBasedFileNamingAndTriggeringPolicy.getExpireName(maxHistory);
-        executorService.submit(() -> doArchive(currentFileName, fileName));
+    public void startArchiveTask(final String currentFileName, List<String> needDeleteFileNames) {
+
+        executorService.submit(() -> doArchive(currentFileName, needDeleteFileNames));
     }
 
-    private void doArchive(String currentFileName, String needDeleteFileName) {
+    private void doArchive(String currentFileName, List<String> needDeleteFileNames) {
         File archiveDir = new File(currentFileName);
         if (!archiveDir.exists()) {
             return;
@@ -102,26 +105,26 @@ public class TimeBasedRollingPolicy extends RollingPolicyBase implements Trigger
         // 删除过时的日志文件
         printError("maxHistory=" + maxHistory);
         if (maxHistory > 0) {
-
             printError("currentFileName=" + currentFileName);
-            printError("getExpireName=" + needDeleteFileName);
-            if (needDeleteFileName == null) {
+            if (CollectionUtils.isEmpty(needDeleteFileNames)) {
                 return;
             }
-            File f = new File(needDeleteFileName);
-            if (f.exists()) {
-                printError("delete=" + needDeleteFileName);
-                f.delete();
-            } else {
-                printError("exists is false=" + needDeleteFileName);
-                if (compression != null) {
-                    int lastDot = needDeleteFileName.lastIndexOf(".");
-                    if (lastDot != -1) {
-                        String noCompressionName = needDeleteFileName.substring(0, lastDot);
-                        f = new File(noCompressionName);
-                        if (f.exists()) {
-                            printError("delete=" + noCompressionName);
-                            f.delete();
+            for (String needDeleteFileName : needDeleteFileNames) {
+                File f = new File(needDeleteFileName);
+                if (f.exists()) {
+                    printError("delete=" + needDeleteFileName);
+                    f.delete();
+                } else {
+                    printError("exists is false=" + needDeleteFileName);
+                    if (compression != null) {
+                        int lastDot = needDeleteFileName.lastIndexOf(".");
+                        if (lastDot != -1) {
+                            String noCompressionName = needDeleteFileName.substring(0, lastDot);
+                            f = new File(noCompressionName);
+                            if (f.exists()) {
+                                printError("delete=" + noCompressionName);
+                                f.delete();
+                            }
                         }
                     }
                 }

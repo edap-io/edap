@@ -16,6 +16,8 @@
 
 package io.edap.log.appenders.rolling;
 
+import java.util.List;
+
 public interface TimeBasedFileNamingAndTriggeringPolicy extends TriggeringPolicy {
 
     void setTimeBasedRollingPolicy(TimeBasedRollingPolicy tbrp);
@@ -30,5 +32,5 @@ public interface TimeBasedFileNamingAndTriggeringPolicy extends TriggeringPolicy
      * 根据保留的日志文件的数量来获取过期的日志文件名
      * @return
      */
-    String getExpireName(int count);
+    List<String> getExpireNames(int count);
 }

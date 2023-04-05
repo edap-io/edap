@@ -381,7 +381,7 @@ public class TestTimeBasedRollingPolicy {
                 logEvent.setLogTime(now + (i*24*60*60*1000));
                 appender.append(logEvent);
             }
-            Thread.sleep(1000);
+            Thread.sleep(2000);
             f = new File("./logs/");
             assertEquals(f.exists(), true);
             File[] files = f.listFiles();

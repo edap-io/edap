@@ -24,6 +24,7 @@ import io.edap.util.StringUtil;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
+import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 
@@ -41,9 +42,9 @@ public abstract class TimeBasedFileNamingAndTriggeringPolicyBase
 
     protected boolean started = false;
 
-    private List<EncoderPatternToken> patternTokens;
+    protected List<EncoderPatternToken> patternTokens;
 
-    private String dateFormat;
+    protected String dateFormat;
 
     public void setTimeBasedRollingPolicy(TimeBasedRollingPolicy tbrp) {
         this.tbrp = tbrp;
@@ -124,7 +125,7 @@ public abstract class TimeBasedFileNamingAndTriggeringPolicyBase
         return cal.getTimeInMillis();
     }
 
-    private long getCurrentMaxTime(String dateFormat) throws ParseException {
+    protected long getCurrentMaxTime(String dateFormat) throws ParseException {
         char c;
         int minTimeUnit = getRolloverTimeUnit();
         Calendar cal = Calendar.getInstance();
@@ -235,7 +236,7 @@ public abstract class TimeBasedFileNamingAndTriggeringPolicyBase
     }
 
     @Override
-    public String getExpireName(int count) {
+    public List<String> getExpireNames(int count) {
         if (count <= 0) {
             return null;
         }
@@ -266,7 +267,7 @@ public abstract class TimeBasedFileNamingAndTriggeringPolicyBase
                 }
             }
         }
-        return name.toString();
+        return Collections.singletonList(name.toString());
     }
 
     private String getCurrentDateStr(String dateFormat) {

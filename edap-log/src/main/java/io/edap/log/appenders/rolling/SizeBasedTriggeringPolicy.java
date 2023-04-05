@@ -47,7 +47,7 @@ public class SizeBasedTriggeringPolicy extends TriggeringPolicyBase {
         super.start();
     }
 
-    public long parseFileSize(String maxFileSize) {
+    public static long parseFileSize(String maxFileSize) {
         StringBuilder numStr = new StringBuilder();
         int index = 0;
         maxFileSize = maxFileSize.trim();
