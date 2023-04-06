@@ -26,12 +26,17 @@ import io.edap.util.StringUtil;
 import java.io.File;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
-import java.util.Date;
+import java.util.*;
 
 import static io.edap.log.appenders.rolling.SizeBasedTriggeringPolicy.parseFileSize;
 import static io.edap.log.helpers.Util.printMsg;
 
 public class SizeAndTimeBasedFNATP extends TimeBasedFileNamingAndTriggeringPolicyBase{
+
+    enum RollType {
+        TIME,
+        SIZE
+    }
 
     /**
      * 设置不正确时使用最大200MB
@@ -47,6 +52,8 @@ public class SizeAndTimeBasedFNATP extends TimeBasedFileNamingAndTriggeringPolic
      * 当前使用的文件个数的序号
      */
     volatile int currentSeq;
+
+    volatile RollType rollType = RollType.SIZE;
 
     @Override
     public void start() {
@@ -75,6 +82,16 @@ public class SizeAndTimeBasedFNATP extends TimeBasedFileNamingAndTriggeringPolic
         started = true;
     }
 
+    @Override
+    public void rollover() {
+        if (rollType == RollType.SIZE) {
+            currentSeq++;
+        } else {
+            this.currentMaxTime = getMaxTime(dateFormat, currentMaxTime + 1);
+            currentSeq = 0;
+        }
+    }
+
     private void parseMaxFileSize() {
         if (!StringUtil.isEmpty(getMaxFileSize())) {
             long size = parseFileSize(getMaxFileSize());
@@ -87,9 +104,11 @@ public class SizeAndTimeBasedFNATP extends TimeBasedFileNamingAndTriggeringPolic
     @Override
     public boolean isTriggeringEvent(File activeFile, LogEvent event, ByteArrayBuilder builder) {
         if (event.getLogTime() > currentMaxTime) {
+            rollType = RollType.TIME;
             return true;
         }
         if (builder.length() > maxLength) {
+            rollType = RollType.SIZE;
             return true;
         }
         return false;
@@ -138,7 +157,7 @@ public class SizeAndTimeBasedFNATP extends TimeBasedFileNamingAndTriggeringPolic
             if (logName.startsWith(dateFormatPart) && logName.endsWith(fnp.seqSuffix)) {
                 System.out.println(log.getName());
                 try {
-                    int seq = Integer.parseInt(logName.substring(dateFormatPart.length() + fnp.getSepLength(),
+                    int seq = Integer.parseInt(logName.substring(dateFormatPart.length() + fnp.getMidPart().length(),
                             logName.length() - fnp.seqSuffix.length()));
                     if (seq > maxSeq) {
                         maxSeq = seq;
@@ -183,11 +202,10 @@ public class SizeAndTimeBasedFNATP extends TimeBasedFileNamingAndTriggeringPolic
         return sb.toString();
     }
 
-    private FileNamePattern parseFileNamePattern() {
+    private FileNamePattern parseFileNamePattern(Date now) {
         String dateFormatPart = "";
         StringBuilder sb = new StringBuilder();
-        Date now = new Date();
-        int sepLength = 0;
+        String midPart = "";
         for (int i=0;i<patternTokens.size();i++) {
             EncoderPatternToken token = patternTokens.get(i);
             if (token.getType() == EncoderPatternToken.TokenType.ENCODER_FUNC) {
@@ -210,7 +228,7 @@ public class SizeAndTimeBasedFNATP extends TimeBasedFileNamingAndTriggeringPolic
                         break;
                     case "i":
                         if (sb.length() > 0) {
-                            sepLength = sb.length();
+                            midPart = sb.toString();
                         }
                         sb.delete(0, sb.length());
                         break;
@@ -224,8 +242,12 @@ public class SizeAndTimeBasedFNATP extends TimeBasedFileNamingAndTriggeringPolic
         FileNamePattern fp = new FileNamePattern();
         fp.setDateFormatPart(dateFormatPart);
         fp.setSeqSuffix(suffix);
-        fp.setSepLength(sepLength);
+        fp.setMidPart(midPart);
         return fp;
+    }
+
+    private FileNamePattern parseFileNamePattern() {
+        return parseFileNamePattern(new Date());
     }
 
     class FileNamePattern {
@@ -237,7 +259,7 @@ public class SizeAndTimeBasedFNATP extends TimeBasedFileNamingAndTriggeringPolic
          * 文件序号后的文件名部分，用于后置匹配
          */
         private String seqSuffix;
-        private int sepLength;
+        private String midPart;
 
 
         /**
@@ -265,12 +287,12 @@ public class SizeAndTimeBasedFNATP extends TimeBasedFileNamingAndTriggeringPolic
         /**
          * 时间和序号之间的字符长度
          */
-        public int getSepLength() {
-            return sepLength;
+        public String getMidPart() {
+            return midPart;
         }
 
-        public void setSepLength(int sepLength) {
-            this.sepLength = sepLength;
+        public void setMidPart(String midPart) {
+            this.midPart = midPart;
         }
     }
 
@@ -316,5 +338,48 @@ public class SizeAndTimeBasedFNATP extends TimeBasedFileNamingAndTriggeringPolic
             throw new RuntimeException("fileNamePattern 中\"%i\"需在\"%d{}\"的后面");
         }
         return dateFormat;
+    }
+
+    @Override
+    public List<String> getExpireNames(int count) {
+        if (count <= 0) {
+            return null;
+        }
+        SimpleDateFormat dateFormat1 = new SimpleDateFormat(dateFormat);
+        Calendar now = Calendar.getInstance();
+        System.out.println("now=" + dateFormat1.format(now.getTime()));
+        int minTimeUnit = getRolloverTimeUnit();
+        now.add(minTimeUnit, -(count+1));
+
+        List<String> needDeleteFiles = new ArrayList<>();
+        String fileName = calFileName(now.getTimeInMillis(), 0);
+        File logFile = new File(fileName);
+        if (!logFile.getParentFile().exists()) {
+            return null;
+        }
+        File logDir = logFile.getParentFile();
+        File[] logFiles = logDir.listFiles();
+        FileNamePattern fnp = parseFileNamePattern(now.getTime());
+        String dateFormatPart;
+        int lastSlash = fnp.dateFormatPart.lastIndexOf("/");
+        if (lastSlash != -1) {
+            dateFormatPart = fnp.dateFormatPart.substring(lastSlash+1);
+        } else {
+            dateFormatPart = fnp.dateFormatPart;
+        }
+        for (File log : logFiles) {
+            String logName = log.getName();
+            if (logName.startsWith(dateFormatPart) && logName.endsWith(fnp.seqSuffix)) {
+                System.out.println(log.getName());
+                try {
+                    Integer.parseInt(logName.substring(dateFormatPart.length() + fnp.getMidPart().length(),
+                            logName.length() - fnp.seqSuffix.length()));
+                    needDeleteFiles.add(dateFormatPart + "/" + logName);
+                } catch (Exception e) {
+                    printMsg("parseInt error");
+                }
+            }
+        }
+        return needDeleteFiles;
     }
 }

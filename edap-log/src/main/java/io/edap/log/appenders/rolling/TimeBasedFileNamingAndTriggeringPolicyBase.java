@@ -107,7 +107,7 @@ public abstract class TimeBasedFileNamingAndTriggeringPolicyBase
         return dateFormat;
     }
 
-    private long getMaxTime(String dateFormat, long mills) {
+    protected long getMaxTime(String dateFormat, long mills) {
         char c;
         int minTimeUnit = getRolloverTimeUnit();
         Calendar cal = Calendar.getInstance();
@@ -137,7 +137,7 @@ public abstract class TimeBasedFileNamingAndTriggeringPolicyBase
         return cal.getTimeInMillis();
     }
 
-    private int getRolloverTimeUnit() {
+    protected int getRolloverTimeUnit() {
         char c;
         int minTimeUnit = Calendar.YEAR;
         for (int i=0;i<dateFormat.length();i++) {
