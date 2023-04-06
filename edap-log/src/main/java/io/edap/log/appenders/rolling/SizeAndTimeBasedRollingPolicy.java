@@ -16,10 +16,6 @@
 
 package io.edap.log.appenders.rolling;
 
-import io.edap.util.StringUtil;
-
-import static io.edap.log.appenders.rolling.SizeBasedTriggeringPolicy.parseFileSize;
-
 public class SizeAndTimeBasedRollingPolicy extends TimeBasedRollingPolicy {
     private String maxFileSize;
 
@@ -27,8 +23,6 @@ public class SizeAndTimeBasedRollingPolicy extends TimeBasedRollingPolicy {
     public void start() {
         SizeAndTimeBasedFNATP satFNATP = new SizeAndTimeBasedFNATP();
         satFNATP.setMaxFileSize(maxFileSize);
-        satFNATP.setTimeBasedRollingPolicy(this);
-        satFNATP.start();
         timeBasedFileNamingAndTriggeringPolicy = satFNATP;
         super.start();
     }

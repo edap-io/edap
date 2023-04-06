@@ -113,7 +113,7 @@ public abstract class TimeBasedFileNamingAndTriggeringPolicyBase
         Calendar cal = Calendar.getInstance();
         cal.setTimeInMillis(mills);
         String dateStr = new SimpleDateFormat(dateFormat).format(cal.getTime());
-        Date date = null;
+        Date date;
         try {
             date = new SimpleDateFormat(dateFormat).parse(dateStr);
         } catch (ParseException e) {

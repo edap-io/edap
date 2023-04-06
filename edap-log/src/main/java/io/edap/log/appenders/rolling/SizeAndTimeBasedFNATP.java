@@ -16,6 +16,7 @@
 
 package io.edap.log.appenders.rolling;
 
+import io.edap.log.LogCompression;
 import io.edap.log.LogEvent;
 import io.edap.log.helps.ByteArrayBuilder;
 import io.edap.log.helps.EncoderPatternParser;
@@ -107,7 +108,7 @@ public class SizeAndTimeBasedFNATP extends TimeBasedFileNamingAndTriggeringPolic
             rollType = RollType.TIME;
             return true;
         }
-        if (builder.length() > maxLength) {
+        if (builder.length() + activeFile.length() > maxLength) {
             rollType = RollType.SIZE;
             return true;
         }
@@ -338,6 +339,27 @@ public class SizeAndTimeBasedFNATP extends TimeBasedFileNamingAndTriggeringPolic
             throw new RuntimeException("fileNamePattern 中\"%i\"需在\"%d{}\"的后面");
         }
         return dateFormat;
+    }
+
+    @Override
+    public String getCurrentPeriodsFileNameWithoutCompressionSuffix() {
+        String fileName = calFileName(currentMaxTime,currentSeq);
+        return removeCompressionSuffix(fileName);
+    }
+
+    @Override
+    public String getElapsedPeriodsFileName() {
+        long maxTime;
+        int curSeq;
+        if (rollType == RollType.SIZE) {
+            maxTime = currentMaxTime;
+            curSeq = currentSeq + 1;
+        } else {
+            maxTime = currentMaxTime + 1;
+            curSeq = 0;
+        }
+        String fileName = calFileName(maxTime, curSeq);
+        return removeCompressionSuffix(fileName);
     }
 
     @Override
