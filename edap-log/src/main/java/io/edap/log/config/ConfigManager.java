@@ -1,18 +1,24 @@
 package io.edap.log.config;
 
+import com.sun.deploy.Environment;
 import io.edap.log.*;
 import io.edap.util.CollectionUtils;
+import io.edap.util.StringUtil;
 import org.w3c.dom.*;
 import org.xml.sax.SAXException;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.*;
 
+import static io.edap.log.consts.LogConsts.CONFIG_FILE_PROPERTY;
 import static io.edap.log.helpers.Util.printError;
+import static io.edap.log.helpers.Util.printMsg;
 import static io.edap.util.StringUtil.isEmpty;
 import static java.util.Collections.EMPTY_LIST;
 
@@ -136,14 +142,36 @@ public class ConfigManager {
     private LogConfig findEdapLogConfig() {
         InputStream configInStream = null;
         LogConfig logConfig = null;
+        String sysConfigPath = System.getProperty(CONFIG_FILE_PROPERTY);
+        if (!StringUtil.isEmpty(sysConfigPath)) {
+            if (sysConfigPath.startsWith("/")) {
+                logConfig = getConfigFromFile(sysConfigPath);
+            } else {
+                logConfig = getConfigFromResources(sysConfigPath);
+            }
+            if (logConfig != null) {
+                return logConfig;
+            }
+        }
+        sysConfigPath = System.getenv(CONFIG_FILE_PROPERTY);
+        if (!StringUtil.isEmpty(sysConfigPath)) {
+            if (sysConfigPath.startsWith("/")) {
+                logConfig = getConfigFromFile(sysConfigPath);
+            } else {
+                logConfig = getConfigFromResources(sysConfigPath);
+            }
+            if (logConfig != null) {
+                return logConfig;
+            }
+        }
         try {
             configInStream = ConfigManager.class.getResourceAsStream("/edap-log.xml");
             logConfig = parseXmlConfig(configInStream, lastUpdateTime);
+            if (logConfig != null) {
+                return logConfig;
+            }
         } catch (Throwable t) {
             System.err.println("findEdapLogConfig \"edap-log.xml\" error " + t.getMessage() + "\n");
-        }
-        if (logConfig != null) {
-            return logConfig;
         }
         try {
             configInStream = ConfigManager.class.getResourceAsStream("/edap-log.json5");
@@ -155,6 +183,26 @@ public class ConfigManager {
             if (parser != null) {
                 return parser.parseConfig(configInStream);
             }
+        }
+        return null;
+    }
+
+    private LogConfig getConfigFromResources(String name) {
+        try {
+            InputStream configInStream = ConfigManager.class.getResourceAsStream("/" + name);
+            return parseXmlConfig(configInStream, lastUpdateTime);
+        } catch (Throwable t) {
+            System.err.println("findEdapLogConfig \"edap-log.xml\" error " + t.getMessage() + "\n");
+        }
+        return null;
+    }
+
+    private LogConfig getConfigFromFile(String file) {
+        try {
+            FileInputStream fis = new FileInputStream(file);
+            return parseXmlConfig(fis, lastUpdateTime);
+        } catch (Throwable t) {
+            System.err.println("findEdapLogConfig \"edap-log.xml\" error " + t.getMessage() + "\n");
         }
         return null;
     }
