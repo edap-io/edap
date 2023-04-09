@@ -67,7 +67,6 @@ public class CacheDateFormatterConverter implements DateConverter {
     @Override
     public void convertTo(ByteArrayBuilder out, LogEvent logEvent) {
         long mills = logEvent.getLogTime();
-        System.out.println("logtime:" + mills);
         CacheData localCacheData = atomicReference.get();
         CacheData oldCacheData = localCacheData;
         if (localCacheData.mills != mills) {

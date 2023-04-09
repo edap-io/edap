@@ -104,6 +104,7 @@ public class AppenderManager {
             String immediateFlushStr = null;
             RollingPolicy rollingPolicy = null;
             TriggeringPolicy triggeringPolicy = null;
+            String target = null;
             if (!CollectionUtils.isEmpty(args)) {
                 for (LogConfig.ArgNode argNode : args) {
                     if ("encoder".equals(argNode.getName())) {
@@ -118,6 +119,8 @@ public class AppenderManager {
                         rollingPolicy = createRollingPolicy(argNode);
                     } else if ("triggeringPolicy".equals(argNode.getName())) {
                         triggeringPolicy = createTriggeringPolicy(argNode);
+                    } else if ("target".equals(argNode.getName())) {
+                        target = argNode.getValue();
                     }
                 }
             }
@@ -171,6 +174,12 @@ public class AppenderManager {
                 Method method = getMethod(appender, "triggeringPolicy", TriggeringPolicy.class);
                 if (method != null) {
                     method.invoke(appender, triggeringPolicy);
+                }
+            }
+            if (target != null) {
+                Method method = getMethod(appender, "target", String.class);
+                if (method != null) {
+                    method.invoke(appender, target);
                 }
             }
             appender.start();

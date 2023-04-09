@@ -172,10 +172,12 @@ public class TestConfig {
     @Test
     public void testLogAdapter() {
         ConfigManager configManager = new ConfigManager();
+        LogAdapter old = configManager.getLogAdapter();
         LogAdapter adapterSrc = new LogbackDemoAdapter();
         configManager.setLogAdapter(adapterSrc);
         LogAdapter adapter = configManager.getLogAdapter();
         assertNotNull(adapter);
         assertEquals(adapter, adapterSrc);
+        configManager.setLogAdapter(old);
     }
 }

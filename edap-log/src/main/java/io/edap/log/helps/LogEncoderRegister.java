@@ -59,7 +59,6 @@ public class LogEncoderRegister {
 
     private Class generateEncoderClass(String format) {
         Class encoderCls = null;
-        long start = System.currentTimeMillis();
         String encoderName = getEncoderName(format);
         try {
             encoderCls = Class.forName(encoderName);
@@ -71,7 +70,6 @@ public class LogEncoderRegister {
             EncoderGenerator generator = new EncoderGenerator(format);
             GeneratorClassInfo gci = generator.getClassInfo();
             byte[] bs = gci.clazzBytes;
-            System.out.println("generate class time: " + (System.currentTimeMillis() - start));
             saveJavaFile("./" + gci.clazzName + ".class", bs);
             encoderCls = codecLoader.define(encoderName, bs, 0, bs.length);
             if (!isEmpty(gci.inners)) {
