@@ -32,12 +32,12 @@ import static io.edap.log.helpers.Util.printError;
 public class LoggerManager {
 
     private static final List<LoggerServiceProvider> SPI_PROVIDERS = new CopyOnWriteArrayList<>();
-    private static Boolean INITED = null;
+    private static volatile Boolean INITED = null;
     private static String SPI_PROVIDER_NAME = null;
 
     public static final Logger NOP_LOGGER = new NopLogger();
 
-    private static LoggerFactory LOGGER_FACTORY = null;
+    private static volatile LoggerFactory LOGGER_FACTORY = null;
 
     private LoggerManager() {}
 
@@ -45,7 +45,7 @@ public class LoggerManager {
         return getLogger(clazz.getName());
     }
 
-    public static Logger getLogger(String name) {
+    public static synchronized Logger getLogger(String name) {
         if (LOGGER_FACTORY != null) {
             return LOGGER_FACTORY.getLogger(name);
         }
@@ -101,7 +101,7 @@ public class LoggerManager {
         Iterator<LoggerServiceProvider> iterator = loader.iterator();
         while (iterator.hasNext()) {
             LoggerServiceProvider provider = safelyInstantiate(iterator);
-            if (provider != null) {
+            if (provider != null && !exits(provider)) {
                 SPI_PROVIDERS.add(provider);
             }
         }
@@ -115,6 +115,18 @@ public class LoggerManager {
             Util.printError("Use NopLoggerFactory");
             INITED = true;
         }
+    }
+
+    private static boolean exits(LoggerServiceProvider provider) {
+        if (SPI_PROVIDERS == null || SPI_PROVIDERS.size() == 0) {
+            return false;
+        }
+        for (LoggerServiceProvider p : SPI_PROVIDERS) {
+            if (p.getClass().getName().equals(provider.getClass().getName())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static LoggerServiceProvider safelyInstantiate(Iterator<LoggerServiceProvider> iterator) {
