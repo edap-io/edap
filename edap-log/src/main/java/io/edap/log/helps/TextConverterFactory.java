@@ -55,7 +55,7 @@ public class TextConverterFactory {
                 gci = generator.getClassInfo();
                 String converterName = getConverterName(text);
                 byte[] bs = gci.clazzBytes;
-                saveJavaFile("./" + gci.clazzName + ".class", bs);
+                //saveJavaFile("./" + gci.clazzName + ".class", bs);
                 Class converterCls = TEXT_ENCODER_LOADER.define(converterName, bs, 0, bs.length);
                 Constructor constructor = converterCls.getConstructor(new Class[0]);
                 converter = (TextConverter) constructor.newInstance(new Object[0]);

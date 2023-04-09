@@ -70,7 +70,7 @@ public class LogEncoderRegister {
             EncoderGenerator generator = new EncoderGenerator(format);
             GeneratorClassInfo gci = generator.getClassInfo();
             byte[] bs = gci.clazzBytes;
-            saveJavaFile("./" + gci.clazzName + ".class", bs);
+            //saveJavaFile("./" + gci.clazzName + ".class", bs);
             encoderCls = codecLoader.define(encoderName, bs, 0, bs.length);
             if (!isEmpty(gci.inners)) {
                 for (GeneratorClassInfo inner : gci.inners) {
