@@ -26,11 +26,18 @@ public class EdapLogServiceProvider implements LoggerServiceProvider {
 
     EdapLogFactory edapLogFactory;
 
+    static Boolean isSetLogFactory = false;
+
     public EdapLogServiceProvider() {
         ConfigManager configManager = new ConfigManager();
         configManager.loadConfig();
-        edapLogFactory = new EdapLogFactory();
-        EdapLogContext.instance().setEdapLogFactory(edapLogFactory);
+        synchronized (isSetLogFactory) {
+            if (!isSetLogFactory) {
+                edapLogFactory = new EdapLogFactory();
+                EdapLogContext.instance().setEdapLogFactory(edapLogFactory);
+                isSetLogFactory = true;
+            }
+        }
     }
 
     @Override

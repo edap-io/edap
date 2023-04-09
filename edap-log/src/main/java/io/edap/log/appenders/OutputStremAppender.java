@@ -39,7 +39,7 @@ public class OutputStremAppender implements Appender {
 
     private BaseLogOutputStream outputStream;
 
-    private boolean immediateFlush = true;
+    private boolean immediateFlush;
 
     private String name;
 

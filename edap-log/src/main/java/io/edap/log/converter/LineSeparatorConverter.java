@@ -27,7 +27,7 @@ public class LineSeparatorConverter implements Converter<LogEvent> {
     private final String format;
     private final byte[] nextText;
 
-    private static final boolean win = System.lineSeparator().length()>1?true:false;
+    private boolean win = System.lineSeparator().length()>1?true:false;
 
     public LineSeparatorConverter(String format) {
         this(format, null);

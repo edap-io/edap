@@ -31,7 +31,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 public class TestTimeBasedRollingPolicy {
 
-    static Logger LOG = LoggerManager.getLogger(TestLog.class);
+    static Logger LOG = LoggerManager.getLogger(TestTimeBasedRollingPolicy.class);
 
     @ParameterizedTest
     @ValueSource(strings = {
@@ -172,7 +172,7 @@ public class TestTimeBasedRollingPolicy {
             String log = readFile(f);
             assertNotNull(log);
 
-            assertEquals(log.substring(23), " INFO  [main] [io.edap.log.test.TestLog] [] []  - name: edap,height: 90.0 \n");
+            assertEquals(log.substring(23), " INFO  [main] [i.e.l.t.a.TestTimeBasedRollingPolicy] [] []  - name: edap,height: 90.0 \n");
 
             Appender appender = AppenderManager.instance().getAppender("rollingFile");
             System.out.println("appender=" + appender);
