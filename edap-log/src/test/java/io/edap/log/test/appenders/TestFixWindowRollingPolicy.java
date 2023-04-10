@@ -88,12 +88,12 @@ public class TestFixWindowRollingPolicy {
                 logNames.add(logFile.getName());
             }
 
-            for (int i=1;i<5;i++) {
+            for (int i=1;i<6;i++) {
                 String name = "edap-size-rollover." + i + ".log.zip";
                 assertEquals(logNames.contains(name), true);
             }
 
-            assertEquals(files.length, 5);
+            assertEquals(files.length, 6);
 
         } catch (ParserConfigurationException e) {
             throw new RuntimeException(e);
