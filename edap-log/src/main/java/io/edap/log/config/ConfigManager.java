@@ -1,6 +1,5 @@
 package io.edap.log.config;
 
-import com.sun.deploy.Environment;
 import io.edap.log.*;
 import io.edap.util.CollectionUtils;
 import io.edap.util.StringUtil;
@@ -11,14 +10,12 @@ import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
 import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.*;
 
 import static io.edap.log.consts.LogConsts.CONFIG_FILE_PROPERTY;
 import static io.edap.log.helpers.Util.printError;
-import static io.edap.log.helpers.Util.printMsg;
 import static io.edap.util.StringUtil.isEmpty;
 import static java.util.Collections.EMPTY_LIST;
 

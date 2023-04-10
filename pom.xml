@@ -48,6 +48,7 @@
         <module>edap-log</module>
         <module>edap-toml</module>
         <module>edap-json</module>
+        <module>edap-core</module>
 
     </modules>
 
