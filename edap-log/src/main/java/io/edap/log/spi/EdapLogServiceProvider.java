@@ -16,9 +16,13 @@
 
 package io.edap.log.spi;
 
+import io.edap.log.AppenderManager;
 import io.edap.log.EdapLogContext;
+import io.edap.log.LogConfig;
 import io.edap.log.LoggerFactory;
+import io.edap.log.config.AppenderConfigSection;
 import io.edap.log.config.ConfigManager;
+import io.edap.log.config.LoggerConfigSection;
 
 import static io.edap.log.helpers.Util.printMsg;
 
@@ -30,10 +34,20 @@ public class EdapLogServiceProvider implements LoggerServiceProvider {
 
     public EdapLogServiceProvider() {
         ConfigManager configManager = new ConfigManager();
-        configManager.loadConfig();
+        LogConfig logConfig = configManager.loadConfig();
         synchronized (isSetLogFactory) {
             if (!isSetLogFactory) {
+                if (logConfig != null && logConfig.getAppenderSection() != null) {
+                    AppenderConfigSection appenderConfigSection = logConfig.getAppenderSection();
+                    appenderConfigSection.setNeedReload(true);
+                    AppenderManager.instance().reloadConfig(appenderConfigSection);
+                }
                 edapLogFactory = new EdapLogFactory();
+                if (logConfig != null && logConfig.getLoggerSection() != null) {
+                    LoggerConfigSection loggerConfigSection = logConfig.getLoggerSection();
+                    loggerConfigSection.setNeedReload(true);
+                    edapLogFactory.reload(loggerConfigSection);
+                }
                 EdapLogContext.instance().setEdapLogFactory(edapLogFactory);
                 isSetLogFactory = true;
             }

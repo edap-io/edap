@@ -26,7 +26,7 @@ import static io.edap.log.helpers.Util.printError;
 
 public class LevelConverter implements Converter<LogEvent> {
 
-    private static byte[][] LEVEL_BYTES_ARRAY;
+    private final byte[][] LEVEL_BYTES_ARRAY;
 
     /**
      * 根据Encoder的格式以及该节点后的纯文本构建一个转换器对象。

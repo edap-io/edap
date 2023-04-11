@@ -1,6 +1,8 @@
 package io.edap.log;
 
 
+import io.edap.log.config.AppenderConfigSection;
+import io.edap.log.config.ConfigManager;
 import io.edap.log.config.LoggerConfigSection;
 import io.edap.log.spi.EdapLogFactory;
 
@@ -26,6 +28,24 @@ public class EdapLogContext {
         LoggerConfigSection loggerConfigSection = logConfig.getLoggerSection();
         loggerConfigSection.setNeedReload(true);
         edapLogFactory.reload(loggerConfigSection);
+    }
+
+    public void reload() {
+        ConfigManager configManager = new ConfigManager();
+        LogConfig logConfig = configManager.loadConfig();
+        if (logConfig != null && logConfig.getAppenderSection() != null) {
+            AppenderConfigSection appenderConfigSection = logConfig.getAppenderSection();
+            appenderConfigSection.setNeedReload(true);
+            AppenderManager.instance().reloadConfig(appenderConfigSection);
+        }
+        if (logConfig != null && logConfig.getLoggerSection() != null) {
+            if (edapLogFactory == null) {
+                edapLogFactory = new EdapLogFactory();
+            }
+            LoggerConfigSection loggerConfigSection = logConfig.getLoggerSection();
+            loggerConfigSection.setNeedReload(true);
+            edapLogFactory.reload(loggerConfigSection);
+        }
     }
 
     public static final EdapLogContext instance() {
