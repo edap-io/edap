@@ -63,8 +63,7 @@ public class TestSizeAndTimeBasedFNATP {
 
             Field seqField = SizeAndTimeBasedFNATP.class.getDeclaredField("currentSeq");
             seqField.setAccessible(true);
-            //System.out.println("seq=" + (int)seqField.get(stbFNATP));
-            System.out.println("seq=" + (int) seqField.get((SizeAndTimeBasedFNATP) triggerField.get(policy)));
+
             int seq = (int) seqField.get((SizeAndTimeBasedFNATP) triggerField.get(policy));
             assertEquals(seq, 11);
 

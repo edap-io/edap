@@ -103,26 +103,21 @@ public class TimeBasedRollingPolicy extends RollingPolicyBase implements Trigger
             }
         }
         // 删除过时的日志文件
-        printError("maxHistory=" + maxHistory);
         if (maxHistory > 0) {
-            printError("currentFileName=" + currentFileName);
             if (CollectionUtils.isEmpty(needDeleteFileNames)) {
                 return;
             }
             for (String needDeleteFileName : needDeleteFileNames) {
                 File f = new File(needDeleteFileName);
                 if (f.exists()) {
-                    printError("delete=" + needDeleteFileName);
                     f.delete();
                 } else {
-                    printError("exists is false=" + needDeleteFileName);
                     if (compression != null) {
                         int lastDot = needDeleteFileName.lastIndexOf(".");
                         if (lastDot != -1) {
                             String noCompressionName = needDeleteFileName.substring(0, lastDot);
                             f = new File(noCompressionName);
                             if (f.exists()) {
-                                printError("delete=" + noCompressionName);
                                 f.delete();
                             }
                         }

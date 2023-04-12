@@ -36,6 +36,8 @@ public class SizeBasedTriggeringPolicy extends TriggeringPolicyBase {
 
     private String maxFileSize;
 
+    private volatile long lastPrintErrorTime = -1;
+
     @Override
     public void start() {
         if (!StringUtil.isEmpty(maxFileSize)) {
@@ -94,7 +96,10 @@ public class SizeBasedTriggeringPolicy extends TriggeringPolicyBase {
         if (activeFile.length() + builder.length() > maxLength) {
             ReentrantLock lock = fileAppender.getCompressLock();
             if (lock.isLocked()) {
-                printError("Compress havn't over can't rollover");
+                if (event.getLogTime() - lastPrintErrorTime > 5000) {
+                    printError("Compress havn't over can't rollover");
+                    lastPrintErrorTime = event.getLogTime();
+                }
                 return false;
             } else {
                 return true;

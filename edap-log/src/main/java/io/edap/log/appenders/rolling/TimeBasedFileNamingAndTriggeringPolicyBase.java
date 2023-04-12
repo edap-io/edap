@@ -243,10 +243,8 @@ public abstract class TimeBasedFileNamingAndTriggeringPolicyBase
         SimpleDateFormat dateFormat1 = new SimpleDateFormat(dateFormat);
         Calendar now = Calendar.getInstance();
         now.setTimeInMillis(currentMaxTime);
-        System.out.println("now=" + dateFormat1.format(now.getTime()));
         int minTimeUnit = getRolloverTimeUnit();
         now.add(minTimeUnit, -(count+1));
-        System.out.println("now count=" + dateFormat1.format(now.getTime()));
         StringBuilder name = new StringBuilder();
         for (EncoderPatternToken token : patternTokens) {
             if (token.getType() == EncoderPatternToken.TokenType.TEXT) {

@@ -156,7 +156,6 @@ public class SizeAndTimeBasedFNATP extends TimeBasedFileNamingAndTriggeringPolic
         for (File log : logFiles) {
             String logName = log.getName();
             if (logName.startsWith(dateFormatPart) && logName.endsWith(fnp.seqSuffix)) {
-                System.out.println(log.getName());
                 try {
                     int seq = Integer.parseInt(logName.substring(dateFormatPart.length() + fnp.getMidPart().length(),
                             logName.length() - fnp.seqSuffix.length()));
@@ -369,7 +368,6 @@ public class SizeAndTimeBasedFNATP extends TimeBasedFileNamingAndTriggeringPolic
         }
         SimpleDateFormat dateFormat1 = new SimpleDateFormat(dateFormat);
         Calendar now = Calendar.getInstance();
-        System.out.println("now=" + dateFormat1.format(now.getTime()));
         int minTimeUnit = getRolloverTimeUnit();
         now.add(minTimeUnit, -(count+1));
 
@@ -392,7 +390,6 @@ public class SizeAndTimeBasedFNATP extends TimeBasedFileNamingAndTriggeringPolic
         for (File log : logFiles) {
             String logName = log.getName();
             if (logName.startsWith(dateFormatPart) && logName.endsWith(fnp.seqSuffix)) {
-                System.out.println(log.getName());
                 try {
                     Integer.parseInt(logName.substring(dateFormatPart.length() + fnp.getMidPart().length(),
                             logName.length() - fnp.seqSuffix.length()));
