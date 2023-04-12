@@ -26,6 +26,12 @@
     <modelVersion>4.0.0</modelVersion>
 
     <artifactId>edap-core</artifactId>
+    <dependencies>
+        <dependency>
+            <groupId>io.edap</groupId>
+            <artifactId>edap-common</artifactId>
+        </dependency>
+    </dependencies>
 
     <properties>
         <maven.compiler.source>8</maven.compiler.source>

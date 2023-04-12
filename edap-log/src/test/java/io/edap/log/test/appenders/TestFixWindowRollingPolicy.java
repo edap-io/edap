@@ -106,14 +106,14 @@ public class TestFixWindowRollingPolicy {
         } catch (InterruptedException e) {
             throw new RuntimeException(e);
         } finally {
-//            File f = new File("./logs/");
-//            if (f.exists()) {
-//                File[] files = f.listFiles();
-//                for (File child : files) {
-//                    child.delete();
-//                }
-//                f.delete();
-//            }
+            File f = new File("./logs/");
+            if (f.exists()) {
+                File[] files = f.listFiles();
+                for (File child : files) {
+                    child.delete();
+                }
+                f.delete();
+            }
         }
     }
 
@@ -221,14 +221,14 @@ public class TestFixWindowRollingPolicy {
         } catch (InterruptedException e) {
             throw new RuntimeException(e);
         } finally {
-//            File f = new File("./logs/");
-//            if (f.exists()) {
-//                File[] files = f.listFiles();
-//                for (File child : files) {
-//                    child.delete();
-//                }
-//                f.delete();
-//            }
+            File f = new File("./logs/");
+            if (f.exists()) {
+                File[] files = f.listFiles();
+                for (File child : files) {
+                    child.delete();
+                }
+                f.delete();
+            }
         }
     }
 }
