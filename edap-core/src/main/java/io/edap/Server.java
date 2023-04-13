@@ -19,6 +19,8 @@ package io.edap;
 import io.edap.log.Logger;
 import io.edap.log.LoggerManager;
 import io.edap.pool.ConcurrentPool;
+import io.edap.pool.SimpleFastBufPool;
+import io.edap.util.ThreadUtil;
 
 import static io.edap.pool.ConcurrentPool.PoolStateListener;
 
@@ -74,7 +76,7 @@ public abstract class Server<T, S extends NioSession> implements PoolStateListen
         addExecutor    = ThreadUtil.createThreadPoolExecutor(256,
                 "AioSessionAdder", null,
                 new ThreadPoolExecutor.DiscardPolicy());
-        setBufPool(new SimpleBufPool());
+        setBufPool(new SimpleFastBufPool());
     }
 
     public int getBackLog() {
