@@ -30,8 +30,6 @@ public class StringUtil {
 
     static Logger LOG = LoggerManager.getLogger(StringUtil.class);
 
-    public static Long VALUE_OFFSET = UnsafeUtil.fieldOffset(UnsafeUtil.field(String.class, "value"));
-
     /**
      * String中value是否是byte[]
      */
