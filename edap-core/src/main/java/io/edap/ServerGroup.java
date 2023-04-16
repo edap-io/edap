@@ -16,13 +16,10 @@
 
 package io.edap;
 
+import io.edap.nio.Acceptor;
+import io.edap.pool.SimpleFastBufPool;
 import io.edap.util.CollectionUtils;
 import io.edap.util.StringUtil;
-import io.edap.x.core.pool.SimpleBufPool;
-import io.edap.x.nio.*;
-import io.edap.x.util.CollectionUtils;
-import io.edap.x.util.StringUtil;
-import io.edap.x.util.SystemUtil;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -51,9 +48,8 @@ public class ServerGroup {
     /**
      * 该服务器组拥有的处理网络连接的处理器列表
      */
-    private List<DirectAcceptor> acceptors;
+    private List<Acceptor> acceptors;
 
-    private List<ReactorAcceptor> acceptWorks;
     /**
      * 操作添加删除服务器时的锁
      */
@@ -67,7 +63,7 @@ public class ServerGroup {
     /**
      * 线程模型
      */
-    private ThreadType threadType = ThreadType.DIRECT;
+    private ThreadType threadType = ThreadType.REACTOR;
 
     private ExecutorService workerService;
 
@@ -105,16 +101,21 @@ public class ServerGroup {
     }
 
     public enum ThreadType {
-        DIRECT,
+        /**
+         * 标准的reaction的模式
+         */
         REACTOR,
-        QUEUE,
+        /**
+         * edap的线程模型，selector遍历的线程按协议解码完成后将业务处理的任务直接提交到线程执行
+         * 使用反射的模式替换selectedKeys和publicSelectedKeys在添加到这两个数据结构前直接解码
+         * 根据协议生成业务对象后直接将业务处理的任务添加到线程池，减少遍历selector.selectedKeys()的过程
+         */
         EDAP
     }
 
     public ServerGroup() {
         servers = new ArrayList<>();
         acceptors = new ArrayList<>();
-        acceptWorks = new ArrayList<>();
     }
 
     public ServerGroup setEdap(Edap edap) {
@@ -134,7 +135,7 @@ public class ServerGroup {
     public BufPool getBufPool() {
         synchronized (this) {
             if (bufPool == null) {
-                bufPool = new SimpleBufPool();
+                bufPool = new SimpleFastBufPool();
             }
         }
         return this.bufPool;
@@ -219,7 +220,7 @@ public class ServerGroup {
         }
 
         servers.forEach(s -> {
-            DirectAcceptor acpt = new DirectAcceptor();
+            Acceptor acpt = new Acceptor();
             acpt.addAddrs(s.getListenAddrs());
             acpt.setReactors(reactors);
             acpt.setServer(s);
