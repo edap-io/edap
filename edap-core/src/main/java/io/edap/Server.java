@@ -57,6 +57,10 @@ public abstract class Server<T, S extends NioSession> implements PoolStateListen
      */
     private   List<Addr> addrs;
     /**
+     * 该服务器所属的服务器组的实例
+     */
+    private ServerGroup serverGroup;
+    /**
      * 负责向NioSession连接池添加NioSession的线程池
      */
     private ThreadPoolExecutor addExecutor;
@@ -224,6 +228,17 @@ public abstract class Server<T, S extends NioSession> implements PoolStateListen
 
     public void setDecoder(Decoder<T, S> decoder) {
         this.decoder = decoder;
+    }
+
+    /**
+     * 该服务器所属的服务器组的实例
+     */
+    public ServerGroup getServerGroup() {
+        return serverGroup;
+    }
+
+    public void setServerGroup(ServerGroup serverGroup) {
+        this.serverGroup = serverGroup;
     }
 
     public static class Addr {

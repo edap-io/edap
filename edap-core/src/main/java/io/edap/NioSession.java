@@ -311,7 +311,7 @@ public abstract class NioSession<T> extends BasePoolEntry {
     }
 
     int readInternal(FastBuf buf) throws IOException {
-        int n = read0(channelFd, buf.address(), buf.writeRemain());
+        int n = read0(channelFd, buf.address(), buf.remain());
         if ((n == IOStatus.INTERRUPTED) && socketChannel.isOpen()) {
             // The system call was interrupted but the channel
             // is still open, so retry

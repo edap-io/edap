@@ -16,7 +16,9 @@
 
 package io.edap;
 
-import io.edap.nio.Acceptor;
+import io.edap.log.Logger;
+import io.edap.log.LoggerManager;
+import io.edap.nio.NormalAcceptor;
 import io.edap.pool.SimpleFastBufPool;
 import io.edap.util.CollectionUtils;
 import io.edap.util.StringUtil;
@@ -35,6 +37,9 @@ import java.util.concurrent.locks.ReentrantLock;
  * @date : 2019-07-08 16:30
  */
 public class ServerGroup {
+
+    static Logger LOG = LoggerManager.getLogger(ServerGroup.class);
+
     /**
      * 服务器组的名称
      */
@@ -205,7 +210,7 @@ public class ServerGroup {
 
             }
         }
-        System.out.println("ServerGroup [" + name + "]'s thread type: " + threadType);
+        LOG.info("ServerGroup [{}]'s thread type: {}", l -> l.arg(getName()).arg(threadType));
 
         directRun();
     }
@@ -220,9 +225,8 @@ public class ServerGroup {
         }
 
         servers.forEach(s -> {
-            Acceptor acpt = new Acceptor();
+            NormalAcceptor acpt = new NormalAcceptor();
             acpt.addAddrs(s.getListenAddrs());
-            acpt.setReactors(reactors);
             acpt.setServer(s);
             s.init();
             acceptors.add(acpt);

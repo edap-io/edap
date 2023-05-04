@@ -31,10 +31,7 @@ import java.nio.charset.StandardCharsets;
 public class T {
 
     public static void main(String[] args) throws IOException {
-        JsonEncoder<DemoPojo> pojoJsonEncoder = JsonCodecRegister.instance().getEncoder(DemoPojo.class);
 
-        ByteArrayJsonWriter writer = new ByteArrayJsonWriter(new ByteArrayBufOut());
-        writer.write(123.45678);
-        System.out.println(new String(writer.toByteArray()));
+        System.out.println(Integer.MAX_VALUE);
     }
 }

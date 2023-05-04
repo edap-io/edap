@@ -121,6 +121,40 @@ public class FastBuf extends BasePoolEntry {
         return len;
     }
 
+    public ByteBuffer byteBuffer() {
+        return this.buf;
+    }
+
+    public long address() {
+        return this.address;
+    }
+
+    public int remain() {
+        return (int)(endAddress - readPos);
+    }
+
+    public FastBuf wpos(long wpos) {
+        writePos = wpos;
+        return this;
+    }
+
+    public long rpos() {
+        return readPos;
+    }
+
+    public FastBuf rpos(long rpos) {
+        readPos = rpos;
+        return this;
+    }
+
+    public long wpos() {
+        return writePos;
+    }
+
+    public void syncToByteBuffer() {
+
+    }
+
     public void clear() {
         clear(false);
     }
