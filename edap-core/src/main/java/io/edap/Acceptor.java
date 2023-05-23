@@ -16,12 +16,22 @@
 
 package io.edap;
 
+import io.edap.nio.SelectorProvider;
+
+import java.nio.channels.Selector;
 import java.util.List;
 
 /**
  * 网络连接事件的处理器
  */
 public interface Acceptor {
+
+    /**
+     * 该Acceptor实例是否支持Selector的类型
+     * @param selectorProvider
+     * @return
+     */
+    boolean isEnable(SelectorProvider selectorProvider);
 
     /**
      * 开始接受网络连接
@@ -40,4 +50,6 @@ public interface Acceptor {
      * 添加监听的列表
      */
     void addAddrs(List<Server.Addr> addrs);
+
+    void stop();
 }

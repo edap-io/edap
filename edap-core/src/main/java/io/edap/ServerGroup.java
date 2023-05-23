@@ -18,11 +18,13 @@ package io.edap;
 
 import io.edap.log.Logger;
 import io.edap.log.LoggerManager;
+import io.edap.nio.AcceptorFactory;
 import io.edap.nio.NormalAcceptor;
 import io.edap.pool.SimpleFastBufPool;
 import io.edap.util.CollectionUtils;
 import io.edap.util.StringUtil;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -212,29 +214,37 @@ public class ServerGroup {
         }
         LOG.info("ServerGroup [{}]'s thread type: {}", l -> l.arg(getName()).arg(threadType));
 
-        directRun();
+        try {
+            directRun();
+        } catch (Throwable t) {
+            throw new RuntimeException("ServerGroup start error", t);
+        }
     }
 
     /**
      * 采用读写线程直接处理业务逻辑的直接处理方式，适用于业务处理响应很快的场景，因为该方式当前线程处理业务时
      * 会堵塞其他由该线程监听的其他channel的操作
      */
-    private void directRun() {
+    private void directRun() throws IOException {
         if (CollectionUtils.isEmpty(servers)) {
             return;
         }
-
-        servers.forEach(s -> {
-            NormalAcceptor acpt = new NormalAcceptor();
+        AcceptorFactory acceptorFactory = new AcceptorFactory();
+        for (Server s : servers) {
+            Acceptor acpt = acceptorFactory.getAcceptor(getName());
             acpt.addAddrs(s.getListenAddrs());
             acpt.setServer(s);
             s.init();
             acceptors.add(acpt);
-        });
+        }
 
         if (CollectionUtils.isEmpty(acceptors)) {
             return;
         }
         acceptors.forEach(e -> e.accept());
+    }
+
+    public void stop() {
+
     }
 }

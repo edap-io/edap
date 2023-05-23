@@ -82,12 +82,35 @@ public class Edap {
         if (CollectionUtils.isEmpty(serverGroups)) {
             return;
         }
+        Runtime.getRuntime().addShutdownHook(shutdownThread(serverGroups));
         serverGroups.forEach((k, v) -> {
             System.out.println("ServerGroup [" + k + "] start");
             v.run();
 
         });
 
-        int read = System.in.read();
+        //int read = System.in.read();
+    }
+
+    private Thread shutdownThread(Map<String, ServerGroup> serverGroups) {
+        return new Thread(new ShutdownRunner(serverGroups));
+    }
+
+    class ShutdownRunner implements Runnable {
+
+        private final Map<String, ServerGroup> serverGroups;
+
+        public ShutdownRunner(Map<String, ServerGroup> serverGroups) {
+            this.serverGroups = serverGroups;
+        }
+
+        @Override
+        public void run() {
+            for (Map.Entry<String, ServerGroup> sgEntry : serverGroups.entrySet()) {
+                System.out.println("ServerGroup [" + sgEntry.getKey() + "] stop ...");
+                sgEntry.getValue().stop();
+                System.out.println("ServerGroup [" + sgEntry.getKey() + "] stopped");
+            }
+        }
     }
 }

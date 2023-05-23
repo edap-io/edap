@@ -18,21 +18,24 @@ package io.edap.nio;
 
 import io.edap.Acceptor;
 import io.edap.Server;
-import io.edap.util.CollectionUtils;
 
 import java.nio.channels.Selector;
-import java.util.ArrayList;
 import java.util.List;
 
-public class NormalAcceptor implements Acceptor {
+public class FastAcceptor implements Acceptor {
 
-    protected Server server;
-
-    protected List<Server.Addr> addrs;
-
+    private Selector selector;
     @Override
     public boolean isEnable(SelectorProvider selectorProvider) {
-        return true;
+        if (selector == null) {
+            try {
+                selector = selectorProvider.getSelect();
+                return true;
+            } catch (Throwable t) {
+                throw new RuntimeException("SelectorProvider getSelector error", t);
+            }
+        }
+        return false;
     }
 
     @Override
@@ -42,31 +45,16 @@ public class NormalAcceptor implements Acceptor {
 
     @Override
     public void setServer(Server server) {
-        this.server = server;
+
     }
 
     @Override
     public Server getServer() {
-        return server;
+        return null;
     }
 
     @Override
     public void addAddrs(List<Server.Addr> addrs) {
-        if (CollectionUtils.isEmpty(addrs)) {
-            return;
-        }
-        if (this.addrs == null) {
-            this.addrs = new ArrayList<>();
-        }
-        for (Server.Addr addr : addrs) {
-            if (this.addrs.contains(addr)) {
-                this.addrs.add(addr);
-            }
-        }
-    }
-
-    @Override
-    public void stop() {
 
     }
 }
