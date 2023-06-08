@@ -163,7 +163,7 @@ public class MultithreadConcurrentQueue<E> implements ConcurrentQueue<E> {
                     return nToRead;
                 }
             } else {
-                return 0;`
+                return 0;
             }
             spin = Condition.progressiveYield(spin);
         }
