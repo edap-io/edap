@@ -20,7 +20,7 @@ public class Capacity {
             }
         }
 
-        if(isPowerOf2(c)) {
+        if(isPowerOf2(c) && capacity > 0) {
             return c;
         } else {
             throw new RuntimeException("Capacity is not a power of 2.");
@@ -31,7 +31,6 @@ public class Capacity {
      * 判断一个整数是否为2的n次方
      */
     private static final boolean isPowerOf2(final int p) {
-        // thanks mcheng for the suggestion
         return (p & (p - 1)) == 0;
     }
 }
