@@ -24,6 +24,8 @@ import java.util.function.Consumer;
  */
 public interface Logger {
 
+    String ROOT_LOGGER_NAME = "ROOT";
+
     static int MAX_ARGS = 64;
 
     void trace(Object message);
