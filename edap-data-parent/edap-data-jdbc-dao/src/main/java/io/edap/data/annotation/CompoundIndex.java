@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 The edap Project
+ * Copyright 2020 The edap Project
  *
  * The Netty Project licenses this file to you under the Apache License,
  * version 2.0 (the "License"); you may not use this file except in compliance
@@ -14,25 +14,30 @@
  * under the License.
  */
 
-package io.edap.util;
+package io.edap.data.annotation;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 
-public class Constants {
-
-    private Constants() {}
+@Target({})
+@Retention(RetentionPolicy.RUNTIME)
+public @interface CompoundIndex {
+    /**
+     * 复合索引名称
+     * @return
+     */
+    String name() default "";
 
     /**
-     * FNV_1a hash算法的hash初始值
+     * 字段列表
+     * @return
      */
-    public static final long FNV_1a_INIT_VAL = 0x811c9dc5;
+    String []columnNames();
+
     /**
-     * FNV_1a hash算法的计算因子
+     * 该索引是否有唯一索引不允许有相同的值
+     * @return 如果为true则说明该属性在数据库中不允许有重复的值
      */
-    public static final long FNV_1a_FACTOR_VAL = 0x1000193;
-
-    public static final String EMPTY_STRING = "";
-
-    public static final List EMPTY_LIST = new ArrayList(0);
+    boolean unique() default false;
 }

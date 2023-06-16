@@ -49,6 +49,7 @@
         <module>edap-toml</module>
         <module>edap-json</module>
         <module>edap-core</module>
+        <module>edap-data-parent</module>
 
     </modules>
 
@@ -63,6 +64,11 @@
             <dependency>
                 <groupId>io.edap</groupId>
                 <artifactId>edap-log-api</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.edap</groupId>
+                <artifactId>edap-data-api</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>

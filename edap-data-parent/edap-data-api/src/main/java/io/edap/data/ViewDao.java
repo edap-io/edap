@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 The edap Project
+ * Copyright 2020 The edap Project
  *
  * The Netty Project licenses this file to you under the Apache License,
  * version 2.0 (the "License"); you may not use this file except in compliance
@@ -14,25 +14,21 @@
  * under the License.
  */
 
-package io.edap.util;
+package io.edap.data;
 
-import java.util.ArrayList;
+import javax.sql.DataSource;
+import java.sql.SQLException;
 import java.util.List;
 
-public class Constants {
+public interface ViewDao<T> {
 
-    private Constants() {}
+    List<T> query(String sql) throws SQLException;
 
-    /**
-     * FNV_1a hash算法的hash初始值
-     */
-    public static final long FNV_1a_INIT_VAL = 0x811c9dc5;
-    /**
-     * FNV_1a hash算法的计算因子
-     */
-    public static final long FNV_1a_FACTOR_VAL = 0x1000193;
+    List<T> query(String sql, QueryParam... params) throws SQLException;
 
-    public static final String EMPTY_STRING = "";
+    T findById(Object id) throws SQLException;
 
-    public static final List EMPTY_LIST = new ArrayList(0);
+    T findOne(String sql) throws SQLException;
+
+    T findOne(String sql, QueryParam... params) throws SQLException;
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 The edap Project
+ * Copyright 2020 The edap Project
  *
  * The Netty Project licenses this file to you under the Apache License,
  * version 2.0 (the "License"); you may not use this file except in compliance
@@ -14,25 +14,22 @@
  * under the License.
  */
 
-package io.edap.util;
+package io.edap.data.annotation;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.lang.annotation.Retention;
+import java.lang.annotation.Target;
 
-public class Constants {
+import static java.lang.annotation.ElementType.FIELD;
+import static java.lang.annotation.ElementType.METHOD;
+import static java.lang.annotation.RetentionPolicy.RUNTIME;
 
-    private Constants() {}
+/***
+ * The @GeneratedValue annotation.
+ */
+@Retention(RUNTIME)
+@Target({METHOD, FIELD})
+public @interface GeneratedValue {
+  GenerationType strategy() default GenerationType.AUTO;
 
-    /**
-     * FNV_1a hash算法的hash初始值
-     */
-    public static final long FNV_1a_INIT_VAL = 0x811c9dc5;
-    /**
-     * FNV_1a hash算法的计算因子
-     */
-    public static final long FNV_1a_FACTOR_VAL = 0x1000193;
-
-    public static final String EMPTY_STRING = "";
-
-    public static final List EMPTY_LIST = new ArrayList(0);
+  String generator() default "";
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 The edap Project
+ * Copyright 2020 The edap Project
  *
  * The Netty Project licenses this file to you under the Apache License,
  * version 2.0 (the "License"); you may not use this file except in compliance
@@ -14,25 +14,20 @@
  * under the License.
  */
 
-package io.edap.util;
+package io.edap.data.jdbc.test;
 
-import java.util.ArrayList;
-import java.util.List;
+import io.edap.data.FieldSetFunc;
+import io.edap.data.jdbc.test.entity.Demo;
 
-public class Constants {
+import java.sql.ResultSet;
+import java.sql.SQLException;
 
-    private Constants() {}
-
-    /**
-     * FNV_1a hash算法的hash初始值
-     */
-    public static final long FNV_1a_INIT_VAL = 0x811c9dc5;
-    /**
-     * FNV_1a hash算法的计算因子
-     */
-    public static final long FNV_1a_FACTOR_VAL = 0x1000193;
-
-    public static final String EMPTY_STRING = "";
-
-    public static final List EMPTY_LIST = new ArrayList(0);
+public class DemoFullSetFunc implements FieldSetFunc<Demo> {
+    @Override
+    public void set(Demo demo, ResultSet rs) throws SQLException {
+        demo.setId(rs.getInt("id"));
+        demo.setCreateTime(rs.getLong("create_time"));
+        demo.setField1(rs.getString("field1"));
+        demo.setLocalDateTime(rs.getLong("local_datetime"));
+    }
 }
