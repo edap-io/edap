@@ -22,31 +22,27 @@ import io.edap.Server;
 import java.nio.channels.Selector;
 import java.util.List;
 
-public class FastAcceptor extends AbstractAcceptor {
+public abstract class AbstractAcceptor implements Acceptor {
+
+    protected Server server;
+
+    protected List<Server.Addr> addrs;
+
+    protected Selector selector;
 
     @Override
-    public boolean isEnable(SelectorProvider selectorProvider) {
-        if (selector == null) {
-            try {
-                selector = selectorProvider.getSelect();
-                return true;
-            } catch (Throwable t) {
-                throw new RuntimeException("SelectorProvider getSelector error", t);
-            }
-        }
-        return false;
+    public void setServer(Server server) {
+        this.server = server;
     }
 
     @Override
-    public void accept() {
-
+    public Server getServer() {
+        return server;
     }
 
-    @Override
-    public void addAddrs(List<Server.Addr> addrs) {
-
-    }
-
+    /**
+     * 停止接收新连接进入
+     */
     @Override
     public void stop() {
 

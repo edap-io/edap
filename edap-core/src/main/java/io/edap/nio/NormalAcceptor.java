@@ -20,15 +20,12 @@ import io.edap.Acceptor;
 import io.edap.Server;
 import io.edap.util.CollectionUtils;
 
-import java.nio.channels.Selector;
 import java.util.ArrayList;
 import java.util.List;
 
-public class NormalAcceptor implements Acceptor {
+public class NormalAcceptor extends AbstractAcceptor {
 
-    protected Server server;
 
-    protected List<Server.Addr> addrs;
 
     @Override
     public boolean isEnable(SelectorProvider selectorProvider) {
@@ -38,16 +35,6 @@ public class NormalAcceptor implements Acceptor {
     @Override
     public void accept() {
 
-    }
-
-    @Override
-    public void setServer(Server server) {
-        this.server = server;
-    }
-
-    @Override
-    public Server getServer() {
-        return server;
     }
 
     @Override
@@ -65,8 +52,5 @@ public class NormalAcceptor implements Acceptor {
         }
     }
 
-    @Override
-    public void stop() {
 
-    }
 }
