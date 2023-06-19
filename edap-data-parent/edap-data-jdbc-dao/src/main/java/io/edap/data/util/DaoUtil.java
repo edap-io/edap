@@ -317,7 +317,7 @@ public class DaoUtil {
     }
 
     public static String getEntityDaoName(Class entity) {
-        return "edao." + entity.getName() + "Dao";
+        return "edao." + entity.getName() + "JdbcEntityDao";
     }
 
     public static String getFieldSetFuncName(Class entity, List<String> columns) {

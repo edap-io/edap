@@ -28,6 +28,7 @@ import org.objectweb.asm.*;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.text.ParseException;
 import java.util.List;
 import java.util.Locale;
 
@@ -45,7 +46,7 @@ public class JdbcEntityDaoGenerator {
 
     private static String PARENT_NAME = toInternalName(JdbcBaseDao.class.getName());
     private static String ENTITY_IFACT_NAME = toInternalName(JdbcEntityDao.class.getName());
-    private static String FIELD_SET_FUNC_NAME = toInternalName(FieldSetFunc.class.getName());
+    private static String FIELD_SET_FUNC_NAME = toInternalName(JdbcFieldSetFunc.class.getName());
     private static String REGISTER_NAME = toInternalName(JdbcDaoRegister.class.getName());
     private static String QUERY_PARAM_NAME = toInternalName(QueryParam.class.getName());
     private static String STMT_SESSION_NAME = toInternalName(StatementSession.class.getName());
@@ -85,8 +86,6 @@ public class JdbcEntityDaoGenerator {
         visitQueryOneParamMethod();
         visitGetSqlFieldSetFuncMethod();
         visitQueryTwoParamMethod();
-        visitQueryThreeParamMethod();
-        visitQueryFourParamMethod();
 
         visitFindOneOneParamMethod();
         visitFindOneTwoParamMethod();
@@ -112,7 +111,7 @@ public class JdbcEntityDaoGenerator {
         QueryInfo queryInfo = getQueryByIdInfo(entity);
 
         mv = cw.visitMethod(ACC_PUBLIC, "findById", "(Ljava/lang/Object;)L" + entityName + ";",
-                null, new String[] { "java/sql/SQLException" });
+                null, new String[] { "java/lang/Exception" });
         mv.visitCode();
 
         Label l0 = new Label();
@@ -213,116 +212,12 @@ public class JdbcEntityDaoGenerator {
         mv.visitMaxs(4, 8);
         mv.visitEnd();
 
-
-//        Label l0 = new Label();
-//        Label l1 = new Label();
-//        Label l2 = new Label();
-//        mv.visitTryCatchBlock(l0, l1, l2, null);
-//        Label l3 = new Label();
-//        Label l4 = new Label();
-//        mv.visitTryCatchBlock(l3, l4, l2, null);
-//        Label l5 = new Label();
-//        mv.visitTryCatchBlock(l2, l5, l2, null);
-//        mv.visitVarInsn(ALOAD, 1);
-//        Label l6 = new Label();
-//        mv.visitJumpInsn(IFNONNULL, l6);
-//        mv.visitInsn(ACONST_NULL);
-//        mv.visitInsn(ARETURN);
-//        mv.visitLabel(l6);
-//        mv.visitFrame(Opcodes.F_SAME, 0, null, 0, null);
-//        mv.visitVarInsn(ALOAD, 0);
-//        mv.visitMethodInsn(INVOKEVIRTUAL, daoName, "getStatementSession", "()L" + STMT_SESSION_NAME + ";", false);
-//        mv.visitVarInsn(ASTORE, 2);
-//        mv.visitLabel(l0);
-//        mv.visitVarInsn(ALOAD, 2);
-//        mv.visitLdcInsn(queryInfo.getQuerySql());
-//        mv.visitMethodInsn(INVOKEINTERFACE, STMT_SESSION_NAME, "prepareStatement", "(Ljava/lang/String;)Ljava/sql/PreparedStatement;", true);
-//        mv.visitVarInsn(ASTORE, 3);
-//        mv.visitVarInsn(ALOAD, 3);
-//        mv.visitInsn(ICONST_1);
-//        mv.visitVarInsn(ALOAD, 1);
-//        if (queryInfo.getIdInfo() != null) {
-//            JdbcInfo idInfo = queryInfo.getIdInfo();
-//            if (idInfo.isBaseType()) {
-//                if (idInfo.isNeedUnbox()) {
-//                    mv.visitTypeInsn(CHECKCAST, toInternalName(getBoxedName(idInfo.getField().getType())));
-//                    visitUnboxOpcode(mv, idInfo.getField());
-//                } else {
-//                    mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/Long", "longValue", "()J", false);
-//                }
-//
-//            } else {
-//                mv.visitTypeInsn(CHECKCAST, getDescriptor(queryInfo.getIdInfo().getField().getType()));
-//            }
-//            String setMethod = queryInfo.getIdInfo().getJdbcMethod();
-//            mv.visitMethodInsn(INVOKEINTERFACE, "java/sql/PreparedStatement", setMethod,
-//                    "(I" + queryInfo.getIdInfo().getJdbcType() + ")V", true);
-//        }
-//        mv.visitVarInsn(ALOAD, 3);
-//        mv.visitMethodInsn(INVOKEINTERFACE, "java/sql/PreparedStatement", "executeQuery", "()Ljava/sql/ResultSet;", true);
-//        mv.visitVarInsn(ASTORE, 4);
-//        mv.visitVarInsn(ALOAD, 4);
-//        mv.visitMethodInsn(INVOKEINTERFACE, "java/sql/ResultSet", "next", "()Z", true);
-//        mv.visitJumpInsn(IFEQ, l3);
-//        mv.visitTypeInsn(NEW, entityName);
-//        mv.visitInsn(DUP);
-//        mv.visitMethodInsn(INVOKESPECIAL, entityName, "<init>", "()V", false);
-//        mv.visitVarInsn(ASTORE, 5);
-//
-//        for (JdbcInfo jdbcInfo : queryInfo.getAllColumns()) {
-//            mv.visitVarInsn(ALOAD, 5);
-//            mv.visitVarInsn(ALOAD, 4);
-//            mv.visitLdcInsn(jdbcInfo.getColumnName());
-//            String getMethod = "get" + jdbcInfo.getJdbcMethod().substring(3);
-//            mv.visitMethodInsn(INVOKEINTERFACE, "java/sql/ResultSet", getMethod,
-//                    "(Ljava/lang/String;)" + jdbcInfo.getJdbcType(), true);
-//            String fieldName = jdbcInfo.getField().getName();
-//            String setMethod = "set" + fieldName.substring(0,1).toUpperCase(Locale.ENGLISH)
-//                    + fieldName.substring(1);
-//            if (jdbcInfo.isNeedUnbox()) {
-//                visitBoxedOpcode(mv, jdbcInfo.getField());
-//            }
-//            mv.visitMethodInsn(INVOKEVIRTUAL, entityName, setMethod,
-//                    "(" + getDescriptor(jdbcInfo.getField().getType()) + ")V", false);
-//        }
-//
-//
-//        mv.visitVarInsn(ALOAD, 5);
-//        mv.visitVarInsn(ASTORE, 6);
-//        mv.visitLabel(l1);
-//        mv.visitVarInsn(ALOAD, 2);
-//        mv.visitMethodInsn(INVOKEINTERFACE, STMT_SESSION_NAME, "close", "()V", true);
-//        mv.visitVarInsn(ALOAD, 6);
-//        mv.visitInsn(ARETURN);
-//        mv.visitLabel(l3);
-//        mv.visitFrame(Opcodes.F_APPEND,3, new Object[] {STMT_SESSION_NAME, "java/sql/PreparedStatement", "java/sql/ResultSet"}, 0, null);
-//        mv.visitVarInsn(ALOAD, 4);
-//        mv.visitMethodInsn(INVOKEINTERFACE, "java/sql/ResultSet", "close", "()V", true);
-//        mv.visitLabel(l4);
-//        mv.visitVarInsn(ALOAD, 2);
-//        mv.visitMethodInsn(INVOKEINTERFACE, STMT_SESSION_NAME, "close", "()V", true);
-//        Label l7 = new Label();
-//        mv.visitJumpInsn(GOTO, l7);
-//        mv.visitLabel(l2);
-//        mv.visitFrame(Opcodes.F_FULL, 3, new Object[] {daoName, "java/lang/Object", STMT_SESSION_NAME}, 1,
-//                new Object[] {"java/lang/Throwable"});
-//        mv.visitVarInsn(ASTORE, 7);
-//        mv.visitLabel(l5);
-//        mv.visitVarInsn(ALOAD, 2);
-//        mv.visitMethodInsn(INVOKEINTERFACE, STMT_SESSION_NAME, "close", "()V", true);
-//        mv.visitVarInsn(ALOAD, 7);
-//        mv.visitInsn(ATHROW);
-//        mv.visitLabel(l7);
-//        mv.visitFrame(Opcodes.F_SAME, 0, null, 0, null);
-//        mv.visitInsn(ACONST_NULL);
-//        mv.visitInsn(ARETURN);
-//        mv.visitMaxs(4, 8);
-//        mv.visitEnd();
     }
 
     private void visitFindByIdBridgeMethod() {
         MethodVisitor mv;
-        mv = cw.visitMethod(ACC_PUBLIC + ACC_BRIDGE + ACC_SYNTHETIC, "findById", "(Ljava/lang/Object;)Ljava/lang/Object;", null, new String[] { "java/sql/SQLException" });
+        mv = cw.visitMethod(ACC_PUBLIC + ACC_BRIDGE + ACC_SYNTHETIC, "findById",
+                "(Ljava/lang/Object;)Ljava/lang/Object;", null, new String[] { "java/lang/Exception" });
         mv.visitCode();
         mv.visitVarInsn(ALOAD, 0);
         mv.visitVarInsn(ALOAD, 1);
@@ -336,7 +231,7 @@ public class JdbcEntityDaoGenerator {
 
         MethodVisitor mv;
         mv = cw.visitMethod(ACC_PUBLIC, "updateById", "(L" + entityName + ";)I", null,
-                new String[] { "java/sql/SQLException" });
+                new String[] { "java/lang/Exception" });
         mv.visitCode();
 
         UpdateInfo updateInfo = getUpdateByIdSql(entity);
@@ -422,74 +317,22 @@ public class JdbcEntityDaoGenerator {
         mv.visitEnd();
 
 
-//        UpdateInfo updateInfo = getUpdateByIdSql(entity);
-//        mv.visitLdcInsn(updateInfo.getUpdateSql());
-//        mv.visitVarInsn(ASTORE, 2);
-//        mv.visitVarInsn(ALOAD, 0);
-//        mv.visitMethodInsn(INVOKEVIRTUAL, daoName, "getStatementSession", "()L" + STMT_SESSION_NAME + ";", false);
-//        mv.visitVarInsn(ALOAD, 2);
-//        mv.visitMethodInsn(INVOKEINTERFACE, STMT_SESSION_NAME, "prepareStatement",
-//                "(Ljava/lang/String;)Ljava/sql/PreparedStatement;", true);
-//        mv.visitVarInsn(ASTORE, 3);
-//
-//        List<JdbcInfo> upFields = updateInfo.getUpdateColumns();
-//        int count = 0;
-//        if (!CollectionUtils.isEmpty(upFields)) {
-//            count += upFields.size();
-//            for (int i=0;i<upFields.size();i++) {
-//                JdbcInfo jdbcInfo = upFields.get(i);
-//                mv.visitVarInsn(ALOAD, 3);
-//                visitIntInsn(i+1, mv);
-//                mv.visitVarInsn(ALOAD, 1);
-//                mv.visitMethodInsn(INVOKEVIRTUAL, entityName, jdbcInfo.getValueMethod().getName(),
-//                        "()" + jdbcInfo.getFieldType(), false);
-//                if (jdbcInfo.isNeedUnbox()) {
-//                    visitUnboxOpcode(mv, jdbcInfo.getField());
-//                }
-//                mv.visitMethodInsn(INVOKEINTERFACE, "java/sql/PreparedStatement", jdbcInfo.getJdbcMethod(),
-//                        "(I" + jdbcInfo.getJdbcType() + ")V", true);
-//            }
-//        }
-//        List<JdbcInfo> idFields = updateInfo.getWhereColumns();
-//        if (!CollectionUtils.isEmpty(idFields)) {
-//            for (int i=0;i<idFields.size();i++) {
-//                JdbcInfo jdbcInfo = idFields.get(i);
-//                mv.visitVarInsn(ALOAD, 3);
-//                visitIntInsn(count+i+1, mv);
-//                mv.visitVarInsn(ALOAD, 1);
-//                mv.visitMethodInsn(INVOKEVIRTUAL, entityName, jdbcInfo.getValueMethod().getName(),
-//                        "()" + jdbcInfo.getFieldType(), false);
-//                if (jdbcInfo.isNeedUnbox()) {
-//                    visitUnboxOpcode(mv, jdbcInfo.getField());
-//                }
-//                mv.visitMethodInsn(INVOKEINTERFACE, "java/sql/PreparedStatement", jdbcInfo.getJdbcMethod(),
-//                        "(I" + jdbcInfo.getJdbcType() + ")V", true);
-//            }
-//        }
-//
-//        mv.visitVarInsn(ALOAD, 3);
-//        mv.visitMethodInsn(INVOKEINTERFACE, "java/sql/PreparedStatement", "executeUpdate", "()I", true);
-//        mv.visitInsn(IRETURN);
-//        mv.visitMaxs(4, 4);
-//        mv.visitEnd();
     }
 
     private void visitFindOneTwoParamMethod() {
         MethodVisitor mv;
-        mv = cw.visitMethod(ACC_PUBLIC, "findOne", "(Ljava/lang/String;Ljava/util/List;)L" + entityName + ";",
-                "(Ljava/lang/String;Ljava/util/List<L" + QUERY_PARAM_NAME + ";>;)L" + entityName + ";",
-                new String[] { "java/sql/SQLException" });
+        mv = cw.visitMethod(ACC_PUBLIC, "findOne", "(Ljava/lang/String;[L"
+                        + QUERY_PARAM_NAME + ";)L" + entityName + ";", null,
+                new String[] { "java/lang/Exception" });
         mv.visitCode();
         mv.visitVarInsn(ALOAD, 0);
         mv.visitVarInsn(ALOAD, 1);
         mv.visitVarInsn(ALOAD, 2);
-        mv.visitInsn(ICONST_0);
-        mv.visitInsn(ICONST_1);
         mv.visitMethodInsn(INVOKEVIRTUAL, daoName, "query",
-                "(Ljava/lang/String;Ljava/util/List;II)Ljava/util/List;", false);
+                "(Ljava/lang/String;[L" + QUERY_PARAM_NAME + ";)Ljava/util/List;", false);
         mv.visitVarInsn(ASTORE, 3);
         mv.visitVarInsn(ALOAD, 3);
-        mv.visitMethodInsn(INVOKESTATIC, "io/edap/x/util/CollectionUtils", "isEmpty", "(Ljava/util/Collection;)Z", false);
+        mv.visitMethodInsn(INVOKESTATIC, COLLECTION_UTIL_NAME, "isEmpty", "(Ljava/util/Collection;)Z", false);
         Label l0 = new Label();
         mv.visitJumpInsn(IFEQ, l0);
         mv.visitInsn(ACONST_NULL);
@@ -508,23 +351,35 @@ public class JdbcEntityDaoGenerator {
     private void visitFindOneOneParamMethod() {
         MethodVisitor mv;
         mv = cw.visitMethod(ACC_PUBLIC, "findOne", "(Ljava/lang/String;)L" + entityName + ";", null,
-                new String[] { "java/sql/SQLException" });
+                new String[] { "java/lang/Exception" });
         mv.visitCode();
         mv.visitVarInsn(ALOAD, 0);
         mv.visitVarInsn(ALOAD, 1);
+        mv.visitMethodInsn(INVOKEVIRTUAL, daoName, "query",
+                "(Ljava/lang/String;)Ljava/util/List;", false);
+        mv.visitVarInsn(ASTORE, 2);
+        mv.visitVarInsn(ALOAD, 2);
+        mv.visitMethodInsn(INVOKESTATIC, COLLECTION_UTIL_NAME, "isEmpty", "(Ljava/util/Collection;)Z", false);
+        Label l0 = new Label();
+        mv.visitJumpInsn(IFEQ, l0);
         mv.visitInsn(ACONST_NULL);
-        mv.visitMethodInsn(INVOKEVIRTUAL, daoName, "findOne",
-                "(Ljava/lang/String;Ljava/util/List;)L" + entityName + ";", false);
         mv.visitInsn(ARETURN);
-        mv.visitMaxs(3, 2);
+        mv.visitLabel(l0);
+        mv.visitFrame(Opcodes.F_APPEND,1, new Object[] {"java/util/List"}, 0, null);
+        mv.visitVarInsn(ALOAD, 2);
+        mv.visitInsn(ICONST_0);
+        mv.visitMethodInsn(INVOKEINTERFACE, "java/util/List", "get", "(I)Ljava/lang/Object;", true);
+        mv.visitTypeInsn(CHECKCAST, entityName);
+        mv.visitInsn(ARETURN);
+        mv.visitMaxs(5, 4);
         mv.visitEnd();
     }
 
-    private void visitQueryFourParamMethod() {
+    private void visitQueryTwoParamMethod() {
         MethodVisitor mv;
-        mv = cw.visitMethod(ACC_PUBLIC, "query", "(Ljava/lang/String;Ljava/util/List;II)Ljava/util/List;",
-                "(Ljava/lang/String;Ljava/util/List<L" + QUERY_PARAM_NAME + ";>;II)" +
-                        "Ljava/util/List<L" + entityName + ";>;", new String[] { "java/sql/SQLException" });
+        mv = cw.visitMethod(ACC_PUBLIC, "query", "(Ljava/lang/String;[L" + QUERY_PARAM_NAME + ";)Ljava/util/List;",
+                "(Ljava/lang/String;[L" + QUERY_PARAM_NAME + ";)" +
+                        "Ljava/util/List<L" + entityName + ";>;", new String[] { "java/lang/Exception" });
         mv.visitCode();
 
         Label l0 = new Label();
@@ -540,124 +395,91 @@ public class JdbcEntityDaoGenerator {
         mv.visitVarInsn(ALOAD, 0);
         mv.visitVarInsn(ALOAD, 1);
         mv.visitVarInsn(ALOAD, 2);
-        mv.visitVarInsn(ILOAD, 3);
-        mv.visitVarInsn(ILOAD, 4);
-        mv.visitMethodInsn(INVOKEVIRTUAL, daoName, "execute", "(Ljava/lang/String;Ljava/util/List;II)Ljava/sql/ResultSet;", false);
-        mv.visitVarInsn(ASTORE, 5);
-        mv.visitVarInsn(ALOAD, 5);
+        mv.visitMethodInsn(INVOKEVIRTUAL, daoName, "execute", "(Ljava/lang/String;[L" + QUERY_PARAM_NAME + ";)Ljava/sql/ResultSet;", false);
+        mv.visitVarInsn(ASTORE, 3);
+        mv.visitVarInsn(ALOAD, 3);
         mv.visitJumpInsn(IFNONNULL, l3);
         mv.visitFieldInsn(GETSTATIC, CONSTANTS_NAME, "EMPTY_LIST", "Ljava/util/List;");
-        mv.visitVarInsn(ASTORE, 6);
+        mv.visitVarInsn(ASTORE, 4);
         mv.visitLabel(l1);
         mv.visitVarInsn(ALOAD, 0);
         mv.visitMethodInsn(INVOKEVIRTUAL, daoName, "closeStatmentSession", "()V", false);
-        mv.visitVarInsn(ALOAD, 6);
+        mv.visitVarInsn(ALOAD, 4);
         mv.visitInsn(ARETURN);
         mv.visitLabel(l3);
         mv.visitFrame(Opcodes.F_APPEND,1, new Object[] {"java/sql/ResultSet"}, 0, null);
         mv.visitVarInsn(ALOAD, 0);
         mv.visitVarInsn(ALOAD, 1);
         mv.visitMethodInsn(INVOKEVIRTUAL, daoName, "getFieldsSql", "(Ljava/lang/String;)Ljava/lang/String;", false);
-        mv.visitVarInsn(ASTORE, 6);
+        mv.visitVarInsn(ASTORE, 4);
         mv.visitFieldInsn(GETSTATIC, daoName, "FIELD_SET_FUNCS", "Ljava/util/Map;");
-        mv.visitVarInsn(ALOAD, 6);
+        mv.visitVarInsn(ALOAD, 4);
         mv.visitMethodInsn(INVOKEINTERFACE, "java/util/Map", "get", "(Ljava/lang/Object;)Ljava/lang/Object;", true);
-        mv.visitTypeInsn(CHECKCAST, "io/edap/x/dao/FieldSetFunc");
-        mv.visitVarInsn(ASTORE, 7);
-        mv.visitVarInsn(ALOAD, 7);
+        mv.visitTypeInsn(CHECKCAST, FIELD_SET_FUNC_NAME);
+        mv.visitVarInsn(ASTORE, 5);
+        mv.visitVarInsn(ALOAD, 5);
         Label l6 = new Label();
         mv.visitJumpInsn(IFNONNULL, l6);
         mv.visitVarInsn(ALOAD, 0);
-        mv.visitVarInsn(ALOAD, 5);
-        mv.visitMethodInsn(INVOKESPECIAL, daoName, "getSqlFieldSetFunc", "(Ljava/sql/ResultSet;)Lio/edap/x/dao/FieldSetFunc;", false);
-        mv.visitVarInsn(ASTORE, 7);
+        mv.visitVarInsn(ALOAD, 3);
+        mv.visitMethodInsn(INVOKESPECIAL, daoName, "getSqlFieldSetFunc",
+                "(Ljava/sql/ResultSet;)L" + FIELD_SET_FUNC_NAME + ";", false);
+        mv.visitVarInsn(ASTORE, 5);
         mv.visitFieldInsn(GETSTATIC, daoName, "FIELD_SET_FUNCS", "Ljava/util/Map;");
-        mv.visitVarInsn(ALOAD, 6);
+        mv.visitVarInsn(ALOAD, 4);
         mv.visitVarInsn(ALOAD, 0);
-        mv.visitVarInsn(ALOAD, 5);
-        mv.visitMethodInsn(INVOKESPECIAL, daoName, "getSqlFieldSetFunc", "(Ljava/sql/ResultSet;)Lio/edap/x/dao/FieldSetFunc;", false);
-        mv.visitMethodInsn(INVOKEINTERFACE, "java/util/Map", "put", "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;", true);
+        mv.visitVarInsn(ALOAD, 3);
+        mv.visitMethodInsn(INVOKESPECIAL, daoName, "getSqlFieldSetFunc",
+                "(Ljava/sql/ResultSet;)L" + FIELD_SET_FUNC_NAME + ";", false);
+        mv.visitMethodInsn(INVOKEINTERFACE, "java/util/Map", "put",
+                "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;", true);
         mv.visitInsn(POP);
 
         mv.visitLabel(l6);
-        mv.visitFrame(Opcodes.F_APPEND,2, new Object[] {"java/lang/String", "io/edap/x/dao/FieldSetFunc"}, 0, null);
+        mv.visitFrame(Opcodes.F_APPEND,2, new Object[] {"java/lang/String", FIELD_SET_FUNC_NAME},
+                0, null);
         mv.visitTypeInsn(NEW, "java/util/ArrayList");
         mv.visitInsn(DUP);
         mv.visitMethodInsn(INVOKESPECIAL, "java/util/ArrayList", "<init>", "()V", false);
-        mv.visitVarInsn(ASTORE, 8);
+        mv.visitVarInsn(ASTORE, 6);
         Label l7 = new Label();
         mv.visitLabel(l7);
         mv.visitFrame(Opcodes.F_APPEND,1, new Object[] {"java/util/List"}, 0, null);
-        mv.visitVarInsn(ALOAD, 5);
+        mv.visitVarInsn(ALOAD, 3);
         mv.visitMethodInsn(INVOKEINTERFACE, "java/sql/ResultSet", "next", "()Z", true);
         Label l8 = new Label();
         mv.visitJumpInsn(IFEQ, l8);
         mv.visitTypeInsn(NEW, entityName);
         mv.visitInsn(DUP);
         mv.visitMethodInsn(INVOKESPECIAL, entityName, "<init>", "()V", false);
-        mv.visitVarInsn(ASTORE, 9);
-        mv.visitVarInsn(ALOAD, 7);
-        mv.visitVarInsn(ALOAD, 9);
+        mv.visitVarInsn(ASTORE, 7);
         mv.visitVarInsn(ALOAD, 5);
-        mv.visitMethodInsn(INVOKEINTERFACE, "io/edap/x/dao/FieldSetFunc", "set", "(Ljava/lang/Object;Ljava/sql/ResultSet;)V", true);
-        mv.visitVarInsn(ALOAD, 8);
-        mv.visitVarInsn(ALOAD, 9);
+        mv.visitVarInsn(ALOAD, 7);
+        mv.visitVarInsn(ALOAD, 3);
+        mv.visitMethodInsn(INVOKEINTERFACE, FIELD_SET_FUNC_NAME, "set", "(Ljava/lang/Object;Ljava/sql/ResultSet;)V", true);
+        mv.visitVarInsn(ALOAD, 6);
+        mv.visitVarInsn(ALOAD, 7);
         mv.visitMethodInsn(INVOKEINTERFACE, "java/util/List", "add", "(Ljava/lang/Object;)Z", true);
         mv.visitInsn(POP);
         mv.visitJumpInsn(GOTO, l7);
         mv.visitLabel(l8);
         mv.visitFrame(Opcodes.F_SAME, 0, null, 0, null);
-        mv.visitVarInsn(ALOAD, 8);
-        mv.visitVarInsn(ASTORE, 9);
+        mv.visitVarInsn(ALOAD, 6);
+        mv.visitVarInsn(ASTORE, 7);
         mv.visitLabel(l4);
         mv.visitVarInsn(ALOAD, 0);
         mv.visitMethodInsn(INVOKEVIRTUAL, daoName, "closeStatmentSession", "()V", false);
-        mv.visitVarInsn(ALOAD, 9);
+        mv.visitVarInsn(ALOAD, 7);
         mv.visitInsn(ARETURN);
         mv.visitLabel(l2);
         mv.visitFrame(Opcodes.F_FULL, 5, new Object[] {daoName, "java/lang/String", "java/util/List", Opcodes.INTEGER, Opcodes.INTEGER}, 1, new Object[] {"java/lang/Throwable"});
-        mv.visitVarInsn(ASTORE, 10);
+        mv.visitVarInsn(ASTORE, 8);
         mv.visitLabel(l5);
         mv.visitVarInsn(ALOAD, 0);
         mv.visitMethodInsn(INVOKEVIRTUAL, daoName, "closeStatmentSession", "()V", false);
-        mv.visitVarInsn(ALOAD, 10);
+        mv.visitVarInsn(ALOAD, 8);
         mv.visitInsn(ATHROW);
         mv.visitMaxs(5, 11);
-        mv.visitEnd();
-    }
-
-    private void visitQueryThreeParamMethod() {
-        MethodVisitor mv;
-        mv = cw.visitMethod(ACC_PUBLIC, "query", "(Ljava/lang/String;Ljava/util/List;I)Ljava/util/List;",
-                "(Ljava/lang/String;Ljava/util/List<L" + QUERY_PARAM_NAME + ";>;I)" +
-                        "Ljava/util/List<L" + entityName + ";>;", new String[] { "java/sql/SQLException" });
-        mv.visitCode();
-        mv.visitVarInsn(ALOAD, 0);
-        mv.visitVarInsn(ALOAD, 1);
-        mv.visitVarInsn(ALOAD, 2);
-        mv.visitInsn(ICONST_0);
-        mv.visitVarInsn(ILOAD, 3);
-        mv.visitMethodInsn(INVOKEVIRTUAL, daoName, "query", "(Ljava/lang/String;Ljava/util/List;II)Ljava/util/List;", false);
-        mv.visitInsn(ARETURN);
-        mv.visitMaxs(5, 4);
-        mv.visitEnd();
-    }
-
-    private void visitQueryTwoParamMethod() {
-        MethodVisitor mv;
-        mv = cw.visitMethod(ACC_PUBLIC, "query", "(Ljava/lang/String;Ljava/util/List;)Ljava/util/List;",
-                "(Ljava/lang/String;Ljava/util/List<L" + QUERY_PARAM_NAME + ";>;)Ljava/util/List<L" + entityName + ";>;",
-                new String[] { "java/sql/SQLException" });
-        mv.visitCode();
-        mv.visitVarInsn(ALOAD, 0);
-        mv.visitVarInsn(ALOAD, 1);
-        mv.visitVarInsn(ALOAD, 2);
-        mv.visitInsn(ICONST_0);
-        mv.visitInsn(ICONST_0);
-        mv.visitMethodInsn(INVOKEVIRTUAL, daoName, "query", 
-                "(Ljava/lang/String;Ljava/util/List;II)Ljava/util/List;", false);
-        mv.visitInsn(ARETURN);
-        mv.visitMaxs(5, 3);
         mv.visitEnd();
     }
 
@@ -665,7 +487,8 @@ public class JdbcEntityDaoGenerator {
 
         MethodVisitor mv;
         mv = cw.visitMethod(ACC_PRIVATE, "getSqlFieldSetFunc", "(Ljava/sql/ResultSet;)L" + FIELD_SET_FUNC_NAME + ";",
-                "(Ljava/sql/ResultSet;)L" + FIELD_SET_FUNC_NAME +"<L" + entityName + ";>;", new String[] { "java/sql/SQLException" });
+                "(Ljava/sql/ResultSet;)L" + FIELD_SET_FUNC_NAME +"<L" + entityName + ";>;",
+                new String[] { "java/sql/SQLException" });
         mv.visitCode();
         mv.visitVarInsn(ALOAD, 1);
         mv.visitMethodInsn(INVOKEINTERFACE, "java/sql/ResultSet", "getMetaData", "()Ljava/sql/ResultSetMetaData;", true);
@@ -711,14 +534,11 @@ public class JdbcEntityDaoGenerator {
 
         MethodVisitor mv;
         mv = cw.visitMethod(ACC_PUBLIC, "query", "(Ljava/lang/String;)Ljava/util/List;",
-                "(Ljava/lang/String;)Ljava/util/List<L" + entityName + ";>;", new String[] { "java/sql/SQLException" });
+                "(Ljava/lang/String;)Ljava/util/List<L" + entityName + ";>;", new String[] { "java/lang/Exception" });
         mv.visitCode();
         mv.visitVarInsn(ALOAD, 0);
         mv.visitVarInsn(ALOAD, 1);
-        mv.visitInsn(ACONST_NULL);
-        mv.visitInsn(ICONST_0);
-        mv.visitInsn(ICONST_0);
-        mv.visitMethodInsn(INVOKESPECIAL, daoName, "execute", "(Ljava/lang/String;Ljava/util/List;II)Ljava/sql/ResultSet;", false);
+        mv.visitMethodInsn(INVOKESPECIAL, daoName, "execute", "(Ljava/lang/String;)Ljava/sql/ResultSet;", false);
         mv.visitVarInsn(ASTORE, 2);
         mv.visitVarInsn(ALOAD, 2);
         Label l0 = new Label();
@@ -780,7 +600,8 @@ public class JdbcEntityDaoGenerator {
 
     private void visitUpdateByIdBridgeMethod() {
         MethodVisitor mv;
-        mv = cw.visitMethod(ACC_PUBLIC + ACC_BRIDGE + ACC_SYNTHETIC, "updateById", "(Ljava/lang/Object;)I", null, null);
+        mv = cw.visitMethod(ACC_PUBLIC + ACC_BRIDGE + ACC_SYNTHETIC, "updateById",
+                "(Ljava/lang/Object;)I", null, null);
         mv.visitCode();
         mv.visitVarInsn(ALOAD, 0);
         mv.visitVarInsn(ALOAD, 1);
@@ -794,12 +615,12 @@ public class JdbcEntityDaoGenerator {
     private void visitFindOneTwoParamBridgeMethod() {
         MethodVisitor mv;
         mv = cw.visitMethod(ACC_PUBLIC + ACC_BRIDGE + ACC_SYNTHETIC, "findOne",
-                "(Ljava/lang/String;Ljava/util/List;)Ljava/lang/Object;", null, new String[] { "java/sql/SQLException" });
+                "(Ljava/lang/String;[L" + QUERY_PARAM_NAME + ";)Ljava/lang/Object;", null, new String[] { "java/lang/Exception" });
         mv.visitCode();
         mv.visitVarInsn(ALOAD, 0);
         mv.visitVarInsn(ALOAD, 1);
         mv.visitVarInsn(ALOAD, 2);
-        mv.visitMethodInsn(INVOKEVIRTUAL, daoName, "findOne", "(Ljava/lang/String;Ljava/util/List;)L" + entityName + ";", false);
+        mv.visitMethodInsn(INVOKEVIRTUAL, daoName, "findOne", "(Ljava/lang/String;[L" + QUERY_PARAM_NAME + ";)L" + entityName + ";", false);
         mv.visitInsn(ARETURN);
         mv.visitMaxs(3, 3);
         mv.visitEnd();
@@ -808,7 +629,7 @@ public class JdbcEntityDaoGenerator {
     private void visitFindOneOneParamBridgeMethod() {
         MethodVisitor mv;
         mv = cw.visitMethod(ACC_PUBLIC + ACC_BRIDGE + ACC_SYNTHETIC, "findOne",
-                "(Ljava/lang/String;)Ljava/lang/Object;", null, new String[] { "java/sql/SQLException" });
+                "(Ljava/lang/String;)Ljava/lang/Object;", null, new String[] { "java/lang/Exception" });
         mv.visitCode();
         mv.visitVarInsn(ALOAD, 0);
         mv.visitVarInsn(ALOAD, 1);
@@ -820,7 +641,8 @@ public class JdbcEntityDaoGenerator {
 
     private void visitClinitMethod() {
         FieldVisitor fv;
-        fv = cw.visitField(ACC_STATIC, "FIELD_SET_FUNCS", "Ljava/util/Map;", "Ljava/util/Map<Ljava/lang/String;Lio/edap/x/dao/FieldSetFunc<L" + entityName + ";>;>;", null);
+        fv = cw.visitField(ACC_STATIC, "FIELD_SET_FUNCS", "Ljava/util/Map;",
+                "Ljava/util/Map<Ljava/lang/String;L" + FIELD_SET_FUNC_NAME + "<L" + entityName + ";>;>;", null);
         fv.visitEnd();
 
         MethodVisitor mv = cw.visitMethod(ACC_STATIC, "<clinit>", "()V", null, null);
@@ -836,7 +658,7 @@ public class JdbcEntityDaoGenerator {
 
     private void visitInsertListMethod() {
         MethodVisitor mv = cw.visitMethod(ACC_PUBLIC, "insert", "(Ljava/util/List;)[I",
-                "(Ljava/util/List<L" + entityName + ";>;)[I", new String[] { "java/sql/SQLException", "java/lang/Exception" });
+                "(Ljava/util/List<L" + entityName + ";>;)[I", new String[] { "java/lang/Exception" });
 
         InsertInfo insertInfo = getInsertSql(entity);
         Field idField = insertInfo.getIdField();
@@ -1018,7 +840,7 @@ public class JdbcEntityDaoGenerator {
 
     private void visitInsertMethod() {
         MethodVisitor mv = cw.visitMethod(ACC_PUBLIC, "insert", "(L" + entityName + ";)I", null,
-                new String[] { "java/sql/SQLException", "java/lang/Exception" });
+                new String[] {"java/lang/Exception" });
 
         InsertInfo insertInfo = getInsertSql(entity);
         Field idField = insertInfo.getIdField();
@@ -1145,7 +967,7 @@ public class JdbcEntityDaoGenerator {
 
     private void visitInsertBridgeMethod() {
         MethodVisitor mv = cw.visitMethod(ACC_PUBLIC + ACC_BRIDGE + ACC_SYNTHETIC, "insert", "(Ljava/lang/Object;)I",
-                null, new String[] { "java/sql/SQLException", "java/lang/Exception" });
+                null, new String[] { "java/lang/Exception" });
         mv.visitCode();
         mv.visitVarInsn(ALOAD, 0);
         mv.visitVarInsn(ALOAD, 1);

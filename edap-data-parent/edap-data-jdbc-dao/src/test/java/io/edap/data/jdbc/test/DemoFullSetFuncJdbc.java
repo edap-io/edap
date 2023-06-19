@@ -14,21 +14,20 @@
  * under the License.
  */
 
-package io.edap.data;
+package io.edap.data.jdbc.test;
+
+import io.edap.data.JdbcFieldSetFunc;
+import io.edap.data.jdbc.test.entity.Demo;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
 
-/**
- * 根据sql中字段列表，设置java对象属性的函数，只有在支持动态属性的jvm中使用
- * @param <T> java对象的类型
- */
-@FunctionalInterface
-public interface FieldSetFunc<T> {
-    /**
-     * 根据jdbc的ResultSet设置持久化Bean的属性值
-     * @param t 需要设置属性的java对象
-     * @param rs JDBC的ResultSet对象
-     */
-    void set(T t, ResultSet rs) throws SQLException;
+public class DemoFullSetFuncJdbc implements JdbcFieldSetFunc<Demo> {
+    @Override
+    public void set(Demo demo, ResultSet rs) throws SQLException {
+        demo.setId(rs.getInt("id"));
+        demo.setCreateTime(rs.getLong("create_time"));
+        demo.setField1(rs.getString("field1"));
+        demo.setLocalDateTime(rs.getLong("local_datetime"));
+    }
 }

@@ -16,6 +16,8 @@
 
 package io.edap.data;
 
-public interface JdbcEntityDao<T> extends EntityDao<T> {
+import javax.sql.DataSource;
 
+public interface JdbcEntityDao<T> extends EntityDao<T> {
+    void setDataSource(DataSource dataSource);
 }

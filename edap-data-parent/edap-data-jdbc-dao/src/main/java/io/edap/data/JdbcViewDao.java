@@ -16,5 +16,9 @@
 
 package io.edap.data;
 
+import javax.sql.DataSource;
+
 public interface JdbcViewDao<T> extends ViewDao<T> {
+
+    void setDataSource(DataSource dataSource);
 }

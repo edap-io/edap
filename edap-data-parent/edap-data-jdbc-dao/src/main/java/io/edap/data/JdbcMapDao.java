@@ -16,5 +16,9 @@
 
 package io.edap.data;
 
+import javax.sql.DataSource;
+
 public interface JdbcMapDao extends MapDao {
+
+    void setDataSource(DataSource dataSource);
 }

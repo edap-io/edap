@@ -36,7 +36,7 @@ import static org.objectweb.asm.Opcodes.*;
 
 public class JdbcFieldSetFuncGenerator {
 
-    private static String FUNC_IFACT_NAME = toInternalName(FieldSetFunc.class.getName());
+    private static String FUNC_IFACT_NAME = toInternalName(JdbcFieldSetFunc.class.getName());
 
     private Class<?> entity;
     private List<String> columns;

@@ -34,10 +34,10 @@ import static io.edap.util.Constants.EMPTY_LIST;
 
 public class DemoEntityDao extends JdbcBaseDao implements JdbcEntityDao<Demo> {
 
-    static Map<String, FieldSetFunc<Demo>> FIELD_SET_FUNCS = new ConcurrentHashMap<>();
+    static Map<String, JdbcFieldSetFunc<Demo>> FIELD_SET_FUNCS = new ConcurrentHashMap<>();
 
     @Override
-    public int insert(Demo d) throws SQLException, Exception {
+    public int insert(Demo d) throws Exception {
         StatementSession session = getStatementSession();
         int rows;
         try {
@@ -61,7 +61,7 @@ public class DemoEntityDao extends JdbcBaseDao implements JdbcEntityDao<Demo> {
     }
 
     @Override
-    public int[] insert(List<Demo> demos) throws SQLException, Exception {
+    public int[] insert(List<Demo> demos) throws Exception {
         if (CollectionUtils.isEmpty(demos)) {
             return null;
         }
@@ -103,14 +103,14 @@ public class DemoEntityDao extends JdbcBaseDao implements JdbcEntityDao<Demo> {
     }
 
     @Override
-    public List<Demo> query(String sql) throws SQLException {
+    public List<Demo> query(String sql) throws Exception {
         try {
             ResultSet rs = execute(sql, null);
             if (rs == null) {
                 return EMPTY_LIST;
             }
             String fieldSql = getFieldsSql(sql);
-            FieldSetFunc<Demo> func = FIELD_SET_FUNCS.get(fieldSql);
+            JdbcFieldSetFunc<Demo> func = FIELD_SET_FUNCS.get(fieldSql);
             if (func == null) {
                 FIELD_SET_FUNCS.putIfAbsent(fieldSql, getSqlFieldSetFunc(rs));
             }
@@ -125,7 +125,7 @@ public class DemoEntityDao extends JdbcBaseDao implements JdbcEntityDao<Demo> {
         }
     }
 
-    private FieldSetFunc<Demo> getSqlFieldSetFunc(ResultSet rs) throws SQLException {
+    private JdbcFieldSetFunc<Demo> getSqlFieldSetFunc(ResultSet rs) throws SQLException {
         ResultSetMetaData metaData = rs.getMetaData();
         int count = metaData.getColumnCount();
         List<String> columns = new ArrayList<>();
@@ -136,14 +136,14 @@ public class DemoEntityDao extends JdbcBaseDao implements JdbcEntityDao<Demo> {
     }
 
     @Override
-    public List<Demo> query(String sql, QueryParam... params) throws SQLException {
+    public List<Demo> query(String sql, QueryParam... params) throws Exception {
         try {
             ResultSet rs = execute(sql, params);
             if (rs == null) {
                 return EMPTY_LIST;
             }
             String fieldSql = getFieldsSql(sql);
-            FieldSetFunc<Demo> func = FIELD_SET_FUNCS.get(fieldSql);
+            JdbcFieldSetFunc<Demo> func = FIELD_SET_FUNCS.get(fieldSql);
             if (func == null) {
                 func = getSqlFieldSetFunc(rs);
                 FIELD_SET_FUNCS.putIfAbsent(fieldSql, getSqlFieldSetFunc(rs));
@@ -162,7 +162,7 @@ public class DemoEntityDao extends JdbcBaseDao implements JdbcEntityDao<Demo> {
     }
 
     @Override
-    public Demo findById(Object id) throws SQLException {
+    public Demo findById(Object id) throws Exception {
         if (id == null) {
             return null;
         }
@@ -186,12 +186,16 @@ public class DemoEntityDao extends JdbcBaseDao implements JdbcEntityDao<Demo> {
     }
 
     @Override
-    public Demo findOne(String sql) throws SQLException {
-        return findOne(sql, null);
+    public Demo findOne(String sql) throws Exception {
+        List<Demo> demos = query(sql);
+        if (CollectionUtils.isEmpty(demos)) {
+            return null;
+        }
+        return demos.get(0);
     }
 
     @Override
-    public Demo findOne(String sql, QueryParam...  params) throws SQLException {
+    public Demo findOne(String sql, QueryParam...  params) throws Exception {
         List<Demo> demos = query(sql, params);
         if (CollectionUtils.isEmpty(demos)) {
             return null;
@@ -200,7 +204,7 @@ public class DemoEntityDao extends JdbcBaseDao implements JdbcEntityDao<Demo> {
     }
 
     @Override
-    public int updateById(Demo entity) throws SQLException {
+    public int updateById(Demo entity) throws Exception {
         StatementSession session = getStatementSession();
         try {
             String sql = "update demo set field=? where id=?";

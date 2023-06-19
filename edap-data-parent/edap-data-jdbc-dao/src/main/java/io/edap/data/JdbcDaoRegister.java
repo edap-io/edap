@@ -40,8 +40,8 @@ public class JdbcDaoRegister {
         daoLoader = new DaoLoader(this.getClass().getClassLoader());
     }
 
-    public <T> FieldSetFunc<T> getFieldSetFunc(Class<T> entity, List<String> columns) {
-        FieldSetFunc func = null;
+    public <T> JdbcFieldSetFunc<T> getFieldSetFunc(Class<T> entity, List<String> columns) {
+        JdbcFieldSetFunc func = null;
         try {
             lock.lock();
             String name = getFieldSetFuncName(entity, columns);
@@ -53,7 +53,7 @@ public class JdbcDaoRegister {
             }
             if (funcClazz != null) {
                 try {
-                    func = (FieldSetFunc) funcClazz.newInstance();
+                    func = (JdbcFieldSetFunc) funcClazz.newInstance();
                 } catch (InstantiationException | IllegalAccessException ex) {
                     throw new RuntimeException("generateFieldSetFunc "
                             + funcClazz.getName() + " error", ex);
