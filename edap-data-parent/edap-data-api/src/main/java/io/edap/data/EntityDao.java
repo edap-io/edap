@@ -58,6 +58,15 @@ public interface EntityDao<T> {
     List<T> query(String sql, QueryParam... params) throws Exception;
 
     /**
+     * 根据查询语句已经语句绑定的变量，返回符合条件的java对象列表
+     * @param sql 查询语句
+     * @param params 查询语句绑定的变量数组
+     * @return 符合条件的java对象列表
+     * @throws Exception 查询时如果异常信息
+     */
+    List<T> query(String sql, Object... params) throws Exception;
+
+    /**
      * 根据主键获取一个java对象
      * @param id 主键对象
      * @return 返回符合条件的java对象
@@ -81,6 +90,15 @@ public interface EntityDao<T> {
      * @throws Exception 查询时返回的异常信息
      */
     T findOne(String sql, QueryParam... params) throws Exception;
+
+    /**
+     * 根据查询语句一会查询语句绑定的变量列表，查询第一个符合条件的java对象
+     * @param sql 查询语句
+     * @param params 语句绑定的变量列表
+     * @return 返回符合条件的第一个java对象
+     * @throws Exception 查询时返回的异常信息
+     */
+    T findOne(String sql, Object... params) throws Exception;
 
     /**
      * 将java对象更新都持久化的介质中，按对象的主键更新
@@ -108,6 +126,15 @@ public interface EntityDao<T> {
     int update(String sql, QueryParam... params) throws Exception;
 
     /**
+     * 根据语句以及语句绑定的变量更新久话介质中的值
+     * @param sql 更新语句
+     * @param params 更新语句绑定的变量
+     * @return 返回更新的条数
+     * @throws Exception 更新时抛出的异常s
+     */
+    int update(String sql, Object... params) throws Exception;
+
+    /**
      * 根据删除的语句从持久化介质中删除符合条件的数据
      * @param sql 删除的语句
      * @return 返回删除的记录条数
@@ -123,4 +150,13 @@ public interface EntityDao<T> {
      * @throws Exception 删除时抛出的异常
      */
     int delete(String sql, QueryParam... param) throws Exception;
+
+    /**
+     * 根据删除语句以及删除语句绑定的变量来删除符合条件的记录
+     * @param sql 删除的语句
+     * @param param 删除语句绑定的变量
+     * @return 删除记录的条数
+     * @throws Exception 删除时抛出的异常
+     */
+    int delete(String sql, Object... param) throws Exception;
 }

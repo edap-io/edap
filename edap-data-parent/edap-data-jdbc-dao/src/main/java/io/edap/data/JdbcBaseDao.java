@@ -21,10 +21,7 @@ import io.edap.log.LoggerManager;
 import io.edap.util.CollectionUtils;
 
 import javax.sql.DataSource;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Statement;
+import java.sql.*;
 import java.util.Locale;
 
 public abstract class JdbcBaseDao {
@@ -34,6 +31,8 @@ public abstract class JdbcBaseDao {
     protected String databaseType;
 
     DataSource dataSource;
+
+    Connection con;
 
     static final ThreadLocal<StatementSession> STMT_SESSION_LOCAL =
             new ThreadLocal<StatementSession>() {
@@ -48,6 +47,10 @@ public abstract class JdbcBaseDao {
         this.dataSource = dataSource;
     }
 
+    public void setConnection(Connection con) {
+        this.con = con;
+    }
+
     public String getDatabaseType() {
         return databaseType;
     }
@@ -56,6 +59,9 @@ public abstract class JdbcBaseDao {
         StatementSession session = STMT_SESSION_LOCAL.get();
         if (session.getDataSource() == null) {
             session.setDataSource(dataSource);
+        }
+        if (con != null && session.getDataSource() == null) {
+            session.setConnection(con);
         }
         return session;
     }
@@ -87,6 +93,12 @@ public abstract class JdbcBaseDao {
         return pstmt.executeQuery();
     }
 
+    protected ResultSet execute(final String sql, Object... params) throws SQLException {
+        PreparedStatement pstmt = getStatementSession().prepareStatement(sql);
+        setPreparedParams(pstmt, params);
+        return pstmt.executeQuery();
+    }
+
     public int update(String sql) throws SQLException {
         StatementSession session = getStatementSession();
         try {
@@ -112,7 +124,45 @@ public abstract class JdbcBaseDao {
         }
     }
 
+    public static void setPreparedParams(PreparedStatement pstmt, Object... params) throws SQLException {
+        if (CollectionUtils.isEmpty(params)) {
+            return;
+        }
+        int index = 0;
+        for (Object param : params) {
+            index++;
+            pstmt.setObject(index, param);
+
+        }
+    }
+
     public int update(final String sql, QueryParam... params) throws SQLException {
+        StatementSession session = getStatementSession();
+        try {
+            boolean initAuto = session.getAutoCommit();
+            if (initAuto) {
+                session.setAutoCommit(false);
+            }
+            PreparedStatement pstmt = session.prepareStatement(sql);
+            setPreparedParams(pstmt, params);
+            int row = pstmt.executeUpdate();
+            if (pstmt != null) {
+                try {
+                    pstmt.close();
+                } catch (Exception e) {
+                    LOG.warn("PreparedStatement close error!", e);
+                }
+            }
+            if (initAuto) {
+                session.setAutoCommit(true);
+            }
+            return row;
+        } finally {
+            session.close();
+        }
+    }
+
+    public int update(final String sql, Object... params) throws SQLException {
         StatementSession session = getStatementSession();
         try {
             boolean initAuto = session.getAutoCommit();
@@ -151,6 +201,32 @@ public abstract class JdbcBaseDao {
     }
 
     public int delete(final String sql, QueryParam... params) throws SQLException {
+        StatementSession session = getStatementSession();
+        try {
+            boolean initAuto = session.getAutoCommit();
+            if (initAuto) {
+                session.setAutoCommit(false);
+            }
+            PreparedStatement pstmt = session.prepareStatement(sql);
+            setPreparedParams(pstmt, params);
+            int row = pstmt.executeUpdate();
+            if (pstmt != null) {
+                try {
+                    pstmt.close();
+                } catch (Exception e) {
+                    LOG.warn("PreparedStatement close error!", e);
+                }
+            }
+            if (initAuto) {
+                session.setAutoCommit(true);
+            }
+            return row;
+        } finally {
+            session.close();
+        }
+    }
+
+    public int delete(final String sql, Object... params) throws SQLException {
         StatementSession session = getStatementSession();
         try {
             boolean initAuto = session.getAutoCommit();

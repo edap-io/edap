@@ -42,6 +42,10 @@ public class SingleStatementSession implements StatementSession {
         return con;
     }
 
+    public void setConnection(Connection con) {
+        this.con = con;
+    }
+
     @Override
     public Statement createStatement() throws SQLException {
         Connection con = getConnection();

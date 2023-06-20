@@ -162,6 +162,32 @@ public class DemoEntityDao extends JdbcBaseDao implements JdbcEntityDao<Demo> {
     }
 
     @Override
+    public List<Demo> query(String sql, Object... params) throws Exception {
+        try {
+            ResultSet rs = execute(sql, params);
+            if (rs == null) {
+                return EMPTY_LIST;
+            }
+            String fieldSql = getFieldsSql(sql);
+            JdbcFieldSetFunc<Demo> func = FIELD_SET_FUNCS.get(fieldSql);
+            if (func == null) {
+                func = getSqlFieldSetFunc(rs);
+                FIELD_SET_FUNCS.putIfAbsent(fieldSql, getSqlFieldSetFunc(rs));
+            }
+            List<Demo> demos = new ArrayList<>();
+            while (rs.next()) {
+                Demo demo = new Demo();
+                func.set(demo, rs);
+                demos.add(demo);
+            }
+
+            return demos;
+        } finally {
+            closeStatmentSession();
+        }
+    }
+
+    @Override
     public Demo findById(Object id) throws Exception {
         if (id == null) {
             return null;
@@ -196,6 +222,15 @@ public class DemoEntityDao extends JdbcBaseDao implements JdbcEntityDao<Demo> {
 
     @Override
     public Demo findOne(String sql, QueryParam...  params) throws Exception {
+        List<Demo> demos = query(sql, params);
+        if (CollectionUtils.isEmpty(demos)) {
+            return null;
+        }
+        return demos.get(0);
+    }
+
+    @Override
+    public Demo findOne(String sql, Object... params) throws Exception {
         List<Demo> demos = query(sql, params);
         if (CollectionUtils.isEmpty(demos)) {
             return null;
