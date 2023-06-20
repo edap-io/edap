@@ -23,6 +23,7 @@ import java.lang.reflect.Method;
 
 public class InsertInfo {
     private String insertSql;
+    private String noIdInsertSql;
     private GenerationType generationType;
     private Field idField;
     private Method idSetMethod;
@@ -57,5 +58,13 @@ public class InsertInfo {
 
     public void setIdSetMethod(Method idSetMethod) {
         this.idSetMethod = idSetMethod;
+    }
+
+    public String getNoIdInsertSql() {
+        return noIdInsertSql;
+    }
+
+    public void setNoIdInsertSql(String noIdInsertSql) {
+        this.noIdInsertSql = noIdInsertSql;
     }
 }

@@ -111,18 +111,38 @@ public class DaoUtil {
             return insertInfo;
         }
         StringBuilder sb = new StringBuilder();
+        StringBuilder noIdSql = new StringBuilder();
 
         sb.append("INSERT INTO ").append(getTableName(entityClazz)).append(" (");
+        noIdSql.append(sb);
         ColumnsInfo columnsInfo = getColumns(entityClazz);
         List<String> columns = columnsInfo.getColumns();
         int size = columns.size();
+        int j = 0;
         for (int i=0;i<size;i++) {
             if (i > 0) {
                 sb.append(',');
             }
             sb.append(columns.get(i));
+            if (columnsInfo.getIdColumnName() == null) {
+                if (j > 0) {
+                    noIdSql.append(',');
+                }
+                j++;
+                noIdSql.append(columns.get(i));
+            } else {
+                if (!columnsInfo.getIdColumnName().equals(columns.get(i))) {
+                    if (j > 0) {
+                        noIdSql.append(',');
+                    }
+                    j++;
+                    noIdSql.append(columns.get(i));
+                }
+            }
         }
         sb.append(") VALUES (");
+        noIdSql.append(") VALUES (");
+
         for (int i=0;i<size;i++) {
             if (i > 0) {
                 sb.append(',');
@@ -130,11 +150,22 @@ public class DaoUtil {
             sb.append('?');
         }
         sb.append(")");
+        if (columnsInfo.getIdColumnName() != null) {
+            size = size - 1;
+        }
+        for (int i=0;i<size;i++) {
+            if (i > 0) {
+                noIdSql.append(',');
+            }
+            noIdSql.append('?');
+        }
+        noIdSql.append(")");
 
         insertInfo.setIdField(columnsInfo.getIdField());
         insertInfo.setIdSetMethod(columnsInfo.getIdSetMethod());
         insertInfo.setGenerationType(columnsInfo.getGenerationType());
         insertInfo.setInsertSql(sb.toString());
+        insertInfo.setNoIdInsertSql(noIdSql.toString());
         return insertInfo;
     }
 
