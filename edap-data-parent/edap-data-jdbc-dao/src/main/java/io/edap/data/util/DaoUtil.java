@@ -110,21 +110,16 @@ public class DaoUtil {
             insertInfo.setGenerationType(null);
             return insertInfo;
         }
-        StringBuilder sb = new StringBuilder();
+        StringBuilder allFieldSql = new StringBuilder();
         StringBuilder noIdSql = new StringBuilder();
 
-        sb.append("INSERT INTO ").append(getTableName(entityClazz)).append(" (");
-        noIdSql.append(sb);
+        noIdSql.append("INSERT INTO ").append(getTableName(entityClazz)).append(" (");
         ColumnsInfo columnsInfo = getColumns(entityClazz);
         List<String> columns = columnsInfo.getColumns();
         int size = columns.size();
         int j = 0;
         for (int i=0;i<size;i++) {
-            if (i > 0) {
-                sb.append(',');
-            }
-            sb.append(columns.get(i));
-            if (columnsInfo.getIdColumnName() == null) {
+            if (StringUtil.isEmpty(columnsInfo.getIdColumnName())) {
                 if (j > 0) {
                     noIdSql.append(',');
                 }
@@ -140,16 +135,23 @@ public class DaoUtil {
                 }
             }
         }
-        sb.append(") VALUES (");
+        allFieldSql.append(noIdSql);
+        if (!StringUtil.isEmpty(columnsInfo.getIdColumnName())) {
+            if (j > 0) {
+                allFieldSql.append(',');
+            }
+            allFieldSql.append(columnsInfo.getIdColumnName());
+        }
+        allFieldSql.append(") VALUES (");
         noIdSql.append(") VALUES (");
 
         for (int i=0;i<size;i++) {
             if (i > 0) {
-                sb.append(',');
+                allFieldSql.append(',');
             }
-            sb.append('?');
+            allFieldSql.append('?');
         }
-        sb.append(")");
+        allFieldSql.append(")");
         if (columnsInfo.getIdColumnName() != null) {
             size = size - 1;
         }
@@ -164,7 +166,7 @@ public class DaoUtil {
         insertInfo.setIdField(columnsInfo.getIdField());
         insertInfo.setIdSetMethod(columnsInfo.getIdSetMethod());
         insertInfo.setGenerationType(columnsInfo.getGenerationType());
-        insertInfo.setInsertSql(sb.toString());
+        insertInfo.setInsertSql(allFieldSql.toString());
         insertInfo.setNoIdInsertSql(noIdSql.toString());
         return insertInfo;
     }
