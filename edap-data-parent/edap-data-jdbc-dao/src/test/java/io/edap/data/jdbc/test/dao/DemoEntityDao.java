@@ -41,18 +41,25 @@ public class DemoEntityDao extends JdbcBaseDao implements JdbcEntityDao<Demo> {
         StatementSession session = getStatementSession();
         int rows;
         try {
-            PreparedStatement ps = session.prepareStatement("insert into demo (id,username,create_time) values (?,?,?,?)");
-            ps.setLong(1, d.getId());
-            ps.setString(2, d.getField1());
-            ps.setLong(3, d.getCreateTime());
+            PreparedStatement ps;
+            if (d.getId() != null) {
+                ps = session.prepareStatement("insert into demo (username,create_time,id) values (?,?,?,?)");
+            }  else {
+                ps = session.prepareStatement("insert into demo (username,create_time) values (?,?,?)", 1);
+            }
+            ps.setString(1, d.getField1());
+            ps.setLong(2, d.getCreateTime());
+            if (d.getId() != null) {
+                ps.setLong(3, d.getId());
+            }
             rows = ps.executeUpdate();
-//            ResultSet rs = ps.getGeneratedKeys();
-//            if (rs != null) {
-//                if (rs.next()) {
-//                    d.setId(rs.getInt(1));
-//                }
-//                rs.close();
-//            }
+            ResultSet rs = ps.getGeneratedKeys();
+            if (rs != null) {
+                if (rs.next()) {
+                    d.setId(rs.getInt(1));
+                }
+                rs.close();
+            }
 
             return rows;
         } finally {
@@ -76,7 +83,7 @@ public class DemoEntityDao extends JdbcBaseDao implements JdbcEntityDao<Demo> {
             ps.clearBatch();
             int size = demos.size();
             for (int i=0;i<size;i++) {
-                Demo d = demos.get(0);
+                Demo d = demos.get(i);
                 ps.setLong(1, d.getId());
                 ps.setString(2, d.getField1());
                 ps.setLong(3, d.getCreateTime());
