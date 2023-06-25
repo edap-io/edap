@@ -354,6 +354,10 @@ public class DaoUtil {
         return "edao." + entity.getName() + "JdbcEntityDao";
     }
 
+    public static String getViewDaoName(Class<?> view) {
+        return "edao." + view.getName() + "JdbcViewDao";
+    }
+
     public static String getFieldSetFuncName(Class entity, List<String> columns) {
         StringBuilder sb = new StringBuilder("::");
         if (!CollectionUtils.isEmpty(columns)) {
