@@ -19,6 +19,7 @@ package io.edap.data;
 import io.edap.log.Logger;
 import io.edap.log.LoggerManager;
 import io.edap.util.CollectionUtils;
+import io.edap.util.StringUtil;
 
 import javax.sql.DataSource;
 import java.sql.*;
@@ -64,6 +65,22 @@ public abstract class JdbcBaseDao {
             session.setConnection(con);
         }
         return session;
+    }
+
+    protected boolean hasIdValue(Integer value) {
+        return value != null && value > 0;
+    }
+
+    protected boolean hasIdValue(Long value) {
+        return value != null && value > 0;
+    }
+
+    protected boolean hasIdValue(int value) {
+        return value > 0;
+    }
+
+    protected boolean hasIdValue(long value) {
+        return value > 0;
     }
 
     protected void closeStatmentSession() {

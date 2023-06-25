@@ -165,6 +165,7 @@ public class DaoUtil {
 
         insertInfo.setIdField(columnsInfo.getIdField());
         insertInfo.setIdSetMethod(columnsInfo.getIdSetMethod());
+        insertInfo.setIdGetMethod(columnsInfo.getIdGetMethod());
         insertInfo.setGenerationType(columnsInfo.getGenerationType());
         insertInfo.setInsertSql(allFieldSql.toString());
         insertInfo.setNoIdInsertSql(noIdSql.toString());
@@ -414,6 +415,7 @@ public class DaoUtil {
             if (id != null) {
                 columnsInfo.setIdField(f);
                 columnsInfo.setIdSetMethod(fieldSetMethods.get(f.getName()));
+                columnsInfo.setIdGetMethod(fieldGetMethods.get(f.getName()));
             }
             if (id != null && generatedValue != null) {
                 curType = generationType = generatedValue.strategy();
@@ -567,6 +569,21 @@ public class DaoUtil {
             }
         }
         return column;
+    }
+
+    public static boolean isAutoIncrementType(Class<?> cls) {
+        if (cls == null) {
+            return false;
+        }
+        switch (cls.getName()) {
+            case "int":
+            case "java.lang.Integer":
+            case "long":
+            case "java.lang.Long":
+                return true;
+            default:
+                return false;
+        }
     }
 
     /**

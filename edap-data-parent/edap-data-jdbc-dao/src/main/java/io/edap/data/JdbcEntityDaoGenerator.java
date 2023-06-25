@@ -1004,6 +1004,7 @@ public class JdbcEntityDaoGenerator {
         InsertInfo insertInfo = getInsertSql(entity);
         Field idField = insertInfo.getIdField();
         Method idSetMethod = insertInfo.getIdSetMethod();
+        Method idGetMethod = insertInfo.getIdGetMethod();
 
         mv.visitCode();
         Label lbInnerTry     = new Label();
@@ -1018,7 +1019,8 @@ public class JdbcEntityDaoGenerator {
         int varSession    = varEntity + 1;
         int varPstmt      = varSession + 1;
         int varRows       = varPstmt + 1;
-        int varAutoKeysRs = varRows + 1;
+        int varHasIdValue = varRows + 1;
+        int varAutoKeysRs = varHasIdValue + 1;
         int varRowsReturn = varAutoKeysRs + 1;
         int varRowsFinal  = varRowsReturn + 1;
 
@@ -1027,22 +1029,56 @@ public class JdbcEntityDaoGenerator {
         mv.visitVarInsn(ASTORE, varSession);
 
         mv.visitLabel(lbInnerTry);
-        mv.visitVarInsn(ALOAD, varSession);
 
-        mv.visitLdcInsn(insertInfo.getInsertSql());
-        if (insertInfo.getGenerationType() == GenerationType.IDENTITY) {
+        // 如果主键是int，lang类型没有设置值的话忽略jdbc的主键的赋值使用自增主键的方式填充主键的值
+        Label varLbHasIdValue;
+        Label varLbJdbcSet;
+        if (isAutoIncrementType(idField.getType())) {
+            mv.visitVarInsn(ALOAD, 0);
+            mv.visitVarInsn(ALOAD, varEntity);
+            mv.visitMethodInsn(INVOKEVIRTUAL, entityName, idGetMethod.getName(),
+                    "()" + getDescriptor(idField.getGenericType()), false);
+            mv.visitMethodInsn(INVOKEVIRTUAL, daoName, "hasIdValue",
+                    "(" + getDescriptor(idField.getGenericType()) + ")Z", false);
+            mv.visitVarInsn(ISTORE, varHasIdValue);
+            mv.visitVarInsn(ILOAD, varHasIdValue);
+            varLbHasIdValue = new Label();
+            mv.visitJumpInsn(IFEQ, varLbHasIdValue);
+            mv.visitVarInsn(ALOAD, varSession);
+            mv.visitLdcInsn(insertInfo.getInsertSql());
+            mv.visitMethodInsn(INVOKEINTERFACE, STMT_SESSION_NAME, "prepareStatement",
+                    "(Ljava/lang/String;)Ljava/sql/PreparedStatement;", true);
+            mv.visitVarInsn(ASTORE, varPstmt);
+            varLbJdbcSet = new Label();
+            mv.visitJumpInsn(GOTO, varLbJdbcSet);
+
+            mv.visitLabel(varLbHasIdValue);
+            mv.visitVarInsn(ALOAD, varSession);
+            mv.visitLdcInsn(insertInfo.getNoIdInsertSql());
             mv.visitInsn(ICONST_1);
-            mv.visitMethodInsn(INVOKEINTERFACE, STMT_SESSION_NAME, "prepareStatement", "(Ljava/lang/String;I)Ljava/sql/PreparedStatement;", true);
+            mv.visitMethodInsn(INVOKEINTERFACE, STMT_SESSION_NAME, "prepareStatement",
+                    "(Ljava/lang/String;I)Ljava/sql/PreparedStatement;", true);
+            mv.visitVarInsn(ASTORE, varPstmt);
+
+            mv.visitLabel(varLbJdbcSet);
         } else {
-            mv.visitMethodInsn(INVOKEINTERFACE, STMT_SESSION_NAME, "prepareStatement", "(Ljava/lang/String;)Ljava/sql/PreparedStatement;", true);
+            mv.visitVarInsn(ALOAD, varSession);
+            mv.visitLdcInsn(insertInfo.getInsertSql());
+            mv.visitMethodInsn(INVOKEINTERFACE, STMT_SESSION_NAME, "prepareStatement",
+                    "(Ljava/lang/String;)Ljava/sql/PreparedStatement;", true);
+            mv.visitVarInsn(ASTORE, varPstmt);
         }
-        mv.visitVarInsn(ASTORE, varPstmt);
 
         // 循环持久化bean的字段分别进行设置
         int pos = 1;
         int pstmtVar = 3;
         List<JdbcInfo> jdbcInfos = getJdbcInfos(entity);
+        JdbcInfo idJdbcInfo = null;
         for (JdbcInfo jdbcInfo : jdbcInfos) {
+            if (idField != null && jdbcInfo.getField().getName().equals(idField.getName())) {
+                idJdbcInfo = jdbcInfo;
+                continue;
+            }
             mv.visitVarInsn(ALOAD, pstmtVar);
             visitIntInsn(pos, mv);
             mv.visitVarInsn(ALOAD, varEntity);
@@ -1051,15 +1087,36 @@ public class JdbcEntityDaoGenerator {
             if (jdbcInfo.isNeedUnbox()) {
                 visitUnboxOpcode(mv, jdbcInfo.getField());
             }
+
             mv.visitMethodInsn(INVOKEINTERFACE, "java/sql/PreparedStatement",
                     jdbcInfo.getJdbcMethod(), "(I" + jdbcInfo.getJdbcType() + ")V", true);
             pos++;
+        }
+        // 如果主键不为空则为jdbc设置主键的值
+        if (isAutoIncrementType(idField.getType()) && idJdbcInfo != null) {
+            mv.visitVarInsn(ILOAD, varHasIdValue);
+            Label varLbSetIdJdbc = new Label();
+            mv.visitJumpInsn(IFEQ, varLbSetIdJdbc);
+            mv.visitVarInsn(ALOAD, varPstmt);
+            visitIntInsn(pos, mv);
+            mv.visitVarInsn(ALOAD, varEntity);
+            mv.visitMethodInsn(INVOKEVIRTUAL, entityName, idGetMethod.getName(),
+                    "()" + getDescriptor(idField.getGenericType()), false);
+            if (idJdbcInfo.isNeedUnbox()) {
+                visitUnboxOpcode(mv, idJdbcInfo.getField());
+            }
+            mv.visitMethodInsn(INVOKEINTERFACE, "java/sql/PreparedStatement",
+                    idJdbcInfo.getJdbcMethod(), "(I" + idJdbcInfo.getJdbcType() + ")V", true);
+            mv.visitLabel(varLbSetIdJdbc);
         }
         mv.visitVarInsn(ALOAD, pstmtVar);
         mv.visitMethodInsn(INVOKEINTERFACE, "java/sql/PreparedStatement", "executeUpdate", "()I", true);
         mv.visitVarInsn(ISTORE, varRows);
 
-        if (insertInfo.getGenerationType() == GenerationType.IDENTITY) {
+        if (isAutoIncrementType(idField.getType())) {
+            mv.visitVarInsn(ILOAD, varHasIdValue);
+            Label varLbNoId = new Label();
+            mv.visitJumpInsn(IFNE, varLbNoId);
             Method idsetMethod = insertInfo.getIdSetMethod();
             mv.visitVarInsn(ALOAD, pstmtVar);
             mv.visitMethodInsn(INVOKEINTERFACE, "java/sql/PreparedStatement", "getGeneratedKeys", "()Ljava/sql/ResultSet;", true);
@@ -1103,6 +1160,8 @@ public class JdbcEntityDaoGenerator {
 
             mv.visitLabel(labelReturnRow);
             mv.visitFrame(Opcodes.F_SAME, 0, null, 0, null);
+
+            mv.visitLabel(varLbNoId);
         }
         mv.visitVarInsn(ILOAD, varRows);
         mv.visitVarInsn(ISTORE, varRowsReturn);

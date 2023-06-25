@@ -42,25 +42,27 @@ public class DemoEntityDao extends JdbcBaseDao implements JdbcEntityDao<Demo> {
         int rows;
         try {
             PreparedStatement ps;
-            if (d.getId() != null) {
+            boolean hasIdValue = hasIdValue(d.getId());
+            if (hasIdValue) {
                 ps = session.prepareStatement("insert into demo (username,create_time,id) values (?,?,?,?)");
             }  else {
                 ps = session.prepareStatement("insert into demo (username,create_time) values (?,?,?)", 1);
             }
             ps.setString(1, d.getField1());
             ps.setLong(2, d.getCreateTime());
-            if (d.getId() != null) {
+            if (hasIdValue) {
                 ps.setLong(3, d.getId());
             }
             rows = ps.executeUpdate();
-            ResultSet rs = ps.getGeneratedKeys();
-            if (rs != null) {
-                if (rs.next()) {
-                    d.setId(rs.getInt(1));
+            if (!hasIdValue) {
+                ResultSet rs = ps.getGeneratedKeys();
+                if (rs != null) {
+                    if (rs.next()) {
+                        d.setId(rs.getInt(1));
+                    }
+                    rs.close();
                 }
-                rs.close();
             }
-
             return rows;
         } finally {
             session.close();

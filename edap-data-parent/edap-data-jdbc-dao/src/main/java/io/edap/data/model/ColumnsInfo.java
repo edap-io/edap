@@ -29,6 +29,7 @@ public class ColumnsInfo {
     private List<String> fieldNames;
     private Field idField;
     private Method idSetMethod;
+    private Method idGetMethod;
     private String idColumnName;
 
     public GenerationType getGenerationType() {
@@ -77,5 +78,13 @@ public class ColumnsInfo {
 
     public void setFieldNames(List<String> fieldNames) {
         this.fieldNames = fieldNames;
+    }
+
+    public Method getIdGetMethod() {
+        return idGetMethod;
+    }
+
+    public void setIdGetMethod(Method idGetMethod) {
+        this.idGetMethod = idGetMethod;
     }
 }

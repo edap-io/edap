@@ -28,6 +28,8 @@ public class InsertInfo {
     private Field idField;
     private Method idSetMethod;
 
+    private Method idGetMethod;
+
     public String getInsertSql() {
         return insertSql;
     }
@@ -66,5 +68,13 @@ public class InsertInfo {
 
     public void setNoIdInsertSql(String noIdInsertSql) {
         this.noIdInsertSql = noIdInsertSql;
+    }
+
+    public Method getIdGetMethod() {
+        return idGetMethod;
+    }
+
+    public void setIdGetMethod(Method idGetMethod) {
+        this.idGetMethod = idGetMethod;
     }
 }
