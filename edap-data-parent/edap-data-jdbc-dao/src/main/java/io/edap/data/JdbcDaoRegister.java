@@ -26,8 +26,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.locks.ReentrantLock;
 
-import static io.edap.data.util.DaoUtil.getEntityDaoName;
-import static io.edap.data.util.DaoUtil.getFieldSetFuncName;
+import static io.edap.data.util.DaoUtil.*;
 import static io.edap.util.AsmUtil.saveJavaFile;
 import static io.edap.util.AsmUtil.toLangName;
 
@@ -135,6 +134,53 @@ public class JdbcDaoRegister {
     private Class generateEntityDaoClass(Class<?> entity, String databaseType) {
         JdbcEntityDaoGenerator generator = new JdbcEntityDaoGenerator(entity, databaseType);
         String daoName = toLangName(getEntityDaoName(entity));
+        Class daoCls = null;
+        try {
+            GeneratorClassInfo gci = generator.getClassInfo();
+            byte[] bs = gci.clazzBytes;
+            saveJavaFile("./" + gci.clazzName + ".class", bs);
+            daoCls = daoLoader.define(toLangName(gci.clazzName), bs, 0, bs.length);
+        } catch (Exception e) {
+            e.printStackTrace();
+            try {
+                if (daoLoader.loadClass(daoName) != null) {
+                    return daoLoader.loadClass(daoName);
+                }
+            } catch (ClassNotFoundException ex) {
+                throw new RuntimeException("generateEntityDao " + daoName + " error", ex);
+            }
+        }
+        return daoCls;
+    }
+
+    public <T> JdbcViewDao<T> getViewDao(Class<T> entity, String databaseType) {
+        JdbcViewDao dao = null;
+        try {
+            lock.lock();
+            String name = getViewDaoName(entity);
+            Class daoClazz;
+            try {
+                daoClazz = daoLoader.loadClass(name);
+            } catch (ClassNotFoundException e) {
+                daoClazz = generateViewDaoClass(entity, databaseType);
+            }
+            if (daoClazz != null) {
+                try {
+                    dao = (JdbcViewDao) daoClazz.newInstance();
+                } catch (InstantiationException | IllegalAccessException ex) {
+                    throw new RuntimeException("generateEntityDao "
+                            + daoClazz.getName() + " error", ex);
+                }
+            }
+            return dao;
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    private Class generateViewDaoClass(Class<?> entity, String databaseType) {
+        JdbcViewDaoGenerator generator = new JdbcViewDaoGenerator(entity, databaseType);
+        String daoName = toLangName(getViewDaoName(entity));
         Class daoCls = null;
         try {
             GeneratorClassInfo gci = generator.getClassInfo();

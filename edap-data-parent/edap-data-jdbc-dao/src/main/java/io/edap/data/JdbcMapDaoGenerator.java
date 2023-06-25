@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 The edap Project
+ * Copyright 2023 The edap Project
  *
  * The Netty Project licenses this file to you under the Apache License,
  * version 2.0 (the "License"); you may not use this file except in compliance
@@ -16,21 +16,9 @@
 
 package io.edap.data;
 
-import java.util.List;
+public class JdbcMapDaoGenerator {
 
-public interface ViewDao<T> {
+    public JdbcMapDaoGenerator(Class<?> view, String databaseType) {
 
-    List<T> query(String sql) throws Exception;
-
-    List<T> query(String sql, QueryParam... params) throws Exception;
-
-    List<T> query(String sql, Object... params) throws Exception;
-
-    T findById(Object id) throws Exception;
-
-    T findOne(String sql) throws Exception;
-
-    T findOne(String sql, QueryParam... params) throws Exception;
-
-    T findOne(String sql, Object... params) throws Exception;
+    }
 }

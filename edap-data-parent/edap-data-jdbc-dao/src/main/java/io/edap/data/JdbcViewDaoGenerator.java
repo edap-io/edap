@@ -1,3 +1,19 @@
+/*
+ * Copyright 2020 The edap Project
+ *
+ * The Netty Project licenses this file to you under the Apache License,
+ * version 2.0 (the "License"); you may not use this file except in compliance
+ * with the License. You may obtain a copy of the License at:
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+ * License for the specific language governing permissions and limitations
+ * under the License.
+ */
+
 package io.edap.data;
 
 import io.edap.util.internal.GeneratorClassInfo;
@@ -9,27 +25,16 @@ import static org.objectweb.asm.ClassWriter.COMPUTE_FRAMES;
 import static org.objectweb.asm.ClassWriter.COMPUTE_MAXS;
 import static org.objectweb.asm.Opcodes.*;
 
-public class JdbcViewDaoGenerator {
-
-    private static String PARENT_NAME = toInternalName(JdbcBaseViewDao.class.getName());
+public class JdbcViewDaoGenerator extends BaseDaoGenerator {
     private static String VIEW_IFACT_NAME = toInternalName(JdbcViewDao.class.getName());
-    private static String FIELD_SET_FUNC_NAME = toInternalName(JdbcFieldSetFunc.class.getName());
-    private static String REGISTER_NAME = toInternalName(JdbcDaoRegister.class.getName());
 
-    private Class<?> view;
-    private String viewName;
-
-    private String databaseType;
-
-    private String daoName;
-
-    private ClassWriter cw;
 
     public JdbcViewDaoGenerator(Class<?> view, String databaseType) {
-        this.view = view;
-        this.viewName = toInternalName(view.getName());
+        this.entity = view;
+        this.entityName = toInternalName(view.getName());
         this.databaseType = databaseType;
         this.daoName = toInternalName(getViewDaoName(view));
+        this.PARENT_NAME = toInternalName(JdbcBaseViewDao.class.getName());
     }
 
     public GeneratorClassInfo getClassInfo() {
@@ -38,7 +43,7 @@ public class JdbcViewDaoGenerator {
 
         cw = new ClassWriter(COMPUTE_MAXS | COMPUTE_FRAMES);
         String daoDescriptor = "L" + PARENT_NAME + ";L" + VIEW_IFACT_NAME + "<L"
-                + toInternalName(view.getName()) + ";>;";
+                + toInternalName(entity.getName()) + ";>;";
         cw.visit(V1_8, ACC_PUBLIC + ACC_SUPER, daoName,
                 daoDescriptor, PARENT_NAME, new String[]{VIEW_IFACT_NAME});
 
