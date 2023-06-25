@@ -262,9 +262,8 @@ public class JdbcEntityDaoGenerator {
                     mv.visitTypeInsn(CHECKCAST, toInternalName(getBoxedName(idInfo.getField().getType())));
                     visitUnboxOpcode(mv, idInfo.getField());
                 } else {
-                    mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/Long", "longValue", "()J", false);
+                    visitBoxedAndGetValue(mv, idInfo.getField());
                 }
-
             } else {
                 mv.visitTypeInsn(CHECKCAST, getDescriptor(queryInfo.getIdInfo().getField().getType()));
             }
@@ -1204,6 +1203,22 @@ public class JdbcEntityDaoGenerator {
         mv.visitInsn(RETURN);
         mv.visitMaxs(1, 1);
         mv.visitEnd();
+    }
+
+    private void visitBoxedAndGetValue(MethodVisitor mv, Field field) {
+        switch (field.getType().getName()) {
+            case "int":
+                mv.visitTypeInsn(CHECKCAST, "java/lang/Integer");
+                visitMethod(mv, INVOKEVIRTUAL, "java/lang/Integer", "intValue",
+                        "()I", false);
+                break;
+            case "long":
+                mv.visitTypeInsn(CHECKCAST, "java/lang/Long");
+                visitMethod(mv, INVOKEVIRTUAL, "java/lang/Long", "longValue",
+                        "()J", false);
+                break;
+
+        }
     }
 
     /**

@@ -16,6 +16,8 @@
 
 package io.edap.data;
 
+import io.edap.log.Logger;
+import io.edap.log.LoggerManager;
 import io.edap.util.CollectionUtils;
 import io.edap.util.internal.GeneratorClassInfo;
 
@@ -32,6 +34,8 @@ import static io.edap.util.AsmUtil.toLangName;
 
 public class JdbcDaoRegister {
 
+    Logger LOG = LoggerManager.getLogger(JdbcDaoRegister.class);
+
     private final ReentrantLock lock = new ReentrantLock();
 
     private DaoLoader daoLoader;
@@ -47,7 +51,7 @@ public class JdbcDaoRegister {
             String name = getFieldSetFuncName(entity, columns);
             Class funcClazz;
             try {
-                funcClazz = Class.forName(name);
+                funcClazz = daoLoader.loadClass(name);
             } catch (ClassNotFoundException e) {
                 funcClazz = generateFieldSetFuncClass(entity, columns);
             }
@@ -82,7 +86,7 @@ public class JdbcDaoRegister {
                 return funcCls;
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            LOG.info("daoLoader.loadClass error", e);
         }
         try {
             GeneratorClassInfo gci = generator.getClassInfo();
@@ -91,7 +95,7 @@ public class JdbcDaoRegister {
             saveJavaFile("./" + gci.clazzName + ".class", bs);
             funcCls = daoLoader.define(toLangName(gci.clazzName), bs, 0, bs.length);
         } catch (Exception e) {
-            e.printStackTrace();
+            LOG.info("daoLoader.loadClass error", e);
             try {
                 if (daoLoader.loadClass(funcName) != null) {
                     return daoLoader.loadClass(funcName);
@@ -110,7 +114,7 @@ public class JdbcDaoRegister {
             String name = getEntityDaoName(entity);
             Class daoClazz;
             try {
-                daoClazz = Class.forName(name);
+                daoClazz = daoLoader.loadClass(name);
             } catch (ClassNotFoundException e) {
                 daoClazz = generateEntityDaoClass(entity, databaseType);
             }
