@@ -22,8 +22,6 @@ import javax.sql.DataSource;
 import java.sql.*;
 import java.util.*;
 
-import static io.edap.util.Constants.EMPTY_LIST;
-
 public class JdbcBaseMapDao implements JdbcMapDao {
 
     DataSource dataSource;
@@ -112,9 +110,6 @@ public class JdbcBaseMapDao implements JdbcMapDao {
     public List<Map<String, Object>> getList(String sql) throws Exception {
         try {
             ResultSet rs = execute(sql);
-            if (rs == null) {
-                return EMPTY_LIST;
-            }
             List<Map<String, Object>> list = new ArrayList<>();
             ResultSetMetaData metaData = rs.getMetaData();
             int count = metaData.getColumnCount();
@@ -135,9 +130,6 @@ public class JdbcBaseMapDao implements JdbcMapDao {
     public List<Map<String, Object>> getList(String sql, QueryParam... params) throws Exception {
         try {
             ResultSet rs = execute(sql, params);
-            if (rs == null) {
-                return EMPTY_LIST;
-            }
             List<Map<String, Object>> list = new ArrayList<>();
             ResultSetMetaData metaData = rs.getMetaData();
             int count = metaData.getColumnCount();
@@ -158,9 +150,6 @@ public class JdbcBaseMapDao implements JdbcMapDao {
     public List<Map<String, Object>> getList(String sql, Object... params) throws Exception {
         try {
             ResultSet rs = execute(sql, params);
-            if (rs == null) {
-                return EMPTY_LIST;
-            }
             List<Map<String, Object>> list = new ArrayList<>();
             ResultSetMetaData metaData = rs.getMetaData();
             int count = metaData.getColumnCount();
@@ -182,11 +171,7 @@ public class JdbcBaseMapDao implements JdbcMapDao {
 
         try {
             ResultSet rs = execute(sql);
-            if (rs == null) {
-                return Collections.EMPTY_MAP;
-            }
             Map<String, Object> map = new HashMap<>();
-            List<Map<String, Object>> list = new ArrayList<>();
             ResultSetMetaData metaData = rs.getMetaData();
             int count = metaData.getColumnCount();
             if (rs.next()) {
@@ -204,15 +189,11 @@ public class JdbcBaseMapDao implements JdbcMapDao {
     @Override
     public Map<String, Object> getMap(String sql, QueryParam... params) throws Exception {
         try {
-            ResultSet rs = execute(sql);
-            if (rs == null) {
-                return Collections.EMPTY_MAP;
-            }
-            Map<String, Object> map = new HashMap<>();
-            List<Map<String, Object>> list = new ArrayList<>();
+            ResultSet rs = execute(sql, params);
             ResultSetMetaData metaData = rs.getMetaData();
             int count = metaData.getColumnCount();
             if (rs.next()) {
+                Map<String, Object> map = new HashMap<>();
                 for (int i=1;i<=count;i++) {
                     map.put(metaData.getColumnName(i), rs.getObject(i));
                 }
@@ -227,14 +208,11 @@ public class JdbcBaseMapDao implements JdbcMapDao {
     @Override
     public Map<String, Object> getMap(String sql, Object... params) throws Exception {
         try {
-            ResultSet rs = execute(sql);
-            if (rs == null) {
-                return Collections.EMPTY_MAP;
-            }
-            Map<String, Object> map = new HashMap<>();
+            ResultSet rs = execute(sql, params);
             ResultSetMetaData metaData = rs.getMetaData();
             int count = metaData.getColumnCount();
             if (rs.next()) {
+                Map<String, Object> map = new HashMap<>();
                 for (int i=1;i<=count;i++) {
                     map.put(metaData.getColumnName(i), rs.getObject(i));
                 }

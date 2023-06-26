@@ -2,6 +2,7 @@ package io.edap.data.jdbc.test;
 
 import io.edap.data.JdbcDaoRegister;
 import io.edap.data.JdbcMapDao;
+import io.edap.data.QueryParam;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -75,7 +76,536 @@ public class JdbcMapDaoTest extends AbstractDaoTest {
         } finally {
             close(con);
         }
+    }
 
+    @Test
+    public void testGetListNoParamException() {
+        Exception thrown = assertThrows(Exception.class,
+                () -> {
+                    JdbcMapDao mapDao = JdbcDaoRegister.instance().getMapDao();
+                    Connection con = null;
+                    con = openConnection();
+                    mapDao.setConnection(con);
+                    createTable(con);
+
+                    con = openConnection();
+                    mapDao.setConnection(con);
+                    insertData(con);
+
+                    mapDao.getList("select * from map_data1 order by id");
+                });
+        assertTrue(thrown.getMessage().contains("Table \"MAP_DATA1\" not found"));
+    }
+
+    @Test
+    public void testGetListHasParams() {
+        JdbcMapDao mapDao = JdbcDaoRegister.instance().getMapDao();
+        Connection con = null;
+        try {
+            con = openConnection();
+            mapDao.setConnection(con);
+            createTable(con);
+
+            con = openConnection();
+            mapDao.setConnection(con);
+            insertData(con);
+
+            List<Map<String, Object>> list = mapDao.getList("select * from map_data " +
+                    "where id=? order by id", 1L);
+            assertNotNull(list);
+            assertEquals(list.size(), 1);
+            for (int i=0;i<1;i++) {
+                Map<String, Object> data = list.get(i);
+                Object[] original = mapData[i];
+                assertEquals(data.get("id".toUpperCase(Locale.ENGLISH)), original[0]);
+                assertEquals(data.get("str_column".toUpperCase(Locale.ENGLISH)), original[1]);
+                assertEquals(data.get("int_column".toUpperCase(Locale.ENGLISH)), original[2]);
+                assertEquals(data.get("float_column".toUpperCase(Locale.ENGLISH)), original[3]);
+                assertEquals(data.get("double_column".toUpperCase(Locale.ENGLISH)), original[4]);
+                assertTrue(((Date)data.get("date_column".toUpperCase(Locale.ENGLISH))).toLocalDate().equals(((java.sql.Date)original[5]).toLocalDate()));
+                assertEquals(data.get("datetime_column".toUpperCase(Locale.ENGLISH)), original[6]);
+                assertEquals(((Time)data.get("time_column".toUpperCase(Locale.ENGLISH))).toLocalTime(), ((Time)original[7]).toLocalTime());
+                assertEquals(data.get("bool_column".toUpperCase(Locale.ENGLISH)), original[8]);
+                assertEquals(((BigDecimal)data.get("bigdecimal_column".toUpperCase(Locale.ENGLISH))).doubleValue(), ((BigDecimal)original[9]).doubleValue());
+                assertArrayEquals((byte[])data.get("bytearray_column".toUpperCase(Locale.ENGLISH)), (byte[])original[10]);
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        } finally {
+            close(con);
+        }
+    }
+
+    @Test
+    public void testGetMapHasParams() {
+        JdbcMapDao mapDao = JdbcDaoRegister.instance().getMapDao();
+        Connection con = null;
+        try {
+            con = openConnection();
+            mapDao.setConnection(con);
+            createTable(con);
+
+            con = openConnection();
+            mapDao.setConnection(con);
+            insertData(con);
+
+            Map<String, Object> data = mapDao.getMap("select * from map_data " +
+                    "where id=? order by id", 1L);
+            assertNotNull(data);
+            assertEquals(data.size(), 11);
+            Object[] original = mapData[0];
+            assertEquals(data.get("id".toUpperCase(Locale.ENGLISH)), original[0]);
+            assertEquals(data.get("str_column".toUpperCase(Locale.ENGLISH)), original[1]);
+            assertEquals(data.get("int_column".toUpperCase(Locale.ENGLISH)), original[2]);
+            assertEquals(data.get("float_column".toUpperCase(Locale.ENGLISH)), original[3]);
+            assertEquals(data.get("double_column".toUpperCase(Locale.ENGLISH)), original[4]);
+            assertTrue(((Date)data.get("date_column".toUpperCase(Locale.ENGLISH))).toLocalDate().equals(((java.sql.Date)original[5]).toLocalDate()));
+            assertEquals(data.get("datetime_column".toUpperCase(Locale.ENGLISH)), original[6]);
+            assertEquals(((Time)data.get("time_column".toUpperCase(Locale.ENGLISH))).toLocalTime(), ((Time)original[7]).toLocalTime());
+            assertEquals(data.get("bool_column".toUpperCase(Locale.ENGLISH)), original[8]);
+            assertEquals(((BigDecimal)data.get("bigdecimal_column".toUpperCase(Locale.ENGLISH))).doubleValue(), ((BigDecimal)original[9]).doubleValue());
+            assertArrayEquals((byte[])data.get("bytearray_column".toUpperCase(Locale.ENGLISH)), (byte[])original[10]);
+
+            con = openConnection();
+            mapDao.setConnection(con);
+            data = mapDao.getMap("select * from map_data " +
+                    "where id=? order by id", 5L);
+            assertNotNull(data);
+            assertEquals(data.size(), 0);
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        } finally {
+            close(con);
+        }
+    }
+
+    @Test
+    public void testGetMapHasParamObjects() {
+        JdbcMapDao mapDao = JdbcDaoRegister.instance().getMapDao();
+        Connection con = null;
+        try {
+            con = openConnection();
+            mapDao.setConnection(con);
+            createTable(con);
+
+            con = openConnection();
+            mapDao.setConnection(con);
+            insertData(con);
+
+            Map<String, Object> data = mapDao.getMap("select * from map_data " +
+                    "where id=? order by id", new QueryParam() {
+                @Override
+                public Object getParam() {
+                    return 1L;
+                }
+            });
+            assertNotNull(data);
+            assertEquals(data.size(), 11);
+            Object[] original = mapData[0];
+            assertEquals(data.get("id".toUpperCase(Locale.ENGLISH)), original[0]);
+            assertEquals(data.get("str_column".toUpperCase(Locale.ENGLISH)), original[1]);
+            assertEquals(data.get("int_column".toUpperCase(Locale.ENGLISH)), original[2]);
+            assertEquals(data.get("float_column".toUpperCase(Locale.ENGLISH)), original[3]);
+            assertEquals(data.get("double_column".toUpperCase(Locale.ENGLISH)), original[4]);
+            assertTrue(((Date)data.get("date_column".toUpperCase(Locale.ENGLISH))).toLocalDate().equals(((java.sql.Date)original[5]).toLocalDate()));
+            assertEquals(data.get("datetime_column".toUpperCase(Locale.ENGLISH)), original[6]);
+            assertEquals(((Time)data.get("time_column".toUpperCase(Locale.ENGLISH))).toLocalTime(), ((Time)original[7]).toLocalTime());
+            assertEquals(data.get("bool_column".toUpperCase(Locale.ENGLISH)), original[8]);
+            assertEquals(((BigDecimal)data.get("bigdecimal_column".toUpperCase(Locale.ENGLISH))).doubleValue(), ((BigDecimal)original[9]).doubleValue());
+            assertArrayEquals((byte[])data.get("bytearray_column".toUpperCase(Locale.ENGLISH)), (byte[])original[10]);
+
+            con = openConnection();
+            mapDao.setConnection(con);
+
+            data = mapDao.getMap("select * from map_data " +
+                    "where id=? order by id", new QueryParam() {
+                @Override
+                public Object getParam() {
+                    return 5L;
+                }
+            });
+            assertNotNull(data);
+            assertEquals(data.size(), 0);
+
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        } finally {
+            close(con);
+        }
+    }
+
+    @Test
+    public void testGetMapNoParams() {
+        JdbcMapDao mapDao = JdbcDaoRegister.instance().getMapDao();
+        Connection con = null;
+        try {
+            con = openConnection();
+            mapDao.setConnection(con);
+            createTable(con);
+
+            con = openConnection();
+            mapDao.setConnection(con);
+            insertData(con);
+
+            Map<String, Object> data = mapDao.getMap("select * from map_data " +
+                    "where id=1 order by id");
+            assertNotNull(data);
+            assertEquals(data.size(), 11);
+            Object[] original = mapData[0];
+            assertEquals(data.get("id".toUpperCase(Locale.ENGLISH)), original[0]);
+            assertEquals(data.get("str_column".toUpperCase(Locale.ENGLISH)), original[1]);
+            assertEquals(data.get("int_column".toUpperCase(Locale.ENGLISH)), original[2]);
+            assertEquals(data.get("float_column".toUpperCase(Locale.ENGLISH)), original[3]);
+            assertEquals(data.get("double_column".toUpperCase(Locale.ENGLISH)), original[4]);
+            assertTrue(((Date)data.get("date_column".toUpperCase(Locale.ENGLISH))).toLocalDate().equals(((java.sql.Date)original[5]).toLocalDate()));
+            assertEquals(data.get("datetime_column".toUpperCase(Locale.ENGLISH)), original[6]);
+            assertEquals(((Time)data.get("time_column".toUpperCase(Locale.ENGLISH))).toLocalTime(), ((Time)original[7]).toLocalTime());
+            assertEquals(data.get("bool_column".toUpperCase(Locale.ENGLISH)), original[8]);
+            assertEquals(((BigDecimal)data.get("bigdecimal_column".toUpperCase(Locale.ENGLISH))).doubleValue(), ((BigDecimal)original[9]).doubleValue());
+            assertArrayEquals((byte[])data.get("bytearray_column".toUpperCase(Locale.ENGLISH)), (byte[])original[10]);
+
+            con = openConnection();
+            mapDao.setConnection(con);
+            data = mapDao.getMap("select * from map_data " +
+                    "where id=5 order by id");
+            assertNotNull(data);
+            assertEquals(data.size(), 0);
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        } finally {
+            close(con);
+        }
+    }
+
+    @Test
+    public void testGetListHasParamObjects() {
+        JdbcMapDao mapDao = JdbcDaoRegister.instance().getMapDao();
+        Connection con = null;
+        try {
+            con = openConnection();
+            mapDao.setConnection(con);
+            createTable(con);
+
+            con = openConnection();
+            mapDao.setConnection(con);
+            insertData(con);
+
+            List<Map<String, Object>> list = mapDao.getList("select * from map_data " +
+                    "where id=? order by id", new QueryParam() {
+                @Override
+                public Object getParam() {
+                    return 1L;
+                }
+            });
+            assertNotNull(list);
+            assertEquals(list.size(), 1);
+            for (int i=0;i<1;i++) {
+                Map<String, Object> data = list.get(i);
+                Object[] original = mapData[i];
+                assertEquals(data.get("id".toUpperCase(Locale.ENGLISH)), original[0]);
+                assertEquals(data.get("str_column".toUpperCase(Locale.ENGLISH)), original[1]);
+                assertEquals(data.get("int_column".toUpperCase(Locale.ENGLISH)), original[2]);
+                assertEquals(data.get("float_column".toUpperCase(Locale.ENGLISH)), original[3]);
+                assertEquals(data.get("double_column".toUpperCase(Locale.ENGLISH)), original[4]);
+                assertTrue(((Date)data.get("date_column".toUpperCase(Locale.ENGLISH))).toLocalDate().equals(((java.sql.Date)original[5]).toLocalDate()));
+                assertEquals(data.get("datetime_column".toUpperCase(Locale.ENGLISH)), original[6]);
+                assertEquals(((Time)data.get("time_column".toUpperCase(Locale.ENGLISH))).toLocalTime(), ((Time)original[7]).toLocalTime());
+                assertEquals(data.get("bool_column".toUpperCase(Locale.ENGLISH)), original[8]);
+                assertEquals(((BigDecimal)data.get("bigdecimal_column".toUpperCase(Locale.ENGLISH))).doubleValue(), ((BigDecimal)original[9]).doubleValue());
+                assertArrayEquals((byte[])data.get("bytearray_column".toUpperCase(Locale.ENGLISH)), (byte[])original[10]);
+            }
+
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        } finally {
+            close(con);
+        }
+    }
+
+    @Test
+    public void testGetListHasParamsException() {
+        Exception thrown = assertThrows(Exception.class,
+                () -> {
+                    JdbcMapDao mapDao = JdbcDaoRegister.instance().getMapDao();
+                    Connection con = null;
+                    con = openConnection();
+                    mapDao.setConnection(con);
+                    createTable(con);
+
+                    con = openConnection();
+                    mapDao.setConnection(con);
+                    insertData(con);
+
+                    mapDao.getList("select * from map_data1 where id=? order by id", 1L);
+                });
+        assertTrue(thrown.getMessage().contains("Table \"MAP_DATA1\" not found"));
+
+    }
+
+    @Test
+    public void testGetMapHasParamsException() {
+        Exception thrown = assertThrows(Exception.class,
+                () -> {
+                    JdbcMapDao mapDao = JdbcDaoRegister.instance().getMapDao();
+                    Connection con = null;
+                    con = openConnection();
+                    mapDao.setConnection(con);
+                    createTable(con);
+
+                    con = openConnection();
+                    mapDao.setConnection(con);
+                    insertData(con);
+
+                    mapDao.getMap("select * from map_data1 where id=? order by id", 1L);
+                });
+        assertTrue(thrown.getMessage().contains("Table \"MAP_DATA1\" not found"));
+    }
+
+    @Test
+    public void testGetListHasParamObjectsException() {
+        Exception thrown = assertThrows(Exception.class,
+                () -> {
+                    JdbcMapDao mapDao = JdbcDaoRegister.instance().getMapDao();
+                    Connection con = null;
+                    con = openConnection();
+                    mapDao.setConnection(con);
+                    createTable(con);
+
+                    con = openConnection();
+                    mapDao.setConnection(con);
+                    insertData(con);
+
+                    mapDao.getList("select * from map_data1 where id=? order by id", new QueryParam() {
+                        @Override
+                        public Object getParam() {
+                            return 1L;
+                        }
+                    });
+                });
+        assertTrue(thrown.getMessage().contains("Table \"MAP_DATA1\" not found"));
+    }
+
+    @Test
+    public void testGetMapHasParamObjectsException() {
+        Exception thrown = assertThrows(Exception.class,
+                () -> {
+                    JdbcMapDao mapDao = JdbcDaoRegister.instance().getMapDao();
+                    Connection con = null;
+                    con = openConnection();
+                    mapDao.setConnection(con);
+                    createTable(con);
+
+                    con = openConnection();
+                    mapDao.setConnection(con);
+                    insertData(con);
+
+                    mapDao.getMap("select * from map_data1 where id=? order by id", new QueryParam() {
+                        @Override
+                        public Object getParam() {
+                            return 1L;
+                        }
+                    });
+                });
+        assertTrue(thrown.getMessage().contains("Table \"MAP_DATA1\" not found"));
+    }
+
+    @Test
+    public void testUpdateNoParam() {
+        JdbcMapDao mapDao = JdbcDaoRegister.instance().getMapDao();
+        Connection con = null;
+        try {
+            con = openConnection();
+            mapDao.setConnection(con);
+            createTable(con);
+
+            con = openConnection();
+            mapDao.setConnection(con);
+            insertData(con);
+
+            con = openConnection();
+            mapDao.setConnection(con);
+            int row = mapDao.update("update map_data set int_column=100");
+            assertEquals(row, 2);
+
+            con = openConnection();
+            mapDao.setConnection(con);
+            List<Map<String, Object>> list = mapDao.getList("select * from map_data " +
+                    "where id=? order by id", new QueryParam() {
+                @Override
+                public Object getParam() {
+                    return 1L;
+                }
+            });
+
+            assertNotNull(list);
+            assertEquals(list.size(), 1);
+            for (int i=0;i<1;i++) {
+                Map<String, Object> data = list.get(i);
+                Object[] original = mapData[i];
+                assertEquals(data.get("id".toUpperCase(Locale.ENGLISH)), original[0]);
+                assertEquals(data.get("str_column".toUpperCase(Locale.ENGLISH)), original[1]);
+                assertEquals(data.get("int_column".toUpperCase(Locale.ENGLISH)), 100);
+                assertEquals(data.get("float_column".toUpperCase(Locale.ENGLISH)), original[3]);
+                assertEquals(data.get("double_column".toUpperCase(Locale.ENGLISH)), original[4]);
+                assertTrue(((Date)data.get("date_column".toUpperCase(Locale.ENGLISH))).toLocalDate().equals(((java.sql.Date)original[5]).toLocalDate()));
+                assertEquals(data.get("datetime_column".toUpperCase(Locale.ENGLISH)), original[6]);
+                assertEquals(((Time)data.get("time_column".toUpperCase(Locale.ENGLISH))).toLocalTime(), ((Time)original[7]).toLocalTime());
+                assertEquals(data.get("bool_column".toUpperCase(Locale.ENGLISH)), original[8]);
+                assertEquals(((BigDecimal)data.get("bigdecimal_column".toUpperCase(Locale.ENGLISH))).doubleValue(), ((BigDecimal)original[9]).doubleValue());
+                assertArrayEquals((byte[])data.get("bytearray_column".toUpperCase(Locale.ENGLISH)), (byte[])original[10]);
+            }
+
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        } finally {
+            close(con);
+        }
+    }
+
+    @Test
+    public void testUpdateHasParams() {
+        JdbcMapDao mapDao = JdbcDaoRegister.instance().getMapDao();
+        Connection con = null;
+        try {
+            con = openConnection();
+            mapDao.setConnection(con);
+            createTable(con);
+
+            con = openConnection();
+            mapDao.setConnection(con);
+            insertData(con);
+
+            con = openConnection();
+            mapDao.setConnection(con);
+            int row = mapDao.update("update map_data set int_column=100 where id>?", 0L);
+            assertEquals(row, 2);
+
+            con = openConnection();
+            mapDao.setConnection(con);
+            List<Map<String, Object>> list = mapDao.getList("select * from map_data " +
+                    "where id>? order by id", new QueryParam() {
+                @Override
+                public Object getParam() {
+                    return 0L;
+                }
+            });
+
+            assertNotNull(list);
+            assertEquals(list.size(), 2);
+            for (int i=0;i<2;i++) {
+                Map<String, Object> data = list.get(i);
+                Object[] original = mapData[i];
+                assertEquals(data.get("id".toUpperCase(Locale.ENGLISH)), original[0]);
+                assertEquals(data.get("str_column".toUpperCase(Locale.ENGLISH)), original[1]);
+                assertEquals(data.get("int_column".toUpperCase(Locale.ENGLISH)), 100);
+                assertEquals(data.get("float_column".toUpperCase(Locale.ENGLISH)), original[3]);
+                assertEquals(data.get("double_column".toUpperCase(Locale.ENGLISH)), original[4]);
+                assertTrue(((Date)data.get("date_column".toUpperCase(Locale.ENGLISH))).toLocalDate().equals(((java.sql.Date)original[5]).toLocalDate()));
+                assertEquals(data.get("datetime_column".toUpperCase(Locale.ENGLISH)), original[6]);
+                assertEquals(((Time)data.get("time_column".toUpperCase(Locale.ENGLISH))).toLocalTime(), ((Time)original[7]).toLocalTime());
+                assertEquals(data.get("bool_column".toUpperCase(Locale.ENGLISH)), original[8]);
+                assertEquals(((BigDecimal)data.get("bigdecimal_column".toUpperCase(Locale.ENGLISH))).doubleValue(), ((BigDecimal)original[9]).doubleValue());
+                assertArrayEquals((byte[])data.get("bytearray_column".toUpperCase(Locale.ENGLISH)), (byte[])original[10]);
+            }
+
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        } finally {
+            close(con);
+        }
+    }
+
+    @Test
+    public void testUpdateHasParamObjects() {
+        JdbcMapDao mapDao = JdbcDaoRegister.instance().getMapDao();
+        Connection con = null;
+        try {
+            con = openConnection();
+            mapDao.setConnection(con);
+            createTable(con);
+
+            con = openConnection();
+            mapDao.setConnection(con);
+            insertData(con);
+
+            con = openConnection();
+            mapDao.setConnection(con);
+            int row = mapDao.update("update map_data set int_column=100 where id>?", new QueryParam() {
+                @Override
+                public Object getParam() {
+                    return 0L;
+                }
+            });
+            assertEquals(row, 2);
+
+            con = openConnection();
+            mapDao.setConnection(con);
+            List<Map<String, Object>> list = mapDao.getList("select * from map_data " +
+                    "where id>? order by id", new QueryParam() {
+                @Override
+                public Object getParam() {
+                    return 0L;
+                }
+            });
+
+            assertNotNull(list);
+            assertEquals(list.size(), 2);
+            for (int i=0;i<2;i++) {
+                Map<String, Object> data = list.get(i);
+                Object[] original = mapData[i];
+                assertEquals(data.get("id".toUpperCase(Locale.ENGLISH)), original[0]);
+                assertEquals(data.get("str_column".toUpperCase(Locale.ENGLISH)), original[1]);
+                assertEquals(data.get("int_column".toUpperCase(Locale.ENGLISH)), 100);
+                assertEquals(data.get("float_column".toUpperCase(Locale.ENGLISH)), original[3]);
+                assertEquals(data.get("double_column".toUpperCase(Locale.ENGLISH)), original[4]);
+                assertTrue(((Date)data.get("date_column".toUpperCase(Locale.ENGLISH))).toLocalDate().equals(((java.sql.Date)original[5]).toLocalDate()));
+                assertEquals(data.get("datetime_column".toUpperCase(Locale.ENGLISH)), original[6]);
+                assertEquals(((Time)data.get("time_column".toUpperCase(Locale.ENGLISH))).toLocalTime(), ((Time)original[7]).toLocalTime());
+                assertEquals(data.get("bool_column".toUpperCase(Locale.ENGLISH)), original[8]);
+                assertEquals(((BigDecimal)data.get("bigdecimal_column".toUpperCase(Locale.ENGLISH))).doubleValue(), ((BigDecimal)original[9]).doubleValue());
+                assertArrayEquals((byte[])data.get("bytearray_column".toUpperCase(Locale.ENGLISH)), (byte[])original[10]);
+            }
+
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        } finally {
+            close(con);
+        }
+    }
+
+    @Test
+    public void testUpdateNoParamException() {
+        Exception thrown = assertThrows(Exception.class,
+                () -> {
+                    JdbcMapDao mapDao = JdbcDaoRegister.instance().getMapDao();
+                    Connection con = null;
+                    con = openConnection();
+                    mapDao.setConnection(con);
+                    createTable(con);
+
+                    con = openConnection();
+                    mapDao.setConnection(con);
+                    insertData(con);
+
+                    mapDao.update("update map_data1 set int_column=100");
+                });
+        assertTrue(thrown.getMessage().contains("Table \"MAP_DATA1\" not found"));
     }
 
     private void createTable(Connection con) {
