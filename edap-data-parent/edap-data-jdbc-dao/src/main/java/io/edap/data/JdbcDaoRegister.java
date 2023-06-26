@@ -43,8 +43,12 @@ public class JdbcDaoRegister {
         daoLoader = new DaoLoader(this.getClass().getClassLoader());
     }
 
+    public JdbcMapDao getMapDao() {
+        return new JdbcBaseMapDao();
+    }
+
     public <T> JdbcFieldSetFunc<T> getFieldSetFunc(Class<T> entity, List<String> columns) {
-        JdbcFieldSetFunc func = null;
+        JdbcFieldSetFunc<T> func = null;
         try {
             lock.lock();
             String name = getFieldSetFuncName(entity, columns);
@@ -68,7 +72,7 @@ public class JdbcDaoRegister {
         }
     }
 
-    private Class generateFieldSetFuncClass(Class<?> entity, List<String> orignalColumns) {
+    private Class<?> generateFieldSetFuncClass(Class<?> entity, List<String> orignalColumns) {
         List<String> columns = new ArrayList<>();
         if (!CollectionUtils.isEmpty(orignalColumns)) {
 
@@ -78,7 +82,7 @@ public class JdbcDaoRegister {
         }
         JdbcFieldSetFuncGenerator generator = new JdbcFieldSetFuncGenerator(entity, columns);
         String funcName = toLangName(getFieldSetFuncName(entity, columns));
-        Class funcCls = null;
+        Class<?> funcCls = null;
         try {
             funcCls = daoLoader.loadClass(funcName);
             if (funcCls != null) {
@@ -107,11 +111,11 @@ public class JdbcDaoRegister {
     }
 
     public <T> JdbcEntityDao<T> getEntityDao(Class<T> entity, String databaseType) {
-        JdbcEntityDao dao = null;
+        JdbcEntityDao<T> dao = null;
         try {
             lock.lock();
             String name = getEntityDaoName(entity);
-            Class daoClazz;
+            Class<?> daoClazz;
             try {
                 daoClazz = daoLoader.loadClass(name);
             } catch (ClassNotFoundException e) {
@@ -131,10 +135,10 @@ public class JdbcDaoRegister {
         }
     }
 
-    private Class generateEntityDaoClass(Class<?> entity, String databaseType) {
+    private Class<?> generateEntityDaoClass(Class<?> entity, String databaseType) {
         JdbcEntityDaoGenerator generator = new JdbcEntityDaoGenerator(entity, databaseType);
         String daoName = toLangName(getEntityDaoName(entity));
-        Class daoCls = null;
+        Class<?> daoCls = null;
         try {
             GeneratorClassInfo gci = generator.getClassInfo();
             byte[] bs = gci.clazzBytes;
@@ -154,11 +158,11 @@ public class JdbcDaoRegister {
     }
 
     public <T> JdbcViewDao<T> getViewDao(Class<T> entity, String databaseType) {
-        JdbcViewDao dao = null;
+        JdbcViewDao<T> dao = null;
         try {
             lock.lock();
             String name = getViewDaoName(entity);
-            Class daoClazz;
+            Class<?> daoClazz;
             try {
                 daoClazz = daoLoader.loadClass(name);
             } catch (ClassNotFoundException e) {
@@ -178,10 +182,10 @@ public class JdbcDaoRegister {
         }
     }
 
-    private Class generateViewDaoClass(Class<?> entity, String databaseType) {
+    private Class<?> generateViewDaoClass(Class<?> entity, String databaseType) {
         JdbcViewDaoGenerator generator = new JdbcViewDaoGenerator(entity, databaseType);
         String daoName = toLangName(getViewDaoName(entity));
-        Class daoCls = null;
+        Class<?> daoCls = null;
         try {
             GeneratorClassInfo gci = generator.getClassInfo();
             byte[] bs = gci.clazzBytes;
@@ -200,7 +204,7 @@ public class JdbcDaoRegister {
         return daoCls;
     }
 
-    public static final JdbcDaoRegister instance() {
+    public static JdbcDaoRegister instance() {
         return SingletonHolder.INSTANCE;
     }
 
@@ -208,13 +212,13 @@ public class JdbcDaoRegister {
         private static final JdbcDaoRegister INSTANCE = new JdbcDaoRegister();
     }
 
-    class DaoLoader extends ClassLoader {
+    static class DaoLoader extends ClassLoader {
 
         public DaoLoader(ClassLoader parent) {
             super(parent);
         }
 
-        public Class define(String className, byte[] bs, int offset, int len) {
+        public Class<?> define(String className, byte[] bs, int offset, int len) {
             return super.defineClass(className, bs, offset, len);
         }
     }

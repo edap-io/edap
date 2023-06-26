@@ -2,6 +2,7 @@ package io.edap.data.jdbc.test;
 
 import io.edap.data.JdbcDaoRegister;
 import io.edap.data.JdbcEntityDao;
+import io.edap.data.JdbcMapDao;
 import io.edap.data.JdbcViewDao;
 import io.edap.data.jdbc.test.entity.Demo;
 import io.edap.data.jdbc.test.entity.DemoIntId;
@@ -43,5 +44,11 @@ public class EntityDaoGeneratorTest {
         JdbcViewDao<DemoLongObjId> demoILongObjIdDao = JdbcDaoRegister.instance()
                 .getViewDao(DemoLongObjId.class, "Postgresql");
         assertNotNull(demoILongObjIdDao);
+    }
+
+    @Test
+    public void testMapGenerator() {
+        JdbcMapDao mapDao = JdbcDaoRegister.instance().getMapDao();
+        assertNotNull(mapDao);
     }
 }

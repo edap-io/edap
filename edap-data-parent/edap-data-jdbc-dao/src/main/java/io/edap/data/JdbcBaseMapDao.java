@@ -19,12 +19,12 @@ package io.edap.data;
 import io.edap.util.CollectionUtils;
 
 import javax.sql.DataSource;
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
+import java.sql.*;
+import java.util.*;
 
-public abstract class JdbcBaseMapDao {
+import static io.edap.util.Constants.EMPTY_LIST;
+
+public class JdbcBaseMapDao implements JdbcMapDao {
 
     DataSource dataSource;
 
@@ -105,6 +105,177 @@ public abstract class JdbcBaseMapDao {
         StatementSession session = STMT_SESSION_LOCAL.get();
         if (session != null) {
             session.close();
+        }
+    }
+
+    @Override
+    public List<Map<String, Object>> getList(String sql) throws Exception {
+        try {
+            ResultSet rs = execute(sql);
+            if (rs == null) {
+                return EMPTY_LIST;
+            }
+            List<Map<String, Object>> list = new ArrayList<>();
+            ResultSetMetaData metaData = rs.getMetaData();
+            int count = metaData.getColumnCount();
+            while (rs.next()) {
+                Map<String, Object> map = new HashMap<>();
+                for (int i=1;i<=count;i++) {
+                    map.put(metaData.getColumnName(i), rs.getObject(i));
+                }
+                list.add(map);
+            }
+            return list;
+        } finally {
+            closeStatmentSession();
+        }
+    }
+
+    @Override
+    public List<Map<String, Object>> getList(String sql, QueryParam... params) throws Exception {
+        try {
+            ResultSet rs = execute(sql, params);
+            if (rs == null) {
+                return EMPTY_LIST;
+            }
+            List<Map<String, Object>> list = new ArrayList<>();
+            ResultSetMetaData metaData = rs.getMetaData();
+            int count = metaData.getColumnCount();
+            while (rs.next()) {
+                Map<String, Object> map = new HashMap<>();
+                for (int i=1;i<=count;i++) {
+                    map.put(metaData.getColumnName(i), rs.getObject(i));
+                }
+                list.add(map);
+            }
+            return list;
+        } finally {
+            closeStatmentSession();
+        }
+    }
+
+    @Override
+    public List<Map<String, Object>> getList(String sql, Object... params) throws Exception {
+        try {
+            ResultSet rs = execute(sql, params);
+            if (rs == null) {
+                return EMPTY_LIST;
+            }
+            List<Map<String, Object>> list = new ArrayList<>();
+            ResultSetMetaData metaData = rs.getMetaData();
+            int count = metaData.getColumnCount();
+            while (rs.next()) {
+                Map<String, Object> map = new HashMap<>();
+                for (int i=1;i<=count;i++) {
+                    map.put(metaData.getColumnName(i), rs.getObject(i));
+                }
+                list.add(map);
+            }
+            return list;
+        } finally {
+            closeStatmentSession();
+        }
+    }
+
+    @Override
+    public Map<String, Object> getMap(String sql) throws Exception {
+
+        try {
+            ResultSet rs = execute(sql);
+            if (rs == null) {
+                return Collections.EMPTY_MAP;
+            }
+            Map<String, Object> map = new HashMap<>();
+            List<Map<String, Object>> list = new ArrayList<>();
+            ResultSetMetaData metaData = rs.getMetaData();
+            int count = metaData.getColumnCount();
+            if (rs.next()) {
+                for (int i=1;i<=count;i++) {
+                    map.put(metaData.getColumnName(i), rs.getObject(i));
+                }
+                return map;
+            }
+        } finally {
+            closeStatmentSession();
+        }
+        return Collections.EMPTY_MAP;
+    }
+
+    @Override
+    public Map<String, Object> getMap(String sql, QueryParam... params) throws Exception {
+        try {
+            ResultSet rs = execute(sql);
+            if (rs == null) {
+                return Collections.EMPTY_MAP;
+            }
+            Map<String, Object> map = new HashMap<>();
+            List<Map<String, Object>> list = new ArrayList<>();
+            ResultSetMetaData metaData = rs.getMetaData();
+            int count = metaData.getColumnCount();
+            if (rs.next()) {
+                for (int i=1;i<=count;i++) {
+                    map.put(metaData.getColumnName(i), rs.getObject(i));
+                }
+                return map;
+            }
+        } finally {
+            closeStatmentSession();
+        }
+        return Collections.EMPTY_MAP;
+    }
+
+    @Override
+    public Map<String, Object> getMap(String sql, Object... params) throws Exception {
+        try {
+            ResultSet rs = execute(sql);
+            if (rs == null) {
+                return Collections.EMPTY_MAP;
+            }
+            Map<String, Object> map = new HashMap<>();
+            ResultSetMetaData metaData = rs.getMetaData();
+            int count = metaData.getColumnCount();
+            if (rs.next()) {
+                for (int i=1;i<=count;i++) {
+                    map.put(metaData.getColumnName(i), rs.getObject(i));
+                }
+                return map;
+            }
+        } finally {
+            closeStatmentSession();
+        }
+        return Collections.EMPTY_MAP;
+    }
+
+    @Override
+    public int update(String sql) throws Exception {
+        try {
+            PreparedStatement pstmt = getStatementSession().prepareStatement(sql);
+            setPreparedParams(pstmt);
+            return pstmt.executeUpdate();
+        } finally {
+            closeStatmentSession();
+        }
+    }
+
+    @Override
+    public int update(String sql, QueryParam... params) throws Exception {
+        try {
+            PreparedStatement pstmt = getStatementSession().prepareStatement(sql);
+            setPreparedParams(pstmt, params);
+            return pstmt.executeUpdate();
+        } finally {
+            closeStatmentSession();
+        }
+    }
+
+    @Override
+    public int update(String sql, Object... params) throws Exception {
+        try {
+            PreparedStatement pstmt = getStatementSession().prepareStatement(sql);
+            setPreparedParams(pstmt, params);
+            return pstmt.executeUpdate();
+        } finally {
+            closeStatmentSession();
         }
     }
 }

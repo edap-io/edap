@@ -19,9 +19,6 @@ package io.edap.data.jdbc.test;
 import io.edap.data.JdbcDaoRegister;
 import io.edap.data.JdbcEntityDao;
 import io.edap.data.jdbc.test.entity.Demo;
-import org.h2.tools.Server;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import java.sql.Connection;
@@ -32,21 +29,7 @@ import java.sql.SQLException;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-public class EntityDaoTest {
-
-    private static Server server;
-
-    @BeforeAll
-    public static void init() throws SQLException {
-        String[] args = new String[]{};
-        server = Server.createTcpServer(args);
-        server.start();
-    }
-
-    private Connection openConnection() throws SQLException {
-        return DriverManager.
-                getConnection("jdbc:h2:~/test", "sa", "");
-    }
+public class EntityDaoTest extends AbstractDaoTest {
 
     @Test
     public void testInsert() {
@@ -103,23 +86,6 @@ public class EntityDaoTest {
             throw new RuntimeException(e);
         } finally {
             close(con);
-        }
-    }
-
-    private void close(Connection con) {
-        if (con != null) {
-            try {
-                con.close();
-            } catch (SQLException e) {
-                throw new RuntimeException(e);
-            }
-        }
-    }
-
-    @AfterAll
-    public static void teardown() {
-        if (server != null) {
-            server.stop();
         }
     }
 }
