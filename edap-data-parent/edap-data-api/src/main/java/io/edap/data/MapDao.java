@@ -43,6 +43,15 @@ public interface MapDao {
     List<Map<String, Object>> getList(String sql, QueryParam... params) throws Exception;
 
     /**
+     * 根据查询的SQL语句以及绑定的参数获取简单的记录集
+     * @param sql 查询的SQL语句
+     * @param params 绑定的参数
+     * @return
+     * @throws Exception
+     */
+    List<Map<String, Object>> getList(String sql, Object... params) throws Exception;
+
+    /**
      * 获取一个单条记录的简单的Map字段名为键，字段的值为Map的值
      * @param sql 查询的SQL语句
      * @return
@@ -58,6 +67,16 @@ public interface MapDao {
      * @throws Exception
      */
     Map<String, Object> getMap(String sql, QueryParam... params) throws Exception;
+
+    /**
+     * 根据查询SQL以及绑定的参数类型获取一个单条数据的Map
+     * @param sql 查询的SQL语句
+     * @param params 绑定的参数
+     * @return
+     * @throws Exception
+     */
+    Map<String, Object> getMap(String sql, Object... params) throws Exception;
+
     /**
      * 执行insert 或者更新ddl相关sql的操作
      * @param sql 要执行的sql语句
@@ -73,4 +92,13 @@ public interface MapDao {
      * @throws Exception 
      */
     int update(String sql, QueryParam... params) throws Exception;
+
+    /**
+     * 执行update、insert以及ddl相关sql的操作
+     * @param sql 要执行的sql语句
+     * @param params 绑定位置的参数以及对应值
+     * @return 如果为添加和更新记录则返回更新行数
+     * @throws Exception
+     */
+    int update(String sql, Object... params) throws Exception;
 }
