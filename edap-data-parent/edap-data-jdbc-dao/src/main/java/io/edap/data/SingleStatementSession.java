@@ -33,6 +33,8 @@ public class SingleStatementSession implements StatementSession {
 
     private DataSource dataSource;
     private Connection con;
+
+    private boolean daoConnection;
     private Map<String, PreparedStatement> preparedStmts = new HashMap<>();
 
     private Connection getConnection() throws SQLException {
@@ -44,6 +46,7 @@ public class SingleStatementSession implements StatementSession {
 
     public void setConnection(Connection con) {
         this.con = con;
+        this.daoConnection = true;
     }
 
     @Override
@@ -86,8 +89,11 @@ public class SingleStatementSession implements StatementSession {
     @Override
     public void close() {
         try {
-            Connection con = getConnection();
-            con.close();
+            preparedStmts.clear();
+            if (!daoConnection) {
+                Connection con = getConnection();
+                con.close();
+            }
             this.con = null;
         } catch (Throwable e) {
             LOG.warn("SingleStatementSession close error", e);
@@ -104,10 +110,19 @@ public class SingleStatementSession implements StatementSession {
 
     @Override
     public void close(boolean closeConnection) {
-        if (!closeConnection) {
-            return;
+        try {
+            if (closeConnection) {
+                if (!daoConnection) {
+                    Connection con = getConnection();
+                    con.close();
+                }
+            }
+        } catch (Throwable e) {
+            LOG.warn("SingleStatementSession close error", e);
+        } finally {
+            preparedStmts.clear();
+            this.con = null;
         }
-        close();
     }
 
     @Override

@@ -26,10 +26,6 @@ public class JdbcBaseMapDao implements JdbcMapDao {
 
     DataSource dataSource;
 
-    protected String databaseType;
-
-    Connection con;
-
     static final ThreadLocal<StatementSession> STMT_SESSION_LOCAL =
             new ThreadLocal<StatementSession>() {
                 @Override
@@ -40,26 +36,18 @@ public class JdbcBaseMapDao implements JdbcMapDao {
             };
 
     public void setDataSource(DataSource dataSource) {
+        StatementSession session = STMT_SESSION_LOCAL.get();
         this.dataSource = dataSource;
+        session.setDataSource(dataSource);
     }
 
     public void setConnection(Connection con) {
-        this.con = con;
-    }
-
-    public String getDatabaseType() {
-        return databaseType;
+        StatementSession session = STMT_SESSION_LOCAL.get();
+        session.setConnection(con);
     }
 
     public StatementSession getStatementSession() {
-        StatementSession session = STMT_SESSION_LOCAL.get();
-        if (session.getDataSource() == null) {
-            session.setDataSource(dataSource);
-        }
-        if (con != null && session.getDataSource() == null) {
-            session.setConnection(con);
-        }
-        return session;
+        return STMT_SESSION_LOCAL.get();
     }
 
     protected ResultSet execute(final String sql, QueryParam... params) throws SQLException {

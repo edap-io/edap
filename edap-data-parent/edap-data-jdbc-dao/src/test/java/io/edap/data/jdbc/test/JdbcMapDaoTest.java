@@ -1,16 +1,17 @@
 package io.edap.data.jdbc.test;
 
+import com.zaxxer.hikari.HikariConfig;
+import com.zaxxer.hikari.HikariDataSource;
 import io.edap.data.JdbcDaoRegister;
 import io.edap.data.JdbcMapDao;
 import io.edap.data.QueryParam;
+import org.h2.jdbcx.JdbcDataSource;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
 import java.sql.*;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
+import java.sql.Date;
+import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -32,6 +33,40 @@ public class JdbcMapDaoTest extends AbstractDaoTest {
                 new java.sql.Time(System.currentTimeMillis()),
                 false,
                 new BigDecimal("3.14159265"), "System.currentTimeMillis".getBytes()};
+    }
+
+    @Test
+    public void testStmtSessionDataSource() {
+        HikariConfig config = new HikariConfig();
+        config.setDataSourceClassName(JdbcDataSource.class.getName());
+        //config.setJdbcUrl("jdbc:h2:tcp://localhost:9092/~/test");
+        config.addDataSourceProperty("URL", "jdbc:h2:~/test");
+        config.setUsername("sa");
+        config.setPassword("");
+        HikariDataSource ds = new HikariDataSource(config);
+
+        Connection con = null;
+        try {
+            con = ds.getConnection();
+
+            JdbcMapDao mapDao = JdbcDaoRegister.instance().getMapDao();
+            mapDao.setDataSource(ds);
+
+            createTable(con);
+            insertData(con);
+
+            List<Map<String, Object>> list = mapDao.getList("select * from map_data order by id");
+            assertNotNull(list);
+            assertEquals(list.size(), 2);
+
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        } finally {
+            close(con);
+        }
+
     }
 
     @Test
@@ -604,6 +639,49 @@ public class JdbcMapDaoTest extends AbstractDaoTest {
                     insertData(con);
 
                     mapDao.update("update map_data1 set int_column=100");
+                });
+        assertTrue(thrown.getMessage().contains("Table \"MAP_DATA1\" not found"));
+    }
+
+    @Test
+    public void testUpdateHasParamsException() {
+        Exception thrown = assertThrows(Exception.class,
+                () -> {
+                    JdbcMapDao mapDao = JdbcDaoRegister.instance().getMapDao();
+                    Connection con = null;
+                    con = openConnection();
+                    mapDao.setConnection(con);
+                    createTable(con);
+
+                    con = openConnection();
+                    mapDao.setConnection(con);
+                    insertData(con);
+
+                    mapDao.update("update map_data1 set int_column=100 where id>?", 0L);
+                });
+        assertTrue(thrown.getMessage().contains("Table \"MAP_DATA1\" not found"));
+    }
+
+    @Test
+    public void testUpdateHasParamObjectsException() {
+        Exception thrown = assertThrows(Exception.class,
+                () -> {
+                    JdbcMapDao mapDao = JdbcDaoRegister.instance().getMapDao();
+                    Connection con = null;
+                    con = openConnection();
+                    mapDao.setConnection(con);
+                    createTable(con);
+
+                    con = openConnection();
+                    mapDao.setConnection(con);
+                    insertData(con);
+
+                    mapDao.update("update map_data1 set int_column=100 where id>?", new QueryParam() {
+                        @Override
+                        public Object getParam() {
+                            return 0L;
+                        }
+                    });
                 });
         assertTrue(thrown.getMessage().contains("Table \"MAP_DATA1\" not found"));
     }

@@ -36,6 +36,7 @@
         <qdox.verqdoxsion>2.0.3</qdox.verqdoxsion>
         <system.lambda.version>1.2.1</system.lambda.version>
         <jmh.version>1.36</jmh.version>
+        <HikariCP.version>4.0.3</HikariCP.version>
     </properties>
 
     <modules>
@@ -143,6 +144,11 @@
                 <groupId>com.h2database</groupId>
                 <artifactId>h2</artifactId>
                 <version>2.1.214</version>
+            </dependency>
+            <dependency>
+                <groupId>com.zaxxer</groupId>
+                <artifactId>HikariCP</artifactId>
+                <version>${HikariCP.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>
