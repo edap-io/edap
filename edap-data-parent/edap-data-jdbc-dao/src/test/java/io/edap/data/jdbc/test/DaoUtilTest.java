@@ -19,14 +19,14 @@ package io.edap.data.jdbc.test;
 import io.edap.data.JdbcDaoRegister;
 import io.edap.data.jdbc.test.entity.Demo;
 import io.edap.data.model.InsertInfo;
+import io.edap.data.model.JdbcInfo;
 import io.edap.data.model.UpdateInfo;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.List;
 
-import static io.edap.data.util.DaoUtil.getInsertSql;
-import static io.edap.data.util.DaoUtil.getUpdateByIdSql;
+import static io.edap.data.util.DaoUtil.*;
 import static io.edap.util.Constants.EMPTY_STRING;
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -86,5 +86,39 @@ public class DaoUtilTest {
         UpdateInfo updateInfo = getUpdateByIdSql(null);
         assertNotNull(updateInfo);
         assertEquals(updateInfo.getUpdateSql(), EMPTY_STRING);
+    }
+
+    static class NoFieldDemo {
+
+    }
+
+    static class HasBooleanFieldDemo {
+        private boolean success;
+        private int code;
+
+        public boolean isSuccess() {
+            return success;
+        }
+
+        public void setSuccess(boolean success) {
+            this.success = success;
+        }
+
+        public int getCode() {
+            return code;
+        }
+
+        public void setCode(int code) {
+            this.code = code;
+        }
+    }
+
+    @Test
+    public void testGetJdbcInfos() {
+        List<JdbcInfo> jdbcInfos = getJdbcInfos(NoFieldDemo.class);
+        assertEquals(jdbcInfos.size(), 0);
+
+        jdbcInfos = getJdbcInfos(HasBooleanFieldDemo.class);
+        assertEquals(jdbcInfos.size(), 2);
     }
 }
