@@ -1,87 +1,124 @@
-/*
- * Copyright 2023 The edap Project
- *
- * The Netty Project licenses this file to you under the Apache License,
- * version 2.0 (the "License"); you may not use this file except in compliance
- * with the License. You may obtain a copy of the License at:
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
- * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
- * License for the specific language governing permissions and limitations
- * under the License.
- */
-
 package io.edap.json;
 
-import java.util.Collection;
-import java.util.HashMap;
+import java.math.BigDecimal;
 import java.util.Map;
-import java.util.Set;
 
-public class JsonObject implements JsonMap {
+public interface JsonObject extends JsonMap {
 
-    private Map<String, Object> map = new HashMap<>();
-
-    @Override
-    public int size() {
-        return map.size();
+    default String getString(String key) {
+        Object obj = get(key);
+        if (obj instanceof String) {
+            return (String)obj;
+        }
+        return String.valueOf(obj);
     }
 
-    @Override
-    public boolean isEmpty() {
-        return map.isEmpty();
+    default int getIntValue(String key) {
+        Object obj = get(key);
+        if (obj == null) {
+            return 0;
+        }
+        if (obj instanceof Integer) {
+            return ((Integer)obj);
+        } else if (obj instanceof Long) {
+            return ((Long)obj).intValue();
+        } else if (obj instanceof String) {
+            return Integer.parseInt((String)obj);
+        } else if (obj instanceof BigDecimal) {
+            return ((BigDecimal)obj).intValue();
+        }
+        throw  new NumberFormatException("Not int value");
     }
 
-    @Override
-    public boolean containsKey(Object key) {
-        return map.containsKey(key);
+    default boolean getBooleanValue(String key) {
+        Object obj = get(key);
+        if (obj == null) {
+            return false;
+        }
+        if (obj instanceof Boolean) {
+            return (Boolean)obj;
+        } else if (obj instanceof Integer) {
+            return (((Integer)obj) != 0);
+        } else if (obj instanceof Long) {
+            return (((Long)obj) != 0);
+        } else if (obj instanceof String) {
+            String v = (String)obj;
+            return "t".equalsIgnoreCase(v) || "true".equalsIgnoreCase(v) || "1".equals(v);
+        }
+        return false;
     }
 
-    @Override
-    public boolean containsValue(Object value) {
-        return map.containsValue(value);
+    default long getLongValue(String key) {
+        Object obj = get(key);
+        if (obj == null) {
+            return 0;
+        }
+        if (obj instanceof Integer) {
+            return ((Integer)obj);
+        } else if (obj instanceof Long) {
+            return ((Long)obj);
+        } else if (obj instanceof String) {
+            return Long.parseLong((String)obj);
+        } else if (obj instanceof BigDecimal) {
+            return ((BigDecimal)obj).longValue();
+        }
+        throw  new NumberFormatException("Not long value");
     }
 
-    @Override
-    public Object get(Object key) {
-        return map.get(key);
+    default JsonObject getJsonObject(String key) {
+        Object obj = get(key);
+        if (obj == null) {
+            return null;
+        }
+        if (obj instanceof JsonObject) {
+            return (JsonObject) obj;
+        } else if (obj instanceof Map) {
+            JsonObjectImpl jsonObject = new JsonObjectImpl();
+            jsonObject.putAll((Map<String, Object>)obj);
+            return jsonObject;
+        }
+        return null;
     }
 
-    @Override
-    public Object put(String key, Object value) {
-        return map.put(key, value);
+    default double getDoubleValue(String key) {
+        Object obj = get(key);
+        if (obj == null) {
+            return 0;
+        }
+        if (obj instanceof Double) {
+            return ((Double)obj);
+        } else if (obj instanceof Float) {
+            return ((Float)obj).doubleValue();
+        } else if (obj instanceof Integer) {
+            return ((Integer)obj).doubleValue();
+        } else if (obj instanceof Long) {
+            return ((Long)obj).doubleValue();
+        } else if (obj instanceof String) {
+            return Double.parseDouble((String)obj);
+        } else if (obj instanceof BigDecimal) {
+            return ((BigDecimal)obj).doubleValue();
+        }
+        throw  new NumberFormatException("Not double value");
     }
 
-    @Override
-    public Object remove(Object key) {
-        return map.remove(key);
-    }
-
-    @Override
-    public void putAll(Map<? extends String, ?> m) {
-        map.putAll(m);
-    }
-
-    @Override
-    public void clear() {
-        map.clear();
-    }
-
-    @Override
-    public Set<String> keySet() {
-        return map.keySet();
-    }
-
-    @Override
-    public Collection<Object> values() {
-        return map.values();
-    }
-
-    @Override
-    public Set<Entry<String, Object>> entrySet() {
-        return map.entrySet();
+    default float getFloatValue(String key) {
+        Object obj = get(key);
+        if (obj == null) {
+            return 0;
+        }
+        if (obj instanceof Float) {
+            return ((Float)obj);
+        } else if (obj instanceof Double) {
+            return ((Double)obj).floatValue();
+        } else if (obj instanceof Integer) {
+            return ((Integer)obj).floatValue();
+        } else if (obj instanceof Long) {
+            return ((Long)obj).floatValue();
+        } else if (obj instanceof String) {
+            return Float.parseFloat((String)obj);
+        } else if (obj instanceof BigDecimal) {
+            return ((BigDecimal)obj).floatValue();
+        }
+        throw  new NumberFormatException("Not float value");
     }
 }

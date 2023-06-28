@@ -72,45 +72,45 @@ public class TestJson5Reader {
         StringJson5Reader reader = new StringJson5Reader(json);
         Object obj = reader.readObject();
         assertNotNull(obj);
-        assertEquals(obj instanceof JsonObject, true);
-        JsonObject jobj = (JsonObject) obj;
+        assertEquals(obj instanceof JsonObjectImpl, true);
+        JsonObjectImpl jobj = (JsonObjectImpl) obj;
         assertEquals(Double.isNaN((Double) jobj.get("value")), true);
 
         ByteArrayJson5Reader br = new ByteArrayJson5Reader(json.getBytes(StandardCharsets.UTF_8));
         obj = br.readObject();
         assertNotNull(obj);
-        assertEquals(obj instanceof JsonObject, true);
-        jobj = (JsonObject) obj;
+        assertEquals(obj instanceof JsonObjectImpl, true);
+        jobj = (JsonObjectImpl) obj;
         assertEquals(Double.isNaN((Double) jobj.get("value")), true);
 
         json = "{value:Infinity}";
         reader = new StringJson5Reader(json);
         obj = reader.readObject();
         assertNotNull(obj);
-        assertEquals(obj instanceof JsonObject, true);
-        jobj = (JsonObject) obj;
+        assertEquals(obj instanceof JsonObjectImpl, true);
+        jobj = (JsonObjectImpl) obj;
         assertEquals(Double.isInfinite((Double) jobj.get("value")), true);
 
         br = new ByteArrayJson5Reader(json.getBytes(StandardCharsets.UTF_8));
         obj = br.readObject();
         assertNotNull(obj);
-        assertEquals(obj instanceof JsonObject, true);
-        jobj = (JsonObject) obj;
+        assertEquals(obj instanceof JsonObjectImpl, true);
+        jobj = (JsonObjectImpl) obj;
         assertEquals(Double.isInfinite((Double) jobj.get("value")), true);
 
         json = "{value:-Infinity}";
         reader = new StringJson5Reader(json);
         obj = reader.readObject();
         assertNotNull(obj);
-        assertEquals(obj instanceof JsonObject, true);
-        jobj = (JsonObject) obj;
+        assertEquals(obj instanceof JsonObjectImpl, true);
+        jobj = (JsonObjectImpl) obj;
         assertEquals(Double.isInfinite((Double) jobj.get("value")), true);
 
         br = new ByteArrayJson5Reader(json.getBytes(StandardCharsets.UTF_8));
         obj = br.readObject();
         assertNotNull(obj);
-        assertEquals(obj instanceof JsonObject, true);
-        jobj = (JsonObject) obj;
+        assertEquals(obj instanceof JsonObjectImpl, true);
+        jobj = (JsonObjectImpl) obj;
         assertEquals(Double.isInfinite((Double) jobj.get("value")), true);
 
         json = "{\n" +

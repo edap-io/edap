@@ -55,23 +55,23 @@ public class TestJsonReader {
     @Test
     public void testSetJsonData() {
         StringJsonReader reader = new StringJsonReader("{}");
-        JsonObject jsonObject = (JsonObject) reader.readObject();
+        JsonObjectImpl jsonObject = (JsonObjectImpl) reader.readObject();
         assertNotNull(jsonObject);
         assertEquals(jsonObject.size(), 0);
         reader.reset();
         reader.setJsonData("{\"name\":\"louis\"}");
-        jsonObject = (JsonObject) reader.readObject();
+        jsonObject = (JsonObjectImpl) reader.readObject();
         assertNotNull(jsonObject);
         assertEquals(jsonObject.size(), 1);
         assertEquals(jsonObject.get("name"), "louis");
 
         ByteArrayJsonReader br = new ByteArrayJson5Reader("{}".getBytes(StandardCharsets.UTF_8));
-        jsonObject = (JsonObject) br.readObject();
+        jsonObject = (JsonObjectImpl) br.readObject();
         assertNotNull(jsonObject);
         assertEquals(jsonObject.size(), 0);
         br.reset();
         br.setJsonData("{\"name\":\"louis\"}".getBytes(StandardCharsets.UTF_8));
-        jsonObject = (JsonObject) br.readObject();
+        jsonObject = (JsonObjectImpl) br.readObject();
         assertNotNull(jsonObject);
         assertEquals(jsonObject.size(), 1);
         assertEquals(jsonObject.get("name"), "louis");
@@ -80,11 +80,11 @@ public class TestJsonReader {
     @Test
     public void testParseEmptyDocument() {
         StringJsonReader parser = new StringJsonReader("    \n\t   \r\n");
-        JsonObject jsonObject = (JsonObject) parser.readObject();
+        JsonObjectImpl jsonObject = (JsonObjectImpl) parser.readObject();
         assertNull(jsonObject);
 
         ByteArrayJsonReader byteArrayJsonReader = new ByteArrayJsonReader("    \n\t   \r\n".getBytes(StandardCharsets.UTF_8));
-        jsonObject = (JsonObject) parser.readObject();
+        jsonObject = (JsonObjectImpl) parser.readObject();
         assertNull(jsonObject);
     }
 
@@ -92,25 +92,25 @@ public class TestJsonReader {
     public void testReadStringValue() {
         String json = "\n{\t\"name\":\"jhon\"}\n\n";
         StringJsonReader parser = new StringJsonReader(json);
-        JsonObject jsonObject = (JsonObject) parser.readObject();
+        JsonObjectImpl jsonObject = (JsonObjectImpl) parser.readObject();
         assertEquals(jsonObject.size(), 1);
         assertEquals(jsonObject.get("name"), "jhon");
 
         ByteArrayJsonReader reader = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
-        jsonObject = (JsonObject) reader.readObject();
+        jsonObject = (JsonObjectImpl) reader.readObject();
         assertEquals(jsonObject.size(), 1);
         assertEquals(jsonObject.get("name"), "jhon");
 
         json = "\n{\t\"name\":\"jhon\",\"desc\":\"带有\\\"转义的符号\"}\n\n";
         System.out.println(json);
         parser = new StringJsonReader(json);
-        jsonObject = (JsonObject) parser.readObject();
+        jsonObject = (JsonObjectImpl) parser.readObject();
         assertEquals(jsonObject.size(), 2);
         assertEquals(jsonObject.get("name"), "jhon");
         assertEquals(jsonObject.get("desc"), "带有\"转义的符号");
 
         reader = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
-        jsonObject = (JsonObject) reader.readObject();
+        jsonObject = (JsonObjectImpl) reader.readObject();
         assertEquals(jsonObject.size(), 2);
         assertEquals(jsonObject.get("name"), "jhon");
         assertEquals(jsonObject.get("desc"), "带有\"转义的符号");
@@ -120,21 +120,21 @@ public class TestJsonReader {
     public void testReadJsonValue() {
         String json = "\n{\t\"a\":{\"b\":\"c\"}}\n\n";
         StringJsonReader parser = new StringJsonReader(json);
-        JsonObject jsonObject = (JsonObject) parser.readObject();
+        JsonObjectImpl jsonObject = (JsonObjectImpl) parser.readObject();
         assertEquals(jsonObject.size(), 1);
-        assertTrue(jsonObject.get("a") instanceof JsonObject);
-        JsonObject child = (JsonObject) jsonObject.get("a");
+        assertTrue(jsonObject.get("a") instanceof JsonObjectImpl);
+        JsonObjectImpl child = (JsonObjectImpl) jsonObject.get("a");
         assertEquals(child.size(), 1);
-        assertTrue(child instanceof JsonObject);
+        assertTrue(child instanceof JsonObjectImpl);
         assertEquals(child.get("b"), "c");
 
         ByteArrayJsonReader reader = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
-        jsonObject = (JsonObject) reader.readObject();
+        jsonObject = (JsonObjectImpl) reader.readObject();
         assertEquals(jsonObject.size(), 1);
-        assertTrue(jsonObject.get("a") instanceof JsonObject);
-        child = (JsonObject) jsonObject.get("a");
+        assertTrue(jsonObject.get("a") instanceof JsonObjectImpl);
+        child = (JsonObjectImpl) jsonObject.get("a");
         assertEquals(child.size(), 1);
-        assertTrue(child instanceof JsonObject);
+        assertTrue(child instanceof JsonObjectImpl);
         assertEquals(child.get("b"), "c");
     }
 
@@ -187,11 +187,11 @@ public class TestJsonReader {
     public void testReadEmptyJson() {
         String json = "\n{\t}\n\n";
         StringJsonReader parser = new StringJsonReader(json);
-        JsonObject jsonObject = (JsonObject) parser.readObject();
+        JsonObjectImpl jsonObject = (JsonObjectImpl) parser.readObject();
         assertEquals(jsonObject.size(), 0);
 
         ByteArrayJsonReader reader = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
-        jsonObject = (JsonObject) reader.readObject();
+        jsonObject = (JsonObjectImpl) reader.readObject();
         assertEquals(jsonObject.size(), 0);
     }
 
@@ -381,7 +381,7 @@ public class TestJsonReader {
     public void testReadNullValue() {
         String json = "\n{\t\"name\":null}\n\n";
         StringJsonReader parser = new StringJsonReader(json);
-        JsonObject jsonObject = (JsonObject) parser.readObject();
+        JsonObjectImpl jsonObject = (JsonObjectImpl) parser.readObject();
         assertEquals(jsonObject.size(), 1);
         assertNull(jsonObject.get("name"));
 
@@ -393,7 +393,7 @@ public class TestJsonReader {
         assertTrue(thrown.getMessage().contains("null 格式错误"));
 
         ByteArrayJsonReader reader = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
-        jsonObject = (JsonObject) reader.readObject();
+        jsonObject = (JsonObjectImpl) reader.readObject();
         assertEquals(jsonObject.size(), 1);
         assertNull(jsonObject.get("name"));
 
@@ -410,23 +410,23 @@ public class TestJsonReader {
     public void testParseBooleanValue() {
         String json = "\n{\t\"open\":true}\n\n";
         StringJsonReader parser = new StringJsonReader(json);
-        JsonObject jsonObject = (JsonObject) parser.readObject();
+        JsonObjectImpl jsonObject = (JsonObjectImpl) parser.readObject();
         assertEquals(jsonObject.size(), 1);
         assertTrue((boolean)jsonObject.get("open"));
 
         ByteArrayJsonReader reader = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
-        jsonObject = (JsonObject) reader.readObject();
+        jsonObject = (JsonObjectImpl) reader.readObject();
         assertEquals(jsonObject.size(), 1);
         assertTrue((boolean)jsonObject.get("open"));
 
         json = "\n{\t\"open\":false}\n\n";
         parser = new StringJsonReader(json);
-        jsonObject = (JsonObject) parser.readObject();
+        jsonObject = (JsonObjectImpl) parser.readObject();
         assertEquals(jsonObject.size(), 1);
         assertFalse((boolean)jsonObject.get("open"));
 
         reader = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
-        jsonObject = (JsonObject) reader.readObject();
+        jsonObject = (JsonObjectImpl) reader.readObject();
         assertEquals(jsonObject.size(), 1);
         assertFalse((boolean)jsonObject.get("open"));
 
@@ -463,7 +463,7 @@ public class TestJsonReader {
     public void testReadArrayValue() {
         String json = "\n{\t\"list\":[\"a\",\"bc\"]}\n\n";
         StringJsonReader parser = new StringJsonReader(json);
-        JsonObject jsonObject = (JsonObject) parser.readObject();
+        JsonObjectImpl jsonObject = (JsonObjectImpl) parser.readObject();
         assertEquals(jsonObject.size(), 1);
         List<String> list = (List<String>)jsonObject.get("list");
         assertEquals(list.size(), 2);
@@ -471,7 +471,7 @@ public class TestJsonReader {
         assertEquals(list.get(1), "bc");
 
         ByteArrayJsonReader reader = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
-        jsonObject = (JsonObject) reader.readObject();
+        jsonObject = (JsonObjectImpl) reader.readObject();
         assertEquals(jsonObject.size(), 1);
         list = (List<String>)jsonObject.get("list");
         assertEquals(list.size(), 2);
@@ -483,92 +483,92 @@ public class TestJsonReader {
     public void testFirstNotSpaceChar() {
         String json = "\n {}\n\n";
         StringJsonReader parser = new StringJsonReader(json);
-        JsonObject jsonObject = (JsonObject) parser.readObject();
+        JsonObjectImpl jsonObject = (JsonObjectImpl) parser.readObject();
         assertEquals(jsonObject.size(), 0);
 
         ByteArrayJsonReader reader = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
-        jsonObject = (JsonObject) reader.readObject();
+        jsonObject = (JsonObjectImpl) reader.readObject();
         assertEquals(jsonObject.size(), 0);
 
         json = "\n  {}\n\n";
         parser = new StringJsonReader(json);
-        jsonObject = (JsonObject) parser.readObject();
+        jsonObject = (JsonObjectImpl) parser.readObject();
         assertEquals(jsonObject.size(), 0);
 
         reader = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
-        jsonObject = (JsonObject) reader.readObject();
+        jsonObject = (JsonObjectImpl) reader.readObject();
         assertEquals(jsonObject.size(), 0);
 
         json = "\n   {}\n\n";
         parser = new StringJsonReader(json);
-        jsonObject = (JsonObject) parser.readObject();
+        jsonObject = (JsonObjectImpl) parser.readObject();
         assertEquals(jsonObject.size(), 0);
 
         reader = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
-        jsonObject = (JsonObject) reader.readObject();
+        jsonObject = (JsonObjectImpl) reader.readObject();
         assertEquals(jsonObject.size(), 0);
 
         json = "\n   \t{}\n\n";
         parser = new StringJsonReader(json);
-        jsonObject = (JsonObject) parser.readObject();
+        jsonObject = (JsonObjectImpl) parser.readObject();
         assertEquals(jsonObject.size(), 0);
 
         reader = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
-        jsonObject = (JsonObject) reader.readObject();
+        jsonObject = (JsonObjectImpl) reader.readObject();
         assertEquals(jsonObject.size(), 0);
 
         json = "\n   \t {}\n\n";
         parser = new StringJsonReader(json);
-        jsonObject = (JsonObject) parser.readObject();
+        jsonObject = (JsonObjectImpl) parser.readObject();
         assertEquals(jsonObject.size(), 0);
 
         reader = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
-        jsonObject = (JsonObject) reader.readObject();
+        jsonObject = (JsonObjectImpl) reader.readObject();
         assertEquals(jsonObject.size(), 0);
 
         json = "\n   \t  {}\n\n";
         parser = new StringJsonReader(json);
-        jsonObject = (JsonObject) parser.readObject();
+        jsonObject = (JsonObjectImpl) parser.readObject();
         assertEquals(jsonObject.size(), 0);
 
         reader = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
-        jsonObject = (JsonObject) reader.readObject();
+        jsonObject = (JsonObjectImpl) reader.readObject();
         assertEquals(jsonObject.size(), 0);
 
         json = "\n   \t   {}\n\n";
         parser = new StringJsonReader(json);
-        jsonObject = (JsonObject) parser.readObject();
+        jsonObject = (JsonObjectImpl) parser.readObject();
         assertEquals(jsonObject.size(), 0);
 
         reader = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
-        jsonObject = (JsonObject) reader.readObject();
+        jsonObject = (JsonObjectImpl) reader.readObject();
         assertEquals(jsonObject.size(), 0);
 
         json = "\n   \t    {}\n\n";
         parser = new StringJsonReader(json);
-        jsonObject = (JsonObject) parser.readObject();
+        jsonObject = (JsonObjectImpl) parser.readObject();
         assertEquals(jsonObject.size(), 0);
 
         reader = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
-        jsonObject = (JsonObject) reader.readObject();
+        jsonObject = (JsonObjectImpl) reader.readObject();
         assertEquals(jsonObject.size(), 0);
 
         json = "";
         parser = new StringJsonReader(json);
-        jsonObject = (JsonObject) parser.readObject();
+        jsonObject = (JsonObjectImpl) parser.readObject();
         assertNull(jsonObject);
 
         reader = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
-        jsonObject = (JsonObject) reader.readObject();
+        jsonObject = (JsonObjectImpl) reader.readObject();
         assertNull(jsonObject);
 
         json = "    ";
         parser = new StringJsonReader(json);
-        jsonObject = (JsonObject) parser.readObject();
+        jsonObject = (JsonObjectImpl) parser.readObject();
         assertNull(jsonObject);
 
         reader = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
-        jsonObject = (JsonObject) reader.readObject();
+        jsonObject = (JsonObjectImpl) reader.readObject();
         assertNull(jsonObject);
 
     }
@@ -577,12 +577,12 @@ public class TestJsonReader {
     public void testReadNumberValue() {
         String json = "\n{\t\"value\":123.45}\n\n";
         StringJsonReader parser = new StringJsonReader(json);
-        JsonObject jsonObject = (JsonObject) parser.readObject();
+        JsonObjectImpl jsonObject = (JsonObjectImpl) parser.readObject();
         assertEquals(jsonObject.size(), 1);
         assertEquals(jsonObject.get("value"), 123.45d);
 
         ByteArrayJsonReader br = new ByteArrayJsonReader(json.getBytes(StandardCharsets.UTF_8));
-        jsonObject = (JsonObject) br.readObject();
+        jsonObject = (JsonObjectImpl) br.readObject();
         assertEquals(jsonObject.size(), 1);
         assertEquals(jsonObject.get("value"), 123.45d);
 
@@ -617,7 +617,7 @@ public class TestJsonReader {
                 "    }\n" +
                 "}";
         StringJsonReader parser = new StringJsonReader(jsonStr);
-        JsonObject jsonObject = (JsonObject) parser.readObject();
+        JsonObjectImpl jsonObject = (JsonObjectImpl) parser.readObject();
         Object v = jsonObject.getByPath(Arrays.asList("a", "b", "c", "d", "e"));
         assertEquals(v.getClass().getName(), "java.lang.String");
         assertEquals(v, "123");

@@ -16,8 +16,10 @@
 
 package io.edap.protobuf.test.v3;
 
-import com.alibaba.fastjson.JSONObject;
 import com.google.protobuf.ByteString;
+import io.edap.json.Eson;
+import io.edap.json.JsonObject;
+import io.edap.json.JsonObjectImpl;
 import io.edap.protobuf.ProtoBuf;
 import io.edap.protobuf.test.message.v3.*;
 import io.edap.util.ClazzUtil;
@@ -59,10 +61,10 @@ public class TestAllType {
     })
     void testEncode(String v) {
         try {
-            JSONObject jvalue = JSONObject.parseObject(v);
+            JsonObject jvalue = Eson.parseJsonObject(v);
 
             AllTypeOuterClass.AllType.Builder builder = AllTypeOuterClass.AllType.newBuilder();
-            JSONObject jproj = jvalue.getJSONObject("field11");
+            JsonObject jproj = (JsonObject) jvalue.get("field11");
             builder.setField1(jvalue.getBooleanValue("field1"));
             builder.setField2(ByteString.copyFromUtf8(jvalue.getString("field2")));
             builder.setField3(jvalue.getDoubleValue("field3"));
@@ -72,8 +74,8 @@ public class TestAllType {
             builder.setField7(jvalue.getFloatValue("field7"));
             builder.setField8(jvalue.getIntValue("field8"));
             builder.setField9(jvalue.getLongValue("field9"));
-            for (Map.Entry<String, Object> jv : jvalue.getJSONObject("field10").entrySet()) {
-                JSONObject jp = (JSONObject) jv.getValue();
+            for (Map.Entry<String, Object> jv : jvalue.getJsonObject("field10").entrySet()) {
+                JsonObject jp = (JsonObject) jv.getValue();
                 OneMapOuterClass.Project.Builder pbuider = OneMapOuterClass.Project.newBuilder();
                 pbuider.setId(jp.getLongValue("id"));
                 pbuider.setName(jp.getString("name"));
@@ -118,8 +120,8 @@ public class TestAllType {
             allType.field8 = jvalue.getIntValue("field8");
             allType.field9 = jvalue.getLongValue("field9");
             Map<String, Project> projects = new HashMap<>();
-            for (Map.Entry<String, Object> jv : jvalue.getJSONObject("field10").entrySet()) {
-                JSONObject jp = (JSONObject) jv.getValue();
+            for (Map.Entry<String, Object> jv : jvalue.getJsonObject("field10").entrySet()) {
+                JsonObject jp = (JsonObject) jv.getValue();
                 Project project = new Project();
                 project.setId(jp.getLongValue("id"));
                 project.setName(jp.getString("name"));
@@ -172,7 +174,7 @@ public class TestAllType {
     })
     void testDecode(String v) {
         try {
-            JSONObject jvalue = JSONObject.parseObject(v);
+            JsonObject jvalue = Eson.parseJsonObject(v);
 
             AllTypeOuterClass.AllType.Builder builder = AllTypeOuterClass.AllType.newBuilder();
             builder.setField1(jvalue.getBooleanValue("field1"));
@@ -184,8 +186,8 @@ public class TestAllType {
             builder.setField7(jvalue.getFloatValue("field7"));
             builder.setField8(jvalue.getIntValue("field8"));
             builder.setField9(jvalue.getLongValue("field9"));
-            for (Map.Entry<String, Object> jv : jvalue.getJSONObject("field10").entrySet()) {
-                JSONObject jp = (JSONObject) jv.getValue();
+            for (Map.Entry<String, Object> jv : jvalue.getJsonObject("field10").entrySet()) {
+                JsonObject jp = (JsonObject) jv.getValue();
                 OneMapOuterClass.Project.Builder pbuider = OneMapOuterClass.Project.newBuilder();
                 pbuider.setId(jp.getLongValue("id"));
                 pbuider.setName(jp.getString("name"));
@@ -193,7 +195,7 @@ public class TestAllType {
                 builder.putField10(jv.getKey(), pbuider.build());
             }
             OneMessageOuterClass.Proj.Builder projB = OneMessageOuterClass.Proj.newBuilder();
-            JSONObject jproj = jvalue.getJSONObject("field11");
+            JsonObject jproj = jvalue.getJsonObject("field11");
             projB.setId(jproj.getLongValue("id"));
             projB.setName(jproj.getString("name"));
             projB.setRepoPath(jproj.getString("repoPath"));
@@ -275,10 +277,10 @@ public class TestAllType {
     })
     void testEncodeUnboxed(String v) {
         try {
-            JSONObject jvalue = JSONObject.parseObject(v);
+            JsonObject jvalue = Eson.parseJsonObject(v);
 
             AllTypeOuterClass.AllType.Builder builder = AllTypeOuterClass.AllType.newBuilder();
-            JSONObject jproj = jvalue.getJSONObject("field11");
+            JsonObject jproj = jvalue.getJsonObject("field11");
             builder.setField1(jvalue.getBooleanValue("field1"));
             builder.setField2(ByteString.copyFromUtf8(jvalue.getString("field2")));
             builder.setField3(jvalue.getDoubleValue("field3"));
@@ -288,8 +290,8 @@ public class TestAllType {
             builder.setField7(jvalue.getFloatValue("field7"));
             builder.setField8(jvalue.getIntValue("field8"));
             builder.setField9(jvalue.getLongValue("field9"));
-            for (Map.Entry<String, Object> jv : jvalue.getJSONObject("field10").entrySet()) {
-                JSONObject jp = (JSONObject) jv.getValue();
+            for (Map.Entry<String, Object> jv : jvalue.getJsonObject("field10").entrySet()) {
+                JsonObject jp = (JsonObject) jv.getValue();
                 OneMapOuterClass.Project.Builder pbuider = OneMapOuterClass.Project.newBuilder();
                 pbuider.setId(jp.getLongValue("id"));
                 pbuider.setName(jp.getString("name"));
@@ -334,8 +336,8 @@ public class TestAllType {
             allType.field8 = jvalue.getIntValue("field8");
             allType.field9 = jvalue.getLongValue("field9");
             Map<String, Project> projects = new HashMap<>();
-            for (Map.Entry<String, Object> jv : jvalue.getJSONObject("field10").entrySet()) {
-                JSONObject jp = (JSONObject) jv.getValue();
+            for (Map.Entry<String, Object> jv : jvalue.getJsonObject("field10").entrySet()) {
+                JsonObject jp = (JsonObject) jv.getValue();
                 Project project = new Project();
                 project.setId(jp.getLongValue("id"));
                 project.setName(jp.getString("name"));
@@ -388,7 +390,7 @@ public class TestAllType {
     })
     void testDecodeUnboxed(String v) {
         try {
-            JSONObject jvalue = JSONObject.parseObject(v);
+            JsonObject jvalue = Eson.parseJsonObject(v);
 
             AllTypeOuterClass.AllType.Builder builder = AllTypeOuterClass.AllType.newBuilder();
             builder.setField1(jvalue.getBooleanValue("field1"));
@@ -400,8 +402,8 @@ public class TestAllType {
             builder.setField7(jvalue.getFloatValue("field7"));
             builder.setField8(jvalue.getIntValue("field8"));
             builder.setField9(jvalue.getLongValue("field9"));
-            for (Map.Entry<String, Object> jv : jvalue.getJSONObject("field10").entrySet()) {
-                JSONObject jp = (JSONObject) jv.getValue();
+            for (Map.Entry<String, Object> jv : jvalue.getJsonObject("field10").entrySet()) {
+                JsonObject jp = (JsonObject) jv.getValue();
                 OneMapOuterClass.Project.Builder pbuider = OneMapOuterClass.Project.newBuilder();
                 pbuider.setId(jp.getLongValue("id"));
                 pbuider.setName(jp.getString("name"));
@@ -409,7 +411,7 @@ public class TestAllType {
                 builder.putField10(jv.getKey(), pbuider.build());
             }
             OneMessageOuterClass.Proj.Builder projB = OneMessageOuterClass.Proj.newBuilder();
-            JSONObject jproj = jvalue.getJSONObject("field11");
+            JsonObject jproj = jvalue.getJsonObject("field11");
             projB.setId(jproj.getLongValue("id"));
             projB.setName(jproj.getString("name"));
             projB.setRepoPath(jproj.getString("repoPath"));
@@ -491,10 +493,10 @@ public class TestAllType {
     })
     void testEncodeNoAccess(String v) {
         try {
-            JSONObject jvalue = JSONObject.parseObject(v);
+            JsonObject jvalue = Eson.parseJsonObject(v);
 
             AllTypeOuterClass.AllType.Builder builder = AllTypeOuterClass.AllType.newBuilder();
-            JSONObject jproj = jvalue.getJSONObject("field11");
+            JsonObject jproj = jvalue.getJsonObject("field11");
             builder.setField1(jvalue.getBooleanValue("field1"));
             builder.setField2(ByteString.copyFromUtf8(jvalue.getString("field2")));
             builder.setField3(jvalue.getDoubleValue("field3"));
@@ -504,8 +506,8 @@ public class TestAllType {
             builder.setField7(jvalue.getFloatValue("field7"));
             builder.setField8(jvalue.getIntValue("field8"));
             builder.setField9(jvalue.getLongValue("field9"));
-            for (Map.Entry<String, Object> jv : jvalue.getJSONObject("field10").entrySet()) {
-                JSONObject jp = (JSONObject) jv.getValue();
+            for (Map.Entry<String, Object> jv : jvalue.getJsonObject("field10").entrySet()) {
+                JsonObject jp = (JsonObject) jv.getValue();
                 OneMapOuterClass.Project.Builder pbuider = OneMapOuterClass.Project.newBuilder();
                 pbuider.setId(jp.getLongValue("id"));
                 pbuider.setName(jp.getString("name"));
@@ -586,8 +588,8 @@ public class TestAllType {
             field8F.set(allType, jvalue.getIntValue("field8"));
             field9F.set(allType, jvalue.getLongValue("field9"));
             Map<String, Project> projects = new HashMap<>();
-            for (Map.Entry<String, Object> jv : jvalue.getJSONObject("field10").entrySet()) {
-                JSONObject jp = (JSONObject) jv.getValue();
+            for (Map.Entry<String, Object> jv : jvalue.getJsonObject("field10").entrySet()) {
+                JsonObject jp = (JsonObject) jv.getValue();
                 Project project = new Project();
                 project.setId(jp.getLongValue("id"));
                 project.setName(jp.getString("name"));
@@ -640,10 +642,10 @@ public class TestAllType {
     })
     void testEncodeUnboxedNoAccess(String v) {
         try {
-            JSONObject jvalue = JSONObject.parseObject(v);
+            JsonObject jvalue = Eson.parseJsonObject(v);
 
             AllTypeOuterClass.AllType.Builder builder = AllTypeOuterClass.AllType.newBuilder();
-            JSONObject jproj = jvalue.getJSONObject("field11");
+            JsonObject jproj = jvalue.getJsonObject("field11");
             builder.setField1(jvalue.getBooleanValue("field1"));
             builder.setField2(ByteString.copyFromUtf8(jvalue.getString("field2")));
             builder.setField3(jvalue.getDoubleValue("field3"));
@@ -653,8 +655,8 @@ public class TestAllType {
             builder.setField7(jvalue.getFloatValue("field7"));
             builder.setField8(jvalue.getIntValue("field8"));
             builder.setField9(jvalue.getLongValue("field9"));
-            for (Map.Entry<String, Object> jv : jvalue.getJSONObject("field10").entrySet()) {
-                JSONObject jp = (JSONObject) jv.getValue();
+            for (Map.Entry<String, Object> jv : jvalue.getJsonObject("field10").entrySet()) {
+                JsonObject jp = (JsonObject) jv.getValue();
                 OneMapOuterClass.Project.Builder pbuider = OneMapOuterClass.Project.newBuilder();
                 pbuider.setId(jp.getLongValue("id"));
                 pbuider.setName(jp.getString("name"));
@@ -735,8 +737,8 @@ public class TestAllType {
             field8F.set(allType, jvalue.getIntValue("field8"));
             field9F.set(allType, jvalue.getLongValue("field9"));
             Map<String, Project> projects = new HashMap<>();
-            for (Map.Entry<String, Object> jv : jvalue.getJSONObject("field10").entrySet()) {
-                JSONObject jp = (JSONObject) jv.getValue();
+            for (Map.Entry<String, Object> jv : jvalue.getJsonObject("field10").entrySet()) {
+                JsonObject jp = (JsonObject) jv.getValue();
                 Project project = new Project();
                 project.setId(jp.getLongValue("id"));
                 project.setName(jp.getString("name"));
@@ -788,7 +790,7 @@ public class TestAllType {
     })
     void testDecodeNoAccess(String v) {
         try {
-            JSONObject jvalue = JSONObject.parseObject(v);
+            JsonObject jvalue = Eson.parseJsonObject(v);
 
             AllTypeOuterClass.AllType.Builder builder = AllTypeOuterClass.AllType.newBuilder();
             builder.setField1(jvalue.getBooleanValue("field1"));
@@ -800,8 +802,8 @@ public class TestAllType {
             builder.setField7(jvalue.getFloatValue("field7"));
             builder.setField8(jvalue.getIntValue("field8"));
             builder.setField9(jvalue.getLongValue("field9"));
-            for (Map.Entry<String, Object> jv : jvalue.getJSONObject("field10").entrySet()) {
-                JSONObject jp = (JSONObject) jv.getValue();
+            for (Map.Entry<String, Object> jv : jvalue.getJsonObject("field10").entrySet()) {
+                JsonObject jp = (JsonObject) jv.getValue();
                 OneMapOuterClass.Project.Builder pbuider = OneMapOuterClass.Project.newBuilder();
                 pbuider.setId(jp.getLongValue("id"));
                 pbuider.setName(jp.getString("name"));
@@ -809,7 +811,7 @@ public class TestAllType {
                 builder.putField10(jv.getKey(), pbuider.build());
             }
             OneMessageOuterClass.Proj.Builder projB = OneMessageOuterClass.Proj.newBuilder();
-            JSONObject jproj = jvalue.getJSONObject("field11");
+            JsonObject jproj = jvalue.getJsonObject("field11");
             projB.setId(jproj.getLongValue("id"));
             projB.setName(jproj.getString("name"));
             projB.setRepoPath(jproj.getString("repoPath"));

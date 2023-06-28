@@ -84,6 +84,11 @@
                 <version>${project.version}</version>
             </dependency>
             <dependency>
+                <groupId>io.edap</groupId>
+                <artifactId>edap-json</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
                 <groupId>com.thoughtworks.qdox</groupId>
                 <artifactId>qdox</artifactId>
                 <version>${qdox.verqdoxsion}</version>
@@ -114,11 +119,6 @@
                 <artifactId>protobuf-java</artifactId>
                 <version>${protobuf.java.verson}</version>
                 <scope>test</scope>
-            </dependency>
-            <dependency>
-                <groupId>com.alibaba</groupId>
-                <artifactId>fastjson</artifactId>
-                <version>${fastjson.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.github.stefanbirkner</groupId>

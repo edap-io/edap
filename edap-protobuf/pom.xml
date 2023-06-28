@@ -55,8 +55,8 @@
             <scope>test</scope>
         </dependency>
         <dependency>
-            <groupId>com.alibaba</groupId>
-            <artifactId>fastjson</artifactId>
+            <groupId>io.edap</groupId>
+            <artifactId>edap-json</artifactId>
         </dependency>
     </dependencies>
 </project>

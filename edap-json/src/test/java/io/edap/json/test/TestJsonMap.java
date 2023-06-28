@@ -17,7 +17,7 @@
 package io.edap.json.test;
 
 import io.edap.json.JsonMap;
-import io.edap.json.JsonObject;
+import io.edap.json.JsonObjectImpl;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.InvocationTargetException;
@@ -32,7 +32,7 @@ public class TestJsonMap {
     public void testGetPathItem() throws NoSuchMethodException, InvocationTargetException, IllegalAccessException {
         Method method = JsonMap.class.getDeclaredMethod("getPathItem", String.class, int.class);
         method.setAccessible(true);
-        JsonMap jsonMap = new JsonObject();
+        JsonMap jsonMap = new JsonObjectImpl();
         String path = "a.b.c";
         JsonMap.ParsePathInfo info = (JsonMap.ParsePathInfo)method.invoke(jsonMap, path, 0);
         assertEquals(info.item, "a");
@@ -90,7 +90,7 @@ public class TestJsonMap {
         // 测试一个层级有值情况
         Map<String, Object> map = new HashMap<>();
         map.put("a", "123");
-        JsonObject jsonMap = new JsonObject();
+        JsonObjectImpl jsonMap = new JsonObjectImpl();
         jsonMap.putAll(map);
         Object v = jsonMap.getByPath(Arrays.asList("a"));
         assertEquals(v.getClass().getName(), "java.lang.String");
@@ -137,7 +137,7 @@ public class TestJsonMap {
         // 测试一个层级有值情况
         Map<String, Object> map = new HashMap<>();
         map.put("a", "123");
-        JsonObject jsonMap = new JsonObject();
+        JsonObjectImpl jsonMap = new JsonObjectImpl();
         jsonMap.putAll(map);
         Object v = jsonMap.getByPath("a");
         assertEquals(v.getClass().getName(), "java.lang.String");

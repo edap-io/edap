@@ -16,8 +16,8 @@
 
 package io.edap.protobuf.test.v3;
 
-import com.alibaba.fastjson.JSONArray;
 import com.google.protobuf.InvalidProtocolBufferException;
+import io.edap.json.Eson;
 import io.edap.protobuf.EncodeException;
 import io.edap.protobuf.ProtoBuf;
 import io.edap.protobuf.ProtoBufException;
@@ -45,10 +45,10 @@ public class TestListUint32 {
     void testEncode(String v) throws EncodeException {
         List<Integer> vs = new ArrayList<>();
         List<Integer> pvs = new ArrayList<>();
-        JSONArray jvs = JSONArray.parseArray(v);
+        List<Object> jvs = Eson.parseArray(v);
         for (int i=0;i<jvs.size();i++) {
-            vs.add(jvs.getIntValue(i));
-            pvs.add(jvs.getIntValue(i));
+            vs.add((Integer)jvs.get(i));
+            pvs.add((Integer)jvs.get(i));
         }
 
         ListUint32OuterClass.ListUint32.Builder builder = ListUint32OuterClass.ListUint32.newBuilder();

@@ -88,7 +88,7 @@ public class ByteArrayJsonReader implements JsonReader {
     }
 
     protected JsonObject readObjectValue() {
-        JsonObject jsonObject = new JsonObject();
+        JsonObjectImpl jsonObject = new JsonObjectImpl();
         char c = firstNotSpaceChar();
         if (c == '}') {
             return jsonObject;

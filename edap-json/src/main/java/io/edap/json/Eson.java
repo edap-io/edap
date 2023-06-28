@@ -23,6 +23,7 @@ import io.edap.util.CollectionUtils;
 
 import java.io.UnsupportedEncodingException;
 import java.util.Collection;
+import java.util.List;
 
 public class Eson {
 
@@ -124,6 +125,11 @@ public class Eson {
         }
         reader.nextPos(1);
         return reader.readObjectValue();
+    }
+
+    public static List<Object> parseArray(String json) {
+        StringJsonReader reader = THREAD_STRING_JSONREADER.get();
+        return reader.readArrayValue();
     }
 
     public static <T> T parseObject(String json, Class<T> clazz) {

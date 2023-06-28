@@ -39,7 +39,7 @@ public class StringJson5Reader extends StringJsonReader {
 
     @Override
     public JsonObject readObjectValue() {
-        JsonObject jsonObject = new JsonObject();
+        JsonObjectImpl jsonObject = new JsonObjectImpl();
         // 忽略注释内容
         readComment();
         char c = firstNotSpaceChar();
