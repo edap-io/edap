@@ -16,8 +16,8 @@
 
 package io.edap.protobuf.test.v3;
 
-import com.alibaba.fastjson.JSONArray;
 import com.google.protobuf.InvalidProtocolBufferException;
+import io.edap.json.JsonArray;
 import io.edap.protobuf.EncodeException;
 import io.edap.protobuf.ProtoBuf;
 import io.edap.protobuf.ProtoBufException;
@@ -43,7 +43,7 @@ public class TestListString {
             "[\"a\",\"abcdefgh\",\"中文内容\"]"
     })
     void testEncode(String value) throws EncodeException {
-        JSONArray jl = JSONArray.parseArray(value);
+        JsonArray jl = JsonArray.parseArray(value);
         List<String> vs = new ArrayList<>();
         for (int i=0;i<jl.size();i++) {
             vs.add(jl.getString(i));
@@ -94,7 +94,7 @@ public class TestListString {
     })
     void testDecode(String value) throws InvalidProtocolBufferException, ProtoBufException {
 
-        JSONArray jl = JSONArray.parseArray(value);
+        JsonArray jl = JsonArray.parseArray(value);
         List<String> vs = new ArrayList<>();
         for (int i=0;i<jl.size();i++) {
             vs.add(jl.getString(i));
@@ -122,7 +122,7 @@ public class TestListString {
             "[\"a\",\"abcdefgh\",\"中文内容\"]"
     })
     void testEncodeArray(String value) throws EncodeException {
-        JSONArray jl = JSONArray.parseArray(value);
+        JsonArray jl = JsonArray.parseArray(value);
         String[] vs = new String[jl.size()];
         List<String> pvs= new ArrayList<>();
         for (int i=0;i<jl.size();i++) {
@@ -190,7 +190,7 @@ public class TestListString {
     })
     void testDecodArray(String value) throws InvalidProtocolBufferException, ProtoBufException {
 
-        JSONArray jl = JSONArray.parseArray(value);
+        JsonArray jl = JsonArray.parseArray(value);
         List<String> vs = new ArrayList<>();
         for (int i=0;i<jl.size();i++) {
             vs.add(jl.getString(i));
@@ -218,7 +218,7 @@ public class TestListString {
             "[\"a\",\"abcdefgh\",\"中文内容\"]"
     })
     void testEncodeNoAccess(String value) throws EncodeException, NoSuchFieldException, IllegalAccessException {
-        JSONArray jl = JSONArray.parseArray(value);
+        JsonArray jl = JsonArray.parseArray(value);
         List<String> vs = new ArrayList<>();
         for (int i=0;i<jl.size();i++) {
             vs.add(jl.getString(i));
@@ -248,7 +248,7 @@ public class TestListString {
             "[\"a\",\"abcdefgh\",\"中文内容\"]"
     })
     void testEncodeArrayNoAccess(String value) throws EncodeException, NoSuchFieldException, IllegalAccessException {
-        JSONArray jl = JSONArray.parseArray(value);
+        JsonArray jl = JsonArray.parseArray(value);
         String[] vs = new String[jl.size()];
         List<String> pvs= new ArrayList<>();
         for (int i=0;i<jl.size();i++) {
@@ -281,7 +281,7 @@ public class TestListString {
     })
     void testDecodeNoAccess(String value) throws InvalidProtocolBufferException, ProtoBufException, NoSuchFieldException, IllegalAccessException {
 
-        JSONArray jl = JSONArray.parseArray(value);
+        JsonArray jl = JsonArray.parseArray(value);
         List<String> vs = new ArrayList<>();
         for (int i=0;i<jl.size();i++) {
             vs.add(jl.getString(i));
@@ -312,7 +312,7 @@ public class TestListString {
     })
     void testDecodeArrayNoAccess(String value) throws InvalidProtocolBufferException, ProtoBufException, NoSuchFieldException, IllegalAccessException {
 
-        JSONArray jl = JSONArray.parseArray(value);
+        JsonArray jl = JsonArray.parseArray(value);
         List<String> vs = new ArrayList<>();
         for (int i=0;i<jl.size();i++) {
             vs.add(jl.getString(i));

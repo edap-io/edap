@@ -23,6 +23,7 @@ import io.edap.util.StringUtil;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.*;
+import java.math.BigDecimal;
 import java.util.*;
 
 import static io.edap.json.consts.JsonConsts.END_OF_NUMBER;
@@ -441,5 +442,125 @@ public class JsonUtil {
             name = jsonFieldName;
         }
         return name;
+    }
+
+    public static int getIntValue(Object obj) {
+        if (obj == null) {
+            return 0;
+        }
+        if (obj instanceof Integer) {
+            return ((Integer)obj);
+        } else if (obj instanceof Long) {
+            return ((Long)obj).intValue();
+        } else if (obj instanceof String) {
+            return Integer.parseInt((String)obj);
+        } else if (obj instanceof BigDecimal) {
+            return ((BigDecimal)obj).intValue();
+        }
+        throw  new NumberFormatException("Not int value");
+    }
+
+    public static <Object> long getLongValue(Object obj) {
+        if (obj == null) {
+            return 0L;
+        }
+        if (obj instanceof Integer) {
+            return ((Integer)obj).longValue();
+        } else if (obj instanceof Long) {
+            return ((Long)obj);
+        } else if (obj instanceof String) {
+            return Long.parseLong((String)obj);
+        } else if (obj instanceof BigDecimal) {
+            return ((BigDecimal)obj).longValue();
+        }
+        throw  new NumberFormatException("Not long value");
+    }
+
+    public static <Object> float getFloatValue(Object obj) {
+        if (obj == null) {
+            return 0F;
+        }
+        if (obj instanceof Float) {
+            return ((Float)obj);
+        } else if (obj instanceof Double) {
+            return ((Double)obj).floatValue();
+        } else if (obj instanceof Integer) {
+            return ((Integer)obj).floatValue();
+        } else if (obj instanceof Long) {
+            return ((Long)obj).floatValue();
+        } else if (obj instanceof String) {
+            return Float.parseFloat((String)obj);
+        } else if (obj instanceof BigDecimal) {
+            return ((BigDecimal)obj).floatValue();
+        }
+        throw  new NumberFormatException("Not float value");
+    }
+
+    public static <Object> Float getFloat(Object obj) {
+        if (obj == null) {
+            return null;
+        }
+        return getFloatValue(obj);
+    }
+
+    public static <Object> double getDoubleValue(Object obj) {
+        if (obj == null) {
+            return 0D;
+        }
+        if (obj instanceof Double) {
+            return ((Double)obj);
+        } else if (obj instanceof Float) {
+            return ((Float)obj).doubleValue();
+        } else if (obj instanceof Integer) {
+            return ((Integer)obj).doubleValue();
+        } else if (obj instanceof Long) {
+            return ((Long)obj).doubleValue();
+        } else if (obj instanceof String) {
+            return Double.parseDouble((String)obj);
+        } else if (obj instanceof BigDecimal) {
+            return ((BigDecimal)obj).doubleValue();
+        }
+        throw  new NumberFormatException("Not double value");
+    }
+
+    public static <Object> Double getDouble(Object obj) {
+        if (obj == null) {
+            return null;
+        }
+        return getDoubleValue(obj);
+    }
+
+    public static <Object> boolean getBooleanValue(Object obj) {
+        if (obj == null) {
+            return false;
+        }
+        if (obj instanceof Boolean) {
+            return (Boolean)obj;
+        } else if (obj instanceof Integer) {
+            return (((Integer)obj) != 0);
+        } else if (obj instanceof Long) {
+            return (((Long)obj) != 0);
+        } else if (obj instanceof String) {
+            String v = (String)obj;
+            return "t".equalsIgnoreCase(v) || "true".equalsIgnoreCase(v) || "1".equals(v);
+        }
+        return false;
+    }
+
+    public static <Object> Boolean getBoolean(Object obj) {
+        if (obj == null) {
+            return null;
+        }
+        if (obj instanceof Boolean) {
+            return (Boolean)obj;
+        } else if (obj instanceof Integer) {
+            return (((Integer)obj) != 0);
+        } else if (obj instanceof Long) {
+            return (((Long)obj) != 0);
+        } else if (obj instanceof String) {
+            String v = (String)obj;
+            return "t".equalsIgnoreCase(v) || "true".equalsIgnoreCase(v) || "1".equals(v);
+        }
+        return false;
     }
 }

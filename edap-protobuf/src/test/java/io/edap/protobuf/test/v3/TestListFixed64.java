@@ -16,8 +16,8 @@
 
 package io.edap.protobuf.test.v3;
 
-import com.alibaba.fastjson.JSONArray;
 import com.google.protobuf.InvalidProtocolBufferException;
+import io.edap.json.JsonArray;
 import io.edap.protobuf.EncodeException;
 import io.edap.protobuf.ProtoBuf;
 import io.edap.protobuf.ProtoBufException;
@@ -44,7 +44,7 @@ public class TestListFixed64 {
     void testEncode(String v) throws EncodeException {
         List<Long> vs = new ArrayList<>();
         List<Long> pvs = new ArrayList<>();
-        JSONArray jvs = JSONArray.parseArray(v);
+        JsonArray jvs = JsonArray.parseArray(v);
         for (int i=0;i<jvs.size();i++) {
             vs.add(jvs.getLongValue(i));
             pvs.add(jvs.getLongValue(i));
@@ -74,7 +74,7 @@ public class TestListFixed64 {
 
         List<Long> vs = new ArrayList<>();
         List<Long> pvs = new ArrayList<>();
-        JSONArray jvs = JSONArray.parseArray(v);
+        JsonArray jvs = JsonArray.parseArray(v);
         for (int i=0;i<jvs.size();i++) {
             vs.add(jvs.getLongValue(i));
             pvs.add(jvs.getLongValue(i));
@@ -106,7 +106,7 @@ public class TestListFixed64 {
     void testEncodeArray(String v) throws EncodeException {
 
         List<Long> pvs = new ArrayList<>();
-        JSONArray jvs = JSONArray.parseArray(v);
+        JsonArray jvs = JsonArray.parseArray(v);
         Long[] vs = new Long[jvs.size()];
         for (int i=0;i<jvs.size();i++) {
             vs[i] = jvs.getLongValue(i);
@@ -136,7 +136,7 @@ public class TestListFixed64 {
     void testDecodeArray(String v) throws InvalidProtocolBufferException, ProtoBufException {
 
         List<Long> pvs = new ArrayList<>();
-        JSONArray jvs = JSONArray.parseArray(v);
+        JsonArray jvs = JsonArray.parseArray(v);
         for (int i=0;i<jvs.size();i++) {
             pvs.add(jvs.getLongValue(i));
         }
@@ -167,7 +167,7 @@ public class TestListFixed64 {
     void testEncodeArrayUnboxed(String v) throws EncodeException {
 
         List<Long> pvs = new ArrayList<>();
-        JSONArray jvs = JSONArray.parseArray(v);
+        JsonArray jvs = JsonArray.parseArray(v);
         long[] vs = new long[jvs.size()];
         for (int i=0;i<jvs.size();i++) {
             vs[i] = jvs.getLongValue(i);
@@ -197,7 +197,7 @@ public class TestListFixed64 {
     void testDecodeArrayUnboxed(String v) throws InvalidProtocolBufferException, ProtoBufException {
 
         List<Long> pvs = new ArrayList<>();
-        JSONArray jvs = JSONArray.parseArray(v);
+        JsonArray jvs = JsonArray.parseArray(v);
         for (int i=0;i<jvs.size();i++) {
             pvs.add(jvs.getLongValue(i));
         }
@@ -228,7 +228,7 @@ public class TestListFixed64 {
     void testEncodeNoAccess(String v) throws EncodeException, NoSuchFieldException, IllegalAccessException {
         List<Long> vs = new ArrayList<>();
         List<Long> pvs = new ArrayList<>();
-        JSONArray jvs = JSONArray.parseArray(v);
+        JsonArray jvs = JsonArray.parseArray(v);
         for (int i=0;i<jvs.size();i++) {
             vs.add(jvs.getLongValue(i));
             pvs.add(jvs.getLongValue(i));
@@ -260,7 +260,7 @@ public class TestListFixed64 {
     void testEncodeArrayNoAccess(String v) throws EncodeException, NoSuchFieldException, IllegalAccessException {
 
         List<Long> pvs = new ArrayList<>();
-        JSONArray jvs = JSONArray.parseArray(v);
+        JsonArray jvs = JsonArray.parseArray(v);
         Long[] vs = new Long[jvs.size()];
         for (int i=0;i<jvs.size();i++) {
             vs[i] = jvs.getLongValue(i);
@@ -293,7 +293,7 @@ public class TestListFixed64 {
     void testEncodeArrayUnboxedNoAccess(String v) throws EncodeException, NoSuchFieldException, IllegalAccessException {
 
         List<Long> pvs = new ArrayList<>();
-        JSONArray jvs = JSONArray.parseArray(v);
+        JsonArray jvs = JsonArray.parseArray(v);
         long[] vs = new long[jvs.size()];
         for (int i=0;i<jvs.size();i++) {
             vs[i] = jvs.getLongValue(i);
@@ -327,7 +327,7 @@ public class TestListFixed64 {
 
         List<Long> vs = new ArrayList<>();
         List<Long> pvs = new ArrayList<>();
-        JSONArray jvs = JSONArray.parseArray(v);
+        JsonArray jvs = JsonArray.parseArray(v);
         for (int i=0;i<jvs.size();i++) {
             vs.add(jvs.getLongValue(i));
             pvs.add(jvs.getLongValue(i));
@@ -361,7 +361,7 @@ public class TestListFixed64 {
     void testDecodeArraNoAccess(String v) throws InvalidProtocolBufferException, ProtoBufException, NoSuchFieldException, IllegalAccessException {
 
         List<Long> pvs = new ArrayList<>();
-        JSONArray jvs = JSONArray.parseArray(v);
+        JsonArray jvs = JsonArray.parseArray(v);
         for (int i=0;i<jvs.size();i++) {
             pvs.add(jvs.getLongValue(i));
         }
@@ -394,7 +394,7 @@ public class TestListFixed64 {
     void testDecodeArraUnboxedNoAccess(String v) throws InvalidProtocolBufferException, ProtoBufException, NoSuchFieldException, IllegalAccessException {
 
         List<Long> pvs = new ArrayList<>();
-        JSONArray jvs = JSONArray.parseArray(v);
+        JsonArray jvs = JsonArray.parseArray(v);
         for (int i=0;i<jvs.size();i++) {
             pvs.add(jvs.getLongValue(i));
         }

@@ -16,8 +16,8 @@
 
 package io.edap.protobuf.test.v3;
 
-import com.alibaba.fastjson.JSONArray;
 import com.google.protobuf.InvalidProtocolBufferException;
+import io.edap.json.JsonArray;
 import io.edap.protobuf.EncodeException;
 import io.edap.protobuf.ProtoBuf;
 import io.edap.protobuf.ProtoBufException;
@@ -44,7 +44,7 @@ public class TestListDouble {
     void testEncode(String v) throws EncodeException {
         List<Double> vs = new ArrayList<>();
         List<Double> pvs = new ArrayList<>();
-        JSONArray jvs = JSONArray.parseArray(v);
+        JsonArray jvs = JsonArray.parseArray(v);
         for (int i=0;i<jvs.size();i++) {
             vs.add(jvs.getDouble(i));
             pvs.add(jvs.getDouble(i));
@@ -74,7 +74,7 @@ public class TestListDouble {
 
         List<Double> vs = new ArrayList<>();
         List<Double> pvs = new ArrayList<>();
-        JSONArray jvs = JSONArray.parseArray(v);
+        JsonArray jvs = JsonArray.parseArray(v);
         for (int i=0;i<jvs.size();i++) {
             vs.add(jvs.getDouble(i));
             pvs.add(jvs.getDouble(i));
@@ -107,7 +107,7 @@ public class TestListDouble {
     void testEncodeArray(String v) throws EncodeException {
         List<Double> pvs = new ArrayList<>();
 
-        JSONArray jvs = JSONArray.parseArray(v);
+        JsonArray jvs = JsonArray.parseArray(v);
         Double[] vs = new Double[jvs.size()];
         for (int i=0;i<jvs.size();i++) {
             pvs.add(jvs.getDouble(i));
@@ -138,7 +138,7 @@ public class TestListDouble {
 
         List<Double> vs = new ArrayList<>();
         List<Double> pvs = new ArrayList<>();
-        JSONArray jvs = JSONArray.parseArray(v);
+        JsonArray jvs = JsonArray.parseArray(v);
         for (int i=0;i<jvs.size();i++) {
             vs.add(jvs.getDouble(i));
             pvs.add(jvs.getDouble(i));
@@ -204,7 +204,7 @@ public class TestListDouble {
     void testEncodeArrayUnboxed(String v) throws EncodeException {
         List<Double> pvs = new ArrayList<>();
 
-        JSONArray jvs = JSONArray.parseArray(v);
+        JsonArray jvs = JsonArray.parseArray(v);
         double[] vs = new double[jvs.size()];
         for (int i=0;i<jvs.size();i++) {
             pvs.add(jvs.getDouble(i));
@@ -235,7 +235,7 @@ public class TestListDouble {
 
         List<Double> vs = new ArrayList<>();
         List<Double> pvs = new ArrayList<>();
-        JSONArray jvs = JSONArray.parseArray(v);
+        JsonArray jvs = JsonArray.parseArray(v);
         for (int i=0;i<jvs.size();i++) {
             vs.add(jvs.getDouble(i));
             pvs.add(jvs.getDouble(i));
@@ -267,7 +267,7 @@ public class TestListDouble {
     void testEncodeNoAccess(String v) throws EncodeException, NoSuchFieldException, IllegalAccessException {
         List<Double> vs = new ArrayList<>();
         List<Double> pvs = new ArrayList<>();
-        JSONArray jvs = JSONArray.parseArray(v);
+        JsonArray jvs = JsonArray.parseArray(v);
         for (int i=0;i<jvs.size();i++) {
             vs.add(jvs.getDouble(i));
             pvs.add(jvs.getDouble(i));
@@ -299,7 +299,7 @@ public class TestListDouble {
     void testEncodeArrayNoAccess(String v) throws EncodeException, NoSuchFieldException, IllegalAccessException {
         List<Double> pvs = new ArrayList<>();
 
-        JSONArray jvs = JSONArray.parseArray(v);
+        JsonArray jvs = JsonArray.parseArray(v);
         Double[] vs = new Double[jvs.size()];
         for (int i=0;i<jvs.size();i++) {
             pvs.add(jvs.getDouble(i));
@@ -332,7 +332,7 @@ public class TestListDouble {
     void testEncodeArrayUnboxedNoAccess(String v) throws EncodeException, NoSuchFieldException, IllegalAccessException {
         List<Double> pvs = new ArrayList<>();
 
-        JSONArray jvs = JSONArray.parseArray(v);
+        JsonArray jvs = JsonArray.parseArray(v);
         double[] vs = new double[jvs.size()];
         for (int i=0;i<jvs.size();i++) {
             pvs.add(jvs.getDouble(i));
@@ -366,7 +366,7 @@ public class TestListDouble {
 
         List<Double> vs = new ArrayList<>();
         List<Double> pvs = new ArrayList<>();
-        JSONArray jvs = JSONArray.parseArray(v);
+        JsonArray jvs = JsonArray.parseArray(v);
         for (int i=0;i<jvs.size();i++) {
             vs.add(jvs.getDouble(i));
             pvs.add(jvs.getDouble(i));
@@ -401,7 +401,7 @@ public class TestListDouble {
 
         List<Double> vs = new ArrayList<>();
         List<Double> pvs = new ArrayList<>();
-        JSONArray jvs = JSONArray.parseArray(v);
+        JsonArray jvs = JsonArray.parseArray(v);
         for (int i=0;i<jvs.size();i++) {
             vs.add(jvs.getDouble(i));
             pvs.add(jvs.getDouble(i));
@@ -436,7 +436,7 @@ public class TestListDouble {
 
         List<Double> vs = new ArrayList<>();
         List<Double> pvs = new ArrayList<>();
-        JSONArray jvs = JSONArray.parseArray(v);
+        JsonArray jvs = JsonArray.parseArray(v);
         for (int i=0;i<jvs.size();i++) {
             vs.add(jvs.getDouble(i));
             pvs.add(jvs.getDouble(i));

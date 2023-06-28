@@ -16,8 +16,8 @@
 
 package io.edap.protobuf.test.v3;
 
-import com.alibaba.fastjson.JSONArray;
 import com.google.protobuf.InvalidProtocolBufferException;
+import io.edap.json.JsonArray;
 import io.edap.protobuf.EncodeException;
 import io.edap.protobuf.ProtoBuf;
 import io.edap.protobuf.ProtoBufException;
@@ -46,7 +46,7 @@ public class TestListEnum {
     void testEncode(String v) throws EncodeException {
         List<Corpus> vs = new ArrayList<>();
         List<OneEnumOuterClass.Corpus> pvs = new ArrayList<>();
-        JSONArray jvs = JSONArray.parseArray(v);
+        JsonArray jvs = JsonArray.parseArray(v);
         for (int i=0;i<jvs.size();i++) {
             vs.add(Corpus.valueOf(jvs.getString(i)));
             pvs.add(OneEnumOuterClass.Corpus.valueOf(jvs.getString(i)));
@@ -76,7 +76,7 @@ public class TestListEnum {
 
         List<Corpus> vs = new ArrayList<>();
         List<OneEnumOuterClass.Corpus> pvs = new ArrayList<>();
-        JSONArray jvs = JSONArray.parseArray(v);
+        JsonArray jvs = JsonArray.parseArray(v);
         for (int i=0;i<jvs.size();i++) {
             vs.add(Corpus.valueOf(jvs.getString(i)));
             pvs.add(OneEnumOuterClass.Corpus.valueOf(jvs.getString(i)));
@@ -108,7 +108,7 @@ public class TestListEnum {
     void testEncodeArray(String v) throws EncodeException {
 
         List<OneEnumOuterClass.Corpus> pvs = new ArrayList<>();
-        JSONArray jvs = JSONArray.parseArray(v);
+        JsonArray jvs = JsonArray.parseArray(v);
         Corpus[] vs = new Corpus[jvs.size()];
         for (int i=0;i<jvs.size();i++) {
             vs[i] = Corpus.valueOf(jvs.getString(i));
@@ -156,7 +156,7 @@ public class TestListEnum {
 
         List<Corpus> vs = new ArrayList<>();
         List<OneEnumOuterClass.Corpus> pvs = new ArrayList<>();
-        JSONArray jvs = JSONArray.parseArray(v);
+        JsonArray jvs = JsonArray.parseArray(v);
         for (int i=0;i<jvs.size();i++) {
             vs.add(Corpus.valueOf(jvs.getString(i)));
             pvs.add(OneEnumOuterClass.Corpus.valueOf(jvs.getString(i)));
@@ -188,7 +188,7 @@ public class TestListEnum {
     void testEncodeNoAccess(String v) throws EncodeException, NoSuchFieldException, IllegalAccessException {
         List<Corpus> vs = new ArrayList<>();
         List<OneEnumOuterClass.Corpus> pvs = new ArrayList<>();
-        JSONArray jvs = JSONArray.parseArray(v);
+        JsonArray jvs = JsonArray.parseArray(v);
         for (int i=0;i<jvs.size();i++) {
             vs.add(Corpus.valueOf(jvs.getString(i)));
             pvs.add(OneEnumOuterClass.Corpus.valueOf(jvs.getString(i)));
@@ -220,7 +220,7 @@ public class TestListEnum {
     void testEncodeArrayNoAccess(String v) throws EncodeException, NoSuchFieldException, IllegalAccessException {
 
         List<OneEnumOuterClass.Corpus> pvs = new ArrayList<>();
-        JSONArray jvs = JSONArray.parseArray(v);
+        JsonArray jvs = JsonArray.parseArray(v);
         Corpus[] vs = new Corpus[jvs.size()];
         for (int i=0;i<jvs.size();i++) {
             vs[i] = Corpus.valueOf(jvs.getString(i));
@@ -254,7 +254,7 @@ public class TestListEnum {
 
         List<Corpus> vs = new ArrayList<>();
         List<OneEnumOuterClass.Corpus> pvs = new ArrayList<>();
-        JSONArray jvs = JSONArray.parseArray(v);
+        JsonArray jvs = JsonArray.parseArray(v);
         for (int i=0;i<jvs.size();i++) {
             vs.add(Corpus.valueOf(jvs.getString(i)));
             pvs.add(OneEnumOuterClass.Corpus.valueOf(jvs.getString(i)));
@@ -289,7 +289,7 @@ public class TestListEnum {
 
         List<Corpus> vs = new ArrayList<>();
         List<OneEnumOuterClass.Corpus> pvs = new ArrayList<>();
-        JSONArray jvs = JSONArray.parseArray(v);
+        JsonArray jvs = JsonArray.parseArray(v);
         for (int i=0;i<jvs.size();i++) {
             vs.add(Corpus.valueOf(jvs.getString(i)));
             pvs.add(OneEnumOuterClass.Corpus.valueOf(jvs.getString(i)));

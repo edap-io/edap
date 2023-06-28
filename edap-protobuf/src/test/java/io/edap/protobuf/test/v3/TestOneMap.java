@@ -16,8 +16,9 @@
 
 package io.edap.protobuf.test.v3;
 
-import com.alibaba.fastjson.JSONObject;
 import com.google.protobuf.InvalidProtocolBufferException;
+import io.edap.json.Eson;
+import io.edap.json.JsonObject;
 import io.edap.protobuf.EncodeException;
 import io.edap.protobuf.ProtoBuf;
 import io.edap.protobuf.ProtoBufException;
@@ -49,10 +50,10 @@ public class TestOneMap {
     })
     void testEncode(String v) throws EncodeException {
         Map<String, OneMapOuterClass.Project> pbValue = new HashMap<>();
-        JSONObject jvalue = JSONObject.parseObject(v);
+        JsonObject jvalue = Eson.parseJsonObject(v);
         Map<String, Project> epbValue = new HashMap<>();
         for (Map.Entry<String, Object> jitem : jvalue.entrySet()) {
-            JSONObject jv = (JSONObject)jitem.getValue();
+            JsonObject jv = (JsonObject)jitem.getValue();
             OneMapOuterClass.Project.Builder vbuilder = OneMapOuterClass.Project.newBuilder();
             vbuilder.setId(jv.getLongValue("id"));
             vbuilder.setName(jv.getString("name"));
@@ -89,9 +90,9 @@ public class TestOneMap {
     void testDecode(String v) throws InvalidProtocolBufferException, ProtoBufException {
         Map<String, OneMapOuterClass.Project> pbValue = new HashMap<>();
         OneMapOuterClass.OneMap.Builder builder = OneMapOuterClass.OneMap.newBuilder();
-        JSONObject jvalue = JSONObject.parseObject(v);
+        JsonObject jvalue = Eson.parseJsonObject(v);
         for (Map.Entry<String, Object> jitem : jvalue.entrySet()) {
-            JSONObject jv = (JSONObject) jitem.getValue();
+            JsonObject jv = (JsonObject) jitem.getValue();
             OneMapOuterClass.Project.Builder vbuilder = OneMapOuterClass.Project.newBuilder();
             vbuilder.setId(jv.getLongValue("id"));
             vbuilder.setName(jv.getString("name"));
@@ -118,10 +119,10 @@ public class TestOneMap {
     })
     void testEncodeNoAccess(String v) throws EncodeException, NoSuchFieldException, IllegalAccessException {
         Map<String, OneMapOuterClass.Project> pbValue = new HashMap<>();
-        JSONObject jvalue = JSONObject.parseObject(v);
+        JsonObject jvalue = Eson.parseJsonObject(v);
         Map<String, Project> epbValue = new HashMap<>();
         for (Map.Entry<String, Object> jitem : jvalue.entrySet()) {
-            JSONObject jv = (JSONObject)jitem.getValue();
+            JsonObject jv = (JsonObject)jitem.getValue();
             OneMapOuterClass.Project.Builder vbuilder = OneMapOuterClass.Project.newBuilder();
             vbuilder.setId(jv.getLongValue("id"));
             vbuilder.setName(jv.getString("name"));
@@ -162,9 +163,9 @@ public class TestOneMap {
     void testDecodeNoAccess(String v) throws InvalidProtocolBufferException, ProtoBufException, NoSuchFieldException, IllegalAccessException {
         Map<String, OneMapOuterClass.Project> pbValue = new HashMap<>();
         OneMapOuterClass.OneMap.Builder builder = OneMapOuterClass.OneMap.newBuilder();
-        JSONObject jvalue = JSONObject.parseObject(v);
+        JsonObject jvalue = Eson.parseJsonObject(v);
         for (Map.Entry<String, Object> jitem : jvalue.entrySet()) {
-            JSONObject jv = (JSONObject) jitem.getValue();
+            JsonObject jv = (JsonObject) jitem.getValue();
             OneMapOuterClass.Project.Builder vbuilder = OneMapOuterClass.Project.newBuilder();
             vbuilder.setId(jv.getLongValue("id"));
             vbuilder.setName(jv.getString("name"));

@@ -16,7 +16,7 @@
 
 package io.edap.protobuf.test.ext;
 
-import com.alibaba.fastjson.JSON;
+import io.edap.json.Eson;
 import io.edap.protobuf.EncodeException;
 import io.edap.protobuf.ProtoBuf;
 import io.edap.protobuf.ProtoBufException;
@@ -78,13 +78,13 @@ public class TestMsgGeneric {
         System.out.println(conver2HexStr(data));
 
         ComplexModel<Project> model2 = (ComplexModel<Project>)ProtoBuf.der(data);
-        System.out.println(JSON.toJSONString(model2, true));
+        System.out.println(Eson.toJsonString(model2));
 
         data = ProtoBuf.ser(model, ProtoBufWriter.WriteOrder.REVERSE);
 
         System.out.println(conver2HexStr(data));
 
         model2 = (ComplexModel<Project>)ProtoBuf.der(data);
-        System.out.println(JSON.toJSONString(model2, true));
+        System.out.println(Eson.toJsonString(model2));
     }
 }

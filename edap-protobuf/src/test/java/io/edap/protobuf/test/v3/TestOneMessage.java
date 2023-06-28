@@ -16,8 +16,9 @@
 
 package io.edap.protobuf.test.v3;
 
-import com.alibaba.fastjson.JSONObject;
 import com.google.protobuf.InvalidProtocolBufferException;
+import io.edap.json.Eson;
+import io.edap.json.JsonObject;
 import io.edap.protobuf.EncodeException;
 import io.edap.protobuf.ProtoBuf;
 import io.edap.protobuf.ProtoBufException;
@@ -36,7 +37,7 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
- * @author : luysh@yonyou.com
+ * @author : louis@easyea.com
  * @date : 2020/1/6
  */
 public class TestOneMessage {
@@ -46,7 +47,7 @@ public class TestOneMessage {
             "{\"id\":1,\"name\":\"edap\",\"repoPath\":\"https://www.easyea.com/edap/edap.git\"}"
     })
     void testEncode(String v) throws EncodeException {
-        JSONObject jvalue = JSONObject.parseObject(v);
+        JsonObject jvalue = Eson.parseJsonObject(v);
 
         OneMessageOuterClass.Proj.Builder pbuilder = OneMessageOuterClass.Proj.newBuilder();
         pbuilder.setId(jvalue.getLongValue("id"));
@@ -78,7 +79,7 @@ public class TestOneMessage {
             "{\"id\":1,\"name\":\"edap\",\"repoPath\":\"https://www.easyea.com/edap/edap.git\"}"
     })
     void testDecode(String v) throws InvalidProtocolBufferException, ProtoBufException {
-        JSONObject jvalue = JSONObject.parseObject(v);
+        JsonObject jvalue = Eson.parseJsonObject(v);
 
         OneMessageOuterClass.Proj.Builder pbuilder = OneMessageOuterClass.Proj.newBuilder();
         pbuilder.setId(jvalue.getLongValue("id"));
@@ -105,7 +106,7 @@ public class TestOneMessage {
             "{\"id\":1,\"name\":\"edap\",\"repoPath\":\"https://www.easyea.com/edap/edap.git\"}"
     })
     void testEncodeNoAccess(String v) throws EncodeException, NoSuchFieldException, IllegalAccessException {
-        JSONObject jvalue = JSONObject.parseObject(v);
+        JsonObject jvalue = Eson.parseJsonObject(v);
 
         OneMessageOuterClass.Proj.Builder pbuilder = OneMessageOuterClass.Proj.newBuilder();
         pbuilder.setId(jvalue.getLongValue("id"));
@@ -141,7 +142,7 @@ public class TestOneMessage {
             "{\"id\":1,\"name\":\"edap\",\"repoPath\":\"https://www.easyea.com/edap/edap.git\"}"
     })
     void testDecodeNoAccess(String v) throws InvalidProtocolBufferException, ProtoBufException, NoSuchFieldException, IllegalAccessException {
-        JSONObject jvalue = JSONObject.parseObject(v);
+        JsonObject jvalue = Eson.parseJsonObject(v);
 
         OneMessageOuterClass.Proj.Builder pbuilder = OneMessageOuterClass.Proj.newBuilder();
         pbuilder.setId(jvalue.getLongValue("id"));

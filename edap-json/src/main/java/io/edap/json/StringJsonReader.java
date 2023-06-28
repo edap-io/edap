@@ -864,6 +864,42 @@ public class StringJsonReader implements JsonReader {
         return vs;
     }
 
+    public JsonArray parseArray() {
+        NodeType nodeType = readStart();
+        if (nodeType != NodeType.ARRAY) {
+            throw new RuntimeException("not array string");
+        }
+        pos++;
+        JsonArray vs = new JsonArray();
+        char startChar = firstNotSpaceChar();
+        if (startChar == ']') {
+            return vs;
+        }
+        Object v = readValue();
+        vs.add(v);
+        while (true) {
+            startChar = firstNotSpaceChar();
+            if (startChar == ']') {
+                pos++;
+                break;
+            } else if (startChar == ',') {
+                pos++;
+                startChar = firstNotSpaceChar();
+                if (startChar == ']') {
+                    pos++;
+                    break;
+                } else if (startChar == ',') {
+                    continue;
+                } else {
+                    vs.add(readValue());
+                }
+            } else {
+                throw new JsonParseException("数组格式不正确");
+            }
+        }
+        return vs;
+    }
+
     @Override
     public char firstNotSpaceChar() {
         int _pos = pos;

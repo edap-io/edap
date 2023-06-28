@@ -16,9 +16,9 @@
 
 package io.edap.protobuf.test.v3;
 
-import com.alibaba.fastjson.JSONArray;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.InvalidProtocolBufferException;
+import io.edap.json.JsonArray;
 import io.edap.protobuf.EncodeException;
 import io.edap.protobuf.ProtoBuf;
 import io.edap.protobuf.ProtoBufException;
@@ -47,7 +47,7 @@ public class TestListBytes {
     void testEncode(String v) throws UnsupportedEncodingException, EncodeException {
         List<byte[]> vs = new ArrayList<>();
         List<ByteString> pvs = new ArrayList<>();
-        JSONArray jvs = JSONArray.parseArray(v);
+        JsonArray jvs = JsonArray.parseArray(v);
         for (int i=0;i<jvs.size();i++) {
             byte[] bv = jvs.getString(i).getBytes("utf-8");
             vs.add(bv);
@@ -75,7 +75,7 @@ public class TestListBytes {
 
         List<byte[]> vs = new ArrayList<>();
         List<ByteString> pvs = new ArrayList<>();
-        JSONArray jvs = JSONArray.parseArray(v);
+        JsonArray jvs = JsonArray.parseArray(v);
         for (int i=0;i<jvs.size();i++) {
             byte[] bv = jvs.getString(i).getBytes("utf-8");
             vs.add(bv);
@@ -108,7 +108,7 @@ public class TestListBytes {
     void testEncodeNoAccess(String v) throws UnsupportedEncodingException, EncodeException, NoSuchFieldException, IllegalAccessException {
         List<byte[]> vs = new ArrayList<>();
         List<ByteString> pvs = new ArrayList<>();
-        JSONArray jvs = JSONArray.parseArray(v);
+        JsonArray jvs = JsonArray.parseArray(v);
         for (int i=0;i<jvs.size();i++) {
             byte[] bv = jvs.getString(i).getBytes("utf-8");
             vs.add(bv);
@@ -139,7 +139,7 @@ public class TestListBytes {
 
         List<byte[]> vs = new ArrayList<>();
         List<ByteString> pvs = new ArrayList<>();
-        JSONArray jvs = JSONArray.parseArray(v);
+        JsonArray jvs = JsonArray.parseArray(v);
         for (int i=0;i<jvs.size();i++) {
             byte[] bv = jvs.getString(i).getBytes("utf-8");
             vs.add(bv);

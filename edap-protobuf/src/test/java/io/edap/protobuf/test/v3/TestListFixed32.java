@@ -16,8 +16,8 @@
 
 package io.edap.protobuf.test.v3;
 
-import com.alibaba.fastjson.JSONArray;
 import com.google.protobuf.InvalidProtocolBufferException;
+import io.edap.json.JsonArray;
 import io.edap.protobuf.EncodeException;
 import io.edap.protobuf.ProtoBuf;
 import io.edap.protobuf.ProtoBufException;
@@ -45,7 +45,7 @@ public class TestListFixed32 {
     void testEncode(String v) throws EncodeException {
         List<Integer> vs = new ArrayList<>();
         List<Integer> pvs = new ArrayList<>();
-        JSONArray jvs = JSONArray.parseArray(v);
+        JsonArray jvs = JsonArray.parseArray(v);
         for (int i=0;i<jvs.size();i++) {
             vs.add(jvs.getIntValue(i));
             pvs.add(jvs.getIntValue(i));
@@ -75,7 +75,7 @@ public class TestListFixed32 {
 
         List<Integer> vs = new ArrayList<>();
         List<Integer> pvs = new ArrayList<>();
-        JSONArray jvs = JSONArray.parseArray(v);
+        JsonArray jvs = JsonArray.parseArray(v);
         for (int i=0;i<jvs.size();i++) {
             vs.add(jvs.getIntValue(i));
             pvs.add(jvs.getIntValue(i));
@@ -107,7 +107,7 @@ public class TestListFixed32 {
     void testEncodeArray(String v) throws EncodeException {
 
         List<Integer> pvs = new ArrayList<>();
-        JSONArray jvs = JSONArray.parseArray(v);
+        JsonArray jvs = JsonArray.parseArray(v);
         Integer[] vs = new Integer[jvs.size()];
         for (int i=0;i<jvs.size();i++) {
             vs[i] = jvs.getIntValue(i);
@@ -138,7 +138,7 @@ public class TestListFixed32 {
 
         List<Integer> vs = new ArrayList<>();
         List<Integer> pvs = new ArrayList<>();
-        JSONArray jvs = JSONArray.parseArray(v);
+        JsonArray jvs = JsonArray.parseArray(v);
         for (int i=0;i<jvs.size();i++) {
             vs.add(jvs.getIntValue(i));
             pvs.add(jvs.getIntValue(i));
@@ -170,7 +170,7 @@ public class TestListFixed32 {
     void testEncodeArrayUnboxed(String v) throws EncodeException {
 
         List<Integer> pvs = new ArrayList<>();
-        JSONArray jvs = JSONArray.parseArray(v);
+        JsonArray jvs = JsonArray.parseArray(v);
         int[] vs = new int[jvs.size()];
         for (int i=0;i<jvs.size();i++) {
             vs[i] = jvs.getIntValue(i);
@@ -201,7 +201,7 @@ public class TestListFixed32 {
 
         List<Integer> vs = new ArrayList<>();
         List<Integer> pvs = new ArrayList<>();
-        JSONArray jvs = JSONArray.parseArray(v);
+        JsonArray jvs = JsonArray.parseArray(v);
         for (int i=0;i<jvs.size();i++) {
             vs.add(jvs.getIntValue(i));
             pvs.add(jvs.getIntValue(i));
@@ -233,7 +233,7 @@ public class TestListFixed32 {
     void testEncodeNoAccess(String v) throws EncodeException, NoSuchFieldException, IllegalAccessException {
         List<Integer> vs = new ArrayList<>();
         List<Integer> pvs = new ArrayList<>();
-        JSONArray jvs = JSONArray.parseArray(v);
+        JsonArray jvs = JsonArray.parseArray(v);
         for (int i=0;i<jvs.size();i++) {
             vs.add(jvs.getIntValue(i));
             pvs.add(jvs.getIntValue(i));
@@ -265,7 +265,7 @@ public class TestListFixed32 {
     void testEncodeArrayNoAccess(String v) throws EncodeException, NoSuchFieldException, IllegalAccessException {
 
         List<Integer> pvs = new ArrayList<>();
-        JSONArray jvs = JSONArray.parseArray(v);
+        JsonArray jvs = JsonArray.parseArray(v);
         Integer[] vs = new Integer[jvs.size()];
         for (int i=0;i<jvs.size();i++) {
             vs[i] = jvs.getIntValue(i);
@@ -298,7 +298,7 @@ public class TestListFixed32 {
     void testEncodeArrayUnboxedNoAccess(String v) throws EncodeException, NoSuchFieldException, IllegalAccessException {
 
         List<Integer> pvs = new ArrayList<>();
-        JSONArray jvs = JSONArray.parseArray(v);
+        JsonArray jvs = JsonArray.parseArray(v);
         int[] vs = new int[jvs.size()];
         for (int i=0;i<jvs.size();i++) {
             vs[i] = jvs.getIntValue(i);
@@ -332,7 +332,7 @@ public class TestListFixed32 {
 
         List<Integer> vs = new ArrayList<>();
         List<Integer> pvs = new ArrayList<>();
-        JSONArray jvs = JSONArray.parseArray(v);
+        JsonArray jvs = JsonArray.parseArray(v);
         for (int i=0;i<jvs.size();i++) {
             vs.add(jvs.getIntValue(i));
             pvs.add(jvs.getIntValue(i));
@@ -367,7 +367,7 @@ public class TestListFixed32 {
 
         List<Integer> vs = new ArrayList<>();
         List<Integer> pvs = new ArrayList<>();
-        JSONArray jvs = JSONArray.parseArray(v);
+        JsonArray jvs = JsonArray.parseArray(v);
         for (int i=0;i<jvs.size();i++) {
             vs.add(jvs.getIntValue(i));
             pvs.add(jvs.getIntValue(i));
@@ -402,7 +402,7 @@ public class TestListFixed32 {
 
         List<Integer> vs = new ArrayList<>();
         List<Integer> pvs = new ArrayList<>();
-        JSONArray jvs = JSONArray.parseArray(v);
+        JsonArray jvs = JsonArray.parseArray(v);
         for (int i=0;i<jvs.size();i++) {
             vs.add(jvs.getIntValue(i));
             pvs.add(jvs.getIntValue(i));

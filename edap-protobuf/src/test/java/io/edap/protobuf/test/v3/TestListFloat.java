@@ -16,8 +16,8 @@
 
 package io.edap.protobuf.test.v3;
 
-import com.alibaba.fastjson.JSONArray;
 import com.google.protobuf.InvalidProtocolBufferException;
+import io.edap.json.JsonArray;
 import io.edap.protobuf.EncodeException;
 import io.edap.protobuf.ProtoBuf;
 import io.edap.protobuf.ProtoBufException;
@@ -45,7 +45,7 @@ public class TestListFloat {
     void testEncode(String v) throws EncodeException {
         List<Float> vs = new ArrayList<>();
         List<Float> pvs = new ArrayList<>();
-        JSONArray jvs = JSONArray.parseArray(v);
+        JsonArray jvs = JsonArray.parseArray(v);
         for (int i=0;i<jvs.size();i++) {
             vs.add(jvs.getFloat(i));
             pvs.add(jvs.getFloat(i));
@@ -75,7 +75,7 @@ public class TestListFloat {
 
         List<Float> vs = new ArrayList<>();
         List<Float> pvs = new ArrayList<>();
-        JSONArray jvs = JSONArray.parseArray(v);
+        JsonArray jvs = JsonArray.parseArray(v);
         for (int i=0;i<jvs.size();i++) {
             vs.add(jvs.getFloat(i));
             pvs.add(jvs.getFloat(i));
@@ -107,7 +107,7 @@ public class TestListFloat {
     void testEncodeArray(String v) throws EncodeException {
 
         List<Float> pvs = new ArrayList<>();
-        JSONArray jvs = JSONArray.parseArray(v);
+        JsonArray jvs = JsonArray.parseArray(v);
         Float[] vs = new Float[jvs.size()];
         for (int i=0;i<jvs.size();i++) {
             vs[i] = jvs.getFloat(i);
@@ -172,7 +172,7 @@ public class TestListFloat {
     })
     void testDecodeArray(String v) throws InvalidProtocolBufferException, ProtoBufException {
         List<Float> pvs = new ArrayList<>();
-        JSONArray jvs = JSONArray.parseArray(v);
+        JsonArray jvs = JsonArray.parseArray(v);
         for (int i=0;i<jvs.size();i++) {
             pvs.add(jvs.getFloat(i));
         }
@@ -203,7 +203,7 @@ public class TestListFloat {
     void testEncodeArrayUnboxed(String v) throws EncodeException {
 
         List<Float> pvs = new ArrayList<>();
-        JSONArray jvs = JSONArray.parseArray(v);
+        JsonArray jvs = JsonArray.parseArray(v);
         float[] vs = new float[jvs.size()];
         for (int i=0;i<jvs.size();i++) {
             vs[i] = jvs.getFloat(i);
@@ -232,7 +232,7 @@ public class TestListFloat {
     })
     void testDecodeArrayUnboxed(String v) throws InvalidProtocolBufferException, ProtoBufException {
         List<Float> pvs = new ArrayList<>();
-        JSONArray jvs = JSONArray.parseArray(v);
+        JsonArray jvs = JsonArray.parseArray(v);
         for (int i=0;i<jvs.size();i++) {
             pvs.add(jvs.getFloat(i));
         }
@@ -263,7 +263,7 @@ public class TestListFloat {
     void testEncodeNoAccess(String v) throws EncodeException, NoSuchFieldException, IllegalAccessException {
         List<Float> vs = new ArrayList<>();
         List<Float> pvs = new ArrayList<>();
-        JSONArray jvs = JSONArray.parseArray(v);
+        JsonArray jvs = JsonArray.parseArray(v);
         for (int i=0;i<jvs.size();i++) {
             vs.add(jvs.getFloat(i));
             pvs.add(jvs.getFloat(i));
@@ -295,7 +295,7 @@ public class TestListFloat {
     void testEncodeArrayNoAccess(String v) throws EncodeException, NoSuchFieldException, IllegalAccessException {
 
         List<Float> pvs = new ArrayList<>();
-        JSONArray jvs = JSONArray.parseArray(v);
+        JsonArray jvs = JsonArray.parseArray(v);
         Float[] vs = new Float[jvs.size()];
         for (int i=0;i<jvs.size();i++) {
             vs[i] = jvs.getFloat(i);
@@ -328,7 +328,7 @@ public class TestListFloat {
     void testEncodeArrayUnboxedNoAccess(String v) throws EncodeException, NoSuchFieldException, IllegalAccessException {
 
         List<Float> pvs = new ArrayList<>();
-        JSONArray jvs = JSONArray.parseArray(v);
+        JsonArray jvs = JsonArray.parseArray(v);
         float[] vs = new float[jvs.size()];
         for (int i=0;i<jvs.size();i++) {
             vs[i] = jvs.getFloat(i);
@@ -362,7 +362,7 @@ public class TestListFloat {
 
         List<Float> vs = new ArrayList<>();
         List<Float> pvs = new ArrayList<>();
-        JSONArray jvs = JSONArray.parseArray(v);
+        JsonArray jvs = JsonArray.parseArray(v);
         for (int i=0;i<jvs.size();i++) {
             vs.add(jvs.getFloat(i));
             pvs.add(jvs.getFloat(i));
@@ -395,7 +395,7 @@ public class TestListFloat {
     })
     void testDecodeArrayNoAccess(String v) throws InvalidProtocolBufferException, ProtoBufException, NoSuchFieldException, IllegalAccessException {
         List<Float> pvs = new ArrayList<>();
-        JSONArray jvs = JSONArray.parseArray(v);
+        JsonArray jvs = JsonArray.parseArray(v);
         for (int i=0;i<jvs.size();i++) {
             pvs.add(jvs.getFloat(i));
         }
@@ -427,7 +427,7 @@ public class TestListFloat {
     })
     void testDecodeArrayUnboxedNoAccess(String v) throws InvalidProtocolBufferException, ProtoBufException, NoSuchFieldException, IllegalAccessException {
         List<Float> pvs = new ArrayList<>();
-        JSONArray jvs = JSONArray.parseArray(v);
+        JsonArray jvs = JsonArray.parseArray(v);
         for (int i=0;i<jvs.size();i++) {
             pvs.add(jvs.getFloat(i));
         }

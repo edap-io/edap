@@ -16,14 +16,13 @@
 
 package io.edap.protobuf.test.v3;
 
-import com.alibaba.fastjson.JSONArray;
 import com.google.protobuf.InvalidProtocolBufferException;
+import io.edap.json.JsonArray;
 import io.edap.protobuf.EncodeException;
 import io.edap.protobuf.ProtoBuf;
 import io.edap.protobuf.ProtoBufException;
 import io.edap.protobuf.test.message.v3.*;
 import io.edap.util.ClazzUtil;
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
@@ -46,7 +45,7 @@ public class TestListProtoEnum {
     void testEncode(String v) throws EncodeException {
         List<ProtoEnumCorpus> vs = new ArrayList<>();
         List<OneEnumOuterClass.Corpus> pvs = new ArrayList<>();
-        JSONArray jvs = JSONArray.parseArray(v);
+        JsonArray jvs = JsonArray.parseArray(v);
         for (int i=0;i<jvs.size();i++) {
             vs.add(ProtoEnumCorpus.valueOf(jvs.getString(i)));
             pvs.add(OneEnumOuterClass.Corpus.valueOf(jvs.getString(i)));
@@ -76,7 +75,7 @@ public class TestListProtoEnum {
 
         List<ProtoEnumCorpus> vs = new ArrayList<>();
         List<OneEnumOuterClass.Corpus> pvs = new ArrayList<>();
-        JSONArray jvs = JSONArray.parseArray(v);
+        JsonArray jvs = JsonArray.parseArray(v);
         for (int i=0;i<jvs.size();i++) {
             vs.add(ProtoEnumCorpus.valueOf(jvs.getString(i)));
             pvs.add(OneEnumOuterClass.Corpus.valueOf(jvs.getString(i)));
@@ -108,7 +107,7 @@ public class TestListProtoEnum {
     void testEncodeArray(String v) throws EncodeException {
 
         List<OneEnumOuterClass.Corpus> pvs = new ArrayList<>();
-        JSONArray jvs = JSONArray.parseArray(v);
+        JsonArray jvs = JsonArray.parseArray(v);
         ProtoEnumCorpus[] vs = new ProtoEnumCorpus[jvs.size()];
         for (int i=0;i<jvs.size();i++) {
             vs[i] = ProtoEnumCorpus.valueOf(jvs.getString(i));
@@ -139,7 +138,7 @@ public class TestListProtoEnum {
 
         List<ProtoEnumCorpus> vs = new ArrayList<>();
         List<OneEnumOuterClass.Corpus> pvs = new ArrayList<>();
-        JSONArray jvs = JSONArray.parseArray(v);
+        JsonArray jvs = JsonArray.parseArray(v);
         for (int i=0;i<jvs.size();i++) {
             vs.add(ProtoEnumCorpus.valueOf(jvs.getString(i)));
             pvs.add(OneEnumOuterClass.Corpus.valueOf(jvs.getString(i)));
@@ -171,7 +170,7 @@ public class TestListProtoEnum {
     void testEncodeNoAccess(String v) throws EncodeException, NoSuchFieldException, IllegalAccessException {
         List<ProtoEnumCorpus> vs = new ArrayList<>();
         List<OneEnumOuterClass.Corpus> pvs = new ArrayList<>();
-        JSONArray jvs = JSONArray.parseArray(v);
+        JsonArray jvs = JsonArray.parseArray(v);
         for (int i=0;i<jvs.size();i++) {
             vs.add(ProtoEnumCorpus.valueOf(jvs.getString(i)));
             pvs.add(OneEnumOuterClass.Corpus.valueOf(jvs.getString(i)));
@@ -203,7 +202,7 @@ public class TestListProtoEnum {
     void testEncodeArrayNoAccess(String v) throws EncodeException, NoSuchFieldException, IllegalAccessException {
 
         List<OneEnumOuterClass.Corpus> pvs = new ArrayList<>();
-        JSONArray jvs = JSONArray.parseArray(v);
+        JsonArray jvs = JsonArray.parseArray(v);
         ProtoEnumCorpus[] vs = new ProtoEnumCorpus[jvs.size()];
         for (int i=0;i<jvs.size();i++) {
             vs[i] = ProtoEnumCorpus.valueOf(jvs.getString(i));
@@ -237,7 +236,7 @@ public class TestListProtoEnum {
 
         List<ProtoEnumCorpus> vs = new ArrayList<>();
         List<OneEnumOuterClass.Corpus> pvs = new ArrayList<>();
-        JSONArray jvs = JSONArray.parseArray(v);
+        JsonArray jvs = JsonArray.parseArray(v);
         for (int i=0;i<jvs.size();i++) {
             vs.add(ProtoEnumCorpus.valueOf(jvs.getString(i)));
             pvs.add(OneEnumOuterClass.Corpus.valueOf(jvs.getString(i)));
@@ -272,7 +271,7 @@ public class TestListProtoEnum {
 
         List<ProtoEnumCorpus> vs = new ArrayList<>();
         List<OneEnumOuterClass.Corpus> pvs = new ArrayList<>();
-        JSONArray jvs = JSONArray.parseArray(v);
+        JsonArray jvs = JsonArray.parseArray(v);
         for (int i=0;i<jvs.size();i++) {
             vs.add(ProtoEnumCorpus.valueOf(jvs.getString(i)));
             pvs.add(OneEnumOuterClass.Corpus.valueOf(jvs.getString(i)));

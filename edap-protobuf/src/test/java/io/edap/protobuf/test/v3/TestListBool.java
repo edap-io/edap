@@ -16,7 +16,7 @@
 
 package io.edap.protobuf.test.v3;
 
-import com.alibaba.fastjson.JSONArray;
+import io.edap.json.JsonArray;
 import io.edap.protobuf.EncodeException;
 import io.edap.protobuf.ProtoBuf;
 import io.edap.protobuf.test.message.v3.*;
@@ -42,7 +42,7 @@ public class TestListBool {
     })
     void testEncode(String jlist) throws EncodeException {
         List<Boolean> vs = new ArrayList<>();
-        JSONArray jl = JSONArray.parseArray(jlist);
+        JsonArray jl = JsonArray.parseArray(jlist);
         for (int i=0;i<jl.size();i++) {
             vs.add(Boolean.valueOf(jl.getBoolean(i)));
         }
@@ -71,7 +71,7 @@ public class TestListBool {
 
         try {
             List<Boolean> vs = new ArrayList<>();
-            JSONArray jl = JSONArray.parseArray(jlist);
+            JsonArray jl = JsonArray.parseArray(jlist);
             for (int i = 0; i < jl.size(); i++) {
                 vs.add(Boolean.valueOf(jl.getBoolean(i)));
             }
@@ -99,7 +99,7 @@ public class TestListBool {
     })
     void testEncodeArray(String jlist) throws EncodeException {
         List<Boolean> vs = new ArrayList<>();
-        JSONArray jl = JSONArray.parseArray(jlist);
+        JsonArray jl = JsonArray.parseArray(jlist);
         Boolean[] evs = new Boolean[jl.size()];
         for (int i=0;i<jl.size();i++) {
             vs.add(Boolean.valueOf(jl.getBoolean(i)));
@@ -164,7 +164,7 @@ public class TestListBool {
 
         try {
             List<Boolean> vs = new ArrayList<>();
-            JSONArray jl = JSONArray.parseArray(jlist);
+            JsonArray jl = JsonArray.parseArray(jlist);
             for (int i = 0; i < jl.size(); i++) {
                 vs.add(Boolean.valueOf(jl.getBoolean(i)));
             }
@@ -192,7 +192,7 @@ public class TestListBool {
     })
     void testEncodeArrayUnboxed(String jlist) throws EncodeException {
         List<Boolean> vs = new ArrayList<>();
-        JSONArray jl = JSONArray.parseArray(jlist);
+        JsonArray jl = JsonArray.parseArray(jlist);
         boolean[] evs = new boolean[jl.size()];
         for (int i=0;i<jl.size();i++) {
             vs.add(Boolean.valueOf(jl.getBoolean(i)));
@@ -223,9 +223,9 @@ public class TestListBool {
 
         try {
             List<Boolean> vs = new ArrayList<>();
-            JSONArray jl = JSONArray.parseArray(jlist);
+            JsonArray jl = JsonArray.parseArray(jlist);
             for (int i = 0; i < jl.size(); i++) {
-                vs.add(Boolean.valueOf(jl.getBoolean(i)));
+                vs.add(Boolean.valueOf(jl.getBooleanValue(i)));
             }
             ListBoolOuterClass.ListBool.Builder builder = ListBoolOuterClass.ListBool.newBuilder();
             builder.addAllValue(vs);
@@ -251,9 +251,9 @@ public class TestListBool {
     })
     void testEncodeNoAccess(String jlist) throws EncodeException, NoSuchFieldException, IllegalAccessException {
         List<Boolean> vs = new ArrayList<>();
-        JSONArray jl = JSONArray.parseArray(jlist);
+        JsonArray jl = JsonArray.parseArray(jlist);
         for (int i=0;i<jl.size();i++) {
-            vs.add(Boolean.valueOf(jl.getBoolean(i)));
+            vs.add(Boolean.valueOf(jl.getBooleanValue(i)));
         }
         ListBoolOuterClass.ListBool.Builder builder = ListBoolOuterClass.ListBool.newBuilder();
         builder.addAllValue(vs);
@@ -281,11 +281,11 @@ public class TestListBool {
     })
     void testEncodeArrayNoAccess(String jlist) throws EncodeException, NoSuchFieldException, IllegalAccessException {
         List<Boolean> vs = new ArrayList<>();
-        JSONArray jl = JSONArray.parseArray(jlist);
+        JsonArray jl = JsonArray.parseArray(jlist);
         Boolean[] evs = new Boolean[jl.size()];
         for (int i=0;i<jl.size();i++) {
-            vs.add(Boolean.valueOf(jl.getBoolean(i)));
-            evs[i] = Boolean.valueOf(jl.getBoolean(i));
+            vs.add(Boolean.valueOf(jl.getBooleanValue(i)));
+            evs[i] = Boolean.valueOf(jl.getBooleanValue(i));
         }
         ListBoolOuterClass.ListBool.Builder builder = ListBoolOuterClass.ListBool.newBuilder();
         builder.addAllValue(vs);
@@ -312,11 +312,11 @@ public class TestListBool {
     })
     void testEncodeArrayUnboxedNoAccess(String jlist) throws EncodeException, NoSuchFieldException, IllegalAccessException {
         List<Boolean> vs = new ArrayList<>();
-        JSONArray jl = JSONArray.parseArray(jlist);
+        JsonArray jl = JsonArray.parseArray(jlist);
         boolean[] evs = new boolean[jl.size()];
         for (int i=0;i<jl.size();i++) {
-            vs.add(Boolean.valueOf(jl.getBoolean(i)));
-            evs[i] = Boolean.valueOf(jl.getBoolean(i));
+            vs.add(Boolean.valueOf(jl.getBooleanValue(i)));
+            evs[i] = Boolean.valueOf(jl.getBooleanValue(i));
         }
         ListBoolOuterClass.ListBool.Builder builder = ListBoolOuterClass.ListBool.newBuilder();
         builder.addAllValue(vs);
@@ -345,7 +345,7 @@ public class TestListBool {
 
         try {
             List<Boolean> vs = new ArrayList<>();
-            JSONArray jl = JSONArray.parseArray(jlist);
+            JsonArray jl = JsonArray.parseArray(jlist);
             for (int i = 0; i < jl.size(); i++) {
                 vs.add(Boolean.valueOf(jl.getBoolean(i)));
             }
@@ -376,7 +376,7 @@ public class TestListBool {
 
         try {
             List<Boolean> vs = new ArrayList<>();
-            JSONArray jl = JSONArray.parseArray(jlist);
+            JsonArray jl = JsonArray.parseArray(jlist);
             for (int i = 0; i < jl.size(); i++) {
                 vs.add(Boolean.valueOf(jl.getBoolean(i)));
             }
@@ -407,7 +407,7 @@ public class TestListBool {
 
         try {
             List<Boolean> vs = new ArrayList<>();
-            JSONArray jl = JSONArray.parseArray(jlist);
+            JsonArray jl = JsonArray.parseArray(jlist);
             for (int i = 0; i < jl.size(); i++) {
                 vs.add(Boolean.valueOf(jl.getBoolean(i)));
             }

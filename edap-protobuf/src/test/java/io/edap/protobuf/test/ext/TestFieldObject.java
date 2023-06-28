@@ -16,9 +16,8 @@
 
 package io.edap.protobuf.test.ext;
 
-import com.alibaba.fastjson.JSON;
-import com.alibaba.fastjson.JSONArray;
-import com.alibaba.fastjson.TypeReference;
+import io.edap.json.Eson;
+import io.edap.json.JsonArray;
 import io.edap.protobuf.EncodeException;
 import io.edap.protobuf.ProtoBuf;
 import io.edap.protobuf.ProtoBufException;
@@ -445,7 +444,7 @@ public class TestFieldObject {
     })
     void testArrayIntCodec(String v) throws EncodeException, ProtoBufException {
 
-        JSONArray jvs = JSONArray.parseArray(v);
+        JsonArray jvs = JsonArray.parseArray(v);
         int[] vs = new int[jvs.size()];
         for (int i=0;i<jvs.size();i++) {
             vs[i] = jvs.getIntValue(i);
@@ -472,7 +471,7 @@ public class TestFieldObject {
     })
     void testArrayIntegerCodec(String v) throws EncodeException, ProtoBufException {
 
-        JSONArray jvs = JSONArray.parseArray(v);
+        JsonArray jvs = JsonArray.parseArray(v);
         Integer[] vs = null;
         if (jvs != null) {
             vs = new Integer[jvs.size()];
@@ -506,7 +505,7 @@ public class TestFieldObject {
             "[-1,1,128,2147483648L,0]"
     })
     void testArrayLongCodec(String v) throws EncodeException, ProtoBufException {
-        JSONArray jvs = JSONArray.parseArray(v);
+        JsonArray jvs = JsonArray.parseArray(v);
         long[] vs = null;
         if (null != jvs) {
             vs = new long[jvs.size()];
@@ -534,7 +533,7 @@ public class TestFieldObject {
             "[null,-1,1,128,2147483648L,null]"
     })
     void testArrayLongObjCodec(String v) throws EncodeException, ProtoBufException {
-        JSONArray jvs = JSONArray.parseArray(v);
+        JsonArray jvs = JsonArray.parseArray(v);
         Long[] vs = new Long[jvs.size()];
         for (int i=0;i<jvs.size();i++) {
             String sv = jvs.getString(i);
@@ -566,7 +565,7 @@ public class TestFieldObject {
             "[31.415926,1]"
     })
     void testArrayFloatCodec(String v) throws EncodeException, ProtoBufException {
-        JSONArray jvs = JSONArray.parseArray(v);
+        JsonArray jvs = JsonArray.parseArray(v);
         float[] vs = new float[jvs.size()];
         for (int i=0;i<jvs.size();i++) {
             vs[i] = jvs.getFloatValue(i);
@@ -591,7 +590,7 @@ public class TestFieldObject {
             "[31.415926,null,1,null]"
     })
     void testArrayFloatObjCodec(String v) throws EncodeException, ProtoBufException {
-        JSONArray jvs = JSONArray.parseArray(v);
+        JsonArray jvs = JsonArray.parseArray(v);
         Float[] vs = new Float[jvs.size()];
         for (int i=0;i<jvs.size();i++) {
             String sv = jvs.getString(i);
@@ -623,10 +622,10 @@ public class TestFieldObject {
     })
     void testArrayDoubleCodec(String v) throws EncodeException, ProtoBufException {
 
-        JSONArray jvs = JSONArray.parseArray(v);
+        JsonArray jvs = JsonArray.parseArray(v);
         double[] vs = new double[jvs.size()];
         for (int i = 0; i < jvs.size(); i++) {
-            vs[i] = jvs.getDouble(i);
+            vs[i] = jvs.getDoubleValue(i);
         }
 
         FieldObject fo = new FieldObject();
@@ -650,14 +649,14 @@ public class TestFieldObject {
     })
     void testArrayDoubleObjCodec(String v) throws EncodeException, ProtoBufException {
 
-        JSONArray jvs = JSONArray.parseArray(v);
+        JsonArray jvs = JsonArray.parseArray(v);
         Double[] vs = new Double[jvs.size()];
         for (int i = 0; i < jvs.size(); i++) {
             String sv = jvs.getString(i);
             if (sv == null || "null".equals(sv)) {
                 vs[i] = null;
             } else {
-                vs[i] = jvs.getDouble(i);
+                vs[i] = jvs.getDoubleValue(i);
             }
         }
 
@@ -681,7 +680,7 @@ public class TestFieldObject {
     })
     void testArrayStringCodec(String value) throws EncodeException, ProtoBufException {
         String[] vs = null;
-        JSONArray jl = JSONArray.parseArray(value);
+        JsonArray jl = JsonArray.parseArray(value);
         vs = new String[jl.size()];
         for (int i = 0; i < jl.size(); i++) {
             vs[i] = jl.getString(i);
@@ -708,10 +707,10 @@ public class TestFieldObject {
     })
     void testArrayBoolCodec(String jlist) throws EncodeException, ProtoBufException {
 
-        JSONArray jl = JSONArray.parseArray(jlist);
+        JsonArray jl = JsonArray.parseArray(jlist);
         boolean[] vs = new boolean[jl.size()];
         for (int i = 0; i < jl.size(); i++) {
-            vs[i] = Boolean.valueOf(jl.getBoolean(i));
+            vs[i] = Boolean.valueOf(jl.getBooleanValue(i));
         }
         FieldObject fo = new FieldObject();
         fo.setObj(vs);
@@ -734,14 +733,14 @@ public class TestFieldObject {
     })
     void testArrayBoolObjCodec(String jlist) throws EncodeException, ProtoBufException {
 
-        JSONArray jl = JSONArray.parseArray(jlist);
+        JsonArray jl = JsonArray.parseArray(jlist);
         Boolean[] vs = new Boolean[jl.size()];
         for (int i = 0; i < jl.size(); i++) {
             String sv = jl.getString(i);
             if (null == sv || "null".equals(sv)) {
                 vs[i] = null;
             } else {
-                vs[i] = Boolean.valueOf(jl.getBoolean(i));
+                vs[i] = Boolean.valueOf(jl.getBooleanValue(i));
             }
         }
         FieldObject fo = new FieldObject();
@@ -833,7 +832,7 @@ public class TestFieldObject {
     })
     void testMapCodec(String value) throws EncodeException, ProtoBufException {
 
-        Map<String, Object> map = JSON.parseObject(value, new TypeReference<HashMap<String, Object>>(){});
+        Map<String, Object> map = Eson.parseJsonObject(value);
 
         FieldObject fo = new FieldObject();
         fo.setObj(map);
@@ -868,7 +867,7 @@ public class TestFieldObject {
         System.out.println(conver2HexStr(epb));
 
         FieldObject nfo = ProtoBuf.toObject(epb, FieldObject.class);
-        System.out.println(JSON.toJSONString(nfo.getObj()));
+        System.out.println(Eson.toJsonString(nfo.getObj()));
         assertEquals(nfo.getObj(), list);
 
         list = new ArrayList<>();
@@ -882,7 +881,7 @@ public class TestFieldObject {
         System.out.println(conver2HexStr(epb));
 
         nfo = ProtoBuf.toObject(epb, FieldObject.class);
-        System.out.println(JSON.toJSONString(nfo.getObj()));
+        System.out.println(Eson.toJsonString(nfo.getObj()));
         assertEquals(nfo.getObj(), list);
 
         List<Integer> ilist = new ArrayList<>();
@@ -913,7 +912,7 @@ public class TestFieldObject {
         System.out.println(conver2HexStr(epb));
 
         nfo = ProtoBuf.toObject(epb, FieldObject.class);
-        System.out.println(JSON.toJSONString(nfo.getObj()));
+        System.out.println(Eson.toJsonString(nfo.getObj()));
         assertEquals(nfo.getObj(), ilist);
 
         fo = new FieldObject();
@@ -925,7 +924,7 @@ public class TestFieldObject {
         System.out.println(conver2HexStr(epb));
 
         nfo = ProtoBuf.toObject(epb, FieldObject.class);
-        System.out.println(JSON.toJSONString(nfo.getObj()));
+        System.out.println(Eson.toJsonString(nfo.getObj()));
         assertEquals(nfo.getObj(), ilist);
     }
 
@@ -957,14 +956,14 @@ public class TestFieldObject {
         System.out.println(conver2HexStr(epb));
 
         FieldObject nfo = ProtoBuf.toObject(epb, FieldObject.class);
-        System.out.println(JSON.toJSONString(nfo.getObj()));
+        System.out.println(Eson.toJsonString(nfo.getObj()));
         assertArrayEquals((Object[])nfo.getObj(), objs);
 
         epb = ProtoBuf.toByteArray(fo, ProtoBufWriter.WriteOrder.SEQUENTIAL);
         System.out.println(conver2HexStr(epb));
 
         nfo = ProtoBuf.toObject(epb, FieldObject.class);
-        System.out.println(JSON.toJSONString(nfo.getObj()));
+        System.out.println(Eson.toJsonString(nfo.getObj()));
         assertArrayEquals((Object[])nfo.getObj(), objs);
 
         objs = new Object[0];
@@ -977,14 +976,14 @@ public class TestFieldObject {
         System.out.println(conver2HexStr(epb));
 
         nfo = ProtoBuf.toObject(epb, FieldObject.class);
-        System.out.println(JSON.toJSONString(nfo.getObj()));
+        System.out.println(Eson.toJsonString(nfo.getObj()));
         assertArrayEquals((Object[])nfo.getObj(), objs);
 
         epb = ProtoBuf.toByteArray(fo, ProtoBufWriter.WriteOrder.SEQUENTIAL);
         System.out.println(conver2HexStr(epb));
 
         nfo = ProtoBuf.toObject(epb, FieldObject.class);
-        System.out.println(JSON.toJSONString(nfo.getObj()));
+        System.out.println(Eson.toJsonString(nfo.getObj()));
         assertArrayEquals((Object[])nfo.getObj(), objs);
     }
 }
