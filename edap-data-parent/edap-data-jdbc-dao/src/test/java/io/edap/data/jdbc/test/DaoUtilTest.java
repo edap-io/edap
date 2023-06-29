@@ -27,6 +27,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static io.edap.data.util.DaoUtil.*;
+import static io.edap.util.AsmUtil.toInternalName;
 import static io.edap.util.Constants.EMPTY_STRING;
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -120,5 +121,40 @@ public class DaoUtilTest {
 
         jdbcInfos = getJdbcInfos(HasBooleanFieldDemo.class);
         assertEquals(jdbcInfos.size(), 2);
+    }
+
+    @Test
+    public void testGetBoxedName() {
+        Class<?> cls = byte.class;
+        String name = getBoxedName(cls);
+        assertEquals(name, toInternalName(Byte.class.getName()));
+
+        cls = boolean.class;
+        name = getBoxedName(cls);
+        assertEquals(name, toInternalName(Boolean.class.getName()));
+
+        cls = char.class;
+        name = getBoxedName(cls);
+        assertEquals(name, toInternalName(Character.class.getName()));
+
+        cls = short.class;
+        name = getBoxedName(cls);
+        assertEquals(name, toInternalName(Short.class.getName()));
+
+        cls = int.class;
+        name = getBoxedName(cls);
+        assertEquals(name, toInternalName(Integer.class.getName()));
+
+        cls = float.class;
+        name = getBoxedName(cls);
+        assertEquals(name, toInternalName(Float.class.getName()));
+
+        cls = double.class;
+        name = getBoxedName(cls);
+        assertEquals(name, toInternalName(Double.class.getName()));
+
+        cls = long.class;
+        name = getBoxedName(cls);
+        assertEquals(name, toInternalName(Long.class.getName()));
     }
 }

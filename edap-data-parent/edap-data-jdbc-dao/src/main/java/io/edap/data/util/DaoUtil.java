@@ -173,9 +173,10 @@ public class DaoUtil {
     }
 
     public static List<JdbcInfo> getJdbcInfos(Class clazz) {
+        List<JdbcInfo> jdbcInfos = new ArrayList<>();
         List<Field> fields = getClassFields(clazz);
         if (CollectionUtils.isEmpty(fields)) {
-            return EMPTY_LIST;
+            return jdbcInfos;
         }
         List<Method> methods = getClassMethods(clazz);
         Map<String, Method> fieldMethods = new HashMap<>();
@@ -194,7 +195,7 @@ public class DaoUtil {
                 }
             }
         }
-        List<JdbcInfo> jdbcInfos = new ArrayList<>();
+
         for (Field f : fields) {
             if (Modifier.isFinal(f.getModifiers()) || Modifier.isStatic(f.getModifiers())) {
                 continue;
@@ -236,6 +237,8 @@ public class DaoUtil {
                 return "java/lang/Byte";
             case "boolean":
                 return "java/lang/Boolean";
+            case "char":
+                return "java/lang/Character";
             case "short":
                 return "java/lang/Short";
             case "int":
@@ -244,6 +247,8 @@ public class DaoUtil {
                 return "java/lang/Float";
             case "long":
                 return "java/lang/Long";
+            case "double":
+                return "java/lang/Double";
             default:
                 return type.getName();
         }
