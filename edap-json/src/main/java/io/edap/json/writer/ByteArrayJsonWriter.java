@@ -3,6 +3,7 @@ package io.edap.json.writer;
 import io.edap.buffer.FastBuf;
 import io.edap.io.BufOut;
 import io.edap.io.ByteArrayBufOut;
+import io.edap.json.Eson;
 import io.edap.json.JsonEncoder;
 import io.edap.json.JsonWriter;
 import io.edap.util.Grisu;
@@ -403,7 +404,8 @@ public class ByteArrayJsonWriter extends AbstractJsonWriter implements JsonWrite
             writeNull();
             return;
         }
-        write(obj.toString());
+        Eson.serialize(obj, this);
+        //write(obj.toString());
     }
 
     @Override

@@ -17,6 +17,10 @@
 package io.edap.json;
 
 import io.edap.json.decoders.ReflectDecoder;
+import io.edap.json.encoders.DoubleEncoder;
+import io.edap.json.encoders.IntegerEncoder;
+import io.edap.json.encoders.ObjectEncoder;
+import io.edap.json.encoders.StringEncoder;
 import io.edap.json.enums.DataType;
 import io.edap.json.enums.JsonVersion;
 import io.edap.util.internal.GeneratorClassInfo;
@@ -37,6 +41,13 @@ public class JsonCodecRegister {
     private static final Map<String, JsonDecoder> DECODER_MAP = new ConcurrentHashMap<>();
 
     private static final Map<String, JsonEncoder> ENCODER_MAP = new ConcurrentHashMap<>();
+
+    static {
+        ENCODER_MAP.put(String.class.getName(), new StringEncoder());
+        ENCODER_MAP.put(Integer.class.getName(), new IntegerEncoder());
+        ENCODER_MAP.put(Object.class.getName(), new ObjectEncoder());
+        ENCODER_MAP.put(Double.class.getName(), new DoubleEncoder());
+    }
 
     private final JsonCodecLoader codecLoader = new JsonCodecLoader(this.getClass().getClassLoader());
 

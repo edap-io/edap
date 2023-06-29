@@ -9,6 +9,7 @@ import org.objectweb.asm.*;
 import java.lang.reflect.Field;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
+import java.lang.reflect.TypeVariable;
 import java.util.*;
 
 import static io.edap.json.util.JsonUtil.*;
@@ -364,6 +365,8 @@ public class JsonEncoderGenerator {
                 for (Type t : pt.getActualTypeArguments()) {
                     if (t instanceof Class) {
                         pojoCls = (Class) t;
+                    } else if (t instanceof TypeVariable) {
+                        pojoCls = Object.class;
                     }
                     pojoType = t;
                 }

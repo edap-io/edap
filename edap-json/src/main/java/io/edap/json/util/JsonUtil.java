@@ -452,6 +452,8 @@ public class JsonUtil {
             return ((Integer)obj);
         } else if (obj instanceof Long) {
             return ((Long)obj).intValue();
+        } else if (obj instanceof Double) {
+            return ((Double)obj).intValue();
         } else if (obj instanceof String) {
             return Integer.parseInt((String)obj);
         } else if (obj instanceof BigDecimal) {

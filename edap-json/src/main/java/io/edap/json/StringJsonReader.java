@@ -612,11 +612,30 @@ public class StringJsonReader implements JsonReader {
                 long div = readLong0(INVALID_CHAR_FOR_NUMBER);
                 int len = pos - dotPos;
                 double v = value + ((double) div / POW10[len]);
-                return isNe?-v:v;
+                char end = json.charAt(pos);
+                if (end == 'D' || end == 'd') {
+                    pos++;
+                    return isNe?-v:v;
+                } else if (end == 'F' || end == 'f') {
+                    pos++;
+                    return (float)(isNe?-v:v);
+                } else {
+                    return isNe?-v:v;
+                }
+
             } catch (Exception e) {
                 throw new JsonParseException("double类型\".\"没有其他数字");
             }
-        } else if (!isNumberEnd(c)) {
+        } else if (c == 'D' || c == 'd') {
+            pos++;
+            return (double)(isNe?-value:value);
+        } else if (c == 'F' || c == 'f') {
+            pos++;
+            return (float)(isNe?-value:value);
+        } else if (c == 'L' || c == 'l') {
+            pos++;
+            return value;
+        }  else if (!isNumberEnd(c)) {
             throw new RuntimeException("");
         } else {
             return isNe?-value:value;
@@ -635,6 +654,7 @@ public class StringJsonReader implements JsonReader {
         c = firstNotSpaceChar();
         while (true) {
             if (c == '}') {
+                pos++;
                 break;
             } else if (c == ',') {
                 pos++;
@@ -819,6 +839,11 @@ public class StringJsonReader implements JsonReader {
             return NodeType.ARRAY;
         } else if (startChar == 0) {
             return NodeType.EMPTY;
+        } else if (startChar == 'n') {
+            if (json.equals("null")) {
+                pos += 4;
+                return NodeType.NULL;
+            }
         }
         throw ERROR_JSON_FORMAT;
     }
@@ -866,6 +891,9 @@ public class StringJsonReader implements JsonReader {
 
     public JsonArray parseArray() {
         NodeType nodeType = readStart();
+        if (nodeType == NodeType.NULL) {
+            return null;
+        }
         if (nodeType != NodeType.ARRAY) {
             throw new RuntimeException("not array string");
         }

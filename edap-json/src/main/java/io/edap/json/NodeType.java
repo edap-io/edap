@@ -31,5 +31,6 @@ public enum NodeType {
     /**
      * 空文档
      */
-    EMPTY;
+    EMPTY,
+    NULL;
 }

@@ -129,6 +129,7 @@ public class Eson {
 
     public static List<Object> parseArray(String json) {
         StringJsonReader reader = THREAD_STRING_JSONREADER.get();
+        reader.setJsonData(json);
         return reader.readArrayValue();
     }
 
