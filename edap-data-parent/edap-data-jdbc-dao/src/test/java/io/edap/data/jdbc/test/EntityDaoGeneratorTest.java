@@ -1,13 +1,7 @@
 package io.edap.data.jdbc.test;
 
-import io.edap.data.JdbcDaoRegister;
-import io.edap.data.JdbcEntityDao;
-import io.edap.data.JdbcMapDao;
-import io.edap.data.JdbcViewDao;
-import io.edap.data.jdbc.test.entity.Demo;
-import io.edap.data.jdbc.test.entity.DemoIntId;
-import io.edap.data.jdbc.test.entity.DemoLongId;
-import io.edap.data.jdbc.test.entity.DemoLongObjId;
+import io.edap.data.*;
+import io.edap.data.jdbc.test.entity.*;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -17,17 +11,21 @@ public class EntityDaoGeneratorTest {
     @Test
     public void testEntityDaoGenarate() {
         JdbcEntityDao<Demo> demoDao = JdbcDaoRegister.instance()
-                .getEntityDao(Demo.class, "Postgresql");
+                .getEntityDao(Demo.class, new DaoOption());
         assertNotNull(demoDao);
         JdbcEntityDao<DemoIntId> demoIntIdDao = JdbcDaoRegister.instance()
-                .getEntityDao(DemoIntId.class, "Postgresql");
+                .getEntityDao(DemoIntId.class, new DaoOption());
         assertNotNull(demoIntIdDao);
         JdbcEntityDao<DemoLongId> demoILongIdDao = JdbcDaoRegister.instance()
-                .getEntityDao(DemoLongId.class, "Postgresql");
+                .getEntityDao(DemoLongId.class, new DaoOption());
         assertNotNull(demoILongIdDao);
         JdbcEntityDao<DemoLongObjId> demoILongObjIdDao = JdbcDaoRegister.instance()
-                .getEntityDao(DemoLongObjId.class, "Postgresql");
+                .getEntityDao(DemoLongObjId.class, new DaoOption());
         assertNotNull(demoILongObjIdDao);
+
+        JdbcEntityDao<DemoAllType> demoAllTypeDao = JdbcDaoRegister.instance()
+                .getEntityDao(DemoAllType.class, new DaoOption());
+        assertNotNull(demoAllTypeDao);
     }
 
     @Test

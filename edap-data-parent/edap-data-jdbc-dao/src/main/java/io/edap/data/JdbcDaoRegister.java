@@ -110,7 +110,7 @@ public class JdbcDaoRegister {
         return funcCls;
     }
 
-    public <T> JdbcEntityDao<T> getEntityDao(Class<T> entity, String databaseType) {
+    public <T> JdbcEntityDao<T> getEntityDao(Class<T> entity, DaoOption daoOption) {
         JdbcEntityDao<T> dao = null;
         try {
             lock.lock();
@@ -119,7 +119,7 @@ public class JdbcDaoRegister {
             try {
                 daoClazz = daoLoader.loadClass(name);
             } catch (ClassNotFoundException e) {
-                daoClazz = generateEntityDaoClass(entity, databaseType);
+                daoClazz = generateEntityDaoClass(entity, daoOption);
             }
             if (daoClazz != null) {
                 try {
@@ -135,8 +135,8 @@ public class JdbcDaoRegister {
         }
     }
 
-    private Class<?> generateEntityDaoClass(Class<?> entity, String databaseType) {
-        JdbcEntityDaoGenerator generator = new JdbcEntityDaoGenerator(entity, databaseType);
+    private Class<?> generateEntityDaoClass(Class<?> entity, DaoOption daoOption) {
+        JdbcEntityDaoGenerator generator = new JdbcEntityDaoGenerator(entity, daoOption);
         String daoName = toLangName(getEntityDaoName(entity));
         Class<?> daoCls = null;
         try {

@@ -196,7 +196,7 @@ public class JdbcMapDaoTest extends AbstractDaoTest {
             assertEquals(data.get("int_column".toUpperCase(Locale.ENGLISH)), original[2]);
             assertEquals(data.get("float_column".toUpperCase(Locale.ENGLISH)), original[3]);
             assertEquals(data.get("double_column".toUpperCase(Locale.ENGLISH)), original[4]);
-            assertTrue(((Date)data.get("date_column".toUpperCase(Locale.ENGLISH))).toLocalDate().equals(((java.sql.Date)original[5]).toLocalDate()));
+            assertEquals(((Date) data.get("date_column".toUpperCase(Locale.ENGLISH))).toLocalDate(), ((Date) original[5]).toLocalDate());
             assertEquals(data.get("datetime_column".toUpperCase(Locale.ENGLISH)), original[6]);
             assertEquals(((Time)data.get("time_column".toUpperCase(Locale.ENGLISH))).toLocalTime(), ((Time)original[7]).toLocalTime());
             assertEquals(data.get("bool_column".toUpperCase(Locale.ENGLISH)), original[8]);

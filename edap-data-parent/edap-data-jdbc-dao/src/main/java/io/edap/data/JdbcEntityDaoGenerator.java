@@ -43,13 +43,14 @@ public class JdbcEntityDaoGenerator extends BaseDaoGenerator {
 
     private static String ENTITY_IFACT_NAME = toInternalName(JdbcEntityDao.class.getName());
 
-    public JdbcEntityDaoGenerator(Class entity, String databaseType) {
+    public JdbcEntityDaoGenerator(Class entity, DaoOption daoOption) {
         super();
         this.entity = entity;
         this.entityName = toInternalName(entity.getName());
         this.databaseType = databaseType;
         this.daoName = toInternalName(getEntityDaoName(entity));
         this.PARENT_NAME = toInternalName(JdbcBaseDao.class.getName());
+        this.daoOption = daoOption;
     }
 
     public GeneratorClassInfo getClassInfo() {
@@ -142,6 +143,10 @@ public class JdbcEntityDaoGenerator extends BaseDaoGenerator {
                 if (jdbcInfo.isNeedUnbox()) {
                     visitUnboxOpcode(mv, jdbcInfo.getField());
                 }
+                if (!jdbcInfo.isBaseType() && !jdbcInfo.getJdbcType().equals(jdbcInfo.getFieldType())) {
+                    mv.visitMethodInsn(INVOKESTATIC, CONVERTOR_NAME, "convert",
+                            "(" + jdbcInfo.getFieldType() + ")" + jdbcInfo.getJdbcType(), false);
+                }
                 mv.visitMethodInsn(INVOKEINTERFACE, "java/sql/PreparedStatement", jdbcInfo.getJdbcMethod(),
                         "(I" + jdbcInfo.getJdbcType() + ")V", true);
             }
@@ -204,7 +209,7 @@ public class JdbcEntityDaoGenerator extends BaseDaoGenerator {
         MethodVisitor mv = cw.visitMethod(ACC_PUBLIC, "insert", "(Ljava/util/List;)[I",
                 "(Ljava/util/List<L" + entityName + ";>;)[I", new String[] { "java/lang/Exception" });
 
-        InsertInfo insertInfo = getInsertSql(entity);
+        InsertInfo insertInfo = getInsertSql(entity, daoOption);
         Field idField = insertInfo.getIdField();
         Method idSetMethod = insertInfo.getIdSetMethod();
 
@@ -287,6 +292,10 @@ public class JdbcEntityDaoGenerator extends BaseDaoGenerator {
                     "()" + jdbcInfo.getFieldType(), false);
             if (jdbcInfo.isNeedUnbox()) {
                 visitUnboxOpcode(mv, jdbcInfo.getField());
+            }
+            if (!jdbcInfo.isBaseType() && !jdbcInfo.getJdbcType().equals(jdbcInfo.getFieldType())) {
+                mv.visitMethodInsn(INVOKESTATIC, CONVERTOR_NAME, "convert",
+                        "(" + jdbcInfo.getFieldType() + ")" + jdbcInfo.getJdbcType(), false);
             }
             mv.visitMethodInsn(INVOKEINTERFACE, "java/sql/PreparedStatement",
                     jdbcInfo.getJdbcMethod(), "(I" + jdbcInfo.getJdbcType() + ")V", true);
@@ -386,7 +395,7 @@ public class JdbcEntityDaoGenerator extends BaseDaoGenerator {
         MethodVisitor mv = cw.visitMethod(ACC_PUBLIC, "insert", "(L" + entityName + ";)I", null,
                 new String[] {"java/lang/Exception" });
 
-        InsertInfo insertInfo = getInsertSql(entity);
+        InsertInfo insertInfo = getInsertSql(entity, daoOption);
         Field idField = insertInfo.getIdField();
         Method idSetMethod = insertInfo.getIdSetMethod();
         Method idGetMethod = insertInfo.getIdGetMethod();
@@ -472,7 +481,10 @@ public class JdbcEntityDaoGenerator extends BaseDaoGenerator {
             if (jdbcInfo.isNeedUnbox()) {
                 visitUnboxOpcode(mv, jdbcInfo.getField());
             }
-
+            if (!jdbcInfo.isBaseType() && !jdbcInfo.getJdbcType().equals(jdbcInfo.getFieldType())) {
+                mv.visitMethodInsn(INVOKESTATIC, CONVERTOR_NAME, "convert",
+                        "(" + jdbcInfo.getFieldType() + ")" + jdbcInfo.getJdbcType(), false);
+            }
             mv.visitMethodInsn(INVOKEINTERFACE, "java/sql/PreparedStatement",
                     jdbcInfo.getJdbcMethod(), "(I" + jdbcInfo.getJdbcType() + ")V", true);
             pos++;

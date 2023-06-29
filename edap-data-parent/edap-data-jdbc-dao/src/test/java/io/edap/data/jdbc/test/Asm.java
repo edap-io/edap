@@ -40,7 +40,7 @@ public class Asm {
 
         System.out.println("short Max=" + Short.MAX_VALUE);
 
-        String clsPath = DemoIntIdEntityDao.class.getName();
+        String clsPath = DemoEntityDao.class.getName();
         ClassReader cr;
         if (clsPath.endsWith(".class") || clsPath.indexOf('\\') > -1
                 || clsPath.indexOf('/') > -1) {

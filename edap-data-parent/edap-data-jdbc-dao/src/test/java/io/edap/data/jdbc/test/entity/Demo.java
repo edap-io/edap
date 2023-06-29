@@ -21,6 +21,7 @@ import io.edap.data.annotation.Column;
 import io.edap.data.annotation.Id;
 
 import java.io.Serializable;
+import java.time.LocalDate;
 
 public class Demo implements Serializable {
     @Id
@@ -30,7 +31,7 @@ public class Demo implements Serializable {
     private String field1;
     private long createTime;
     private Long localDateTime;
-//    private LocalDate localDate;
+    private LocalDate localDate;
 //    private Boolean isNew;
 
     public String getField1() {
@@ -63,5 +64,13 @@ public class Demo implements Serializable {
 
     public void setLocalDateTime(Long localDateTime) {
         this.localDateTime = localDateTime;
+    }
+
+    public LocalDate getLocalDate() {
+        return localDate;
+    }
+
+    public void setLocalDate(LocalDate localDate) {
+        this.localDate = localDate;
     }
 }

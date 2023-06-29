@@ -16,6 +16,7 @@
 
 package io.edap.data.jdbc.test;
 
+import io.edap.data.DaoOption;
 import io.edap.data.JdbcDaoRegister;
 import io.edap.data.JdbcEntityDao;
 import io.edap.data.jdbc.test.entity.Demo;
@@ -59,7 +60,7 @@ public class EntityDaoTest extends AbstractDaoTest {
                 e.printStackTrace();
             }
             assertTrue(result);
-            JdbcEntityDao<Demo> dao = JdbcDaoRegister.instance().getEntityDao(Demo.class, "h2");
+            JdbcEntityDao<Demo> dao = JdbcDaoRegister.instance().getEntityDao(Demo.class, new DaoOption());
             dao.setConnection(con);
             Demo demo = new Demo();
             demo.setId(1);

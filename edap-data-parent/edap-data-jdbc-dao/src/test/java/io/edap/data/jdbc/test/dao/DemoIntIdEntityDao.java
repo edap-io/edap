@@ -61,6 +61,7 @@ public class DemoIntIdEntityDao extends JdbcBaseDao implements JdbcEntityDao<Dem
                     if (rs.next()) {
                         d.setId(rs.getInt(1));
                     }
+                    //rs.getDate()
                     rs.close();
                 }
             }

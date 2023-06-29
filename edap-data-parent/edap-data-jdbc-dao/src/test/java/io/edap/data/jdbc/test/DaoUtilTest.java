@@ -16,6 +16,7 @@
 
 package io.edap.data.jdbc.test;
 
+import io.edap.data.DaoOption;
 import io.edap.data.JdbcDaoRegister;
 import io.edap.data.jdbc.test.entity.Demo;
 import io.edap.data.model.InsertInfo;
@@ -57,16 +58,16 @@ public class DaoUtilTest {
 
     @Test
     public void testGetInsertSql() {
-        InsertInfo sql = getInsertSql(Demo.class);
+        InsertInfo sql = getInsertSql(Demo.class, new DaoOption());
 
         System.out.println("insert SQL: " + sql.getInsertSql());
 
-        InsertInfo insertInfo = getInsertSql(null);
+        InsertInfo insertInfo = getInsertSql(null, new DaoOption());
         assertNotNull(insertInfo);
         assertEquals(insertInfo.getInsertSql(), EMPTY_STRING);
         assertNull(insertInfo.getGenerationType());
 
-        insertInfo = getInsertSql(NoIdEntity.class);
+        insertInfo = getInsertSql(NoIdEntity.class, new DaoOption());
         assertNotNull(insertInfo);
         assertEquals(insertInfo.getInsertSql(), insertInfo.getNoIdInsertSql());
         assertEquals(insertInfo.getInsertSql(), "INSERT INTO no_id_entity (name,height) VALUES (?,?)");

@@ -16,6 +16,7 @@
 
 package io.edap.data.util;
 
+import io.edap.data.DaoOption;
 import io.edap.data.annotation.*;
 import io.edap.data.model.*;
 import io.edap.util.CollectionUtils;
@@ -25,6 +26,7 @@ import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
+import java.time.LocalDate;
 import java.util.*;
 
 import static io.edap.util.ClazzUtil.*;
@@ -103,7 +105,7 @@ public class DaoUtil {
      * @param entityClazz
      * @return
      */
-    public static InsertInfo getInsertSql(Class entityClazz) {
+    public static InsertInfo getInsertSql(Class entityClazz, DaoOption daoOption) {
         InsertInfo insertInfo = new InsertInfo();
         if (entityClazz == null) {
             insertInfo.setInsertSql(EMPTY_STRING);
@@ -114,7 +116,7 @@ public class DaoUtil {
         StringBuilder noIdSql = new StringBuilder();
 
         noIdSql.append("INSERT INTO ").append(getTableName(entityClazz)).append(" (");
-        ColumnsInfo columnsInfo = getColumns(entityClazz);
+        ColumnsInfo columnsInfo = getColumns(entityClazz, daoOption);
         List<String> columns = columnsInfo.getColumns();
         int size = columns.size();
         int j = 0;
@@ -330,12 +332,12 @@ public class DaoUtil {
                 return typeInfo;
             case "double":
                 typeInfo.setMethod = "setDouble";
-                typeInfo.type = "double";
+                typeInfo.type = "D";
                 typeInfo.isBaseType = true;
                 return typeInfo;
             case "java.lang.Double":
                 typeInfo.setMethod = "setDouble";
-                typeInfo.type = "double";
+                typeInfo.type = "D";
                 typeInfo.needUnbox = true;
                 typeInfo.isBaseType = true;
                 return typeInfo;
@@ -347,7 +349,10 @@ public class DaoUtil {
                 typeInfo.setMethod = "setString";
                 typeInfo.type = "Ljava/lang/String;";
                 return typeInfo;
-
+            case "java.time.LocalDate":
+                typeInfo.setMethod = "setDate";
+                typeInfo.type = "Ljava/sql/Date;";
+                return typeInfo;
             default:
                 typeInfo.setMethod = "setObject";
                 typeInfo.type = "Ljava/lang/Object;";
@@ -381,7 +386,7 @@ public class DaoUtil {
      * @param clazz
      * @return
      */
-    public static ColumnsInfo getColumns(Class clazz) {
+    public static ColumnsInfo getColumns(Class clazz, DaoOption daoOption) {
         ColumnsInfo columnsInfo = new ColumnsInfo();
         List<String> columns = new ArrayList<>();
         List<String> fieldNames = new ArrayList<>();
@@ -429,9 +434,7 @@ public class DaoUtil {
             if (id != null && generatedValue != null) {
                 curType = generationType = generatedValue.strategy();
             }
-            if (curType == GenerationType.IDENTITY) {
-                continue;
-            }
+
             Column column = getFieldColumn(f, fieldGetMethods);
             String columName;
             if (column != null && !isEmpty(column.name())) {
@@ -445,11 +448,58 @@ public class DaoUtil {
             columns.add(columName);
             fieldNames.add(f.getName());
         }
-
+        // 如果获取dao时指定了id的属性名称则覆盖原有主键field的设置
+        if (!StringUtil.isEmpty(daoOption.getIdFieldName())) {
+            Field f = searchFieldByName(fields, daoOption.getIdFieldName());
+            if (f != null) {
+                columnsInfo.setIdField(f);
+                Column column = getFieldColumn(f, fieldGetMethods);
+                String columName;
+                if (column != null && !isEmpty(column.name())) {
+                    columName = column.name();
+                } else {
+                    columName = toUnderScore(f.getName());
+                }
+                columnsInfo.setIdColumnName(columName);
+                columnsInfo.setIdSetMethod(fieldSetMethods.get(f.getName()));
+                columnsInfo.setIdGetMethod(fieldGetMethods.get(f.getName()));
+            }
+        }
+        if (columnsInfo.getIdField() == null) {
+            Field f = searchFieldByName(fields, "id");
+            if (f == null) {
+                f = searchFieldByName(fields, "pk");
+            }
+            if (f != null) {
+                columnsInfo.setIdField(f);
+                Column column = getFieldColumn(f, fieldGetMethods);
+                String columName;
+                if (column != null && !isEmpty(column.name())) {
+                    columName = column.name();
+                } else {
+                    columName = toUnderScore(f.getName());
+                }
+                columnsInfo.setIdColumnName(columName);
+                columnsInfo.setIdSetMethod(fieldSetMethods.get(f.getName()));
+                columnsInfo.setIdGetMethod(fieldGetMethods.get(f.getName()));
+            }
+        }
         columnsInfo.setColumns(columns);
         columnsInfo.setFieldNames(fieldNames);
         columnsInfo.setGenerationType(generationType);
         return columnsInfo;
+    }
+
+    private static Field searchFieldByName(List<Field> fields, String name) {
+        if (CollectionUtils.isEmpty(fields)) {
+            return null;
+        }
+        for (Field f : fields) {
+            if (f.getName().equals(name)) {
+                return f;
+            }
+        }
+        return null;
     }
 
     /**
@@ -704,4 +754,5 @@ public class DaoUtil {
     public static boolean isUpperCase(char c) {
         return c >= 'A' && c <= 'Z';
     }
+
 }

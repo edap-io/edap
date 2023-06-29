@@ -18,6 +18,7 @@ package io.edap.data;
 
 import io.edap.data.model.JdbcInfo;
 import io.edap.data.model.QueryInfo;
+import io.edap.data.util.Convertor;
 import io.edap.util.CollectionUtils;
 import io.edap.util.Constants;
 import org.objectweb.asm.*;
@@ -45,6 +46,8 @@ public class BaseDaoGenerator {
 
     protected static String QUERY_PARAM_NAME = toInternalName(QueryParam.class.getName());
 
+    protected static String CONVERTOR_NAME = toInternalName(Convertor.class.getName());
+
     protected String PARENT_NAME;
 
     protected ClassWriter cw;
@@ -56,6 +59,8 @@ public class BaseDaoGenerator {
     protected String daoName;
 
     protected String databaseType;
+
+    protected DaoOption daoOption;
 
     protected void visitClinitMethod() {
         FieldVisitor fv;
@@ -633,6 +638,10 @@ public class BaseDaoGenerator {
             if (jdbcInfo.isNeedUnbox()) {
                 visitBoxedOpcode(mv, jdbcInfo.getField());
             }
+            if (!jdbcInfo.isBaseType() && !jdbcInfo.getJdbcType().equals(jdbcInfo.getFieldType())) {
+                mv.visitMethodInsn(INVOKESTATIC, CONVERTOR_NAME, "convert",
+                        "(" + jdbcInfo.getJdbcType() + ")" + jdbcInfo.getFieldType(), false);
+            }
             mv.visitMethodInsn(INVOKEVIRTUAL, entityName, setMethod,
                     "(" + getDescriptor(jdbcInfo.getField().getType()) + ")V", false);
         }
@@ -726,7 +735,7 @@ public class BaseDaoGenerator {
                         "(F)Ljava/lang/Float;", false);
                 break;
             case "java.lang.Double":
-                visitMethod(mv, INVOKEVIRTUAL, "java/lang/Double", "valueOf",
+                visitMethod(mv, INVOKESTATIC, "java/lang/Double", "valueOf",
                         "(D)Ljava/lang/Double;", false);
                 break;
             case "java.lang.Short":
@@ -750,6 +759,11 @@ public class BaseDaoGenerator {
                 mv.visitTypeInsn(CHECKCAST, "java/lang/Long");
                 visitMethod(mv, INVOKEVIRTUAL, "java/lang/Long", "longValue",
                         "()J", false);
+                break;
+            case "double":
+                mv.visitTypeInsn(CHECKCAST, "java/lang/Double");
+                visitMethod(mv, INVOKEVIRTUAL, "java/lang/Double", "doubleValue",
+                        "()D", false);
                 break;
 
         }

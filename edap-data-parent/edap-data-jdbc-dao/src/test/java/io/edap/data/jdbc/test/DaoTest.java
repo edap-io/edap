@@ -16,27 +16,28 @@
 
 package io.edap.data.jdbc.test;
 
+import io.edap.data.DaoOption;
 import io.edap.data.JdbcDaoRegister;
 import io.edap.data.JdbcEntityDao;
-import io.edap.data.jdbc.test.entity.Demo;
-import io.edap.data.jdbc.test.entity.DemoIntId;
-import io.edap.data.jdbc.test.entity.DemoLongId;
-import io.edap.data.jdbc.test.entity.DemoLongObjId;
+import io.edap.data.jdbc.test.entity.*;
 
 public class DaoTest {
 
     public static void main(String[] args) {
 
         JdbcEntityDao<Demo> demoDao = JdbcDaoRegister.instance()
-                .getEntityDao(Demo.class, "Postgresql");
+                .getEntityDao(Demo.class, new DaoOption());
 
         JdbcEntityDao<DemoIntId> demoIntIdDao = JdbcDaoRegister.instance()
-                .getEntityDao(DemoIntId.class, "Postgresql");
+                .getEntityDao(DemoIntId.class, new DaoOption());
 
         JdbcEntityDao<DemoLongId> demoILongIdDao = JdbcDaoRegister.instance()
-                .getEntityDao(DemoLongId.class, "Postgresql");
+                .getEntityDao(DemoLongId.class, new DaoOption());
 
         JdbcEntityDao<DemoLongObjId> demoILongObjIdDao = JdbcDaoRegister.instance()
-                .getEntityDao(DemoLongObjId.class, "Postgresql");
+                .getEntityDao(DemoLongObjId.class, new DaoOption());
+
+        JdbcEntityDao<DemoAllType> demoAllTypeDao = JdbcDaoRegister.instance()
+                .getEntityDao(DemoAllType.class, new DaoOption());
     }
 }
