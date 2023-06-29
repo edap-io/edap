@@ -46,10 +46,10 @@ public class TestListUint32 {
     void testEncode(String v) throws EncodeException {
         List<Integer> vs = new ArrayList<>();
         List<Integer> pvs = new ArrayList<>();
-        List<Object> jvs = Eson.parseArray(v);
+        JsonArray jvs = JsonArray.parseArray(v);
         for (int i=0;i<jvs.size();i++) {
-            vs.add((Integer)jvs.get(i));
-            pvs.add((Integer)jvs.get(i));
+            vs.add(jvs.getIntValue(i));
+            pvs.add(jvs.getIntValue(i));
         }
 
         ListUint32OuterClass.ListUint32.Builder builder = ListUint32OuterClass.ListUint32.newBuilder();
