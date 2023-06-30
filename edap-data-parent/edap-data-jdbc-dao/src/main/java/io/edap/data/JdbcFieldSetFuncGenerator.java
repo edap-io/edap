@@ -139,7 +139,7 @@ public class JdbcFieldSetFuncGenerator {
                 break;
             case "java.lang.Byte":
                 visitMethod(mv, INVOKESTATIC, "java/lang/Byte", "valueOf",
-                        "(B)Ljava/lang/Byte", false);
+                        "(B)Ljava/lang/Byte;", false);
         }
     }
 

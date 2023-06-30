@@ -10,7 +10,7 @@ public class DemoAllType {
     private long id;
     private String fieldStr;
 
-    private int field_int;
+    private int fieldInt;
 
     private Integer fieldIntObj;
     private long fieldLong;
@@ -67,12 +67,12 @@ public class DemoAllType {
         this.fieldStr = fieldStr;
     }
 
-    public int getField_int() {
-        return field_int;
+    public int getFieldInt() {
+        return fieldInt;
     }
 
-    public void setField_int(int field_int) {
-        this.field_int = field_int;
+    public void setFieldInt(int fieldInt) {
+        this.fieldInt = fieldInt;
     }
 
     public Integer getFieldIntObj() {

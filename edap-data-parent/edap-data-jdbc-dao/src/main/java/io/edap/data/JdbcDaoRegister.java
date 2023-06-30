@@ -22,6 +22,7 @@ import io.edap.util.CollectionUtils;
 import io.edap.util.internal.GeneratorClassInfo;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.locks.ReentrantLock;
@@ -49,6 +50,7 @@ public class JdbcDaoRegister {
 
     public <T> JdbcFieldSetFunc<T> getFieldSetFunc(Class<T> entity, List<String> columns) {
         JdbcFieldSetFunc<T> func = null;
+        Collections.sort(columns);
         try {
             lock.lock();
             String name = getFieldSetFuncName(entity, columns);

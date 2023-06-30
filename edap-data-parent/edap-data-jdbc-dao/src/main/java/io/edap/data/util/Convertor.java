@@ -61,7 +61,15 @@ public class Convertor {
         return java.lang.String.valueOf(c);
     }
 
-    public static char toChar(String s) {
+    public static java.lang.String toJavaLangString(Character c) {
+        return String.valueOf(c);
+    }
+
+    public static java.lang.Character toJavaLangCharacter(String str) {
+        return str.charAt(0);
+    }
+
+    public static char toC(String s) {
         return s.charAt(0);
     }
 
