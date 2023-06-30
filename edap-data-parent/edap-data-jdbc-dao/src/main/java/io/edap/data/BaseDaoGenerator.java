@@ -26,6 +26,7 @@ import org.objectweb.asm.*;
 import java.lang.reflect.Field;
 import java.util.Locale;
 
+import static io.edap.data.util.Convertor.getConvertMethodName;
 import static io.edap.data.util.DaoUtil.getBoxedName;
 import static io.edap.data.util.DaoUtil.getQueryByIdInfo;
 import static io.edap.util.AsmUtil.toInternalName;
@@ -639,7 +640,7 @@ public class BaseDaoGenerator {
                 visitBoxedOpcode(mv, jdbcInfo.getField());
             }
             if (!jdbcInfo.isBaseType() && !jdbcInfo.getJdbcType().equals(jdbcInfo.getFieldType())) {
-                mv.visitMethodInsn(INVOKESTATIC, CONVERTOR_NAME, "convert",
+                mv.visitMethodInsn(INVOKESTATIC, CONVERTOR_NAME, getConvertMethodName(jdbcInfo.getFieldType()),
                         "(" + jdbcInfo.getJdbcType() + ")" + jdbcInfo.getFieldType(), false);
             }
             mv.visitMethodInsn(INVOKEVIRTUAL, entityName, setMethod,

@@ -29,7 +29,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-import static io.edap.data.util.Convertor.convert;
+import static io.edap.data.util.Convertor.toJavaTimeLocalDate;
 import static io.edap.util.Constants.EMPTY_LIST;
 
 
@@ -213,7 +213,6 @@ public class DemoEntityDao extends JdbcBaseDao implements JdbcEntityDao<Demo> {
                 demo.setCreateTime(rs.getLong("create_time"));
                 demo.setField1(rs.getString("age"));
                 demo.setLocalDateTime(rs.getLong("update_time"));
-                demo.setLocalDate(convert(rs.getDate("local_date")));
                 return demo;
             }
         } finally {

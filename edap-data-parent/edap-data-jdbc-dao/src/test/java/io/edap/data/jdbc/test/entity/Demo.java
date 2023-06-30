@@ -31,7 +31,7 @@ public class Demo implements Serializable {
     private String field1;
     private long createTime;
     private Long localDateTime;
-    private LocalDate localDate;
+    //private LocalDate localDate;
 //    private Boolean isNew;
 
     public String getField1() {
@@ -66,11 +66,11 @@ public class Demo implements Serializable {
         this.localDateTime = localDateTime;
     }
 
-    public LocalDate getLocalDate() {
-        return localDate;
-    }
-
-    public void setLocalDate(LocalDate localDate) {
-        this.localDate = localDate;
-    }
+//    public LocalDate getLocalDate() {
+//        return localDate;
+//    }
+//
+//    public void setLocalDate(LocalDate localDate) {
+//        this.localDate = localDate;
+//    }
 }

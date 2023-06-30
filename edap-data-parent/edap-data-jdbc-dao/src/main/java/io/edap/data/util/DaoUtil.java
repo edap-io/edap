@@ -353,6 +353,26 @@ public class DaoUtil {
                 typeInfo.setMethod = "setDate";
                 typeInfo.type = "Ljava/sql/Date;";
                 return typeInfo;
+            case "java.time.LocalTime":
+                typeInfo.setMethod = "setTime";
+                typeInfo.type = "Ljava/sql/Time;";
+                return typeInfo;
+            case "java.time.LocalDateTime":
+                typeInfo.setMethod = "setTimestamp";
+                typeInfo.type = "Ljava/sql/Timestamp;";
+                return typeInfo;
+            case "char":
+                typeInfo.setMethod = "setString";
+                typeInfo.type = "Ljava/lang/String;";
+                typeInfo.needUnbox = false;
+                typeInfo.isBaseType = false;
+                return typeInfo;
+            case "java.lang.Character":
+                typeInfo.setMethod = "setString";
+                typeInfo.type = "Ljava/lang/String;";
+                typeInfo.needUnbox = true;
+                typeInfo.isBaseType = false;
+                return typeInfo;
             default:
                 typeInfo.setMethod = "setObject";
                 typeInfo.type = "Ljava/lang/Object;";

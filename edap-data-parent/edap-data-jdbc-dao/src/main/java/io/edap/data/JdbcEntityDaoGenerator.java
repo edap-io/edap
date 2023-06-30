@@ -28,6 +28,7 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.List;
 
+import static io.edap.data.util.Convertor.getConvertMethodName;
 import static io.edap.data.util.DaoUtil.*;
 import static io.edap.util.AsmUtil.*;
 import static io.edap.util.ClazzUtil.getDescriptor;
@@ -144,7 +145,7 @@ public class JdbcEntityDaoGenerator extends BaseDaoGenerator {
                     visitUnboxOpcode(mv, jdbcInfo.getField());
                 }
                 if (!jdbcInfo.isBaseType() && !jdbcInfo.getJdbcType().equals(jdbcInfo.getFieldType())) {
-                    mv.visitMethodInsn(INVOKESTATIC, CONVERTOR_NAME, "convert",
+                    mv.visitMethodInsn(INVOKESTATIC, CONVERTOR_NAME, getConvertMethodName(jdbcInfo.getJdbcType()),
                             "(" + jdbcInfo.getFieldType() + ")" + jdbcInfo.getJdbcType(), false);
                 }
                 mv.visitMethodInsn(INVOKEINTERFACE, "java/sql/PreparedStatement", jdbcInfo.getJdbcMethod(),
@@ -294,7 +295,7 @@ public class JdbcEntityDaoGenerator extends BaseDaoGenerator {
                 visitUnboxOpcode(mv, jdbcInfo.getField());
             }
             if (!jdbcInfo.isBaseType() && !jdbcInfo.getJdbcType().equals(jdbcInfo.getFieldType())) {
-                mv.visitMethodInsn(INVOKESTATIC, CONVERTOR_NAME, "convert",
+                mv.visitMethodInsn(INVOKESTATIC, CONVERTOR_NAME, getConvertMethodName(jdbcInfo.getJdbcType()),
                         "(" + jdbcInfo.getFieldType() + ")" + jdbcInfo.getJdbcType(), false);
             }
             mv.visitMethodInsn(INVOKEINTERFACE, "java/sql/PreparedStatement",
@@ -482,7 +483,7 @@ public class JdbcEntityDaoGenerator extends BaseDaoGenerator {
                 visitUnboxOpcode(mv, jdbcInfo.getField());
             }
             if (!jdbcInfo.isBaseType() && !jdbcInfo.getJdbcType().equals(jdbcInfo.getFieldType())) {
-                mv.visitMethodInsn(INVOKESTATIC, CONVERTOR_NAME, "convert",
+                mv.visitMethodInsn(INVOKESTATIC, CONVERTOR_NAME, getConvertMethodName(jdbcInfo.getJdbcType()),
                         "(" + jdbcInfo.getFieldType() + ")" + jdbcInfo.getJdbcType(), false);
             }
             mv.visitMethodInsn(INVOKEINTERFACE, "java/sql/PreparedStatement",
