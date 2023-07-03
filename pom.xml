@@ -32,7 +32,6 @@
         <junit.jupiter.version>5.5.2</junit.jupiter.version>
         <asm.version>9.4</asm.version>
         <protobuf.java.verson>3.16.1</protobuf.java.verson>
-        <fastjson.version>1.2.83</fastjson.version>
         <qdox.verqdoxsion>2.0.3</qdox.verqdoxsion>
         <system.lambda.version>1.2.1</system.lambda.version>
         <jmh.version>1.36</jmh.version>
