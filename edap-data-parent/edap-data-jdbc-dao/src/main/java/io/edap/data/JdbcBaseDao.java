@@ -90,10 +90,6 @@ public abstract class JdbcBaseDao {
         }
     }
 
-    protected String getLimitSql(String sql, int offset, int limit) {
-        return sql + " limit " + limit + " offset " + offset;
-    }
-
     protected String getFieldsSql(String sql) {
         String lowerSql = sql.toLowerCase(Locale.ENGLISH);
         int index = lowerSql.indexOf("from");
@@ -102,6 +98,11 @@ public abstract class JdbcBaseDao {
         } else {
             return lowerSql.substring(0, index);
         }
+    }
+
+    protected ResultSet execute(final String sql) throws SQLException {
+        PreparedStatement pstmt = getStatementSession().prepareStatement(sql);
+        return pstmt.executeQuery();
     }
 
     protected ResultSet execute(final String sql, QueryParam... params) throws SQLException {

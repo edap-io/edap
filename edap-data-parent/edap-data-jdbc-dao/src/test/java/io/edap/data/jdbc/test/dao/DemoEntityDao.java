@@ -25,6 +25,7 @@ import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -122,7 +123,8 @@ public class DemoEntityDao extends JdbcBaseDao implements JdbcEntityDao<Demo> {
             String fieldSql = getFieldsSql(sql);
             JdbcFieldSetFunc<Demo> func = FIELD_SET_FUNCS.get(fieldSql);
             if (func == null) {
-                FIELD_SET_FUNCS.putIfAbsent(fieldSql, getSqlFieldSetFunc(rs));
+                func = getSqlFieldSetFunc(rs);
+                FIELD_SET_FUNCS.putIfAbsent(fieldSql, func);
             }
             List<Demo> demos = new ArrayList<>();
             while (rs.next()) {
@@ -156,7 +158,7 @@ public class DemoEntityDao extends JdbcBaseDao implements JdbcEntityDao<Demo> {
             JdbcFieldSetFunc<Demo> func = FIELD_SET_FUNCS.get(fieldSql);
             if (func == null) {
                 func = getSqlFieldSetFunc(rs);
-                FIELD_SET_FUNCS.putIfAbsent(fieldSql, getSqlFieldSetFunc(rs));
+                FIELD_SET_FUNCS.putIfAbsent(fieldSql, func);
             }
             List<Demo> demos = new ArrayList<>();
             while (rs.next()) {
@@ -182,7 +184,7 @@ public class DemoEntityDao extends JdbcBaseDao implements JdbcEntityDao<Demo> {
             JdbcFieldSetFunc<Demo> func = FIELD_SET_FUNCS.get(fieldSql);
             if (func == null) {
                 func = getSqlFieldSetFunc(rs);
-                FIELD_SET_FUNCS.putIfAbsent(fieldSql, getSqlFieldSetFunc(rs));
+                FIELD_SET_FUNCS.putIfAbsent(fieldSql, func);
             }
             List<Demo> demos = new ArrayList<>();
             while (rs.next()) {

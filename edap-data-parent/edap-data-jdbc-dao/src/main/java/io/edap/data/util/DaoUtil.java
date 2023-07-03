@@ -370,7 +370,7 @@ public class DaoUtil {
             case "java.lang.Character":
                 typeInfo.setMethod = "setString";
                 typeInfo.type = "Ljava/lang/String;";
-                typeInfo.needUnbox = true;
+                typeInfo.needUnbox = false;
                 typeInfo.isBaseType = false;
                 return typeInfo;
             default:

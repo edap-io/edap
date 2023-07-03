@@ -486,12 +486,14 @@ public class BaseDaoGenerator {
         mv.visitVarInsn(ALOAD, 4);
         Label l1 = new Label();
         mv.visitJumpInsn(IFNONNULL, l1);
-        mv.visitFieldInsn(GETSTATIC, daoName, "FIELD_SET_FUNCS", "Ljava/util/Map;");
-        mv.visitVarInsn(ALOAD, 3);
         mv.visitVarInsn(ALOAD, 0);
         mv.visitVarInsn(ALOAD, 2);
         mv.visitMethodInsn(INVOKESPECIAL, daoName, "getSqlFieldSetFunc",
                 "(Ljava/sql/ResultSet;)L" + FIELD_SET_FUNC_NAME + ";", false);
+        mv.visitVarInsn(ASTORE, 4);
+        mv.visitFieldInsn(GETSTATIC, daoName, "FIELD_SET_FUNCS", "Ljava/util/Map;");
+        mv.visitVarInsn(ALOAD, 3);
+        mv.visitVarInsn(ALOAD, 4);
         mv.visitMethodInsn(INVOKEINTERFACE, "java/util/Map", "putIfAbsent",
                 "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;", true);
         mv.visitInsn(POP);
@@ -516,6 +518,11 @@ public class BaseDaoGenerator {
         mv.visitVarInsn(ALOAD, 6);
         mv.visitVarInsn(ALOAD, 2);
         mv.visitMethodInsn(INVOKEINTERFACE, FIELD_SET_FUNC_NAME, "set", "(Ljava/lang/Object;Ljava/sql/ResultSet;)V", true);
+        mv.visitVarInsn(ALOAD,5);
+        mv.visitVarInsn(ALOAD, 6);
+        mv.visitMethodInsn(INVOKEVIRTUAL, "java/util/ArrayList", "add",
+                "(Ljava/lang/Object;)Z", false);
+        mv.visitInsn(POP);
         mv.visitJumpInsn(GOTO, l2);
         mv.visitLabel(l3);
         mv.visitFrame(Opcodes.F_SAME, 0, null, 0, null);

@@ -1,3 +1,19 @@
+/*
+ * Copyright 2023 The edap Project
+ *
+ * The Netty Project licenses this file to you under the Apache License,
+ * version 2.0 (the "License"); you may not use this file except in compliance
+ * with the License. You may obtain a copy of the License at:
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+ * License for the specific language governing permissions and limitations
+ * under the License.
+ */
+
 //
 // Source code recreated from a .class file by IntelliJ IDEA
 // (powered by FernFlower decompiler)
@@ -24,10 +40,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-public class DemoAllTypeJdbcEntityDao extends JdbcBaseDao implements JdbcEntityDao<DemoAllType> {
+public class DemoAllTypeJdbcEntityDao2 extends JdbcBaseDao implements JdbcEntityDao<DemoAllType> {
     static Map<String, JdbcFieldSetFunc<DemoAllType>> FIELD_SET_FUNCS = new ConcurrentHashMap();
 
-    public DemoAllTypeJdbcEntityDao() {
+    public DemoAllTypeJdbcEntityDao2() {
     }
 
     public int[] insert(List<DemoAllType> var1) throws Exception {
@@ -155,7 +171,8 @@ public class DemoAllTypeJdbcEntityDao extends JdbcBaseDao implements JdbcEntityD
             String var3 = this.getFieldsSql(var1);
             JdbcFieldSetFunc var4 = (JdbcFieldSetFunc)FIELD_SET_FUNCS.get(var3);
             if (var4 == null) {
-                FIELD_SET_FUNCS.putIfAbsent(var3, this.getSqlFieldSetFunc(var2));
+                var4 = this.getSqlFieldSetFunc(var2);
+                FIELD_SET_FUNCS.putIfAbsent(var3, var4);
             }
 
             ArrayList var5 = new ArrayList();
@@ -163,6 +180,7 @@ public class DemoAllTypeJdbcEntityDao extends JdbcBaseDao implements JdbcEntityD
             while(var2.next()) {
                 DemoAllType var6 = new DemoAllType();
                 var4.set(var6, var2);
+                var5.add(var6);
             }
 
             return var5;
@@ -214,17 +232,15 @@ public class DemoAllTypeJdbcEntityDao extends JdbcBaseDao implements JdbcEntityD
     }
 
     public List<DemoAllType> query(String var1, Object... var2) throws Exception {
+        List var4;
         try {
             ResultSet var3 = this.execute(var1, var2);
-            if (var3 == null) {
-                List var12 = Constants.EMPTY_LIST;
-                return var12;
-            } else {
-                String var4 = this.getFieldsSql(var1);
-                JdbcFieldSetFunc var5 = (JdbcFieldSetFunc)FIELD_SET_FUNCS.get(var4);
+            if (var3 != null) {
+                String var12 = this.getFieldsSql(var1);
+                JdbcFieldSetFunc var5 = (JdbcFieldSetFunc)FIELD_SET_FUNCS.get(var12);
                 if (var5 == null) {
                     var5 = this.getSqlFieldSetFunc(var3);
-                    FIELD_SET_FUNCS.putIfAbsent(var4, this.getSqlFieldSetFunc(var3));
+                    FIELD_SET_FUNCS.putIfAbsent(var12, this.getSqlFieldSetFunc(var3));
                 }
 
                 ArrayList var6 = new ArrayList();
@@ -238,9 +254,13 @@ public class DemoAllTypeJdbcEntityDao extends JdbcBaseDao implements JdbcEntityD
                 ArrayList var11 = var6;
                 return var11;
             }
+
+            var4 = Constants.EMPTY_LIST;
         } finally {
             this.closeStatmentSession();
         }
+
+        return var4;
     }
 
     public DemoAllType findOne(String var1) throws Exception {

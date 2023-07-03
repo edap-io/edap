@@ -17,6 +17,7 @@
 package io.edap.data;
 
 import io.edap.data.model.JdbcInfo;
+import io.edap.data.util.Convertor;
 import io.edap.util.CollectionUtils;
 import io.edap.util.internal.GeneratorClassInfo;
 import org.objectweb.asm.ClassWriter;
@@ -26,10 +27,12 @@ import java.lang.reflect.Field;
 import java.util.List;
 import java.util.Locale;
 
+import static io.edap.data.util.Convertor.getConvertMethodName;
 import static io.edap.data.util.DaoUtil.getFieldSetFuncName;
 import static io.edap.data.util.DaoUtil.getJdbcInfos;
 import static io.edap.util.AsmUtil.toInternalName;
 import static io.edap.util.AsmUtil.visitMethod;
+import static io.edap.util.ClazzUtil.getDescriptor;
 import static org.objectweb.asm.ClassWriter.COMPUTE_FRAMES;
 import static org.objectweb.asm.ClassWriter.COMPUTE_MAXS;
 import static org.objectweb.asm.Opcodes.*;
@@ -37,6 +40,8 @@ import static org.objectweb.asm.Opcodes.*;
 public class JdbcFieldSetFuncGenerator {
 
     private static String FUNC_IFACT_NAME = toInternalName(JdbcFieldSetFunc.class.getName());
+
+    protected static String CONVERTOR_NAME = toInternalName(Convertor.class.getName());
 
     private Class<?> entity;
     private List<String> columns;
@@ -100,7 +105,12 @@ public class JdbcFieldSetFuncGenerator {
                 if (jdbcInfo.isNeedUnbox()) {
                     visitBoxOpcode(mv, jdbcInfo.getField());
                 }
-                mv.visitMethodInsn(INVOKEVIRTUAL, entityName, valueMethod, "(" + jdbcInfo.getFieldType() + ")V", false);
+                if (!jdbcInfo.isBaseType() && !jdbcInfo.getJdbcType().equals(jdbcInfo.getFieldType())) {
+                    mv.visitMethodInsn(INVOKESTATIC, CONVERTOR_NAME, getConvertMethodName(jdbcInfo.getFieldType()),
+                            "(" + jdbcInfo.getJdbcType() + ")" + jdbcInfo.getFieldType(), false);
+                }
+                mv.visitMethodInsn(INVOKEVIRTUAL, entityName, valueMethod,
+                        "(" + getDescriptor(jdbcInfo.getField().getType()) + ")V", false);
             }
         }
 
@@ -134,12 +144,17 @@ public class JdbcFieldSetFuncGenerator {
                         "(D)Ljava/lang/Double;", false);
                 break;
             case "java.lang.Short":
-                visitMethod(mv, INVOKEVIRTUAL, "java/lang/Short", "valueOf",
+                visitMethod(mv, INVOKESTATIC, "java/lang/Short", "valueOf",
                         "(S)Ljava/lang/Short;", false);
                 break;
             case "java.lang.Byte":
                 visitMethod(mv, INVOKESTATIC, "java/lang/Byte", "valueOf",
                         "(B)Ljava/lang/Byte;", false);
+                break;
+            case "java.lang.Character":
+                visitMethod(mv, INVOKESTATIC, "java/lang/Character", "valueOf",
+                        "(C)Ljava/lang/Character;", false);
+                break;
         }
     }
 
