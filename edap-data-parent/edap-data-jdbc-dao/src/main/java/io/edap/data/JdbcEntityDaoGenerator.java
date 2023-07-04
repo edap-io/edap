@@ -90,6 +90,10 @@ public class JdbcEntityDaoGenerator extends BaseDaoGenerator {
         visitFindByIdBridgeMethod();
         visitFindByIdMethod();
 
+        visitiDeleteNoParamMethod();
+        visitiDeleteObjectParamsMethod();
+        visitiDeleteQueryParamsMethod();
+
         cw.visitEnd();
 
         gci.clazzBytes = cw.toByteArray();
@@ -390,6 +394,59 @@ public class JdbcEntityDaoGenerator extends BaseDaoGenerator {
         mv.visitMaxs(4, 10);
         mv.visitEnd();
 
+    }
+
+    private void visitiDeleteNoParamMethod() {
+        MethodVisitor mv;
+        mv = cw.visitMethod(ACC_PUBLIC, "delete", "(Ljava/lang/String;)I",
+                null, new String[] { "java/lang/Exception" });
+        mv.visitCode();
+        mv.visitVarInsn(ALOAD, 0);
+        mv.visitVarInsn(ALOAD, 1);
+        mv.visitLdcInsn(getTableName(entity));
+        mv.visitMethodInsn(INVOKESTATIC, daoName, "getFullDeleteSql",
+                "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;", false);
+        mv.visitMethodInsn(INVOKESPECIAL, PARENT_NAME, "delete",
+                "(Ljava/lang/String;)I", false);
+        mv.visitInsn(IRETURN);
+        mv.visitMaxs(3, 2);
+        mv.visitEnd();
+    }
+
+    private void visitiDeleteObjectParamsMethod() {
+        MethodVisitor mv;
+        mv = cw.visitMethod(ACC_PUBLIC, "delete", "(Ljava/lang/String;[Ljava/lang/Object;)I",
+                null, new String[] { "java/lang/Exception" });
+        mv.visitCode();
+        mv.visitVarInsn(ALOAD, 0);
+        mv.visitVarInsn(ALOAD, 1);
+        mv.visitLdcInsn(getTableName(entity));
+        mv.visitMethodInsn(INVOKESTATIC, daoName, "getFullDeleteSql",
+                "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;", false);
+        mv.visitVarInsn(ALOAD, 2);
+        mv.visitMethodInsn(INVOKESPECIAL, PARENT_NAME, "delete",
+                "(Ljava/lang/String;[Ljava/lang/Object;)I", false);
+        mv.visitInsn(IRETURN);
+        mv.visitMaxs(3, 2);
+        mv.visitEnd();
+    }
+
+    private void visitiDeleteQueryParamsMethod() {
+        MethodVisitor mv;
+        mv = cw.visitMethod(ACC_PUBLIC, "delete", "(Ljava/lang/String;[Lio/edap/data/QueryParam;)I",
+                null, new String[] { "java/lang/Exception" });
+        mv.visitCode();
+        mv.visitVarInsn(ALOAD, 0);
+        mv.visitVarInsn(ALOAD, 1);
+        mv.visitLdcInsn(getTableName(entity));
+        mv.visitMethodInsn(INVOKESTATIC, daoName, "getFullDeleteSql",
+                "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;", false);
+        mv.visitVarInsn(ALOAD, 2);
+        mv.visitMethodInsn(INVOKESPECIAL, PARENT_NAME, "delete",
+                "(Ljava/lang/String;[Lio/edap/data/QueryParam;)I", false);
+        mv.visitInsn(IRETURN);
+        mv.visitMaxs(3, 2);
+        mv.visitEnd();
     }
 
     private void visitInsertMethod() {

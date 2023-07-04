@@ -129,6 +129,15 @@ public abstract class JdbcBaseDao {
         }
     }
 
+    public static String getFullDeleteSql(String sql, String tabeName) {
+        sql = sql.trim();
+        int len = sql.length() > 7?7:sql.length();
+        if (!sql.substring(0, len).toLowerCase(Locale.ENGLISH).startsWith("delete ")) {
+            sql = "delete from " + tabeName + " " + sql;
+        }
+        return sql;
+    }
+
     public static void setPreparedParams(PreparedStatement pstmt, QueryParam... params) throws SQLException {
         if (CollectionUtils.isEmpty(params)) {
             return;
@@ -206,7 +215,7 @@ public abstract class JdbcBaseDao {
         }
     }
 
-    public int delete(String sql) throws SQLException {
+    public int delete(String sql) throws Exception {
         StatementSession session = getStatementSession();
         try {
             Statement stmt = session.createStatement();
@@ -218,7 +227,7 @@ public abstract class JdbcBaseDao {
         }
     }
 
-    public int delete(final String sql, QueryParam... params) throws SQLException {
+    public int delete(final String sql, QueryParam... params) throws Exception {
         StatementSession session = getStatementSession();
         try {
             boolean initAuto = session.getAutoCommit();
@@ -244,7 +253,7 @@ public abstract class JdbcBaseDao {
         }
     }
 
-    public int delete(final String sql, Object... params) throws SQLException {
+    public int delete(final String sql, Object... params) throws Exception {
         StatementSession session = getStatementSession();
         try {
             boolean initAuto = session.getAutoCommit();

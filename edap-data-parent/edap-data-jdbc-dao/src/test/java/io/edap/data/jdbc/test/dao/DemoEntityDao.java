@@ -24,10 +24,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 import static io.edap.data.util.Convertor.toJavaTimeLocalDate;
@@ -269,12 +266,17 @@ public class DemoEntityDao extends JdbcBaseDao implements JdbcEntityDao<Demo> {
     }
 
     @Override
-    public int delete(String sql) {
-        return 0;
+    public int delete(String sql) throws Exception {
+        return super.delete(getFullDeleteSql(sql, "demo"));
     }
 
     @Override
-    public int delete(String sql, QueryParam... params) {
-        return 0;
+    public int delete(String sql, Object... params) throws Exception {
+        return super.delete(getFullDeleteSql(sql, "demo"), params);
+    }
+
+    @Override
+    public int delete(String sql, QueryParam... params) throws Exception {
+        return super.delete(getFullDeleteSql(sql, "demo"), params);
     }
 }
