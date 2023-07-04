@@ -329,6 +329,74 @@ public class AllTypeEntityTest extends AbstractDaoTest {
         }
     }
 
+    @Test
+    public void testUpdateObjectParams() {
+        Connection con = null;
+        JdbcEntityDao<DemoAllType> allDao = JdbcDaoRegister.instance()
+                .getEntityDao(DemoAllType.class, new DaoOption());
+        try {
+            con = openConnection();
+            dropTable(con);
+            createTable(con);
+            allDao.setConnection(con);
+
+            DemoAllType demo = buildDemoAllType(1);
+            allDao.insert(demo);
+
+            DemoAllType qdemo = allDao.findOne(
+                    "select * from demo_all_type where id=?", 1L);
+            assertNotNull(qdemo);
+            isAllEquals(demo, qdemo);
+            allDao.update("update demo_all_type set field_big_decimal=? where id=?",
+                    new BigDecimal(31.46), 1L);
+            qdemo = allDao.findOne(
+                    "select * from demo_all_type where id=?", 1L);
+            assertNotNull(qdemo);
+            assertFalse(qdemo.getFieldBigDecimal().equals(new BigDecimal("31.41")));
+            assertEquals(qdemo.getFieldBigDecimal().doubleValue(), new BigDecimal(31.46).doubleValue());
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        } finally {
+            close(con);
+        }
+    }
+
+    @Test
+    public void testUpdateQueryParams() {
+        Connection con = null;
+        JdbcEntityDao<DemoAllType> allDao = JdbcDaoRegister.instance()
+                .getEntityDao(DemoAllType.class, new DaoOption());
+        try {
+            con = openConnection();
+            dropTable(con);
+            createTable(con);
+            allDao.setConnection(con);
+
+            DemoAllType demo = buildDemoAllType(1);
+            allDao.insert(demo);
+
+            DemoAllType qdemo = allDao.findOne(
+                    "select * from demo_all_type where id=?", 1L);
+            assertNotNull(qdemo);
+            isAllEquals(demo, qdemo);
+            allDao.update("update demo_all_type set field_big_decimal=? where id=?",
+                    () -> new BigDecimal(31.47), () -> 1L);
+            qdemo = allDao.findOne(
+                    "select * from demo_all_type where id=?", 1L);
+            assertNotNull(qdemo);
+            assertFalse(qdemo.getFieldBigDecimal().equals(new BigDecimal("31.41")));
+            assertEquals(qdemo.getFieldBigDecimal().doubleValue(), new BigDecimal(31.47).doubleValue());
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        } finally {
+            close(con);
+        }
+    }
+
     private void isAllEquals(DemoAllType demo, DemoAllType qdemo) {
         assertEquals(demo.getId(), qdemo.getId());
         assertEquals(demo.getFieldByte(), qdemo.getFieldByte());
