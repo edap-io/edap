@@ -84,9 +84,6 @@ public class JdbcFieldSetFuncGenerator {
         List<JdbcInfo> jdbcInfos = getJdbcInfos(entity);
         if (!CollectionUtils.isEmpty(jdbcInfos)) {
             for (JdbcInfo jdbcInfo : jdbcInfos) {
-                if (!columns.contains(jdbcInfo.getColumnName().toLowerCase(Locale.ENGLISH))) {
-                    continue;
-                }
                 mv.visitVarInsn(ALOAD, 1);
                 mv.visitVarInsn(ALOAD, 2);
                 mv.visitLdcInsn(jdbcInfo.getColumnName());
@@ -150,10 +147,6 @@ public class JdbcFieldSetFuncGenerator {
             case "java.lang.Byte":
                 visitMethod(mv, INVOKESTATIC, "java/lang/Byte", "valueOf",
                         "(B)Ljava/lang/Byte;", false);
-                break;
-            case "java.lang.Character":
-                visitMethod(mv, INVOKESTATIC, "java/lang/Character", "valueOf",
-                        "(C)Ljava/lang/Character;", false);
                 break;
         }
     }

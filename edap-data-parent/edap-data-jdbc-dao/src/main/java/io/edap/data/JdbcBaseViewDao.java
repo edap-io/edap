@@ -16,14 +16,18 @@
 
 package io.edap.data;
 
+import io.edap.util.CollectionUtils;
+
 import javax.sql.DataSource;
 import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.Locale;
 
 public abstract class JdbcBaseViewDao {
 
     DataSource dataSource;
-
-    protected String databaseType;
 
     Connection con;
 
@@ -44,10 +48,6 @@ public abstract class JdbcBaseViewDao {
         this.con = con;
     }
 
-    public String getDatabaseType() {
-        return databaseType;
-    }
-
     public StatementSession getStatementSession() {
         StatementSession session = STMT_SESSION_LOCAL.get();
         if (session.getDataSource() == null) {
@@ -59,5 +59,63 @@ public abstract class JdbcBaseViewDao {
         return session;
     }
 
+    protected ResultSet execute(final String sql) throws SQLException {
+        PreparedStatement pstmt = getStatementSession().prepareStatement(sql);
+        return pstmt.executeQuery();
+    }
+
+    protected ResultSet execute(final String sql, QueryParam... params) throws SQLException {
+        PreparedStatement pstmt = getStatementSession().prepareStatement(sql);
+        setPreparedParams(pstmt, params);
+        return pstmt.executeQuery();
+    }
+
+    protected ResultSet execute(final String sql, Object... params) throws SQLException {
+        PreparedStatement pstmt = getStatementSession().prepareStatement(sql);
+        setPreparedParams(pstmt, params);
+        return pstmt.executeQuery();
+    }
+
+    public static void setPreparedParams(PreparedStatement pstmt, QueryParam... params) throws SQLException {
+        if (CollectionUtils.isEmpty(params)) {
+            return;
+        }
+        int index = 0;
+        for (QueryParam param : params) {
+            Object value = param.getParam();
+            index++;
+            pstmt.setObject(index, value);
+
+        }
+    }
+
+    public static void setPreparedParams(PreparedStatement pstmt, Object... params) throws SQLException {
+        if (CollectionUtils.isEmpty(params)) {
+            return;
+        }
+        int index = 0;
+        for (Object param : params) {
+            index++;
+            pstmt.setObject(index, param);
+
+        }
+    }
+
+    protected String getFieldsSql(String sql) {
+        String lowerSql = sql.toLowerCase(Locale.ENGLISH);
+        int index = lowerSql.indexOf("from");
+        if (index == -1) {
+            return "select * ";
+        } else {
+            return lowerSql.substring(0, index);
+        }
+    }
+
+    protected void closeStatmentSession() {
+        StatementSession session = STMT_SESSION_LOCAL.get();
+        if (session != null) {
+            session.close();
+        }
+    }
 
 }
