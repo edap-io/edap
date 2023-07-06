@@ -202,8 +202,9 @@
     </build>
     <distributionManagement>
         <snapshotRepository>
-            <id>ossrh</id>
-            <url>https://oss.sonatype.org/content/repositories/snapshots/</url>
+            <id>YonyouCloud-Snapshot</id>
+            <name>YonyouCloud-Snapshot</name>
+            <url>https://repo.yyrd.com/artifactory/YonyouCloud-Snapshot/</url>
         </snapshotRepository>
         <repository>
             <id>ossrh</id>

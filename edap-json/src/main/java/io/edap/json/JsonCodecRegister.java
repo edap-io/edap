@@ -25,6 +25,7 @@ import io.edap.json.enums.DataType;
 import io.edap.json.enums.JsonVersion;
 import io.edap.util.internal.GeneratorClassInfo;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -38,15 +39,15 @@ public class JsonCodecRegister {
 
 
 
-    private static final Map<String, JsonDecoder> DECODER_MAP = new ConcurrentHashMap<>();
+    private static final Map<Class<?>, Map<String, JsonDecoder>> DECODER_MAP = new ConcurrentHashMap<>();
 
-    private static final Map<String, JsonEncoder> ENCODER_MAP = new ConcurrentHashMap<>();
+    private static final Map<Class<?>, JsonEncoder> ENCODER_MAP = new ConcurrentHashMap<>();
 
     static {
-        ENCODER_MAP.put(String.class.getName(), new StringEncoder());
-        ENCODER_MAP.put(Integer.class.getName(), new IntegerEncoder());
-        ENCODER_MAP.put(Object.class.getName(), new ObjectEncoder());
-        ENCODER_MAP.put(Double.class.getName(), new DoubleEncoder());
+        ENCODER_MAP.put(String.class, new StringEncoder());
+        ENCODER_MAP.put(Integer.class, new IntegerEncoder());
+        ENCODER_MAP.put(Object.class, new ObjectEncoder());
+        ENCODER_MAP.put(Double.class, new DoubleEncoder());
     }
 
     private final JsonCodecLoader codecLoader = new JsonCodecLoader(this.getClass().getClassLoader());
@@ -54,11 +55,10 @@ public class JsonCodecRegister {
     private JsonCodecRegister() {}
 
     public <T> JsonEncoder<T> getEncoder(Class<T> tClass) {
-        String key = tClass.getName();
-        JsonEncoder encoder = ENCODER_MAP.get(key);
+        JsonEncoder encoder = ENCODER_MAP.get(tClass);
         if (encoder == null) {
             encoder = generateEncoder(tClass);
-            ENCODER_MAP.put(key, encoder);
+            ENCODER_MAP.put(tClass, encoder);
         }
         return encoder;
     }
@@ -68,16 +68,21 @@ public class JsonCodecRegister {
     }
 
     public <T> JsonDecoder<T> getDecoder(Class<T> tClass, DataType dataType, JsonVersion version) {
-        String key = tClass.getName() + "-" + dataType + "-" + version;
-        JsonDecoder decoder = DECODER_MAP.get(key);
+        String key = dataType + "-" + version;
+        Map<String, JsonDecoder> decoders = DECODER_MAP.get(tClass);
+        if (decoders == null) {
+            decoders = new HashMap<>();
+            DECODER_MAP.put(tClass, decoders);
+        }
+        JsonDecoder decoder = decoders.get(key);
         if (decoder == null) {
             decoder = generateDecoder(tClass, dataType, version);
-            DECODER_MAP.put(key, decoder);
+            decoders.put(key, decoder);
         }
 
         if (decoder == null) {
             decoder = new ReflectDecoder(tClass, dataType);
-            DECODER_MAP.put(key, decoder);
+            decoders.put(key, decoder);
         }
         return decoder;
     }
