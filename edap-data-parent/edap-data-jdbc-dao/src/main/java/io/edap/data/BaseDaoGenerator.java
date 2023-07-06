@@ -16,6 +16,7 @@
 
 package io.edap.data;
 
+import io.edap.data.model.ColumnsInfo;
 import io.edap.data.model.JdbcInfo;
 import io.edap.data.model.QueryInfo;
 import io.edap.data.util.Convertor;
@@ -27,8 +28,7 @@ import java.lang.reflect.Field;
 import java.util.Locale;
 
 import static io.edap.data.util.Convertor.getConvertMethodName;
-import static io.edap.data.util.DaoUtil.getBoxedName;
-import static io.edap.data.util.DaoUtil.getQueryByIdInfo;
+import static io.edap.data.util.DaoUtil.*;
 import static io.edap.util.AsmUtil.toInternalName;
 import static io.edap.util.AsmUtil.visitMethod;
 import static io.edap.util.ClazzUtil.getDescriptor;
@@ -59,9 +59,76 @@ public class BaseDaoGenerator {
 
     protected String daoName;
 
-    protected String databaseType;
-
     protected DaoOption daoOption;
+
+    protected void visitFillSqlFieldMethod() {
+        MethodVisitor mv;
+        mv = cw.visitMethod(ACC_PRIVATE | ACC_STATIC, "fillSqlField",
+                "(Ljava/lang/String;)Ljava/lang/String;", null, null);
+        mv.visitCode();
+        mv.visitVarInsn(ALOAD, 0);
+        mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/String", "trim",
+                "()Ljava/lang/String;", false);
+        mv.visitVarInsn(ASTORE, 0);
+        mv.visitVarInsn(ALOAD, 0);
+        mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/String", "length",
+                "()I", false);
+        mv.visitIntInsn(BIPUSH, 7);
+        Label label0 = new Label();
+        mv.visitJumpInsn(IF_ICMPLE, label0);
+        mv.visitIntInsn(BIPUSH, 7);
+        Label label1 = new Label();
+        mv.visitJumpInsn(GOTO, label1);
+        mv.visitLabel(label0);
+        mv.visitFrame(Opcodes.F_SAME, 0, null, 0, null);
+        mv.visitVarInsn(ALOAD, 0);
+        mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/String", "length", "()I",
+                false);
+        mv.visitLabel(label1);
+        mv.visitFrame(Opcodes.F_SAME1, 0, null, 1,
+                new Object[] {Opcodes.INTEGER});
+        mv.visitVarInsn(ISTORE, 1);
+        mv.visitVarInsn(ALOAD, 0);
+        mv.visitInsn(ICONST_0);
+        mv.visitVarInsn(ILOAD, 1);
+        mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/String", "substring",
+                "(II)Ljava/lang/String;", false);
+        mv.visitFieldInsn(GETSTATIC, "java/util/Locale", "ENGLISH",
+                "Ljava/util/Locale;");
+        mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/String", "toLowerCase",
+                "(Ljava/util/Locale;)Ljava/lang/String;", false);
+        mv.visitLdcInsn("select ");
+        mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/String", "startsWith",
+                "(Ljava/lang/String;)Z", false);
+        Label label2 = new Label();
+        mv.visitJumpInsn(IFNE, label2);
+        mv.visitTypeInsn(NEW, "java/lang/StringBuilder");
+        mv.visitInsn(DUP);
+        mv.visitMethodInsn(INVOKESPECIAL, "java/lang/StringBuilder", "<init>",
+                "()V", false);
+        StringBuilder allFields = new StringBuilder();
+        ColumnsInfo columnsInfo = getColumns(entity, daoOption);
+        for (String col : columnsInfo.getColumns()) {
+            if (allFields.length() > 0) {
+                allFields.append(',');
+            }
+            allFields.append(col);
+        }
+        mv.visitLdcInsn("SELECT " + allFields + " FROM " + getTableName(entity) + " ");
+        mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/StringBuilder", "append",
+                "(Ljava/lang/String;)Ljava/lang/StringBuilder;", false);
+        mv.visitVarInsn(ALOAD, 0);
+        mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/StringBuilder", "append",
+                "(Ljava/lang/String;)Ljava/lang/StringBuilder;", false);
+        mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/StringBuilder", "toString",
+                "()Ljava/lang/String;", false);
+        mv.visitVarInsn(ASTORE, 0);
+        mv.visitLabel(label2);
+        mv.visitVarInsn(ALOAD, 0);
+        mv.visitInsn(ARETURN);
+        mv.visitMaxs(3, 2);
+        mv.visitEnd();
+    }
 
     protected void visitClinitMethod() {
         FieldVisitor fv;
@@ -207,6 +274,8 @@ public class BaseDaoGenerator {
         mv.visitLabel(label0);
         mv.visitVarInsn(ALOAD, 0);
         mv.visitVarInsn(ALOAD, 1);
+        mv.visitMethodInsn(INVOKESTATIC, daoName, "fillSqlField",
+                "(Ljava/lang/String;)Ljava/lang/String;", false);
         mv.visitVarInsn(ALOAD, 2);
         mv.visitMethodInsn(INVOKEVIRTUAL, daoName, "execute",
                 "(Ljava/lang/String;[Ljava/lang/Object;)Ljava/sql/ResultSet;", false);
@@ -321,6 +390,8 @@ public class BaseDaoGenerator {
         mv.visitLabel(l0);
         mv.visitVarInsn(ALOAD, 0);
         mv.visitVarInsn(ALOAD, 1);
+        mv.visitMethodInsn(INVOKESTATIC, daoName, "fillSqlField",
+                "(Ljava/lang/String;)Ljava/lang/String;", false);
         mv.visitVarInsn(ALOAD, 2);
         mv.visitMethodInsn(INVOKEVIRTUAL, daoName, "execute", "(Ljava/lang/String;[L" + QUERY_PARAM_NAME + ";)Ljava/sql/ResultSet;", false);
         mv.visitVarInsn(ASTORE, 3);
@@ -465,6 +536,7 @@ public class BaseDaoGenerator {
         mv.visitCode();
         mv.visitVarInsn(ALOAD, 0);
         mv.visitVarInsn(ALOAD, 1);
+        mv.visitMethodInsn(INVOKESTATIC, daoName, "fillSqlField", "(Ljava/lang/String;)Ljava/lang/String;", false);
         mv.visitMethodInsn(INVOKESPECIAL, daoName, "execute", "(Ljava/lang/String;)Ljava/sql/ResultSet;", false);
         mv.visitVarInsn(ASTORE, 2);
         mv.visitVarInsn(ALOAD, 2);
@@ -615,7 +687,11 @@ public class BaseDaoGenerator {
                     visitBoxedAndGetValue(mv, idInfo.getField());
                 }
             } else {
-                mv.visitTypeInsn(CHECKCAST, getDescriptor(queryInfo.getIdInfo().getField().getType()));
+                String desc = getDescriptor(queryInfo.getIdInfo().getField().getType());
+                if (desc.startsWith("L")) {
+                    desc = desc.substring(1, desc.length()-1);
+                }
+                mv.visitTypeInsn(CHECKCAST, desc);
             }
             String setMethod = queryInfo.getIdInfo().getJdbcMethod();
             mv.visitMethodInsn(INVOKEINTERFACE, "java/sql/PreparedStatement", setMethod,
@@ -767,11 +843,6 @@ public class BaseDaoGenerator {
                 mv.visitTypeInsn(CHECKCAST, "java/lang/Long");
                 visitMethod(mv, INVOKEVIRTUAL, "java/lang/Long", "longValue",
                         "()J", false);
-                break;
-            case "double":
-                mv.visitTypeInsn(CHECKCAST, "java/lang/Double");
-                visitMethod(mv, INVOKEVIRTUAL, "java/lang/Double", "doubleValue",
-                        "()D", false);
                 break;
 
         }

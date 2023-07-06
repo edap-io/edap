@@ -26,22 +26,30 @@ public class EntityDaoGeneratorTest {
         JdbcEntityDao<DemoAllType> demoAllTypeDao = JdbcDaoRegister.instance()
                 .getEntityDao(DemoAllType.class, new DaoOption());
         assertNotNull(demoAllTypeDao);
+
+        JdbcEntityDao<DemoStringId> demoStringIdDao = JdbcDaoRegister.instance()
+                .getEntityDao(DemoStringId.class, new DaoOption());
+        assertNotNull(demoStringIdDao);
     }
 
     @Test
     public void testViewDaoGenarate() {
         JdbcViewDao<Demo> demoDao = JdbcDaoRegister.instance()
-                .getViewDao(Demo.class, "Postgresql");
+                .getViewDao(Demo.class, new DaoOption());
         assertNotNull(demoDao);
         JdbcViewDao<DemoIntId> demoIntIdDao = JdbcDaoRegister.instance()
-                .getViewDao(DemoIntId.class, "Postgresql");
+                .getViewDao(DemoIntId.class, new DaoOption());
         assertNotNull(demoIntIdDao);
         JdbcViewDao<DemoLongId> demoILongIdDao = JdbcDaoRegister.instance()
-                .getViewDao(DemoLongId.class, "Postgresql");
+                .getViewDao(DemoLongId.class, new DaoOption());
         assertNotNull(demoILongIdDao);
         JdbcViewDao<DemoLongObjId> demoILongObjIdDao = JdbcDaoRegister.instance()
-                .getViewDao(DemoLongObjId.class, "Postgresql");
+                .getViewDao(DemoLongObjId.class, new DaoOption());
         assertNotNull(demoILongObjIdDao);
+
+        JdbcViewDao<DemoStringId> demoStringIdDao = JdbcDaoRegister.instance()
+                .getViewDao(DemoStringId.class, new DaoOption());
+        assertNotNull(demoStringIdDao);
     }
 
     @Test

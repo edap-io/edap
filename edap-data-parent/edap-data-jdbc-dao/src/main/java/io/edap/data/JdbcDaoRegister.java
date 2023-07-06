@@ -159,7 +159,7 @@ public class JdbcDaoRegister {
         return daoCls;
     }
 
-    public <T> JdbcViewDao<T> getViewDao(Class<T> entity, String databaseType) {
+    public <T> JdbcViewDao<T> getViewDao(Class<T> entity, DaoOption daoOption) {
         JdbcViewDao<T> dao = null;
         try {
             lock.lock();
@@ -168,7 +168,7 @@ public class JdbcDaoRegister {
             try {
                 daoClazz = daoLoader.loadClass(name);
             } catch (ClassNotFoundException e) {
-                daoClazz = generateViewDaoClass(entity, databaseType);
+                daoClazz = generateViewDaoClass(entity, daoOption);
             }
             if (daoClazz != null) {
                 try {
@@ -184,8 +184,8 @@ public class JdbcDaoRegister {
         }
     }
 
-    private Class<?> generateViewDaoClass(Class<?> entity, String databaseType) {
-        JdbcViewDaoGenerator generator = new JdbcViewDaoGenerator(entity, databaseType);
+    private Class<?> generateViewDaoClass(Class<?> entity, DaoOption daoOption) {
+        JdbcViewDaoGenerator generator = new JdbcViewDaoGenerator(entity, daoOption);
         String daoName = toLangName(getViewDaoName(entity));
         Class<?> daoCls = null;
         try {

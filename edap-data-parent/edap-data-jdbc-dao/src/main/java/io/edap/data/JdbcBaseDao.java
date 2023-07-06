@@ -29,8 +29,6 @@ public abstract class JdbcBaseDao {
 
     protected Logger LOG = LoggerManager.getLogger(this.getClass());
 
-    protected String databaseType;
-
     DataSource dataSource;
 
     Connection con;
@@ -50,10 +48,6 @@ public abstract class JdbcBaseDao {
 
     public void setConnection(Connection con) {
         this.con = con;
-    }
-
-    public String getDatabaseType() {
-        return databaseType;
     }
 
     public StatementSession getStatementSession() {
@@ -174,11 +168,7 @@ public abstract class JdbcBaseDao {
             setPreparedParams(pstmt, params);
             int row = pstmt.executeUpdate();
             if (pstmt != null) {
-                try {
-                    pstmt.close();
-                } catch (Exception e) {
-                    LOG.warn("PreparedStatement close error!", e);
-                }
+                pstmt.close();
             }
             if (initAuto) {
                 session.setAutoCommit(true);
@@ -200,11 +190,7 @@ public abstract class JdbcBaseDao {
             setPreparedParams(pstmt, params);
             int row = pstmt.executeUpdate();
             if (pstmt != null) {
-                try {
-                    pstmt.close();
-                } catch (Exception e) {
-                    LOG.warn("PreparedStatement close error!", e);
-                }
+                pstmt.close();
             }
             if (initAuto) {
                 session.setAutoCommit(true);
@@ -238,11 +224,7 @@ public abstract class JdbcBaseDao {
             setPreparedParams(pstmt, params);
             int row = pstmt.executeUpdate();
             if (pstmt != null) {
-                try {
-                    pstmt.close();
-                } catch (Exception e) {
-                    LOG.warn("PreparedStatement close error!", e);
-                }
+                pstmt.close();
             }
             if (initAuto) {
                 session.setAutoCommit(true);
@@ -264,11 +246,7 @@ public abstract class JdbcBaseDao {
             setPreparedParams(pstmt, params);
             int row = pstmt.executeUpdate();
             if (pstmt != null) {
-                try {
-                    pstmt.close();
-                } catch (Exception e) {
-                    LOG.warn("PreparedStatement close error!", e);
-                }
+                pstmt.close();
             }
             if (initAuto) {
                 session.setAutoCommit(true);

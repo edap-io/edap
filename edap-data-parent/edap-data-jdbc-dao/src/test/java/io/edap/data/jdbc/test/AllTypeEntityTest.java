@@ -1,10 +1,9 @@
 package io.edap.data.jdbc.test;
 
-import io.edap.data.DaoOption;
-import io.edap.data.JdbcDaoRegister;
-import io.edap.data.JdbcEntityDao;
-import io.edap.data.QueryParam;
+import io.edap.data.*;
 import io.edap.data.jdbc.test.entity.DemoAllType;
+import io.edap.data.model.ColumnsInfo;
+import io.edap.data.util.DaoUtil;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -16,6 +15,7 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.temporal.ChronoUnit;
 import java.time.temporal.TemporalUnit;
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -75,6 +75,107 @@ public class AllTypeEntityTest extends AbstractDaoTest {
     }
 
     @Test
+    public void testListInsert() {
+        Connection con = null;
+        JdbcEntityDao<DemoAllType> allDao = JdbcDaoRegister.instance().getEntityDao(DemoAllType.class, new DaoOption());
+        try {
+            con = openConnection();
+            dropTable(con);
+            createTable(con);
+            allDao.setConnection(con);
+
+            List<DemoAllType> demos = new ArrayList<>();
+            for (int i =1;i<=5;i++) {
+                DemoAllType demo = buildDemoAllType(i+3);
+                demos.add(demo);
+            }
+            int[] resRows = allDao.insert(demos);
+
+            ResultSet rs = con.createStatement().executeQuery("select * from demo_all_type order by id");
+            int rows = 0;
+            while (rs.next()) {
+                DemoAllType demo = demos.get(rows);
+                assertEquals(demo.getId(), rs.getLong("id"));
+                assertEquals(demo.getFieldByte(), rs.getByte("field_byte"));
+                assertEquals(demo.getFieldByteObj().byteValue(), rs.getByte("field_byte_obj"));
+                assertEquals(demo.isFieldBoolean(), rs.getBoolean("field_byte"));
+                assertEquals(demo.getFieldBooleanObj(), rs.getBoolean("field_boolean_obj"));
+                assertEquals(demo.getFieldChar(), rs.getString("field_char").charAt(0));
+                assertEquals(demo.getFieldCharObj(), rs.getString("field_char_obj").charAt(0));
+                assertEquals(demo.getFieldShort(), rs.getShort("field_short"));
+                assertEquals(demo.getFieldShortObj(), rs.getShort("field_short_obj"));
+                assertEquals(demo.getFieldInt(), rs.getInt("field_int"));
+                assertEquals(demo.getFieldIntObj(), rs.getInt("field_int_obj"));
+                assertEquals(demo.getFieldLong(), rs.getLong("field_long"));
+                assertEquals(demo.getFieldLongObj(), rs.getLong("field_long_obj"));
+                assertEquals(demo.getFieldFloat(), rs.getFloat("field_float"));
+                assertEquals(demo.getFieldFloatObj(), rs.getFloat("field_float_obj"));
+                assertEquals(demo.getFieldDouble(), rs.getDouble("field_double"));
+                assertEquals(demo.getFieldDoubleObj(), rs.getDouble("field_double_obj"));
+                assertEquals(demo.getFieldTime().plus(-demo.getFieldTime().getNano(), ChronoUnit.NANOS), rs.getTime("field_time").toLocalTime());
+                assertEquals(demo.getFieldDate(), rs.getDate("field_date").toLocalDate());
+                assertEquals(demo.getFieldDateTime(), rs.getTimestamp("field_date_time").toLocalDateTime());
+                assertArrayEquals(demo.getFieldByteArray(), rs.getBytes("field_byte_array"));
+                assertEquals(demo.getFieldBigDecimal(), rs.getBigDecimal("field_big_decimal"));
+                assertEquals(demo.getFieldStr(), rs.getString("field_str"));
+                rows++;
+            }
+            assertEquals(rows, 5);
+
+
+            dropTable(con);
+            createTable(con);
+            allDao.setConnection(con);
+
+            demos = new ArrayList<>();
+            for (int i =1;i<=5;i++) {
+                DemoAllType demo = buildDemoAllType(i+3);
+                demo.setId(0);
+                demos.add(demo);
+            }
+            resRows = allDao.insert(demos);
+
+            rs = con.createStatement().executeQuery("select * from demo_all_type order by id");
+            rows = 0;
+            while (rs.next()) {
+                DemoAllType demo = demos.get(rows);
+                assertEquals(demo.getId(), rs.getLong("id"));
+                assertEquals(demo.getFieldByte(), rs.getByte("field_byte"));
+                assertEquals(demo.getFieldByteObj().byteValue(), rs.getByte("field_byte_obj"));
+                assertEquals(demo.isFieldBoolean(), rs.getBoolean("field_byte"));
+                assertEquals(demo.getFieldBooleanObj(), rs.getBoolean("field_boolean_obj"));
+                assertEquals(demo.getFieldChar(), rs.getString("field_char").charAt(0));
+                assertEquals(demo.getFieldCharObj(), rs.getString("field_char_obj").charAt(0));
+                assertEquals(demo.getFieldShort(), rs.getShort("field_short"));
+                assertEquals(demo.getFieldShortObj(), rs.getShort("field_short_obj"));
+                assertEquals(demo.getFieldInt(), rs.getInt("field_int"));
+                assertEquals(demo.getFieldIntObj(), rs.getInt("field_int_obj"));
+                assertEquals(demo.getFieldLong(), rs.getLong("field_long"));
+                assertEquals(demo.getFieldLongObj(), rs.getLong("field_long_obj"));
+                assertEquals(demo.getFieldFloat(), rs.getFloat("field_float"));
+                assertEquals(demo.getFieldFloatObj(), rs.getFloat("field_float_obj"));
+                assertEquals(demo.getFieldDouble(), rs.getDouble("field_double"));
+                assertEquals(demo.getFieldDoubleObj(), rs.getDouble("field_double_obj"));
+                assertEquals(demo.getFieldTime().plus(-demo.getFieldTime().getNano(), ChronoUnit.NANOS), rs.getTime("field_time").toLocalTime());
+                assertEquals(demo.getFieldDate(), rs.getDate("field_date").toLocalDate());
+                assertEquals(demo.getFieldDateTime(), rs.getTimestamp("field_date_time").toLocalDateTime());
+                assertArrayEquals(demo.getFieldByteArray(), rs.getBytes("field_byte_array"));
+                assertEquals(demo.getFieldBigDecimal(), rs.getBigDecimal("field_big_decimal"));
+                assertEquals(demo.getFieldStr(), rs.getString("field_str"));
+                rows++;
+            }
+            assertEquals(rows, 5);
+
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        } finally {
+            close(con);
+        }
+    }
+
+    @Test
     public void testFindById() {
         Connection con = null;
         JdbcEntityDao<DemoAllType> allDao = JdbcDaoRegister.instance().getEntityDao(DemoAllType.class, new DaoOption());
@@ -112,6 +213,21 @@ public class AllTypeEntityTest extends AbstractDaoTest {
             allDao.insert(demo);
 
             List<DemoAllType> qdemos = allDao.query("select * from demo_all_type where id=1");
+            assertEquals(qdemos.size(), 1);
+            isAllEquals(demo, qdemos.get(0));
+            StringBuilder allFields = new StringBuilder();
+            ColumnsInfo columnsInfo = DaoUtil.getColumns(DemoAllType.class, new DaoOption());
+            for (String col : columnsInfo.getColumns() ) {
+                if (allFields.length() > 0) {
+                    allFields.append(',');
+                }
+                allFields.append(col);
+            }
+            qdemos = allDao.query("select " + allFields + " from demo_all_type where id=1");
+            assertEquals(qdemos.size(), 1);
+            isAllEquals(demo, qdemos.get(0));
+
+            qdemos = allDao.query(" where id=1");
             assertEquals(qdemos.size(), 1);
             isAllEquals(demo, qdemos.get(0));
         } catch (SQLException e) {
@@ -327,6 +443,21 @@ public class AllTypeEntityTest extends AbstractDaoTest {
         } finally {
             close(con);
         }
+
+        Exception thrown = assertThrows(Exception.class,
+                () -> {
+                    Connection con2;
+                    con2 = openConnection();
+                    dropTable(con2);
+                    createTable(con2);
+                    allDao.setConnection(con2);
+
+                    DemoAllType demo = buildDemoAllType(1);
+                    allDao.insert(demo);
+
+                    allDao.update("update demo_all_type set field_big_decimal=31.47 where id2=1");
+                });
+        assertTrue(thrown.getMessage().contains("Column \"ID2\" not found"));
     }
 
     @Test
@@ -361,6 +492,22 @@ public class AllTypeEntityTest extends AbstractDaoTest {
         } finally {
             close(con);
         }
+
+        Exception thrown = assertThrows(Exception.class,
+                () -> {
+                    Connection con2;
+                    con2 = openConnection();
+                    dropTable(con2);
+                    createTable(con2);
+                    allDao.setConnection(con2);
+
+                    DemoAllType demo = buildDemoAllType(1);
+                    allDao.insert(demo);
+
+                    allDao.update("update demo_all_type set field_big_decimal=? where id2=?",
+                            new BigDecimal(31.47), 1L);
+                });
+        assertTrue(thrown.getMessage().contains("Column \"ID2\" not found"));
     }
 
     @Test
@@ -395,6 +542,199 @@ public class AllTypeEntityTest extends AbstractDaoTest {
         } finally {
             close(con);
         }
+
+        Exception thrown = assertThrows(Exception.class,
+                () -> {
+                    Connection con2;
+                    con2 = openConnection();
+                    dropTable(con2);
+                    createTable(con2);
+                    allDao.setConnection(con2);
+
+                    DemoAllType demo = buildDemoAllType(1);
+                    allDao.insert(demo);
+
+                    allDao.update("update demo_all_type set field_big_decimal=? where id2=?",
+                            () -> new BigDecimal(31.47), () -> 1L);
+                });
+        assertTrue(thrown.getMessage().contains("Column \"ID2\" not found"));
+    }
+
+    @Test
+    public void testDeleteNoParam() {
+        Connection con = null;
+        JdbcEntityDao<DemoAllType> allDao = JdbcDaoRegister.instance()
+                .getEntityDao(DemoAllType.class, new DaoOption());
+        try {
+            con = openConnection();
+            dropTable(con);
+            createTable(con);
+            allDao.setConnection(con);
+
+            DemoAllType demo = buildDemoAllType(1);
+            allDao.insert(demo);
+
+            int row = allDao.delete("delete from demo_all_type where id=1");
+            assertEquals(row, 1);
+
+            ResultSet rs = con.createStatement().executeQuery("select * from demo_all_type");
+            boolean hasData = false;
+            if (rs.next()) {
+                hasData = true;
+            }
+            assertFalse(hasData);
+
+
+            allDao.insert(demo);
+
+            row = allDao.delete("where id=1");
+            assertEquals(row, 1);
+            rs = con.createStatement().executeQuery("select * from demo_all_type");
+            hasData = false;
+            if (rs.next()) {
+                hasData = true;
+            }
+            assertFalse(hasData);
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        } finally {
+            close(con);
+        }
+
+        Exception thrown = assertThrows(Exception.class,
+                () -> {
+                    Connection con2;
+                    con2 = openConnection();
+                    dropTable(con2);
+                    createTable(con2);
+                    allDao.setConnection(con2);
+
+                    DemoAllType demo = buildDemoAllType(1);
+                    allDao.insert(demo);
+
+                    allDao.delete(" where id2=1");
+                });
+        assertTrue(thrown.getMessage().contains("Column \"ID2\" not found"));
+    }
+
+    @Test
+    public void testDeleteObjectParams() {
+        Connection con = null;
+        JdbcEntityDao<DemoAllType> allDao = JdbcDaoRegister.instance()
+                .getEntityDao(DemoAllType.class, new DaoOption());
+        try {
+            con = openConnection();
+            dropTable(con);
+            createTable(con);
+            allDao.setConnection(con);
+
+            DemoAllType demo = buildDemoAllType(1);
+            allDao.insert(demo);
+
+            int row = allDao.delete("delete from demo_all_type where id=?", 1L);
+            assertEquals(row, 1);
+
+            ResultSet rs = con.createStatement().executeQuery("select * from demo_all_type");
+            boolean hasData = false;
+            if (rs.next()) {
+                hasData = true;
+            }
+            assertFalse(hasData);
+
+
+            allDao.insert(demo);
+
+            row = allDao.delete("where id=?", 1L);
+            assertEquals(row, 1);
+            rs = con.createStatement().executeQuery("select * from demo_all_type");
+            hasData = false;
+            if (rs.next()) {
+                hasData = true;
+            }
+            assertFalse(hasData);
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        } finally {
+            close(con);
+        }
+
+        Exception thrown = assertThrows(Exception.class,
+                () -> {
+                    Connection con2;
+                    con2 = openConnection();
+                    dropTable(con2);
+                    createTable(con2);
+                    allDao.setConnection(con2);
+
+                    DemoAllType demo = buildDemoAllType(1);
+                    allDao.insert(demo);
+
+                    allDao.delete(" where id2=?", 1L);
+                });
+        assertTrue(thrown.getMessage().contains("Column \"ID2\" not found"));
+    }
+
+    @Test
+    public void testDeleteQueryParams() {
+        Connection con = null;
+        JdbcEntityDao<DemoAllType> allDao = JdbcDaoRegister.instance()
+                .getEntityDao(DemoAllType.class, new DaoOption());
+        try {
+            con = openConnection();
+            dropTable(con);
+            createTable(con);
+            allDao.setConnection(con);
+
+            DemoAllType demo = buildDemoAllType(1);
+            allDao.insert(demo);
+
+            int row = allDao.delete("delete from demo_all_type where id=?", () -> 1L);
+            assertEquals(row, 1);
+
+            ResultSet rs = con.createStatement().executeQuery("select * from demo_all_type");
+            boolean hasData = false;
+            if (rs.next()) {
+                hasData = true;
+            }
+            assertFalse(hasData);
+
+
+            allDao.insert(demo);
+
+            row = allDao.delete("where id=?", () -> 1L);
+            assertEquals(row, 1);
+            rs = con.createStatement().executeQuery("select * from demo_all_type");
+            hasData = false;
+            if (rs.next()) {
+                hasData = true;
+            }
+            assertFalse(hasData);
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        } finally {
+            close(con);
+        }
+
+        Exception thrown = assertThrows(Exception.class,
+                () -> {
+                    Connection con2;
+                    con2 = openConnection();
+                    dropTable(con2);
+                    createTable(con2);
+                    allDao.setConnection(con2);
+
+                    DemoAllType demo = buildDemoAllType(1);
+                    allDao.insert(demo);
+
+                    allDao.delete(" where id2=?", () -> 1L);
+                });
+        assertTrue(thrown.getMessage().contains("Column \"ID2\" not found"));
     }
 
     private void isAllEquals(DemoAllType demo, DemoAllType qdemo) {

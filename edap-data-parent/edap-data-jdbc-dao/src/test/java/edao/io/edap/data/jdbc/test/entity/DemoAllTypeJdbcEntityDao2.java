@@ -1,19 +1,3 @@
-/*
- * Copyright 2023 The edap Project
- *
- * The Netty Project licenses this file to you under the Apache License,
- * version 2.0 (the "License"); you may not use this file except in compliance
- * with the License. You may obtain a copy of the License at:
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
- * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
- * License for the specific language governing permissions and limitations
- * under the License.
- */
-
 //
 // Source code recreated from a .class file by IntelliJ IDEA
 // (powered by FernFlower decompiler)
@@ -37,6 +21,7 @@ import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -53,7 +38,13 @@ public class DemoAllTypeJdbcEntityDao2 extends JdbcBaseDao implements JdbcEntity
             StatementSession var2 = this.getStatementSession();
 
             try {
-                PreparedStatement var3 = var2.prepareStatement("INSERT INTO demo_all_type (field_str,field_int,field_int_obj,field_long,field_long_obj,field_float,field_float_obj,field_double,field_double_obj,field_boolean,field_boolean_obj,field_date,field_time,field_date_time,field_byte,field_byte_obj,field_short,field_short_obj,field_char,field_char_obj,field_byte_array,field_big_decimal,id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
+                boolean hassedIdValue = this.hasIdValue(var1.get(0).getId());
+                PreparedStatement var3;
+                if (hassedIdValue) {
+                    var3 = var2.prepareStatement("INSERT INTO demo_all_type (field_str,field_int,field_int_obj,field_long,field_long_obj,field_float,field_float_obj,field_double,field_double_obj,field_boolean,field_boolean_obj,field_date,field_time,field_date_time,field_byte,field_byte_obj,field_short,field_short_obj,field_char,field_char_obj,field_byte_array,field_big_decimal,id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
+                } else {
+                    var3 = var2.prepareStatement("INSERT INTO demo_all_type (field_str,field_int,field_int_obj,field_long,field_long_obj,field_float,field_float_obj,field_double,field_double_obj,field_boolean,field_boolean_obj,field_date,field_time,field_date_time,field_byte,field_byte_obj,field_short,field_short_obj,field_char,field_char_obj,field_byte_array,field_big_decimal) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
+                }
                 boolean var4 = var2.getAutoCommit();
                 if (var4) {
                     var2.setAutoCommit(false);
@@ -63,34 +54,46 @@ public class DemoAllTypeJdbcEntityDao2 extends JdbcBaseDao implements JdbcEntity
                 int var5 = var1.size();
 
                 for(int var6 = 0; var6 < var5; ++var6) {
-                    DemoAllType var7 = (DemoAllType)var1.get(0);
-                    var3.setLong(1, var7.getId());
-                    var3.setString(2, var7.getFieldStr());
-                    var3.setInt(3, var7.getFieldInt());
-                    var3.setInt(4, var7.getFieldIntObj());
-                    var3.setLong(5, var7.getFieldLong());
-                    var3.setLong(6, var7.getFieldLongObj());
-                    var3.setFloat(7, var7.getFieldFloat());
-                    var3.setFloat(8, var7.getFieldFloatObj());
-                    var3.setDouble(9, var7.getFieldDouble());
-                    var3.setDouble(10, var7.getFieldDoubleObj());
-                    var3.setBoolean(11, var7.isFieldBoolean());
-                    var3.setBoolean(12, var7.getFieldBooleanObj());
-                    var3.setDate(13, Convertor.toJavaSqlDate(var7.getFieldDate()));
-                    var3.setTime(14, Convertor.toJavaSqlTime(var7.getFieldTime()));
-                    var3.setTimestamp(15, Convertor.toJavaSqlTimestamp(var7.getFieldDateTime()));
-                    var3.setByte(16, var7.getFieldByte());
-                    var3.setByte(17, var7.getFieldByteObj());
-                    var3.setShort(18, var7.getFieldShort());
-                    var3.setShort(19, var7.getFieldShortObj());
-                    var3.setString(20, Convertor.toJavaLangString(var7.getFieldChar()));
-                    var3.setString(21, Convertor.toJavaLangString(var7.getFieldCharObj()));
-                    var3.setBytes(22, var7.getFieldByteArray());
-                    var3.setBigDecimal(23, var7.getFieldBigDecimal());
+                    DemoAllType var7 = var1.get(var6);
+                    var3.setString(1, var7.getFieldStr());
+                    var3.setInt(2, var7.getFieldInt());
+                    var3.setInt(3, var7.getFieldIntObj());
+                    var3.setLong(4, var7.getFieldLong());
+                    var3.setLong(5, var7.getFieldLongObj());
+                    var3.setFloat(6, var7.getFieldFloat());
+                    var3.setFloat(7, var7.getFieldFloatObj());
+                    var3.setDouble(8, var7.getFieldDouble());
+                    var3.setDouble(9, var7.getFieldDoubleObj());
+                    var3.setBoolean(10, var7.isFieldBoolean());
+                    var3.setBoolean(11, var7.getFieldBooleanObj());
+                    var3.setDate(12, Convertor.toJavaSqlDate(var7.getFieldDate()));
+                    var3.setTime(13, Convertor.toJavaSqlTime(var7.getFieldTime()));
+                    var3.setTimestamp(14, Convertor.toJavaSqlTimestamp(var7.getFieldDateTime()));
+                    var3.setByte(15, var7.getFieldByte());
+                    var3.setByte(16, var7.getFieldByteObj());
+                    var3.setShort(17, var7.getFieldShort());
+                    var3.setShort(18, var7.getFieldShortObj());
+                    var3.setString(19, Convertor.toJavaLangString(var7.getFieldChar()));
+                    var3.setString(20, Convertor.toJavaLangString(var7.getFieldCharObj()));
+                    var3.setBytes(21, var7.getFieldByteArray());
+                    var3.setBigDecimal(22, var7.getFieldBigDecimal());
+                    if (hassedIdValue) {
+                        var3.setLong(23, var7.getId());
+                    }
                     var3.addBatch();
                 }
 
                 int[] var12 = var3.executeBatch();
+                if (!hassedIdValue) {
+                    ResultSet rsIds = var3.getGeneratedKeys();
+                    if (rsIds != null) {
+                        int index = 0;
+                        while (rsIds.next()) {
+                            var1.get(index++).setId(rsIds.getLong(1));
+                        }
+                        rsIds.close();
+                    }
+                }
                 if (var4) {
                     var2.commit();
                     var2.setAutoCommit(true);
@@ -164,7 +167,7 @@ public class DemoAllTypeJdbcEntityDao2 extends JdbcBaseDao implements JdbcEntity
     }
 
     public List<DemoAllType> query(String var1) throws Exception {
-        ResultSet var2 = this.execute(var1);
+        ResultSet var2 = this.execute(fillSqlField(var1));
         if (var2 == null) {
             return Constants.EMPTY_LIST;
         } else {
@@ -199,16 +202,27 @@ public class DemoAllTypeJdbcEntityDao2 extends JdbcBaseDao implements JdbcEntity
         return JdbcDaoRegister.instance().getFieldSetFunc(DemoAllType.class, var4);
     }
 
+    private static String fillSqlField(String sql) {
+        sql = sql.trim();
+        int len = sql.length() > 7?7:sql.length();
+        if (!sql.substring(0, len).toLowerCase(Locale.ENGLISH).startsWith("select ")) {
+            sql = "select id,field_str from demo_all_type " + sql;
+        }
+        return sql;
+    }
+
     public List<DemoAllType> query(String var1, QueryParam[] var2) throws Exception {
-        List var4;
         try {
-            ResultSet var3 = this.execute(var1, var2);
-            if (var3 != null) {
-                String var12 = this.getFieldsSql(var1);
-                JdbcFieldSetFunc var5 = (JdbcFieldSetFunc)FIELD_SET_FUNCS.get(var12);
+            ResultSet var3 = this.execute(fillSqlField(var1), var2);
+            if (var3 == null) {
+                List var12 = Constants.EMPTY_LIST;
+                return var12;
+            } else {
+                String var4 = this.getFieldsSql(var1);
+                JdbcFieldSetFunc var5 = (JdbcFieldSetFunc)FIELD_SET_FUNCS.get(var4);
                 if (var5 == null) {
                     var5 = this.getSqlFieldSetFunc(var3);
-                    FIELD_SET_FUNCS.put(var12, this.getSqlFieldSetFunc(var3));
+                    FIELD_SET_FUNCS.put(var4, this.getSqlFieldSetFunc(var3));
                 }
 
                 ArrayList var6 = new ArrayList();
@@ -222,19 +236,15 @@ public class DemoAllTypeJdbcEntityDao2 extends JdbcBaseDao implements JdbcEntity
                 ArrayList var11 = var6;
                 return var11;
             }
-
-            var4 = Constants.EMPTY_LIST;
         } finally {
             this.closeStatmentSession();
         }
-
-        return var4;
     }
 
     public List<DemoAllType> query(String var1, Object... var2) throws Exception {
         List var4;
         try {
-            ResultSet var3 = this.execute(var1, var2);
+            ResultSet var3 = this.execute(fillSqlField(var1), var2);
             if (var3 != null) {
                 String var12 = this.getFieldsSql(var1);
                 JdbcFieldSetFunc var5 = (JdbcFieldSetFunc)FIELD_SET_FUNCS.get(var12);
@@ -264,17 +274,17 @@ public class DemoAllTypeJdbcEntityDao2 extends JdbcBaseDao implements JdbcEntity
     }
 
     public DemoAllType findOne(String var1) throws Exception {
-        List var2 = this.query(var1);
+        List var2 = this.query(fillSqlField(var1));
         return CollectionUtils.isEmpty(var2) ? null : (DemoAllType)var2.get(0);
     }
 
     public DemoAllType findOne(String var1, QueryParam[] var2) throws Exception {
-        List var3 = this.query(var1, var2);
+        List var3 = this.query(fillSqlField(var1), var2);
         return CollectionUtils.isEmpty(var3) ? null : (DemoAllType)var3.get(0);
     }
 
     public DemoAllType findOne(String var1, Object[] var2) throws Exception {
-        List var3 = this.query(var1, var2);
+        List var3 = this.query(fillSqlField(var1), var2);
         return CollectionUtils.isEmpty(var3) ? null : (DemoAllType)var3.get(0);
     }
 
@@ -322,42 +332,56 @@ public class DemoAllTypeJdbcEntityDao2 extends JdbcBaseDao implements JdbcEntity
         } else {
             StatementSession var2 = this.getStatementSession();
 
+            DemoAllType var5;
             try {
                 PreparedStatement var3 = var2.prepareStatement("select * from demo_all_type where id=?");
                 var3.setLong(1, (Long)var1);
                 ResultSet var4 = var3.executeQuery();
-                if (var4.next()) {
-                    DemoAllType var5 = new DemoAllType();
-                    var5.setId(var4.getLong("id"));
-                    var5.setFieldStr(var4.getString("field_str"));
-                    var5.setFieldInt(var4.getInt("field_int"));
-                    var5.setFieldIntObj(var4.getInt("field_int_obj"));
-                    var5.setFieldLong(var4.getLong("field_long"));
-                    var5.setFieldLongObj(var4.getLong("field_long_obj"));
-                    var5.setFieldFloat(var4.getFloat("field_float"));
-                    var5.setFieldFloatObj(var4.getFloat("field_float_obj"));
-                    var5.setFieldDouble(var4.getDouble("field_double"));
-                    var5.setFieldDoubleObj(var4.getDouble("field_double_obj"));
-                    var5.setFieldBoolean(var4.getBoolean("field_boolean"));
-                    var5.setFieldBooleanObj(var4.getBoolean("field_boolean_obj"));
-                    var5.setFieldDate(Convertor.toJavaTimeLocalDate(var4.getDate("field_date")));
-                    var5.setFieldTime(Convertor.toJavaTimeLocalTime(var4.getTime("field_time")));
-                    var5.setFieldDateTime(Convertor.toJavaTimeLocalDateTime(var4.getTimestamp("field_date_time")));
-                    var5.setFieldByte(var4.getByte("field_byte"));
-                    var5.setFieldByteObj(var4.getByte("field_byte_obj"));
-                    var5.setFieldShort(var4.getShort("field_short"));
-                    var5.setFieldShortObj(var4.getShort("field_short_obj"));
-                    var5.setFieldChar(Convertor.toC(var4.getString("field_char")));
-                    var5.setFieldCharObj(Convertor.toJavaLangCharacter(var4.getString("field_char_obj")));
-                    var5.setFieldByteArray(var4.getBytes("field_byte_array"));
-                    var5.setFieldBigDecimal(var4.getBigDecimal("field_big_decimal"));
-                    return var5;
+                if (!var4.next()) {
+                    return null;
                 }
+
+                var5 = new DemoAllType();
+                var5.setId(var4.getLong("id"));
+                var5.setFieldStr(var4.getString("field_str"));
+                var5.setFieldInt(var4.getInt("field_int"));
+                var5.setFieldIntObj(var4.getInt("field_int_obj"));
+                var5.setFieldLong(var4.getLong("field_long"));
+                var5.setFieldLongObj(var4.getLong("field_long_obj"));
+                var5.setFieldFloat(var4.getFloat("field_float"));
+                var5.setFieldFloatObj(var4.getFloat("field_float_obj"));
+                var5.setFieldDouble(var4.getDouble("field_double"));
+                var5.setFieldDoubleObj(var4.getDouble("field_double_obj"));
+                var5.setFieldBoolean(var4.getBoolean("field_boolean"));
+                var5.setFieldBooleanObj(var4.getBoolean("field_boolean_obj"));
+                var5.setFieldDate(Convertor.toJavaTimeLocalDate(var4.getDate("field_date")));
+                var5.setFieldTime(Convertor.toJavaTimeLocalTime(var4.getTime("field_time")));
+                var5.setFieldDateTime(Convertor.toJavaTimeLocalDateTime(var4.getTimestamp("field_date_time")));
+                var5.setFieldByte(var4.getByte("field_byte"));
+                var5.setFieldByteObj(var4.getByte("field_byte_obj"));
+                var5.setFieldShort(var4.getShort("field_short"));
+                var5.setFieldShortObj(var4.getShort("field_short_obj"));
+                var5.setFieldChar(Convertor.toC(var4.getString("field_char")));
+                var5.setFieldCharObj(Convertor.toJavaLangCharacter(var4.getString("field_char_obj")));
+                var5.setFieldByteArray(var4.getBytes("field_byte_array"));
+                var5.setFieldBigDecimal(var4.getBigDecimal("field_big_decimal"));
             } finally {
                 var2.close();
             }
 
-            return null;
+            return var5;
         }
+    }
+
+    public int delete(String var1) throws Exception {
+        return super.delete(getFullDeleteSql(var1, "demo_all_type"));
+    }
+
+    public int delete(String var1, Object[] var2) throws Exception {
+        return super.delete(getFullDeleteSql(var1, "demo_all_type"), var2);
+    }
+
+    public int delete(String var1, QueryParam[] var2) throws Exception {
+        return super.delete(getFullDeleteSql(var1, "demo_all_type"), var2);
     }
 }

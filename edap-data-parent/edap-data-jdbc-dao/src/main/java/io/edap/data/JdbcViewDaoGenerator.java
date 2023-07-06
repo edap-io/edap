@@ -29,10 +29,10 @@ public class JdbcViewDaoGenerator extends BaseDaoGenerator {
     private static String VIEW_IFACT_NAME = toInternalName(JdbcViewDao.class.getName());
 
 
-    public JdbcViewDaoGenerator(Class<?> view, String databaseType) {
+    public JdbcViewDaoGenerator(Class<?> view, DaoOption daoOption) {
         this.entity = view;
         this.entityName = toInternalName(view.getName());
-        this.databaseType = databaseType;
+        this.daoOption = daoOption;
         this.daoName = toInternalName(getViewDaoName(view));
         this.PARENT_NAME = toInternalName(JdbcBaseViewDao.class.getName());
     }
@@ -49,6 +49,8 @@ public class JdbcViewDaoGenerator extends BaseDaoGenerator {
 
         visitInitMethod();
         visitClinitMethod();
+
+        visitFillSqlFieldMethod();
 
         visitQueryOneParamMethod();
         visitGetSqlFieldSetFuncMethod();
