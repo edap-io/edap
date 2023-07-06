@@ -407,9 +407,14 @@ public class JdbcEntityDaoGenerator extends BaseDaoGenerator {
             mv.visitTypeInsn(CHECKCAST, entityName);
             mv.visitVarInsn(ALOAD, varIdRs);
             mv.visitInsn(ICONST_1);
-            mv.visitMethodInsn(INVOKEINTERFACE, "java/sql/ResultSet", "getLong",
-                    "(I)J", true);
-            mv.visitMethodInsn(INVOKEVIRTUAL, entityName, "setId", "(J)V", false);
+            String jdbcGetMethod = idJdbcInfo.getJdbcMethod().replace("set", "get");
+            mv.visitMethodInsn(INVOKEINTERFACE, "java/sql/ResultSet", jdbcGetMethod,
+                    "(I)" + idJdbcInfo.getJdbcType(), true);
+            if (idJdbcInfo.isNeedUnbox()) {
+                visitBoxedOpcode(mv, idJdbcInfo.getField());
+            }
+            mv.visitMethodInsn(INVOKEVIRTUAL, entityName, idSetMethod.getName(),
+                    "(" + getDescriptor(idField.getType()) + ")V", false);
             mv.visitJumpInsn(GOTO, varLbIdWhile);
 
             // 关闭获取自增主键的ResultSet对象

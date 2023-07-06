@@ -27,20 +27,10 @@ public class Demo implements Serializable {
     @Id
     //@GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer id;
-    @Column(name = "age")
-    private String field1;
     private long createTime;
     private Long localDateTime;
     //private LocalDate localDate;
 //    private Boolean isNew;
-
-    public String getField1() {
-        return field1;
-    }
-
-    public void setField1(String field1) {
-        this.field1 = field1;
-    }
 
     public Integer getId() {
         return id;

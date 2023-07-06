@@ -17,7 +17,6 @@
 package io.edap.data.jdbc.test;
 
 import edao.io.edap.data.jdbc.test.entity.DemoAllTypeJdbcEntityDao2;
-import io.edap.data.jdbc.test.dao.DemoEntityDao;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.util.ASMifier;

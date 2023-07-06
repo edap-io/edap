@@ -27,7 +27,6 @@ public class DemoFullSetFuncJdbc implements JdbcFieldSetFunc<Demo> {
     public void set(Demo demo, ResultSet rs) throws SQLException {
         demo.setId(rs.getInt("id"));
         demo.setCreateTime(rs.getLong("create_time"));
-        demo.setField1(rs.getString("field1"));
         demo.setLocalDateTime(rs.getLong("local_datetime"));
     }
 }

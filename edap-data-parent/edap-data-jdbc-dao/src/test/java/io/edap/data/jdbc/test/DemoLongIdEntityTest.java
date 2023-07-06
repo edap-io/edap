@@ -3,29 +3,32 @@ package io.edap.data.jdbc.test;
 import io.edap.data.DaoOption;
 import io.edap.data.JdbcDaoRegister;
 import io.edap.data.JdbcEntityDao;
-import io.edap.data.jdbc.test.entity.DemoLongObjId;
+import io.edap.data.jdbc.test.entity.DemoLongId;
 import org.junit.jupiter.api.Test;
 
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Random;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-public class DemoLongObjIdEntityTest extends AbstractDaoTest {
+public class DemoLongIdEntityTest extends AbstractDaoTest {
 
     @Test
     public void testNoIdInsert() {
         Connection con = null;
-        JdbcEntityDao<DemoLongObjId> allDao = JdbcDaoRegister.instance().getEntityDao(DemoLongObjId.class, new DaoOption());
+        JdbcEntityDao<DemoLongId> allDao = JdbcDaoRegister.instance().getEntityDao(DemoLongId.class, new DaoOption());
         try {
             con = openConnection();
             dropTable(con);
             createTable(con);
             allDao.setConnection(con);
 
-            DemoLongObjId demo = new DemoLongObjId();
+            DemoLongId demo = new DemoLongId();
             long creatTime = System.currentTimeMillis();
             Thread.sleep(new Random().nextInt(10) + 1);
             long localDateTime = System.currentTimeMillis();
@@ -33,7 +36,7 @@ public class DemoLongObjIdEntityTest extends AbstractDaoTest {
             demo.setLocalDateTime(localDateTime);
             allDao.insert(demo);
 
-            ResultSet rs = con.createStatement().executeQuery("select * from demo_long_obj_id where id=1");
+            ResultSet rs = con.createStatement().executeQuery("select * from demo_long_id where id=1");
             int rows = 0;
             if (rs.next()) {
                 assertEquals(rs.getLong("id"), 1L);
@@ -55,18 +58,18 @@ public class DemoLongObjIdEntityTest extends AbstractDaoTest {
     @Test
     public void testNoIdListInsert() {
         Connection con = null;
-        JdbcEntityDao<DemoLongObjId> allDao = JdbcDaoRegister.instance().getEntityDao(DemoLongObjId.class, new DaoOption());
+        JdbcEntityDao<DemoLongId> allDao = JdbcDaoRegister.instance().getEntityDao(DemoLongId.class, new DaoOption());
         try {
             con = openConnection();
             dropTable(con);
             createTable(con);
             allDao.setConnection(con);
 
-            List<DemoLongObjId> demos = new ArrayList<>();
+            List<DemoLongId> demos = new ArrayList<>();
             List<Long> creatTimes = new ArrayList<>();
             List<Long> localDateTimes = new ArrayList<>();
             for (int i=1;i<=5;i++) {
-                DemoLongObjId demo = new DemoLongObjId();
+                DemoLongId demo = new DemoLongId();
                 long creatTime = System.currentTimeMillis();
                 creatTimes.add(creatTime);
                 Thread.sleep(new Random().nextInt(10) + 1);
@@ -78,7 +81,7 @@ public class DemoLongObjIdEntityTest extends AbstractDaoTest {
             }
             allDao.insert(demos);
 
-            ResultSet rs = con.createStatement().executeQuery("select * from demo_long_obj_id order by id");
+            ResultSet rs = con.createStatement().executeQuery("select * from demo_long_id order by id");
             int rows = 0;
             while (rs.next()) {
                 assertEquals(rs.getLong("id"), rows+1);
@@ -100,14 +103,14 @@ public class DemoLongObjIdEntityTest extends AbstractDaoTest {
     @Test
     public void testSetIdInsert() {
         Connection con = null;
-        JdbcEntityDao<DemoLongObjId> allDao = JdbcDaoRegister.instance().getEntityDao(DemoLongObjId.class, new DaoOption());
+        JdbcEntityDao<DemoLongId> allDao = JdbcDaoRegister.instance().getEntityDao(DemoLongId.class, new DaoOption());
         try {
             con = openConnection();
             dropTable(con);
             createTable(con);
             allDao.setConnection(con);
 
-            DemoLongObjId demo = new DemoLongObjId();
+            DemoLongId demo = new DemoLongId();
             long id = new Random().nextInt(10000);
             demo.setId(id);
             long creatTime = System.currentTimeMillis();
@@ -117,7 +120,7 @@ public class DemoLongObjIdEntityTest extends AbstractDaoTest {
             demo.setLocalDateTime(localDateTime);
             allDao.insert(demo);
 
-            ResultSet rs = con.createStatement().executeQuery("select * from demo_long_obj_id");
+            ResultSet rs = con.createStatement().executeQuery("select * from demo_long_id");
             int rows = 0;
             if (rs.next()) {
                 assertEquals(rs.getLong("id"), id);
@@ -139,19 +142,19 @@ public class DemoLongObjIdEntityTest extends AbstractDaoTest {
     @Test
     public void testSetIdListInsert() {
         Connection con = null;
-        JdbcEntityDao<DemoLongObjId> allDao = JdbcDaoRegister.instance().getEntityDao(DemoLongObjId.class, new DaoOption());
+        JdbcEntityDao<DemoLongId> allDao = JdbcDaoRegister.instance().getEntityDao(DemoLongId.class, new DaoOption());
         try {
             con = openConnection();
             dropTable(con);
             createTable(con);
             allDao.setConnection(con);
 
-            List<DemoLongObjId> demos = new ArrayList<>();
+            List<DemoLongId> demos = new ArrayList<>();
             List<Long> ids = new ArrayList<>();
             List<Long> creatTimes = new ArrayList<>();
             List<Long> localDateTimes = new ArrayList<>();
             for (int i=1;i<=5;i++) {
-                DemoLongObjId demo = new DemoLongObjId();
+                DemoLongId demo = new DemoLongId();
                 long id = new Random().nextInt(10000);
                 demo.setId(id);
                 long creatTime = System.currentTimeMillis();
@@ -170,14 +173,14 @@ public class DemoLongObjIdEntityTest extends AbstractDaoTest {
                     return 0;
                 }
             });
-            for (DemoLongObjId demo : demos) {
+            for (DemoLongId demo : demos) {
                 ids.add(demo.getId());
                 creatTimes.add(demo.getCreateTime());
                 localDateTimes.add(demo.getLocalDateTime());
             }
             allDao.insert(demos);
 
-            ResultSet rs = con.createStatement().executeQuery("select * from demo_long_obj_id order by id");
+            ResultSet rs = con.createStatement().executeQuery("select * from demo_long_id order by id");
             int rows = 0;
             while (rs.next()) {
                 assertEquals(rs.getLong("id"), ids.get(rows));
@@ -198,11 +201,11 @@ public class DemoLongObjIdEntityTest extends AbstractDaoTest {
 
 
     private void dropTable(Connection con) throws SQLException {
-        con.createStatement().execute("drop table IF EXISTS demo_long_obj_id");
+        con.createStatement().execute("drop table IF EXISTS demo_long_id");
     }
 
     private void createTable(Connection con) throws SQLException {
-        String sql = "create table demo_long_obj_id  (" +
+        String sql = "create table demo_long_id  (" +
                 "id bigint primary key not null AUTO_INCREMENT, \n" +
                 "create_time bigint,\n" +
                 "local_date_time bigint" +

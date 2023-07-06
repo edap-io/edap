@@ -36,7 +36,6 @@ public class EntityDaoTest extends AbstractDaoTest {
         String createSql = "create table demo \n" +
                 "( \n" +
                 "id bigint primary key not null AUTO_INCREMENT, \n" +
-                "age varchar(200) null, \n" +
                 "create_time bigint, \n" +
                 "local_date_time bigint" +
                 ")";
@@ -65,7 +64,6 @@ public class EntityDaoTest extends AbstractDaoTest {
             demo.setId(1);
             long createTime = System.currentTimeMillis();
             demo.setCreateTime(createTime);
-            demo.setField1("23");
             long localTime = System.currentTimeMillis();
             demo.setLocalDateTime(System.currentTimeMillis());
 
@@ -76,7 +74,6 @@ public class EntityDaoTest extends AbstractDaoTest {
             ResultSet rs = con.createStatement().executeQuery("select * from demo");
             while (rs.next()) {
                 assertEquals(rs.getLong("id"), 1);
-                assertEquals(rs.getString("age"), "23");
                 assertEquals(rs.getLong("create_time"), createTime);
                 assertEquals(rs.getLong("local_date_time"), localTime);
             }
