@@ -30,43 +30,18 @@ import static io.edap.protobuf.wire.WireFormat.FIXED_64_SIZE;
 public abstract class AbstractReader implements ProtoBufReader {
 
     static final ThreadLocal<Integer[]> LOCAL_TMP_INTEGER_ARRAY =
-            new ThreadLocal<Integer[]>() {
-                @Override
-                protected Integer[] initialValue() {
-                    return new Integer[100];
-                }
-            };
+            ThreadLocal.withInitial(() -> new Integer[100]);
     static final ThreadLocal<int[]> LOCAL_TMP_INT_ARRAY =
-            new ThreadLocal<int[]>() {
-                @Override
-                protected int[] initialValue() {
-                    return new int[100];
-                }
-            };
+            ThreadLocal.withInitial(() -> new int[100]);
 
     static final ThreadLocal<char[]> LOCAL_TMP_CHAR_ARRAY =
-            new ThreadLocal<char[]>() {
-                @Override
-                protected char[] initialValue() {
-                    return new char[4096];
-                }
-            };
+            ThreadLocal.withInitial(() -> new char[4096]);
 
     static final ThreadLocal<Long[]> LOCAL_TMP_LONG_ARRAY =
-            new ThreadLocal<Long[]>() {
-                @Override
-                protected Long[] initialValue() {
-                    return new Long[100];
-                }
-            };
+            ThreadLocal.withInitial(() -> new Long[100]);
 
     static final ThreadLocal<long[]> LOCAL_TMP_LONG_VALUE_ARRAY =
-            new ThreadLocal<long[]>() {
-                @Override
-                protected long[] initialValue() {
-                    return new long[100];
-                }
-            };
+            ThreadLocal.withInitial(() -> new long[100]);
 
     @Override
     public boolean readBool() throws ProtoBufException {

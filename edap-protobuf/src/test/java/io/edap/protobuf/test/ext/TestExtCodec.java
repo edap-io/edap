@@ -16,7 +16,9 @@
 
 package io.edap.protobuf.test.ext;
 
+import io.edap.json.Eson;
 import io.edap.protobuf.EncodeException;
+import io.edap.protobuf.ProtoBuf;
 import io.edap.protobuf.ProtoBufException;
 import io.edap.protobuf.ProtoBufWriter;
 import io.edap.protobuf.ext.AnyCodec;
@@ -28,9 +30,16 @@ import io.edap.protobuf.reader.ByteArrayReader;
 import io.edap.protobuf.writer.StandardProtoBufWriter;
 import io.edap.protobuf.writer.StandardReverseWriter;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Map;
 
 import static io.edap.protobuf.ext.AnyCodec.RANGE_CLASS;
 import static io.edap.protobuf.ext.AnyCodec.RANGE_NULL;
+import static io.edap.protobuf.test.TestUtil.conver2HexStr;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -38,6 +47,52 @@ import static org.junit.jupiter.api.Assertions.*;
  * @date : 2021/10/21
  */
 public class TestExtCodec {
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "{\"name\":\"louis\"}",
+            "{\"name1\":\"louis\",\"name2\":\"louis\",\"name3\":\"louis\",\"name4\":\"louis\","
+                    + "\"name5\":\"louis\",\"name6\":\"louis\",\"name7\":\"louis\",\"name8\":\"louis\","
+                    + "\"name9\":\"louis\",\"name10\":\"louis\",\"name11\":\"louis\",\"name12\":\"louis\","
+                    + "\"name13\":\"louis\",\"name14\":\"louis\",\"name15\":\"louis\",\"name16\":\"louis\"}"
+    })
+    public void testCodecHashMap(String value) throws EncodeException, ProtoBufException {
+        Map<String, Object> map = Eson.parseJsonObject(value);
+        HashMap<String, Object> hashMap = new HashMap<>();
+        hashMap.putAll(map);
+        byte[] epb = ProtoBuf.ser(hashMap);
+        byte[] repb = ProtoBuf.ser(hashMap, ProtoBufWriter.WriteOrder.REVERSE);
+        System.out.println("<====================================================");
+        System.out.println(epb.length);
+        System.out.println(conver2HexStr(epb));
+        System.out.println("-----------------------------------------------------");
+        System.out.println(repb.length);
+        System.out.println(conver2HexStr(repb));
+        System.out.println("====================================================>");
+        HashMap<String, Object> nmap = (HashMap<String, Object>)ProtoBuf.der(epb);
+        Iterator<String> keys = nmap.keySet().iterator();
+        boolean equals = true;
+        while (keys.hasNext()) {
+            String key = keys.next();
+            Object v = hashMap.get(key);
+            if (v == null || !v.equals(nmap.get(key))) {
+                equals = false;
+            }
+        }
+        assertTrue(equals);
+
+        nmap = (HashMap<String, Object>)ProtoBuf.der(repb);
+        keys = nmap.keySet().iterator();
+        equals = true;
+        while (keys.hasNext()) {
+            String key = keys.next();
+            Object v = hashMap.get(key);
+            if (v == null || !v.equals(nmap.get(key))) {
+                equals = false;
+            }
+        }
+        assertTrue(equals);
+    }
 
     @Test
     void testCodecNullEx() {

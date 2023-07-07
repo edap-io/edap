@@ -57,7 +57,8 @@ public class TestFieldObject {
             "😁a文c",
             "a文c😁",
             "a😿文c😁",
-            "abcdefgh，中文内容，a😁文c，a文c😁，abcdefgh，中文内容，a😁文c，a文c😁"
+            "abcdefgh，中文内容，a😁文c，a文c😁，abcdefgh，中文内容，a😁文c，a文c😁:" +
+                    "::abcdefgh，中文内容，a😁文c，a文c😁，abcdefgh，中文内容，a😁文c，a文c😁"
     })
     void testStringCodec(String value) throws EncodeException, ProtoBufException {
         FieldObject fo = new FieldObject();
