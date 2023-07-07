@@ -516,7 +516,7 @@ public class ProtoBufEncoderGenerator {
         MethodVisitor mv;
         mv = cw.visitMethod(ACC_PRIVATE, methodName,
                 "(L" + WRITER_NAME + ";IL" + mapName + ";)V",
-                "(L" + WRITER_NAME + ";I" + rType + ")V", null);
+                "(L" + WRITER_NAME + ";I" + rType + ")V", new String[] { ENCODE_EX_NAME });
 
         mv.visitCode();
         mv.visitVarInsn(ALOAD, 3);
@@ -975,7 +975,7 @@ public class ProtoBufEncoderGenerator {
         MethodVisitor mv;
         mv = cw.visitMethod(ACC_PRIVATE, name,
                 "(L" + WRITER_NAME + ";L" + typeName + ";)V",
-                "(L" + WRITER_NAME + ";" + typeDescriptor + ")V", null);
+                "(L" + WRITER_NAME + ";" + typeDescriptor + ")V", new String[] { ENCODE_EX_NAME });
         mv.visitCode();
         mv.visitVarInsn(ALOAD, 2);
         visitMethod(mv, INVOKESTATIC, COLLECTION_UTIL,
@@ -1144,7 +1144,8 @@ public class ProtoBufEncoderGenerator {
         String arrayMethod = getInnerArrayMethod(type);
         MethodVisitor mv;
         mv = cw.visitMethod(ACC_PRIVATE, arrayMethod,
-                "(L" + WRITER_NAME + ";[B[" + itemName + ")V", null, null);
+                "(L" + WRITER_NAME + ";[B[" + itemName + ")V", null,
+                new String[] { ENCODE_EX_NAME });
         mv.visitCode();
         mv.visitVarInsn(ALOAD, 3);
         Label l0 = new Label();
@@ -1173,16 +1174,25 @@ public class ProtoBufEncoderGenerator {
             mv.visitVarInsn(ILOAD, 4);
             l3 = new Label();
             mv.visitJumpInsn(IF_ICMPGE, l3);
-            mv.visitVarInsn(ALOAD, 0);
-            mv.visitVarInsn(ALOAD, 1);
-            mv.visitVarInsn(ALOAD, 2);
-            mv.visitVarInsn(ALOAD, 3);
-            mv.visitVarInsn(ILOAD, 5);
-            mv.visitInsn(AALOAD);
-
             String writeMethod = getWriteMethod(pfi.protoField.type());
-            visitMethod(mv, INVOKEVIRTUAL, pojoCodecName, writeMethod,
-                    "(L" + WRITER_NAME + ";[B" + itemName + ")V", false);
+            if (pfi.protoField.type() != Type.OBJECT) {
+                mv.visitVarInsn(ALOAD, 0);
+                mv.visitVarInsn(ALOAD, 1);
+                mv.visitVarInsn(ALOAD, 2);
+                mv.visitVarInsn(ALOAD, 3);
+                mv.visitVarInsn(ILOAD, 5);
+                mv.visitInsn(AALOAD);
+                visitMethod(mv, INVOKEVIRTUAL, pojoCodecName, writeMethod,
+                        "(L" + WRITER_NAME + ";[B" + itemName + ")V", false);
+            } else {
+                mv.visitVarInsn(ALOAD, 1);
+                mv.visitVarInsn(ALOAD, 2);
+                mv.visitVarInsn(ALOAD, 3);
+                mv.visitVarInsn(ILOAD, 5);
+                mv.visitInsn(AALOAD);
+                visitMethod(mv, INVOKEINTERFACE, WRITER_NAME, writeMethod,
+                        "([BLjava/lang/Object;)V", true);
+            }
             mv.visitIincInsn(5, 1);
         } else {
             mv.visitVarInsn(ILOAD, 4);

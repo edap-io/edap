@@ -630,6 +630,14 @@ public class ProtoUtil {
                 typeInfo.setMessageInfo(msgInfo);
                 typeInfo.setProtoType(Type.BYTES);
                 break;
+            case "java.io.Serializable":
+            case "java.lang.Object":
+                msgInfo = new MessageInfo();
+                msgInfo.setMessageName(Type.OBJECT.value());
+                msgInfo.setJavaType(javaType);
+                typeInfo.setMessageInfo(msgInfo);
+                typeInfo.setProtoType(Type.OBJECT);
+                break;
             default:
                 msgInfo = new MessageInfo();
                 msgInfo.setMessageName(Type.MESSAGE.name());
@@ -645,6 +653,8 @@ public class ProtoUtil {
             Class arrayCls = (Class)type;
             return arrayCls.isArray() && !"[B".equals(arrayCls.getName())
                     && !"[Ljava.lang.Byte;".equals(arrayCls.getName());
+        } else if (type instanceof GenericArrayType) {
+            return true;
         }
         return false;
     }

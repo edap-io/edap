@@ -52,7 +52,7 @@ public class ClazzUtil {
             }
         } else if (type instanceof GenericArrayType) {
             GenericArrayType gat = (GenericArrayType)type;
-            sb.append(getDescriptor(gat.getGenericComponentType()));
+            sb.append("[").append(getDescriptor(gat.getGenericComponentType()));
         } else if (type instanceof WildcardType) {
             sb.append("?");
         } else {

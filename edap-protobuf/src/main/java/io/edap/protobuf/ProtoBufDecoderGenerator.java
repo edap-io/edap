@@ -27,6 +27,7 @@ import io.edap.util.internal.GeneratorClassInfo;
 import org.objectweb.asm.*;
 
 import java.io.IOException;
+import java.lang.reflect.GenericArrayType;
 import java.lang.reflect.ParameterizedType;
 import java.util.*;
 
@@ -378,8 +379,15 @@ public class ProtoBufDecoderGenerator {
                 } else {
                     mv.visitVarInsn(ALOAD, aArrayTag.get(pfi.protoField.tag()));
                     mv.visitVarInsn(ALOAD, 1);
+                    String resType = readMethod.returnType;
+                    if (readMethod.method.equals("readObject")) {
+                        resType = "Ljava/lang/Object;";
+                    }
                     visitMethod(mv, INVOKEINTERFACE, READER_NAME, readMethod.method,
-                            "()" + readMethod.returnType, true);
+                                "()" + resType, true);
+                    if (!readMethod.returnType.equals("Ljava/lang/Object;")) {
+                        mv.visitTypeInsn(CHECKCAST, readMethod.returnType.substring(1, readMethod.returnType.length()-1));
+                    }
                     visitMethod(mv, INVOKEINTERFACE, "java/util/List", "add",
                             "(Ljava/lang/Object;)Z", true);
                     mv.visitInsn(POP);
@@ -545,8 +553,15 @@ public class ProtoBufDecoderGenerator {
                 String timeUtil = toInternalName(TimeUtil.class.getName());
                 mv.visitVarInsn(ALOAD, 2);
                 mv.visitVarInsn(ALOAD, 1);
+                String resType = readMethod.returnType;
+                if ("readObject".equals(readMethod.method)) {
+                    resType = "Ljava/lang/Object;";
+                }
                 visitMethod(mv, INVOKEINTERFACE, READER_NAME, readMethod.method,
-                        "()" + readMethod.returnType, true);
+                        "()" + resType, true);
+                if (readMethod.returnType.equals("Ljava/lang/Object;")) {
+                    mv.visitTypeInsn(CHECKCAST, resType.substring(1, resType.length()-1));
+                }
                 if ("java.util.Date".equals(pfi.field.getType().getName())) {
                     mv.visitMethodInsn(INVOKESTATIC, timeUtil, "toDate", "(J)Ljava/util/Date;", false);
                 } else if ("java.util.Calendar".equals(pfi.field.getType().getName())) {
@@ -1232,6 +1247,15 @@ public class ProtoBufDecoderGenerator {
                 if (isList) {
                     rmi.method = "readObject";
                     rmi.returnType = getDescriptor(Object.class);
+                } else if (isArray) {
+                    rmi.method = "readObject";
+                    if (pfi.field.getGenericType() instanceof GenericArrayType) {
+                        java.lang.reflect.Type itemType = ((GenericArrayType)pfi.field.getGenericType())
+                                .getGenericComponentType();
+                        rmi.returnType = getDescriptor(itemType);
+                    } else {
+                        rmi.returnType = getDescriptor(pfi.field.getGenericType());
+                    }
                 } else {
                     rmi.method = "readObject";
                     rmi.returnType = getDescriptor(pfi.field.getGenericType());
