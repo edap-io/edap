@@ -5,12 +5,7 @@
 
 package edao.io.edap.data.jdbc.test.entity;
 
-import io.edap.data.JdbcBaseDao;
-import io.edap.data.JdbcDaoRegister;
-import io.edap.data.JdbcEntityDao;
-import io.edap.data.JdbcFieldSetFunc;
-import io.edap.data.QueryParam;
-import io.edap.data.StatementSession;
+import io.edap.data.*;
 import io.edap.data.jdbc.test.entity.DemoAllType;
 import io.edap.data.util.Convertor;
 import io.edap.util.CollectionUtils;
@@ -25,7 +20,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-public class DemoAllTypeJdbcEntityDao2 extends JdbcBaseDao implements JdbcEntityDao<DemoAllType> {
+public class DemoAllTypeJdbcEntityDao2 extends JdbcBaseEntityDao implements JdbcEntityDao<DemoAllType> {
     static Map<String, JdbcFieldSetFunc<DemoAllType>> FIELD_SET_FUNCS = new ConcurrentHashMap();
 
     public DemoAllTypeJdbcEntityDao2() {

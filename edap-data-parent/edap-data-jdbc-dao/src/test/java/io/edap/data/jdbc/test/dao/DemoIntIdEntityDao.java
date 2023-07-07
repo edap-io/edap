@@ -17,7 +17,6 @@
 package io.edap.data.jdbc.test.dao;
 
 import io.edap.data.*;
-import io.edap.data.jdbc.test.entity.Demo;
 import io.edap.data.jdbc.test.entity.DemoIntId;
 import io.edap.util.CollectionUtils;
 
@@ -33,7 +32,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import static io.edap.util.Constants.EMPTY_LIST;
 
 
-public class DemoIntIdEntityDao extends JdbcBaseDao implements JdbcEntityDao<DemoIntId> {
+public class DemoIntIdEntityDao extends JdbcBaseEntityDao implements JdbcEntityDao<DemoIntId> {
 
     static Map<String, JdbcFieldSetFunc<DemoIntId>> FIELD_SET_FUNCS = new ConcurrentHashMap<>();
 

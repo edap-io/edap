@@ -49,7 +49,7 @@ public class JdbcEntityDaoGenerator extends BaseDaoGenerator {
         this.entity = entity;
         this.entityName = toInternalName(entity.getName());
         this.daoName = toInternalName(getEntityDaoName(entity));
-        this.PARENT_NAME = toInternalName(JdbcBaseDao.class.getName());
+        this.PARENT_NAME = toInternalName(JdbcBaseEntityDao.class.getName());
         this.daoOption = daoOption;
     }
 
