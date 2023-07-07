@@ -27,6 +27,7 @@ public class AllTypeEntityTest extends AbstractDaoTest {
         Connection con = null;
         JdbcEntityDao<DemoAllType> allDao = JdbcDaoRegister.instance().getEntityDao(DemoAllType.class, new DaoOption());
         try {
+            ((JdbcBaseDao)allDao).getStatementSession().setDataSource(null);
             con = openConnection();
             dropTable(con);
             createTable(con);
