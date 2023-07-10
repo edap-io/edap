@@ -61,7 +61,7 @@ public class DaoUtil {
         return qInfo;
     }
 
-    public static UpdateInfo getUpdateByIdSql(Class entityClazz) {
+    public static UpdateInfo getUpdateByIdSql(Class entityClazz, DaoOption daoOption) {
         UpdateInfo updateInfo = new UpdateInfo();
         if (entityClazz == null) {
             updateInfo.setUpdateSql(EMPTY_STRING);
@@ -90,6 +90,13 @@ public class DaoUtil {
                 String column = jdbcInfo.getColumnName();
                 sb.append(column).append("=?");
                 updateColumns.add(jdbcInfo);
+            }
+            if (idField == null && daoOption != null && !isEmpty(daoOption.getIdFieldName())) {
+                for (JdbcInfo jdbcInfo : allColumns) {
+                    if (jdbcInfo.getField().getName().equals(daoOption.getIdFieldName())) {
+                        idField = jdbcInfo;
+                    }
+                }
             }
             sb.append(" where ").append(idField.getColumnName()).append("=?");
         }
@@ -358,6 +365,8 @@ public class DaoUtil {
                 typeInfo.type = "Ljava/sql/Time;";
                 return typeInfo;
             case "java.time.LocalDateTime":
+            case "java.util.Date":
+            case "java.util.Calendar":
                 typeInfo.setMethod = "setTimestamp";
                 typeInfo.type = "Ljava/sql/Timestamp;";
                 return typeInfo;
@@ -445,14 +454,10 @@ public class DaoUtil {
             }
             Id id = getFieldId(f, fieldGetMethods);
             GeneratedValue generatedValue = getFieldGeneratedValue(f, fieldGetMethods);
-            GenerationType curType = null;
             if (id != null) {
                 columnsInfo.setIdField(f);
                 columnsInfo.setIdSetMethod(fieldSetMethods.get(f.getName()));
                 columnsInfo.setIdGetMethod(fieldGetMethods.get(f.getName()));
-            }
-            if (id != null && generatedValue != null) {
-                curType = generationType = generatedValue.strategy();
             }
 
             Column column = getFieldColumn(f, fieldGetMethods);
@@ -735,11 +740,6 @@ public class DaoUtil {
             }
         }
         return sb.toString();
-    }
-
-    public static void main(String[] args) {
-        String name = "ID";
-        System.out.println(toUnderScore(name));
     }
 
     /**

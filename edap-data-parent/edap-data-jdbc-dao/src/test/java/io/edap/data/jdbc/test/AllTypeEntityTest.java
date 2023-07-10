@@ -16,6 +16,7 @@ import java.time.LocalTime;
 import java.time.temporal.ChronoUnit;
 import java.time.temporal.TemporalUnit;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -62,6 +63,7 @@ public class AllTypeEntityTest extends AbstractDaoTest {
                 assertArrayEquals(demo.getFieldByteArray(), rs.getBytes("field_byte_array"));
                 assertEquals(demo.getFieldBigDecimal(), rs.getBigDecimal("field_big_decimal"));
                 assertEquals(demo.getFieldStr(), rs.getString("field_str"));
+                assertEquals(demo.getFieldUtilDate().getTime(), rs.getTimestamp("field_util_date").getTime());
                 rows++;
             }
             assertEquals(rows, 1);
@@ -119,6 +121,7 @@ public class AllTypeEntityTest extends AbstractDaoTest {
                 assertArrayEquals(demo.getFieldByteArray(), rs.getBytes("field_byte_array"));
                 assertEquals(demo.getFieldBigDecimal(), rs.getBigDecimal("field_big_decimal"));
                 assertEquals(demo.getFieldStr(), rs.getString("field_str"));
+                assertEquals(demo.getFieldUtilDate().getTime(), rs.getTimestamp("field_util_date").getTime());
                 rows++;
             }
             assertEquals(rows, 5);
@@ -163,6 +166,7 @@ public class AllTypeEntityTest extends AbstractDaoTest {
                 assertArrayEquals(demo.getFieldByteArray(), rs.getBytes("field_byte_array"));
                 assertEquals(demo.getFieldBigDecimal(), rs.getBigDecimal("field_big_decimal"));
                 assertEquals(demo.getFieldStr(), rs.getString("field_str"));
+                assertEquals(demo.getFieldUtilDate().getTime(), rs.getTimestamp("field_util_date").getTime());
                 rows++;
             }
             assertEquals(rows, 5);
@@ -762,6 +766,7 @@ public class AllTypeEntityTest extends AbstractDaoTest {
         assertArrayEquals(demo.getFieldByteArray(), qdemo.getFieldByteArray());
         assertEquals(demo.getFieldBigDecimal(), qdemo.getFieldBigDecimal());
         assertEquals(demo.getFieldStr(), qdemo.getFieldStr());
+        assertEquals(demo.getFieldUtilDate().getTime(), qdemo.getFieldUtilDate().getTime());
     }
 
     private DemoAllType buildDemoAllType(int seq) {
@@ -788,6 +793,7 @@ public class AllTypeEntityTest extends AbstractDaoTest {
         d.setFieldStr("fieldStrValue" + seq);
         d.setFieldByteArray(String.valueOf(System.currentTimeMillis()).getBytes());
         d.setFieldBigDecimal(new BigDecimal("9876543.21"));
+        d.setFieldUtilDate(new Date());
         d.setId(seq);
         return d;
     }
@@ -816,6 +822,7 @@ public class AllTypeEntityTest extends AbstractDaoTest {
         d.setFieldStr(demo.getFieldStr() + 1);
         d.setFieldByteArray(String.valueOf(System.currentTimeMillis() + 1).getBytes());
         d.setFieldBigDecimal(demo.getFieldBigDecimal().add(new BigDecimal(1)));
+        d.setFieldUtilDate(demo.getFieldUtilDate());
         d.setId(demo.getId());
         return d;
     }
@@ -848,7 +855,8 @@ public class AllTypeEntityTest extends AbstractDaoTest {
                 "field_char varchar(1)," +
                 "field_char_obj varchar(1)," +
                 "field_byte_array VARBINARY(1000)," +
-                "field_big_decimal NUMERIC(20, 2)" +
+                "field_big_decimal NUMERIC(20, 2)," +
+                "field_util_date TIMESTAMP" +
                 ")";
         con.createStatement().execute(sql);
     }

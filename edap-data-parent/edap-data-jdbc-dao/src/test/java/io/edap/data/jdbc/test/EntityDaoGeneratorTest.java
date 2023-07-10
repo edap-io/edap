@@ -57,4 +57,22 @@ public class EntityDaoGeneratorTest {
         JdbcMapDao mapDao = JdbcDaoRegister.instance().getMapDao();
         assertNotNull(mapDao);
     }
+
+    @Test
+    public void testSetIdFieldName() {
+        DaoOption daoOption = new DaoOption();
+        daoOption.setIdFieldName("orderId");
+        JdbcEntityDao<DemoNoIdField> dao = JdbcDaoRegister.instance().getEntityDao(DemoNoIdField.class,
+                daoOption);
+        assertNotNull(dao);
+    }
+
+    @Test
+    public void testSetIdFieldNameHasAnn() {
+        DaoOption daoOption = new DaoOption();
+        daoOption.setIdFieldName("orderId");
+        JdbcEntityDao<DemoNoIdFieldHasAnn> dao = JdbcDaoRegister.instance().getEntityDao(DemoNoIdFieldHasAnn.class,
+                daoOption);
+        assertNotNull(dao);
+    }
 }

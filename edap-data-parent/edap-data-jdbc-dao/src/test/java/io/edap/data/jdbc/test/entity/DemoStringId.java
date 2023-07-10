@@ -1,10 +1,11 @@
 package io.edap.data.jdbc.test.entity;
 
+import io.edap.data.annotation.Column;
 import io.edap.data.annotation.Id;
 
 public class DemoStringId {
 
-    @Id
+    @Column(name = "id")
     //@GeneratedValue(strategy = GenerationType.IDENTITY)
     private String id;
     private long createTime;

@@ -18,14 +18,27 @@ package io.edap.data.jdbc.test;
 
 import io.edap.data.DaoOption;
 import io.edap.data.JdbcDaoRegister;
+import io.edap.data.annotation.Column;
+import io.edap.data.annotation.GeneratedValue;
+import io.edap.data.annotation.Id;
+import io.edap.data.jdbc.test.entity.DaoUtilDemo;
 import io.edap.data.jdbc.test.entity.Demo;
+import io.edap.data.jdbc.test.entity.DemoIdMethodGeneratedValue;
+import io.edap.data.jdbc.test.entity.NoFieldDemo;
+import io.edap.data.model.ColumnsInfo;
 import io.edap.data.model.InsertInfo;
 import io.edap.data.model.JdbcInfo;
 import io.edap.data.model.UpdateInfo;
+import io.edap.data.util.DaoUtil;
 import org.junit.jupiter.api.Test;
 
+import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static io.edap.data.util.DaoUtil.*;
 import static io.edap.util.AsmUtil.toInternalName;
@@ -85,13 +98,9 @@ public class DaoUtilTest {
 
     @Test
     public void testGetUpdateByIdSql() {
-        UpdateInfo updateInfo = getUpdateByIdSql(null);
+        UpdateInfo updateInfo = getUpdateByIdSql(null, null);
         assertNotNull(updateInfo);
         assertEquals(updateInfo.getUpdateSql(), EMPTY_STRING);
-    }
-
-    static class NoFieldDemo {
-
     }
 
     static class HasBooleanFieldDemo {
@@ -157,5 +166,126 @@ public class DaoUtilTest {
         cls = long.class;
         name = getBoxedName(cls);
         assertEquals(name, toInternalName(Long.class.getName()));
+    }
+
+    @Test
+    public void testGetTableName() {
+        String tbName = getTableName(DaoUtilDemo.class);
+        assertEquals(tbName, "dao_demo");
+    }
+
+    @Test
+    public void testToUnderScore() {
+        String camel = "";
+        String underScore = toUnderScore(camel);
+        assertEquals("", underScore);
+
+        camel = null;
+        underScore = toUnderScore(camel);
+        assertEquals("", underScore);
+
+        camel = "testTCP";
+        underScore = toUnderScore(camel);
+        assertEquals("test_tcp", underScore);
+
+        camel = "testT";
+        underScore = toUnderScore(camel);
+        assertEquals("testt", underScore);
+
+        camel = "testTCPUdp";
+        underScore = toUnderScore(camel);
+        assertEquals("test_tcp_udp", underScore);
+    }
+
+    @Test
+    public void testIsAutoIncrementType() {
+        assertFalse(isAutoIncrementType(null));
+    }
+
+    @Test
+    public void testGetFieldColumn() throws NoSuchMethodException, NoSuchFieldException, InvocationTargetException, IllegalAccessException {
+        Method m = DaoUtil.class.getDeclaredMethod("getFieldColumn", new Class[]{Field.class, Map.class});
+        Field namefield = DaoUtilDemo.class.getDeclaredField("name");
+        Field countField = DaoUtilDemo.class.getDeclaredField("count");
+        Map<String, Method> getMethods = new HashMap<>();
+        Method getMethod = DaoUtilDemo.class.getMethod("getCount", new Class[0]);
+        getMethods.put("count", getMethod);
+
+        m.setAccessible(true);
+        Column column = (Column)m.invoke(null, namefield, getMethods);
+        assertEquals(column.name(), "last_name");
+
+        column = (Column)m.invoke(null, countField, getMethods);
+        assertEquals(column.name(), "buy_count");
+    }
+
+    @Test
+    public void setGetFieldId() throws NoSuchMethodException, NoSuchFieldException, InvocationTargetException, IllegalAccessException {
+        Method m = DaoUtil.class.getDeclaredMethod("getFieldId", new Class[]{Field.class, Map.class});
+        Field idField = DaoUtilDemo.class.getDeclaredField("id");
+        Map<String, Method> getMethods = new HashMap<>();
+        Method getMethod = DaoUtilDemo.class.getMethod("getId", new Class[0]);
+        getMethods.put("id", getMethod);
+
+        m.setAccessible(true);
+        Id id = (Id)m.invoke(null, idField, getMethods);
+        assertNotNull(id);
+    }
+
+    @Test
+    public void testGetMethodIdAnnotation() throws NoSuchMethodException, NoSuchFieldException, InvocationTargetException, IllegalAccessException {
+        Method m = DaoUtil.class.getDeclaredMethod("getMethodIdAnnotation", new Class[]{Method.class});
+        Method idMethod = DaoUtilDemo.class.getDeclaredMethod("getId", new Class[0]);
+
+        Id id = (Id)m.invoke(null, idMethod);
+        assertNotNull(id);
+    }
+
+    @Test
+    public void testIsIdField() throws NoSuchMethodException, NoSuchFieldException, InvocationTargetException, IllegalAccessException {
+        Method m = DaoUtil.class.getDeclaredMethod("isIdField", new Class[]{Field.class, Method.class});
+        Field idField = DaoUtilDemo.class.getDeclaredField("id");
+        Method idMethod = DaoUtilDemo.class.getDeclaredMethod("getId", new Class[0]);
+
+        boolean isId = (boolean)m.invoke(null, idField, idMethod);
+        assertTrue(isId);
+    }
+
+    @Test
+    public void testGetFieldGeneratedValue() throws NoSuchMethodException, NoSuchFieldException, InvocationTargetException, IllegalAccessException {
+        Method m = DaoUtil.class.getDeclaredMethod("getFieldGeneratedValue", new Class[]{
+                Field.class, Map.class
+        });
+
+        Field idField = DaoUtilDemo.class.getDeclaredField("id");
+        Map<String, Method> getMethods = new HashMap<>();
+        Method getMethod = DaoUtilDemo.class.getMethod("getId", new Class[0]);
+        m.setAccessible(true);
+        GeneratedValue gv = (GeneratedValue)m.invoke(null, idField, getMethods);
+        assertNotNull(gv);
+
+        idField = DemoIdMethodGeneratedValue.class.getDeclaredField("id");
+        getMethod = DemoIdMethodGeneratedValue.class.getMethod("getId", new Class[0]);
+        getMethods.put("id", getMethod);
+        m.setAccessible(true);
+        gv = (GeneratedValue)m.invoke(null, idField, getMethods);
+        assertNotNull(gv);
+    }
+
+    @Test
+    public void testSearchFieldByName() throws NoSuchMethodException, InvocationTargetException, IllegalAccessException {
+        Method m = DaoUtil.class.getDeclaredMethod("searchFieldByName", new Class[]{
+                List.class, String.class
+        });
+        m.setAccessible(true);
+        Object v = m.invoke(null, null, "name");
+        assertNull(v);
+    }
+
+    @Test
+    public void testGetColumns() {
+        ColumnsInfo ci = getColumns(NoFieldDemo.class, new DaoOption());
+        assertNotNull(ci);
+        assertEquals(ci.getColumns().size(), 0);
     }
 }

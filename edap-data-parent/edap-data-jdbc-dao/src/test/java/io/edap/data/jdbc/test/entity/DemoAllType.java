@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.Date;
 
 public class DemoAllType {
 
@@ -50,6 +51,8 @@ public class DemoAllType {
     private byte[] fieldByteArray;
 
     private BigDecimal fieldBigDecimal;
+
+    private Date fieldUtilDate;
 
     public long getId() {
         return id;
@@ -233,5 +236,13 @@ public class DemoAllType {
 
     public void setFieldBigDecimal(BigDecimal fieldBigDecimal) {
         this.fieldBigDecimal = fieldBigDecimal;
+    }
+
+    public Date getFieldUtilDate() {
+        return fieldUtilDate;
+    }
+
+    public void setFieldUtilDate(Date fieldUtilDate) {
+        this.fieldUtilDate = fieldUtilDate;
     }
 }

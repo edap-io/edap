@@ -108,7 +108,7 @@ public class JdbcEntityDaoGenerator extends BaseDaoGenerator {
                 new String[] { "java/lang/Exception" });
         mv.visitCode();
 
-        UpdateInfo updateInfo = getUpdateByIdSql(entity);
+        UpdateInfo updateInfo = getUpdateByIdSql(entity, daoOption);
 
         Label lbInnerTry     = new Label();
         Label lbInnerFinally = new Label();

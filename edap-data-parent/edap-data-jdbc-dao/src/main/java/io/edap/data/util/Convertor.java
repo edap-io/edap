@@ -49,11 +49,11 @@ public class Convertor {
         return java.sql.Timestamp.valueOf(localDateTime);
     }
 
-    public static java.sql.Date toJavaSqlDate(java.util.Date date) {
-        return new java.sql.Date(date.getTime());
+    public static java.sql.Timestamp toJavaSqlTimestamp(java.util.Date date) {
+        return new java.sql.Timestamp(date.getTime());
     }
 
-    public static java.util.Date toJavaUtilDate(java.sql.Date sqlDate) {
+    public static java.util.Date toJavaUtilDate(java.sql.Timestamp sqlDate) {
         return new java.util.Date(sqlDate.getTime());
     }
 
