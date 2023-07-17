@@ -16,8 +16,7 @@
 
 package io.edap.protobuf;
 
-import io.edap.protobuf.ProtoBuf.EncodeType;
-import io.edap.protobuf.ProtoBufWriter.WriteOrder;
+import io.edap.protobuf.model.ProtoBufOption;
 import io.edap.util.CollectionUtils;
 import io.edap.util.internal.GeneratorClassInfo;
 
@@ -75,7 +74,7 @@ public enum ProtoBufCodecRegister {
             lock.lock();
             encoder = encoders.get(msgCls);
             if (encoder == null) {
-                encoder = generateEncoder(msgCls, WriteOrder.SEQUENTIAL);
+                encoder = generateEncoder(msgCls, new ProtoBufOption());
                 if (encoder != null) {
                     encoders.put(msgCls, encoder);
                 }
@@ -89,11 +88,8 @@ public enum ProtoBufCodecRegister {
         return encoder;
     }
 
-    public ProtoBufEncoder getEncoder(Class msgCls, WriteOrder writeOrder) {
+    public ProtoBufEncoder getEncoder(Class msgCls, ProtoBufOption option) {
         ProtoBufEncoder encoder;
-        if (writeOrder == WriteOrder.SEQUENTIAL) {
-            return getEncoder(msgCls);
-        }
         encoder = rencoders.get(msgCls);
         if (encoder != null) {
             return encoder;
@@ -102,7 +98,7 @@ public enum ProtoBufCodecRegister {
             lock.lock();
             encoder = rencoders.get(msgCls);
             if (encoder == null) {
-                encoder = generateEncoder(msgCls, WriteOrder.REVERSE);
+                encoder = generateEncoder(msgCls, option);
                 if (encoder != null) {
                     rencoders.put(msgCls, encoder);
                 }
@@ -131,7 +127,6 @@ public enum ProtoBufCodecRegister {
                 }
             }
         } catch (Throwable e) {
-            e.printStackTrace();
             throw new RuntimeException("generateDecoder " + msgCls.getName()
                     + " error", e);
         } finally {
@@ -177,9 +172,9 @@ public enum ProtoBufCodecRegister {
     }
 
 
-    private ProtoBufEncoder generateEncoder(Class cls, WriteOrder writeOrder) {
+    private ProtoBufEncoder generateEncoder(Class cls, ProtoBufOption option) {
         ProtoBufEncoder codec = null;
-        Class encoderCls = generateEncoderClass(cls, writeOrder);
+        Class encoderCls = generateEncoderClass(cls, option);
         if (encoderCls != null) {
             try {
                 codec = (ProtoBufEncoder)encoderCls.newInstance();
@@ -205,11 +200,11 @@ public enum ProtoBufCodecRegister {
         return codec;
     }
 
-    private Class generateEncoderClass(Class cls, WriteOrder writeOrder) {
+    private Class generateEncoderClass(Class cls, ProtoBufOption otpion) {
         Class encoderCls;
-        String encoderName = ProtoBufEncoderGenerator.getEncoderName(cls, EncodeType.STANDARD, writeOrder);
+        String encoderName = ProtoBufEncoderGenerator.getEncoderName(cls, otpion);
         try {
-            ProtoBufEncoderGenerator generator = new ProtoBufEncoderGenerator(cls, EncodeType.STANDARD, writeOrder);
+            ProtoBufEncoderGenerator generator = new ProtoBufEncoderGenerator(cls, otpion);
             GeneratorClassInfo gci = generator.getClassInfo();
             byte[] bs = gci.clazzBytes;
             saveJavaFile("./" + gci.clazzName + ".class", bs);
@@ -254,9 +249,10 @@ public enum ProtoBufCodecRegister {
 
     private Class generateDecoderClass(Class cls) {
         Class decoderCls;
-        String decoderName = ProtoBufDecoderGenerator.getDecoderName(cls, EncodeType.STANDARD);
+        ProtoBufOption option = new ProtoBufOption();
+        String decoderName = ProtoBufDecoderGenerator.getDecoderName(cls, option);
         try {
-            ProtoBufDecoderGenerator generator = new ProtoBufDecoderGenerator(cls, EncodeType.STANDARD);
+            ProtoBufDecoderGenerator generator = new ProtoBufDecoderGenerator(cls, option);
             GeneratorClassInfo gci = generator.getClassInfo();
             byte[] bs = gci.clazzBytes;
             saveJavaFile("./" + gci.clazzName + ".class", bs);

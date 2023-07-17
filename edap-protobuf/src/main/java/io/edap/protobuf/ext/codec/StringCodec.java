@@ -53,23 +53,12 @@ public class StringCodec implements ExtCodec<String> {
     public void encode(ProtoBufWriter writer, String s) throws EncodeException {
         int len = s.length();
         if (len < RANGE_STRING_END - RANGE_STRING_START) {
-            if (writer.getWriteOrder() == ProtoBufWriter.WriteOrder.SEQUENTIAL) {
-                writer.writeInt32(RANGE_STRING_START + len);
-                writer.writeStringUtf8(s, -1);
-            } else {
-                writer.writeStringUtf8(s, -1);
-                writer.writeInt32(RANGE_STRING_START + len);
-            }
+            writer.writeInt32(RANGE_STRING_START + len);
+            writer.writeStringUtf8(s, -1);
             return;
         }
-        if (writer.getWriteOrder() == ProtoBufWriter.WriteOrder.SEQUENTIAL) {
-            writer.writeInt32(RANGE_STRING_END);
-            writer.writeInt32(len);
-            writer.writeStringUtf8(s, -1);
-        } else {
-            writer.writeStringUtf8(s, -1);
-            writer.writeInt32(len);
-            writer.writeInt32(RANGE_STRING_END);
-        }
+        writer.writeInt32(RANGE_STRING_END);
+        writer.writeInt32(len);
+        writer.writeStringUtf8(s, -1);
     }
 }

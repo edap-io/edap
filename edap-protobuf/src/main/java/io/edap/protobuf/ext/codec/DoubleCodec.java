@@ -36,12 +36,7 @@ public class DoubleCodec implements ExtCodec<Double> {
 
     @Override
     public void encode(ProtoBufWriter writer, Double v) throws EncodeException {
-        if (writer.getWriteOrder() == ProtoBufWriter.WriteOrder.SEQUENTIAL) {
-            writer.writeByte((byte)RANGE_DOUBLE);
-            writer.writeFixed64(Double.doubleToRawLongBits(v));
-        } else {
-            writer.writeFixed64(Double.doubleToRawLongBits(v));
-            writer.writeByte((byte)RANGE_DOUBLE);
-        }
+        writer.writeByte((byte)RANGE_DOUBLE);
+        writer.writeFixed64(Double.doubleToRawLongBits(v));
     }
 }

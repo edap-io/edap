@@ -43,13 +43,8 @@ public class LocalTimeCodec implements ExtCodec<LocalTime> {
 
     @Override
     public void encode(ProtoBufWriter writer, LocalTime v) throws EncodeException {
-        if (writer.getWriteOrder() == ProtoBufWriter.WriteOrder.SEQUENTIAL) {
-            writer.writeByte((byte)RANGE_LOCALTIME);
-            writer.writeUInt64(v.atDate(START_DAY).toInstant(ZoneOffset.UTC).toEpochMilli());
-        } else {
-            writer.writeUInt64(v.atDate(START_DAY).toInstant(ZoneOffset.UTC).toEpochMilli());
-            writer.writeByte((byte)RANGE_LOCALTIME);
-        }
+        writer.writeByte((byte)RANGE_LOCALTIME);
+        writer.writeUInt64(v.atDate(START_DAY).toInstant(ZoneOffset.UTC).toEpochMilli());
     }
 
 }

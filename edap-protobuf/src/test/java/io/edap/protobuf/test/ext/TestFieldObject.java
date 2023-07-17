@@ -22,7 +22,6 @@ import io.edap.protobuf.EncodeException;
 import io.edap.protobuf.ProtoBuf;
 import io.edap.protobuf.ProtoBufException;
 import io.edap.protobuf.ProtoBufWriter;
-import io.edap.protobuf.ProtoBufWriter.WriteOrder;
 import io.edap.protobuf.test.message.ext.FieldObject;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -69,13 +68,6 @@ public class TestFieldObject {
         FieldObject nfo = ProtoBuf.toObject(epb, FieldObject.class);
         System.out.println(nfo.getObj());
         assertEquals(nfo.getObj(), value);
-
-        epb = ProtoBuf.toByteArray(fo, ProtoBufWriter.WriteOrder.REVERSE);
-        System.out.println(conver2HexStr(epb));
-
-        nfo = ProtoBuf.toObject(epb, FieldObject.class);
-        System.out.println(nfo.getObj());
-        assertEquals(nfo.getObj(), value);
     }
 
     @ParameterizedTest
@@ -94,13 +86,6 @@ public class TestFieldObject {
         System.out.println(conver2HexStr(epb));
 
         FieldObject nfo = ProtoBuf.toObject(epb, FieldObject.class);
-        System.out.println(((Integer)nfo.getObj()).intValue());
-        assertEquals(((Integer)nfo.getObj()).intValue(), value);
-
-        epb = ProtoBuf.toByteArray(fo, WriteOrder.REVERSE);
-        System.out.println(conver2HexStr(epb));
-
-        nfo = ProtoBuf.toObject(epb, FieldObject.class);
         System.out.println(((Integer)nfo.getObj()).intValue());
         assertEquals(((Integer)nfo.getObj()).intValue(), value);
     }
@@ -123,13 +108,6 @@ public class TestFieldObject {
         FieldObject nfo = ProtoBuf.toObject(epb, FieldObject.class);
         System.out.println(((Long)nfo.getObj()).longValue());
         assertEquals(((Long)nfo.getObj()).longValue(), value);
-
-        epb = ProtoBuf.toByteArray(fo, ProtoBufWriter.WriteOrder.REVERSE);
-        System.out.println(conver2HexStr(epb));
-
-        nfo = ProtoBuf.toObject(epb, FieldObject.class);
-        System.out.println(((Long)nfo.getObj()).longValue());
-        assertEquals(((Long)nfo.getObj()).longValue(), value);
     }
 
 
@@ -148,12 +126,6 @@ public class TestFieldObject {
         System.out.println(nfo.getObj());
         assertEquals(((Boolean)nfo.getObj()).booleanValue(), value);
 
-        epb = ProtoBuf.toByteArray(fo, ProtoBufWriter.WriteOrder.REVERSE);
-        System.out.println(conver2HexStr(epb));
-
-        nfo = ProtoBuf.toObject(epb, FieldObject.class);
-        System.out.println(nfo.getObj());
-        assertEquals(((Boolean)nfo.getObj()).booleanValue(), value);
     }
 
     @ParameterizedTest
@@ -172,12 +144,6 @@ public class TestFieldObject {
         System.out.println(nfo.getObj());
         assertEquals(((Double)nfo.getObj()).doubleValue(), value);
 
-        epb = ProtoBuf.toByteArray(fo, ProtoBufWriter.WriteOrder.REVERSE);
-        System.out.println(conver2HexStr(epb));
-
-        nfo = ProtoBuf.toObject(epb, FieldObject.class);
-        System.out.println(nfo.getObj());
-        assertEquals(((Double)nfo.getObj()).doubleValue(), value);
     }
 
     @ParameterizedTest
@@ -196,12 +162,6 @@ public class TestFieldObject {
         System.out.println(nfo.getObj());
         assertEquals(((Float)nfo.getObj()).floatValue(), value);
 
-        epb = ProtoBuf.toByteArray(fo, ProtoBufWriter.WriteOrder.REVERSE);
-        System.out.println(conver2HexStr(epb));
-
-        nfo = ProtoBuf.toObject(epb, FieldObject.class);
-        System.out.println(nfo.getObj());
-        assertEquals(((Float)nfo.getObj()).floatValue(), value);
     }
 
     @ParameterizedTest
@@ -220,12 +180,6 @@ public class TestFieldObject {
         System.out.println(timeF.format((Date)nfo.getObj()));
         assertEquals(nfo.getObj(), date);
 
-        epb = ProtoBuf.toByteArray(fo, ProtoBufWriter.WriteOrder.REVERSE);
-        System.out.println(conver2HexStr(epb));
-
-        nfo = ProtoBuf.toObject(epb, FieldObject.class);
-        System.out.println(timeF.format((Date)nfo.getObj()));
-        assertEquals(nfo.getObj(), date);
     }
 
     @ParameterizedTest
@@ -244,12 +198,6 @@ public class TestFieldObject {
         System.out.println(nfo.getObj());
         assertEquals(nfo.getObj(), date);
 
-        epb = ProtoBuf.toByteArray(fo, ProtoBufWriter.WriteOrder.REVERSE);
-        System.out.println(conver2HexStr(epb));
-
-        nfo = ProtoBuf.toObject(epb, FieldObject.class);
-        System.out.println(nfo.getObj());
-        assertEquals(nfo.getObj(), date);
     }
 
     @ParameterizedTest
@@ -267,12 +215,6 @@ public class TestFieldObject {
         System.out.println(((LocalDateTime)nfo.getObj()).format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS")));
         assertEquals(nfo.getObj(), date);
 
-        epb = ProtoBuf.toByteArray(fo, ProtoBufWriter.WriteOrder.REVERSE);
-        System.out.println(conver2HexStr(epb));
-
-        nfo = ProtoBuf.toObject(epb, FieldObject.class);
-        System.out.println(((LocalDateTime)nfo.getObj()).format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS")));
-        assertEquals(nfo.getObj(), date);
     }
 
     @ParameterizedTest
@@ -290,12 +232,6 @@ public class TestFieldObject {
         System.out.println(((LocalTime)nfo.getObj()).format(DateTimeFormatter.ofPattern("HH:mm:ss.SSS")));
         assertEquals(nfo.getObj(), date);
 
-        epb = ProtoBuf.toByteArray(fo, ProtoBufWriter.WriteOrder.REVERSE);
-        System.out.println(conver2HexStr(epb));
-
-        nfo = ProtoBuf.toObject(epb, FieldObject.class);
-        System.out.println(((LocalTime)nfo.getObj()).format(DateTimeFormatter.ofPattern("HH:mm:ss.SSS")));
-        assertEquals(nfo.getObj(), date);
     }
 
     @ParameterizedTest
@@ -315,12 +251,6 @@ public class TestFieldObject {
         System.out.println(nfo.getObj());
         assertEquals(nfo.getObj(), date);
 
-        epb = ProtoBuf.toByteArray(fo, ProtoBufWriter.WriteOrder.REVERSE);
-        System.out.println(conver2HexStr(epb));
-
-        nfo = ProtoBuf.toObject(epb, FieldObject.class);
-        System.out.println(nfo.getObj());
-        assertEquals(nfo.getObj(), date);
     }
 
     @ParameterizedTest
@@ -347,12 +277,6 @@ public class TestFieldObject {
         System.out.println(nfo.getObj());
         assertEquals(nfo.getObj(), bv);
 
-        epb = ProtoBuf.toByteArray(fo, ProtoBufWriter.WriteOrder.REVERSE);
-        System.out.println(conver2HexStr(epb));
-
-        nfo = ProtoBuf.toObject(epb, FieldObject.class);
-        System.out.println(nfo.getObj());
-        assertEquals(nfo.getObj(), bv);
     }
 
     @ParameterizedTest
@@ -379,13 +303,6 @@ public class TestFieldObject {
         System.out.println(nfo.getObj());
         assertEquals(nfo.getObj(), bv);
 
-        epb = ProtoBuf.toByteArray(fo, ProtoBufWriter.WriteOrder.REVERSE);
-        System.out.println(conver2HexStr(epb));
-
-        nfo = ProtoBuf.toObject(epb, FieldObject.class);
-        System.out.println(bv.toPlainString());
-        System.out.println(nfo.getObj());
-        assertEquals(nfo.getObj(), bv);
     }
 
     @ParameterizedTest
@@ -405,12 +322,6 @@ public class TestFieldObject {
         byte[] epb = ProtoBuf.toByteArray(fo);
         System.out.println(conver2HexStr(epb));
 
-        epb = ProtoBuf.toByteArray(fo, ProtoBufWriter.WriteOrder.REVERSE);
-        System.out.println(conver2HexStr(epb));
-
-        FieldObject nfo = ProtoBuf.toObject(epb, FieldObject.class);
-        System.out.println(new String((byte[])nfo.getObj()));
-        assertArrayEquals((byte[])nfo.getObj(), value.getBytes("utf-8"));
     }
 
     @ParameterizedTest
@@ -429,12 +340,6 @@ public class TestFieldObject {
         byte[] epb = ProtoBuf.toByteArray(fo);
         System.out.println(conver2HexStr(epb));
 
-        epb = ProtoBuf.toByteArray(fo, ProtoBufWriter.WriteOrder.REVERSE);
-        System.out.println(conver2HexStr(epb));
-
-        FieldObject nfo = ProtoBuf.toObject(epb, FieldObject.class);
-        System.out.println(new String((char[])nfo.getObj()));
-        assertArrayEquals((char[])nfo.getObj(), value.toCharArray());
     }
 
     @ParameterizedTest
@@ -455,12 +360,6 @@ public class TestFieldObject {
         byte[] epb = ProtoBuf.toByteArray(fo);
         System.out.println(conver2HexStr(epb));
 
-        epb = ProtoBuf.toByteArray(fo, ProtoBufWriter.WriteOrder.REVERSE);
-        System.out.println(conver2HexStr(epb));
-
-        FieldObject nfo = ProtoBuf.toObject(epb, FieldObject.class);
-        System.out.println(nfo.getObj());
-        assertArrayEquals((int[])nfo.getObj(), vs);
     }
 
     @ParameterizedTest
@@ -490,12 +389,6 @@ public class TestFieldObject {
         byte[] epb = ProtoBuf.toByteArray(fo);
         System.out.println(conver2HexStr(epb));
 
-        epb = ProtoBuf.toByteArray(fo, ProtoBufWriter.WriteOrder.REVERSE);
-        System.out.println(conver2HexStr(epb));
-
-        FieldObject nfo = ProtoBuf.toObject(epb, FieldObject.class);
-        System.out.println(nfo.getObj());
-        assertArrayEquals((Integer[])nfo.getObj(), vs);
     }
 
     @ParameterizedTest
@@ -519,12 +412,6 @@ public class TestFieldObject {
         byte[] epb = ProtoBuf.toByteArray(fo);
         System.out.println(conver2HexStr(epb));
 
-        epb = ProtoBuf.toByteArray(fo, ProtoBufWriter.WriteOrder.REVERSE);
-        System.out.println(conver2HexStr(epb));
-
-        FieldObject nfo = ProtoBuf.toObject(epb, FieldObject.class);
-        System.out.println(nfo.getObj());
-        assertArrayEquals((long[])nfo.getObj(), vs);
     }
 
     @ParameterizedTest
@@ -550,12 +437,6 @@ public class TestFieldObject {
         byte[] epb = ProtoBuf.toByteArray(fo);
         System.out.println(conver2HexStr(epb));
 
-        epb = ProtoBuf.toByteArray(fo, ProtoBufWriter.WriteOrder.REVERSE);
-        System.out.println(conver2HexStr(epb));
-
-        FieldObject nfo = ProtoBuf.toObject(epb, FieldObject.class);
-        System.out.println(nfo.getObj());
-        assertArrayEquals((Long[])nfo.getObj(), vs);
 
     }
 
@@ -576,12 +457,6 @@ public class TestFieldObject {
         byte[] epb = ProtoBuf.toByteArray(fo);
         System.out.println(conver2HexStr(epb));
 
-        epb = ProtoBuf.toByteArray(fo, ProtoBufWriter.WriteOrder.REVERSE);
-        System.out.println(conver2HexStr(epb));
-
-        FieldObject nfo = ProtoBuf.toObject(epb, FieldObject.class);
-        System.out.println(nfo.getObj());
-        assertArrayEquals((float[])nfo.getObj(), vs);
     }
 
     @ParameterizedTest
@@ -606,13 +481,6 @@ public class TestFieldObject {
         byte[] epb = ProtoBuf.toByteArray(fo);
         System.out.println(conver2HexStr(epb));
 
-        epb = ProtoBuf.toByteArray(fo, ProtoBufWriter.WriteOrder.REVERSE);
-        System.out.println(conver2HexStr(epb));
-
-        FieldObject nfo = ProtoBuf.toObject(epb, FieldObject.class);
-        System.out.println(nfo.getObj());
-        assertArrayEquals((Float[])nfo.getObj(), vs);
-
     }
 
     @ParameterizedTest
@@ -634,12 +502,6 @@ public class TestFieldObject {
         byte[] epb = ProtoBuf.toByteArray(fo);
         System.out.println(conver2HexStr(epb));
 
-        epb = ProtoBuf.toByteArray(fo, ProtoBufWriter.WriteOrder.REVERSE);
-        System.out.println(conver2HexStr(epb));
-
-        FieldObject nfo = ProtoBuf.toObject(epb, FieldObject.class);
-        System.out.println(nfo.getObj());
-        assertArrayEquals((double[])nfo.getObj(), vs);
     }
 
     @ParameterizedTest
@@ -666,12 +528,6 @@ public class TestFieldObject {
         byte[] epb = ProtoBuf.toByteArray(fo);
         System.out.println(conver2HexStr(epb));
 
-        epb = ProtoBuf.toByteArray(fo, ProtoBufWriter.WriteOrder.REVERSE);
-        System.out.println(conver2HexStr(epb));
-
-        FieldObject nfo = ProtoBuf.toObject(epb, FieldObject.class);
-        System.out.println(nfo.getObj());
-        assertArrayEquals((Double[])nfo.getObj(), vs);
     }
 
     @ParameterizedTest
@@ -692,12 +548,6 @@ public class TestFieldObject {
         byte[] epb = ProtoBuf.toByteArray(fo);
         System.out.println(conver2HexStr(epb));
 
-        epb = ProtoBuf.toByteArray(fo, ProtoBufWriter.WriteOrder.REVERSE);
-        System.out.println(conver2HexStr(epb));
-
-        FieldObject nfo = ProtoBuf.toObject(epb, FieldObject.class);
-        System.out.println(nfo.getObj());
-        assertArrayEquals((String[])nfo.getObj(), vs);
     }
 
     @ParameterizedTest
@@ -718,12 +568,6 @@ public class TestFieldObject {
         byte[] epb = ProtoBuf.toByteArray(fo);
         System.out.println(conver2HexStr(epb));
 
-        epb = ProtoBuf.toByteArray(fo, ProtoBufWriter.WriteOrder.REVERSE);
-        System.out.println(conver2HexStr(epb));
-
-        FieldObject nfo = ProtoBuf.toObject(epb, FieldObject.class);
-        System.out.println(nfo.getObj());
-        assertArrayEquals((boolean[])nfo.getObj(), vs);
     }
 
     @ParameterizedTest
@@ -749,12 +593,6 @@ public class TestFieldObject {
         byte[] epb = ProtoBuf.toByteArray(fo);
         System.out.println(conver2HexStr(epb));
 
-        epb = ProtoBuf.toByteArray(fo, ProtoBufWriter.WriteOrder.REVERSE);
-        System.out.println(conver2HexStr(epb));
-
-        FieldObject nfo = ProtoBuf.toObject(epb, FieldObject.class);
-        System.out.println(nfo.getObj());
-        assertArrayEquals((Boolean[])nfo.getObj(), vs);
     }
 
     @ParameterizedTest
@@ -815,12 +653,6 @@ public class TestFieldObject {
         System.out.println("class=" + cls);
         System.out.println(conver2HexStr(epb));
 
-        epb = ProtoBuf.toByteArray(fo, ProtoBufWriter.WriteOrder.REVERSE);
-        System.out.println(conver2HexStr(epb));
-
-        FieldObject nfo = ProtoBuf.toObject(epb, FieldObject.class);
-        System.out.println(nfo.getObj());
-        assertEquals(nfo.getObj(), cls);
     }
 
     @ParameterizedTest
@@ -838,9 +670,6 @@ public class TestFieldObject {
         FieldObject fo = new FieldObject();
         fo.setObj(map);
         byte[] epb = ProtoBuf.toByteArray(fo);
-        System.out.println(conver2HexStr(epb));
-
-        epb = ProtoBuf.toByteArray(fo, ProtoBufWriter.WriteOrder.REVERSE);
         System.out.println(conver2HexStr(epb));
 
         FieldObject nfo = ProtoBuf.toObject(epb, FieldObject.class);
@@ -875,9 +704,6 @@ public class TestFieldObject {
         byte[] epb = ProtoBuf.toByteArray(fo);
         System.out.println(conver2HexStr(epb));
 
-        epb = ProtoBuf.toByteArray(fo, ProtoBufWriter.WriteOrder.REVERSE);
-        System.out.println(conver2HexStr(epb));
-
         FieldObject nfo = ProtoBuf.toObject(epb, FieldObject.class);
         System.out.println(Eson.toJsonString(nfo.getObj()));
         assertEquals(nfo.getObj(), list);
@@ -887,9 +713,6 @@ public class TestFieldObject {
         fo = new FieldObject();
         fo.setObj(list);
         epb = ProtoBuf.toByteArray(fo);
-        System.out.println(conver2HexStr(epb));
-
-        epb = ProtoBuf.toByteArray(fo, ProtoBufWriter.WriteOrder.REVERSE);
         System.out.println(conver2HexStr(epb));
 
         nfo = ProtoBuf.toObject(epb, FieldObject.class);
@@ -920,9 +743,6 @@ public class TestFieldObject {
         epb = ProtoBuf.toByteArray(fo);
         System.out.println(conver2HexStr(epb));
 
-        epb = ProtoBuf.toByteArray(fo, ProtoBufWriter.WriteOrder.REVERSE);
-        System.out.println(conver2HexStr(epb));
-
         nfo = ProtoBuf.toObject(epb, FieldObject.class);
         System.out.println(Eson.toJsonString(nfo.getObj()));
         assertEquals(nfo.getObj(), ilist);
@@ -930,9 +750,6 @@ public class TestFieldObject {
         fo = new FieldObject();
         fo.setObj(ilist);
         epb = ProtoBuf.toByteArray(fo);
-        System.out.println(conver2HexStr(epb));
-
-        epb = ProtoBuf.toByteArray(fo, ProtoBufWriter.WriteOrder.REVERSE);
         System.out.println(conver2HexStr(epb));
 
         nfo = ProtoBuf.toObject(epb, FieldObject.class);
@@ -964,15 +781,9 @@ public class TestFieldObject {
         byte[] epb = ProtoBuf.toByteArray(fo);
         System.out.println(conver2HexStr(epb));
 
-        epb = ProtoBuf.toByteArray(fo, ProtoBufWriter.WriteOrder.REVERSE);
-        System.out.println(conver2HexStr(epb));
-
         FieldObject nfo = ProtoBuf.toObject(epb, FieldObject.class);
         System.out.println(Eson.toJsonString(nfo.getObj()));
         assertArrayEquals((Object[])nfo.getObj(), objs);
-
-        epb = ProtoBuf.toByteArray(fo, ProtoBufWriter.WriteOrder.SEQUENTIAL);
-        System.out.println(conver2HexStr(epb));
 
         nfo = ProtoBuf.toObject(epb, FieldObject.class);
         System.out.println(Eson.toJsonString(nfo.getObj()));
@@ -984,15 +795,9 @@ public class TestFieldObject {
         epb = ProtoBuf.toByteArray(fo);
         System.out.println(conver2HexStr(epb));
 
-        epb = ProtoBuf.toByteArray(fo, ProtoBufWriter.WriteOrder.REVERSE);
-        System.out.println(conver2HexStr(epb));
-
         nfo = ProtoBuf.toObject(epb, FieldObject.class);
         System.out.println(Eson.toJsonString(nfo.getObj()));
         assertArrayEquals((Object[])nfo.getObj(), objs);
-
-        epb = ProtoBuf.toByteArray(fo, ProtoBufWriter.WriteOrder.SEQUENTIAL);
-        System.out.println(conver2HexStr(epb));
 
         nfo = ProtoBuf.toObject(epb, FieldObject.class);
         System.out.println(Eson.toJsonString(nfo.getObj()));

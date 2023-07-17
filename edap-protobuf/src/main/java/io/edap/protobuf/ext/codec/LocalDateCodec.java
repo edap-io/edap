@@ -41,12 +41,7 @@ public class LocalDateCodec implements ExtCodec<LocalDate> {
 
     @Override
     public void encode(ProtoBufWriter writer, LocalDate v) throws EncodeException {
-        if (writer.getWriteOrder() == ProtoBufWriter.WriteOrder.SEQUENTIAL) {
-            writer.writeByte((byte)RANGE_LOCALDATE);
-            writer.writeInt32((int)START_DAY.until(v, ChronoUnit.DAYS), true);
-        } else {
-            writer.writeInt32((int)START_DAY.until(v, ChronoUnit.DAYS), true);
-            writer.writeByte((byte)RANGE_LOCALDATE);
-        }
+        writer.writeByte((byte)RANGE_LOCALDATE);
+        writer.writeInt32((int)START_DAY.until(v, ChronoUnit.DAYS), true);
     }
 }

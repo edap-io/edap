@@ -28,20 +28,6 @@ import java.util.List;
  */
 public interface ProtoBufWriter extends BufWriter {
 
-    /**
-     * 写入顺序，由于protobuf协议有些定长的数据写入前可能不知道长度，所以采用序的方式写入可以方便的计算长度
-     */
-    enum WriteOrder {
-        /**
-         * 顺序写入
-         */
-        SEQUENTIAL,
-        /**
-         * 倒序的写入，从后往前的方式写数据
-         */
-        REVERSE
-    }
-
     BufOut getBufOut();
 
     void reset();
@@ -49,12 +35,6 @@ public interface ProtoBufWriter extends BufWriter {
     void setPos(int pos);
 
     void expand(int minLength);
-
-    /**
-     * 获取数据的写入方式
-     * @return
-     */
-    WriteOrder getWriteOrder();
 
     void writeBool(byte[] fieldData, Boolean value);
     void writeBool(byte[] fieldData, boolean value);

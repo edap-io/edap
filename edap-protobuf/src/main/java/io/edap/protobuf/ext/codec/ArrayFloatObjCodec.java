@@ -48,33 +48,17 @@ public class ArrayFloatObjCodec implements ExtCodec<Float[]> {
     public void encode(ProtoBufWriter writer, Float[] floats) throws EncodeException {
         int len = floats.length;
         if (len == 0) {
-            if (writer.getWriteOrder() == ProtoBufWriter.WriteOrder.SEQUENTIAL) {
-                writer.writeByte((byte)RANGE_ARRAY_FLOAT_OBJ);
-                writer.writeInt32(0, true);
-            } else {
-                writer.writeInt32(0, true);
-                writer.writeByte((byte)RANGE_ARRAY_FLOAT_OBJ);
-            }
+            writer.writeByte((byte)RANGE_ARRAY_FLOAT_OBJ);
+            writer.writeInt32(0, true);
             return;
         }
-        if (writer.getWriteOrder() == ProtoBufWriter.WriteOrder.SEQUENTIAL) {
-            writer.writeByte((byte)RANGE_ARRAY_FLOAT_OBJ);
-            writer.writeInt32(len);
-            for (int i=0;i<len;i++) {
-                writer.writeInt32(floats[i]==null?1:0, true);
-                if (null != floats[i]) {
-                    writer.writeFixed32(Float.floatToRawIntBits(floats[i]));
-                }
+        writer.writeByte((byte)RANGE_ARRAY_FLOAT_OBJ);
+        writer.writeInt32(len);
+        for (int i=0;i<len;i++) {
+            writer.writeInt32(floats[i]==null?1:0, true);
+            if (null != floats[i]) {
+                writer.writeFixed32(Float.floatToRawIntBits(floats[i]));
             }
-        } else {
-            for (int i=len-1;i>=0;i--) {
-                if (null != floats[i]) {
-                    writer.writeFixed32(Float.floatToRawIntBits(floats[i]));
-                }
-                writer.writeInt32(floats[i]==null?1:0, true);
-            }
-            writer.writeInt32(len);
-            writer.writeByte((byte)RANGE_ARRAY_FLOAT_OBJ);
         }
     }
 }

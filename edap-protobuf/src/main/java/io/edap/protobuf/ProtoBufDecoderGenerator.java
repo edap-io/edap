@@ -18,6 +18,7 @@ package io.edap.protobuf;
 
 import io.edap.protobuf.annotation.ProtoField;
 import io.edap.protobuf.ProtoBuf.ProtoFieldInfo;
+import io.edap.protobuf.model.ProtoBufOption;
 import io.edap.protobuf.util.ProtoUtil;
 import io.edap.protobuf.wire.Field;
 import io.edap.protobuf.wire.Field.Type;
@@ -51,7 +52,7 @@ public class ProtoBufDecoderGenerator {
 
     private ClassWriter cw;
     private final Class pojoCls;
-    private final ProtoBuf.EncodeType encodeType;
+    private final ProtoBufOption option;
 
     private List<GeneratorClassInfo> inners;
     private String parentName;
@@ -69,9 +70,9 @@ public class ProtoBufDecoderGenerator {
 
     private final java.lang.reflect.Type parentMapType;
 
-    public ProtoBufDecoderGenerator(Class pojoCls, ProtoBuf.EncodeType encodeType) {
+    public ProtoBufDecoderGenerator(Class pojoCls, ProtoBufOption option) {
         this.pojoCls = pojoCls;
-        this.encodeType = encodeType;
+        this.option = option;
         this.parentMapType = ProtoUtil.parentMapType(pojoCls);
     }
 
@@ -80,7 +81,7 @@ public class ProtoBufDecoderGenerator {
         inners = new ArrayList<>();
         pojoName = toInternalName(pojoCls.getName());
         parentName = toInternalName(AbstractDecoder.class.getName());
-        pojoCodecName = toInternalName(getDecoderName(pojoCls, encodeType));
+        pojoCodecName = toInternalName(getDecoderName(pojoCls, option));
         gci.clazzName = pojoCodecName;
         String pojoCodecDescriptor = getDecoderDescriptor(pojoCls);
         String[] ifaceName = new String[]{IFACE_NAME};
@@ -305,7 +306,7 @@ public class ProtoBufDecoderGenerator {
                     mv.visitVarInsn(ALOAD, aArrayTag.get(pfi.protoField.tag()));
                     mv.visitVarInsn(ALOAD, 1);
                     mv.visitVarInsn(ALOAD, 0);
-                    String decodeName = getDecoderName((Class)itemType, encodeType);
+                    String decodeName = getDecoderName((Class)itemType, option);
                     if (!toInternalName(decodeName).equals(pojoCodecName)) {
                         mv.visitFieldInsn(GETFIELD, pojoCodecName, pname,
                                 "L" + IFACE_NAME + ";");
@@ -460,7 +461,7 @@ public class ProtoBufDecoderGenerator {
                     mv.visitVarInsn(ALOAD, aListTag.get(pfi.protoField.tag()));
                     mv.visitVarInsn(ALOAD, 1);
                     mv.visitVarInsn(ALOAD, 0);
-                    String decodeName = getDecoderName((Class)itemType, encodeType);
+                    String decodeName = getDecoderName((Class)itemType, option);
                     if (!toInternalName(decodeName).equals(pojoCodecName)) {
                         mv.visitFieldInsn(GETFIELD, pojoCodecName, pname,
                                 "L" + IFACE_NAME + ";");
@@ -532,7 +533,7 @@ public class ProtoBufDecoderGenerator {
                 mv.visitVarInsn(ALOAD, 2);
                 mv.visitVarInsn(ALOAD, 1);
                 mv.visitVarInsn(ALOAD, 0);
-                String decodeName = getDecoderName((Class)pfi.field.getGenericType(), encodeType);
+                String decodeName = getDecoderName((Class)pfi.field.getGenericType(), option);
                 if (!toInternalName(decodeName).equals(pojoCodecName)) {
                     mv.visitFieldInsn(GETFIELD, pojoCodecName, pname,
                             "L" + IFACE_NAME + ";");
@@ -1298,7 +1299,7 @@ public class ProtoBufDecoderGenerator {
         for (java.lang.reflect.Type type : pojoTypes) {
             String itemType = toInternalName(((Class)type).getName());
             String codecName = getPojoDecoderName(type);
-            String encoderName = toInternalName(getDecoderName((Class)type, encodeType));
+            String encoderName = toInternalName(getDecoderName((Class)type, option));
             if (!encoderName.equals(pojoCodecName)) {
                 cw.visitField(ACC_PRIVATE, codecName, "L" + IFACE_NAME + ";",
                         "L" + IFACE_NAME + "<L" + itemType + ";>;", null);
@@ -1337,14 +1338,10 @@ public class ProtoBufDecoderGenerator {
         visitMethod(mv, INVOKESPECIAL, parentName, "<init>", "()V", false);
 
         String getCodecName;
-        if (encodeType == ProtoBuf.EncodeType.FAST) {
-            getCodecName = "getFastDecoder";
-        } else {
-            getCodecName = "getDecoder";
-        }
+        getCodecName = "getDecoder";
         for (java.lang.reflect.Type type : pojoTypes) {
             String codecName = getPojoDecoderName(type);
-            String encoderName = toInternalName(getDecoderName((Class)type, encodeType));
+            String encoderName = toInternalName(getDecoderName((Class)type, option));
             if (!encoderName.equals(pojoCodecName)) {
                 mv.visitVarInsn(ALOAD, 0);
                 mv.visitFieldInsn(GETSTATIC, REGISTER_NAME,
@@ -1517,7 +1514,7 @@ public class ProtoBufDecoderGenerator {
         return sb.toString();
     }
 
-    static String getDecoderName(Class pojoCls, ProtoBuf.EncodeType encodeType) {
+    static String getDecoderName(Class pojoCls, ProtoBufOption option) {
         if (pojoCls == null) {
             return "";
         }

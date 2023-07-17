@@ -56,16 +56,9 @@ public class MessageCodec implements ExtCodec<Object> {
 
     @Override
     public void encode(ProtoBufWriter writer, Object t) throws EncodeException {
-        ProtoBufWriter.WriteOrder wo = writer.getWriteOrder();
-        ProtoBufEncoder<Object> encoder = ProtoBufCodecRegister.INSTANCE.getEncoder(t.getClass(), wo);
-        if (wo == ProtoBufWriter.WriteOrder.SEQUENTIAL) {
-            writer.writeByte((byte)RANGE_MESSAGE);
-            writer.writeString(t.getClass().getName());
-            writer.writeMessage(t, encoder);
-        } else {
-            writer.writeMessage(t, encoder);
-            writer.writeString(t.getClass().getName());
-            writer.writeByte((byte)RANGE_MESSAGE);
-        }
+        ProtoBufEncoder<Object> encoder = ProtoBufCodecRegister.INSTANCE.getEncoder(t.getClass());
+        writer.writeByte((byte)RANGE_MESSAGE);
+        writer.writeString(t.getClass().getName());
+        writer.writeMessage(t, encoder);
     }
 }

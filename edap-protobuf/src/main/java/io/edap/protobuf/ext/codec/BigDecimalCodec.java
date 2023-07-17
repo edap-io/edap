@@ -44,27 +44,14 @@ public class BigDecimalCodec implements ExtCodec<BigDecimal> {
 
     @Override
     public void encode(ProtoBufWriter writer, BigDecimal bigDecimal) throws EncodeException {
-        if (writer.getWriteOrder() == ProtoBufWriter.WriteOrder.SEQUENTIAL) {
-            if (bigDecimal == BigDecimal.ZERO) {
-                writer.writeByte((byte)RANGE_BIGDDECIMAL);
-                writer.writeBytes(new byte[]{1,0,0});
-            } else {
-                writer.writeByte((byte)RANGE_BIGDDECIMAL);
-                byte[] bs = bigDecimal.unscaledValue().toByteArray();
-                writer.writeByteArray(bs, 0, bs.length);
-                writer.writeInt32(bigDecimal.scale(), true);
-            }
+        if (bigDecimal == BigDecimal.ZERO) {
+            writer.writeByte((byte)RANGE_BIGDDECIMAL);
+            writer.writeBytes(new byte[]{1,0,0});
         } else {
-            if (bigDecimal == BigDecimal.ZERO) {
-                writer.writeBytes(new byte[]{1,0,0});
-                writer.writeByte((byte)RANGE_BIGDDECIMAL);
-            } else {
-                byte[] bs = bigDecimal.unscaledValue().toByteArray();
-                writer.writeInt32(bigDecimal.scale(), true);
-                writer.writeByteArray(bs, 0, bs.length);
-                writer.writeByte((byte)RANGE_BIGDDECIMAL);
-            }
+            writer.writeByte((byte)RANGE_BIGDDECIMAL);
+            byte[] bs = bigDecimal.unscaledValue().toByteArray();
+            writer.writeByteArray(bs, 0, bs.length);
+            writer.writeInt32(bigDecimal.scale(), true);
         }
-
     }
 }

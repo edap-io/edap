@@ -48,35 +48,18 @@ public class ArrayStringCodec implements ExtCodec<String[]> {
     public void encode(ProtoBufWriter writer, String[] ss) throws EncodeException {
         int len = ss.length;
         if (len == 0) {
-            if (writer.getWriteOrder() == ProtoBufWriter.WriteOrder.SEQUENTIAL) {
-                writer.writeByte((byte)RANGE_ARRAY_STRING);
-                writer.writeInt32(0, true);
-            } else {
-                writer.writeInt32(0, true);
-                writer.writeByte((byte)RANGE_ARRAY_STRING);
-            }
+            writer.writeByte((byte)RANGE_ARRAY_STRING);
+            writer.writeInt32(0, true);
             return;
         }
-        if (writer.getWriteOrder() == ProtoBufWriter.WriteOrder.SEQUENTIAL) {
-            writer.writeByte((byte)RANGE_ARRAY_STRING);
-            writer.writeInt32(len);
-            for (int i=0;i<len;i++) {
-                if (null == ss[i]) {
-                    writer.writeInt32(-1);
-                } else {
-                    writer.writeString(ss[i]);
-                }
+        writer.writeByte((byte)RANGE_ARRAY_STRING);
+        writer.writeInt32(len);
+        for (int i=0;i<len;i++) {
+            if (null == ss[i]) {
+                writer.writeInt32(-1);
+            } else {
+                writer.writeString(ss[i]);
             }
-        } else {
-            for (int i=len-1;i>=0;i--) {
-                if (null == ss[i]) {
-                    writer.writeInt32(-1);
-                } else {
-                    writer.writeString(ss[i]);
-                }
-            }
-            writer.writeInt32(len);
-            writer.writeByte((byte)RANGE_ARRAY_STRING);
         }
     }
 }

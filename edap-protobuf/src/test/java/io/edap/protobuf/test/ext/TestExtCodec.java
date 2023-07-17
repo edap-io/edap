@@ -28,7 +28,6 @@ import io.edap.protobuf.ext.codec.NullCodec;
 import io.edap.protobuf.internal.ProtoBufOut;
 import io.edap.protobuf.reader.ByteArrayReader;
 import io.edap.protobuf.writer.StandardProtoBufWriter;
-import io.edap.protobuf.writer.StandardReverseWriter;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -61,29 +60,13 @@ public class TestExtCodec {
         HashMap<String, Object> hashMap = new HashMap<>();
         hashMap.putAll(map);
         byte[] epb = ProtoBuf.ser(hashMap);
-        byte[] repb = ProtoBuf.ser(hashMap, ProtoBufWriter.WriteOrder.REVERSE);
         System.out.println("<====================================================");
         System.out.println(epb.length);
         System.out.println(conver2HexStr(epb));
-        System.out.println("-----------------------------------------------------");
-        System.out.println(repb.length);
-        System.out.println(conver2HexStr(repb));
         System.out.println("====================================================>");
         HashMap<String, Object> nmap = (HashMap<String, Object>)ProtoBuf.der(epb);
         Iterator<String> keys = nmap.keySet().iterator();
         boolean equals = true;
-        while (keys.hasNext()) {
-            String key = keys.next();
-            Object v = hashMap.get(key);
-            if (v == null || !v.equals(nmap.get(key))) {
-                equals = false;
-            }
-        }
-        assertTrue(equals);
-
-        nmap = (HashMap<String, Object>)ProtoBuf.der(repb);
-        keys = nmap.keySet().iterator();
-        equals = true;
         while (keys.hasNext()) {
             String key = keys.next();
             Object v = hashMap.get(key);
@@ -139,26 +122,6 @@ public class TestExtCodec {
         ProtoBufWriter writer = new StandardProtoBufWriter(new ProtoBufOut());
         ClassCodec codec = new ClassCodec();
         byte[] clsNullData = new byte[]{RANGE_CLASS,-1,-1,-1,-1,-1,-1,-1,-1,-1,1};
-        try {
-            codec.encode(writer, cls);
-
-            byte[] data = writer.toByteArray();
-
-            assertArrayEquals(data, clsNullData);
-            System.out.print('[');
-            for (int i=0;i<data.length;i++) {
-                System.out.print(data[i]);
-                if (i < data.length - 1) {
-                    System.out.print(',');
-                }
-            }
-            System.out.println(']');
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-
-        writer = new StandardReverseWriter(new ProtoBufOut());
-        writer.reset();
         try {
             codec.encode(writer, cls);
 

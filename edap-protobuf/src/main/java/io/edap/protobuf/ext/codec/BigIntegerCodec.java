@@ -49,24 +49,13 @@ public class BigIntegerCodec implements ExtCodec<BigInteger> {
 
     @Override
     public void encode(ProtoBufWriter writer, BigInteger v) throws EncodeException {
-        if (writer.getWriteOrder() == ProtoBufWriter.WriteOrder.SEQUENTIAL) {
-            if (v == BigInteger.ZERO) {
-                writer.writeByte((byte)RANGE_BIGINTEGER);
-                writer.writeByteArray(new byte[]{0}, 0, 1);
-            } else {
-                byte[] bs = v.toByteArray();
-                writer.writeByte((byte)RANGE_BIGINTEGER);
-                writer.writeByteArray(bs, 0, bs.length);
-            }
+        if (v == BigInteger.ZERO) {
+            writer.writeByte((byte)RANGE_BIGINTEGER);
+            writer.writeByteArray(new byte[]{0}, 0, 1);
         } else {
-            if (v == BigInteger.ZERO) {
-                writer.writeByteArray(new byte[]{0}, 0, 1);
-                writer.writeByte((byte)RANGE_BIGINTEGER);
-            } else {
-                byte[] bs = v.toByteArray();
-                writer.writeByteArray(bs, 0, bs.length);
-                writer.writeByte((byte)RANGE_BIGINTEGER);
-            }
+            byte[] bs = v.toByteArray();
+            writer.writeByte((byte)RANGE_BIGINTEGER);
+            writer.writeByteArray(bs, 0, bs.length);
         }
     }
 }

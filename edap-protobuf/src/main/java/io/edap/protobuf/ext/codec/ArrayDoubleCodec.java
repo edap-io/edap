@@ -46,27 +46,14 @@ public class ArrayDoubleCodec implements ExtCodec<double[]> {
     public void encode(ProtoBufWriter writer, double[] doubles) throws EncodeException {
         int len = doubles.length;
         if (len == 0) {
-            if (writer.getWriteOrder() == ProtoBufWriter.WriteOrder.SEQUENTIAL) {
-                writer.writeByte((byte)RANGE_ARRAY_DOUBLE);
-                writer.writeInt32(0, true);
-            } else {
-                writer.writeInt32(0, true);
-                writer.writeByte((byte)RANGE_ARRAY_DOUBLE);
-            }
+            writer.writeByte((byte)RANGE_ARRAY_DOUBLE);
+            writer.writeInt32(0, true);
             return;
         }
-        if (writer.getWriteOrder() == ProtoBufWriter.WriteOrder.SEQUENTIAL) {
-            writer.writeByte((byte)RANGE_ARRAY_DOUBLE);
-            writer.writeInt32(len);
-            for (int i=0;i<len;i++) {
-                writer.writeFixed64(Double.doubleToLongBits(doubles[i]));
-            }
-        } else {
-            for (int i=len-1;i>=0;i--) {
-                writer.writeFixed64(Double.doubleToLongBits(doubles[i]));
-            }
-            writer.writeInt32(len);
-            writer.writeByte((byte)RANGE_ARRAY_DOUBLE);
+        writer.writeByte((byte)RANGE_ARRAY_DOUBLE);
+        writer.writeInt32(len);
+        for (int i=0;i<len;i++) {
+            writer.writeFixed64(Double.doubleToLongBits(doubles[i]));
         }
     }
 }

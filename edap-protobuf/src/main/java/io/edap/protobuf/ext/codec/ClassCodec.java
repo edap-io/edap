@@ -67,12 +67,7 @@ public class ClassCodec implements ExtCodec<Class> {
         if (aClass != null) {
             s = aClass.getName();
         }
-        if (writer.getWriteOrder() == ProtoBufWriter.WriteOrder.SEQUENTIAL) {
-            writer.writeByte((byte)RANGE_CLASS);
-            writer.writeString(s);
-        } else {
-            writer.writeString(s);
-            writer.writeByte((byte)RANGE_CLASS);
-        }
+        writer.writeByte((byte)RANGE_CLASS);
+        writer.writeString(s);
     }
 }

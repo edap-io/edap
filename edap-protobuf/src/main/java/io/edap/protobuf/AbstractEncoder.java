@@ -16,6 +16,7 @@
 
 package io.edap.protobuf;
 
+import io.edap.protobuf.model.ProtoBufOption;
 import io.edap.protobuf.wire.Field;
 import io.edap.protobuf.wire.Field.Type;
 import io.edap.util.CollectionUtils;
@@ -31,6 +32,16 @@ import static io.edap.util.CollectionUtils.isEmpty;
  * @date : 2019/12/24
  */
 public abstract class AbstractEncoder {
+
+    private ProtoBufOption option;
+
+    public void setProtoBufOption(ProtoBufOption option) {
+        this.setProtoBufOption(option);
+    }
+
+    public ProtoBufOption getProtoBufOption() {
+        return option;
+    }
 
     protected void writeArrayFloat(ProtoBufWriter writer, byte[] fieldData, float[] values) {
         if (values == null || values.length == 0) {

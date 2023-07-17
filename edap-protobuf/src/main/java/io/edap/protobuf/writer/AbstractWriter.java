@@ -23,12 +23,10 @@ import io.edap.protobuf.ProtoBufWriter;
 import io.edap.protobuf.wire.Field;
 import io.edap.util.CollectionUtils;
 import io.edap.util.StringUtil;
-import io.edap.util.UnsafeUtil;
 
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 
 import static io.edap.protobuf.ProtoBufWriter.encodeZigZag32;
@@ -63,11 +61,6 @@ public abstract class AbstractWriter implements ProtoBufWriter {
     @Override
     public void setPos(int pos) {
         this.pos = pos;
-    }
-
-    @Override
-    public WriteOrder getWriteOrder() {
-        return WriteOrder.SEQUENTIAL;
     }
 
     @Override

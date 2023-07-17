@@ -37,21 +37,11 @@ public class ArrayByteCodec implements ExtCodec<byte[]> {
     @Override
     public void encode(ProtoBufWriter writer, byte[] bytes) throws EncodeException {
         if (bytes.length == 0) {
-            if (writer.getWriteOrder() == ProtoBufWriter.WriteOrder.SEQUENTIAL) {
-                writer.writeByte((byte)RANGE_ARRAY_BYTE);
-                writer.writeInt32(0, true);
-            } else {
-                writer.writeInt32(0, true);
-                writer.writeByte((byte)RANGE_ARRAY_BYTE);
-            }
+            writer.writeByte((byte)RANGE_ARRAY_BYTE);
+            writer.writeInt32(0, true);
             return;
         }
-        if (writer.getWriteOrder() == ProtoBufWriter.WriteOrder.SEQUENTIAL) {
-            writer.writeByte((byte)RANGE_ARRAY_BYTE);
-            writer.writeByteArray(bytes, 0, bytes.length);
-        } else {
-            writer.writeByteArray(bytes, 0, bytes.length);
-            writer.writeByte((byte)RANGE_ARRAY_BYTE);
-        }
+        writer.writeByte((byte)RANGE_ARRAY_BYTE);
+        writer.writeByteArray(bytes, 0, bytes.length);
     }
 }

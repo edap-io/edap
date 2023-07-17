@@ -65,27 +65,14 @@ public class ArrayListCodec implements ExtCodec<ArrayList> {
     @Override
     public void encode(ProtoBufWriter writer, ArrayList arrayList) throws EncodeException {
         int len = arrayList.size();
-        if (writer.getWriteOrder() == ProtoBufWriter.WriteOrder.SEQUENTIAL) {
-            if (len > RANGE_ARRAYLIST_END - RANGE_ARRAYLIST_START) {
-                writer.writeByte((byte)RANGE_ARRAYLIST_END);
-                writer.writeInt32(len, true);
-            } else {
-                writer.writeInt32(RANGE_ARRAYLIST_START + len);
-            }
-            for (int i=0;i<len;i++) {
-                writer.writeObject(arrayList.get(i));
-            }
+        if (len > RANGE_ARRAYLIST_END - RANGE_ARRAYLIST_START) {
+            writer.writeByte((byte)RANGE_ARRAYLIST_END);
+            writer.writeInt32(len, true);
         } else {
-            for (int i=len-1;i>=0;i--) {
-                writer.writeObject(arrayList.get(i));
-            }
-            if (len > RANGE_ARRAYLIST_END - RANGE_ARRAYLIST_START) {
-                writer.writeInt32(len, true);
-                writer.writeByte((byte)RANGE_ARRAYLIST_END);
-            } else {
-                writer.writeByte((byte)(RANGE_ARRAYLIST_START + len));
-            }
-
+            writer.writeInt32(RANGE_ARRAYLIST_START + len);
+        }
+        for (int i=0;i<len;i++) {
+            writer.writeObject(arrayList.get(i));
         }
     }
 }

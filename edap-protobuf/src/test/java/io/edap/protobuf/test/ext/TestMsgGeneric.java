@@ -80,10 +80,6 @@ public class TestMsgGeneric {
         ComplexModel<Project> model2 = (ComplexModel<Project>)ProtoBuf.der(data);
         System.out.println(Eson.toJsonString(model2));
 
-        data = ProtoBuf.ser(model, ProtoBufWriter.WriteOrder.REVERSE);
-
-        System.out.println(conver2HexStr(data));
-
         model2 = (ComplexModel<Project>)ProtoBuf.der(data);
         System.out.println(Eson.toJsonString(model2));
     }

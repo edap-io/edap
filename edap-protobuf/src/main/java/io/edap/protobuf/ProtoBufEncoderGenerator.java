@@ -16,9 +16,8 @@
 
 package io.edap.protobuf;
 
-import io.edap.protobuf.ProtoBuf.EncodeType;
 import io.edap.protobuf.ProtoBuf.ProtoFieldInfo;
-import io.edap.protobuf.ProtoBufWriter.WriteOrder;
+import io.edap.protobuf.model.ProtoBufOption;
 import io.edap.protobuf.util.ProtoTagComparator;
 import io.edap.protobuf.util.ProtoUtil;
 import io.edap.protobuf.wire.Field;
@@ -53,7 +52,7 @@ public class ProtoBufEncoderGenerator {
     static final String CARDINALITY_NAME = toInternalName(Field.Cardinality.class.getName());
     static final String CLAZZ_UTIL_NAME = toInternalName(ClazzUtil.class.getName());
     static final String ENCODE_EX_NAME = toInternalName(EncodeException.class.getName());
-    static final String WRITE_ORDER_NAME = toInternalName(WriteOrder.class.getName());
+    static final String PROTOBUF_OPTIION_NAME = toInternalName(ProtoBufOption.class.getName());
 
     private static final String WRITE_MAP_PREFIX = "writeMap_";
     private static final String WRITE_LIST_PREFIX = "writeList_";
@@ -64,8 +63,7 @@ public class ProtoBufEncoderGenerator {
 
     private ClassWriter cw;
     private final Class pojoCls;
-    private final EncodeType encodeType;
-    private final WriteOrder writeOrder;
+    private final ProtoBufOption option;
 
     private List<GeneratorClassInfo> inners;
     private String parentName;
@@ -84,10 +82,9 @@ public class ProtoBufEncoderGenerator {
 
     private final java.lang.reflect.Type parentMapType;
 
-    public ProtoBufEncoderGenerator(Class pojoCls, EncodeType encodeType, WriteOrder writeOrder) {
+    public ProtoBufEncoderGenerator(Class pojoCls, ProtoBufOption option) {
         this.pojoCls = pojoCls;
-        this.encodeType = encodeType;
-        this.writeOrder = writeOrder;
+        this.option = option;
         this.parentMapType = ProtoUtil.parentMapType(pojoCls);
     }
 
@@ -96,7 +93,7 @@ public class ProtoBufEncoderGenerator {
         inners = new ArrayList<>();
         pojoName = toInternalName(pojoCls.getName());
         parentName = toInternalName(AbstractEncoder.class.getName());
-        pojoCodecName = toInternalName(getEncoderName(pojoCls, encodeType, writeOrder));
+        pojoCodecName = toInternalName(getEncoderName(pojoCls, option));
         gci.clazzName = pojoCodecName;
         String pojoCodecDescriptor = getEncoderDescriptor(pojoCls);
         String[] ifaceName = new String[]{IFACE_NAME};
@@ -109,11 +106,6 @@ public class ProtoBufEncoderGenerator {
 
         List<ProtoFieldInfo> fields = ProtoUtil.getProtoFields(pojoCls);
         ProtoTagComparator ptc = new ProtoTagComparator();
-        if (writeOrder == WriteOrder.SEQUENTIAL) {
-            Collections.sort(fields, ptc);
-        } else {
-            Collections.sort(fields, ptc.reversed());
-        }
         List<java.lang.reflect.Type> pojoTypes = new ArrayList<>();
         for (ProtoFieldInfo pfi : fields) {
             if (isPojo(pfi.field.getGenericType())
@@ -436,9 +428,8 @@ public class ProtoBufEncoderGenerator {
         mv.visitFieldInsn(GETSTATIC, REGISTER_NAME,
                 "INSTANCE", "L" + REGISTER_NAME + ";");
         mv.visitLdcInsn(org.objectweb.asm.Type.getType(itemTypeDesc));
-        mv.visitFieldInsn(GETSTATIC, WRITE_ORDER_NAME, writeOrder.name(), "L" + WRITE_ORDER_NAME + ";");
         visitMethod(mv, INVOKEVIRTUAL, REGISTER_NAME,
-                "getEncoder", "(Ljava/lang/Class;L" + WRITE_ORDER_NAME + ";)L" + IFACE_NAME + ";",
+                "getEncoder", "(Ljava/lang/Class;L" + PROTOBUF_OPTIION_NAME + ";)L" + IFACE_NAME + ";",
                 false);
         mv.visitVarInsn(ASTORE, 5);
         mv.visitVarInsn(ALOAD, 3);
@@ -541,9 +532,12 @@ public class ProtoBufEncoderGenerator {
         mv.visitFieldInsn(GETSTATIC, REGISTER_NAME,
                 "INSTANCE", "L" + REGISTER_NAME + ";");
         mv.visitLdcInsn(org.objectweb.asm.Type.getType(itemTypeDesc));
-        mv.visitFieldInsn(GETSTATIC, WRITE_ORDER_NAME, writeOrder.name(), "L" + WRITE_ORDER_NAME + ";");
+        mv.visitVarInsn(ALOAD, 0);
+        visitMethod(mv, INVOKEVIRTUAL, pojoCodecName,
+                "getProtoBufOption", "()L" + PROTOBUF_OPTIION_NAME + ";",
+                false);
         visitMethod(mv, INVOKEVIRTUAL, REGISTER_NAME,
-                "getEncoder", "(Ljava/lang/Class;L" + WRITE_ORDER_NAME + ";)L" + IFACE_NAME + ";",
+                "getEncoder", "(Ljava/lang/Class;L" + PROTOBUF_OPTIION_NAME + ";)L" + IFACE_NAME + ";",
                 false);
         mv.visitVarInsn(ASTORE, 5);
         mv.visitVarInsn(ALOAD, 3);
@@ -725,7 +719,7 @@ public class ProtoBufEncoderGenerator {
             rType = visitGetFieldValue(mv, pfi, pojoName, pojoCodecName, 2, rType);
             mv.visitVarInsn(ALOAD, 0);
             String listDescriptor = getDescriptor(pfi.field.getType());
-            String encoderName = toInternalName(getEncoderName((Class)itemType, encodeType, writeOrder));
+            String encoderName = toInternalName(getEncoderName((Class)itemType, option));
             if (!encoderName.equals(pojoCodecName)) {
 //                mv.visitFieldInsn(GETFIELD, pojoCodecName, codecName,
 //                        "L" + IFACE_NAME + ";");
@@ -843,7 +837,7 @@ public class ProtoBufEncoderGenerator {
             rType = visitGetFieldValue(mv, pfi, pojoName, pojoCodecName, 2, rType);
             mv.visitVarInsn(ALOAD, 0);
             String listDescriptor = getDescriptor(pfi.field.getType());
-            String encoderName = toInternalName(getEncoderName((Class)itemType, encodeType, writeOrder));
+            String encoderName = toInternalName(getEncoderName((Class)itemType, option));
             if (!encoderName.equals(pojoCodecName)) {
 //                mv.visitFieldInsn(GETFIELD, pojoCodecName, codecName,
 //                        "L" + IFACE_NAME + ";");
@@ -987,58 +981,34 @@ public class ProtoBufEncoderGenerator {
         mv.visitFrame(Opcodes.F_SAME, 0, null, 0, null);
         mv.visitVarInsn(ALOAD, 2);
         Label l1, l2;
-        if (writeOrder == WriteOrder.SEQUENTIAL) {
-            visitMethod(mv, INVOKEINTERFACE, "java/util/List", "size", "()I", true);
-            mv.visitVarInsn(ISTORE, 3);
-            mv.visitInsn(ICONST_0);
-            mv.visitVarInsn(ISTORE, 4);
-            l1 = new Label();
-            mv.visitLabel(l1);
-            mv.visitFrame(F_APPEND, 2, new Object[]{INTEGER, INTEGER}, 0, null);
-            mv.visitVarInsn(ILOAD, 4);
-            mv.visitVarInsn(ILOAD, 3);
-            l2 = new Label();
-            mv.visitJumpInsn(IF_ICMPGE, l2);
-            mv.visitVarInsn(ALOAD, 1);
-            mv.visitFieldInsn(GETSTATIC, pojoCodecName, "tag" + pfi.protoField.tag(), "[B");
-            mv.visitVarInsn(ALOAD, 2);
-            mv.visitVarInsn(ILOAD, 4);
-            visitMethod(mv, INVOKEINTERFACE, "java/util/List", "get",
-                    "(I)Ljava/lang/Object;", true);
-            mv.visitTypeInsn(CHECKCAST, itemName);
 
-            String writeMethod = getWriteMethod(pfi.protoField.type());
+        visitMethod(mv, INVOKEINTERFACE, "java/util/List", "size", "()I", true);
+        mv.visitVarInsn(ISTORE, 3);
+        mv.visitInsn(ICONST_0);
+        mv.visitVarInsn(ISTORE, 4);
+        l1 = new Label();
+        mv.visitLabel(l1);
+        mv.visitFrame(F_APPEND, 2, new Object[]{INTEGER, INTEGER}, 0, null);
+        mv.visitVarInsn(ILOAD, 4);
+        mv.visitVarInsn(ILOAD, 3);
+        l2 = new Label();
+        mv.visitJumpInsn(IF_ICMPGE, l2);
+        mv.visitVarInsn(ALOAD, 1);
+        mv.visitFieldInsn(GETSTATIC, pojoCodecName, "tag" + pfi.protoField.tag(), "[B");
+        mv.visitVarInsn(ALOAD, 2);
+        mv.visitVarInsn(ILOAD, 4);
+        visitMethod(mv, INVOKEINTERFACE, "java/util/List", "get",
+                "(I)Ljava/lang/Object;", true);
+        mv.visitTypeInsn(CHECKCAST, itemName);
 
-            visitMethod(mv, INVOKEINTERFACE, WRITER_NAME, writeMethod,
-                    "([B" + itemDesc + ")V",
-                    true);
+        String writeMethod = getWriteMethod(pfi.protoField.type());
 
-            mv.visitIincInsn(4, 1);
-        } else {
-            visitMethod(mv, INVOKEINTERFACE, "java/util/List", "size", "()I", true);
-            mv.visitInsn(ICONST_1);
-            mv.visitInsn(ISUB);
-            mv.visitVarInsn(ISTORE, 4);
-            l1 = new Label();
-            mv.visitLabel(l1);
-            mv.visitFrame(F_APPEND, 2, new Object[]{"java/util/List", INTEGER}, 0, null);
-            mv.visitVarInsn(ILOAD, 4);
-            l2 = new Label();
-            mv.visitJumpInsn(IFLT, l2);
-            mv.visitVarInsn(ALOAD, 1);
-            mv.visitFieldInsn(GETSTATIC, pojoCodecName, "tag" + pfi.protoField.tag(), "[B");
-            mv.visitVarInsn(ALOAD, 2);
-            mv.visitVarInsn(ILOAD, 4);
-            mv.visitMethodInsn(INVOKEINTERFACE, "java/util/List", "get", "(I)Ljava/lang/Object;", true);
-            mv.visitTypeInsn(CHECKCAST, itemName);
+        visitMethod(mv, INVOKEINTERFACE, WRITER_NAME, writeMethod,
+                "([B" + itemDesc + ")V",
+                true);
 
-            String writeMethod = getWriteMethod(pfi.protoField.type());
+        mv.visitIincInsn(4, 1);
 
-            visitMethod(mv, INVOKEINTERFACE, WRITER_NAME, writeMethod,
-                    "([B" + itemDesc + ")V",
-                    true);
-            mv.visitIincInsn(4, -1);
-        }
         mv.visitJumpInsn(GOTO, l1);
         mv.visitLabel(l2);
         mv.visitFrame(Opcodes.F_CHOP,1, null, 0, null);
@@ -1163,61 +1133,37 @@ public class ProtoBufEncoderGenerator {
         mv.visitInsn(ARRAYLENGTH);
         mv.visitVarInsn(ISTORE, 4);
         Label l2, l3;
-        if (writeOrder == WriteOrder.SEQUENTIAL) {
-            mv.visitInsn(ICONST_0);
-            mv.visitVarInsn(ISTORE, 5);
-            l2 = new Label();
-            mv.visitLabel(l2);
-            mv.visitFrame(F_APPEND, 3, new Object[]{"[" + itemName,
-                    INTEGER, INTEGER}, 0, null);
-            mv.visitVarInsn(ILOAD, 5);
-            mv.visitVarInsn(ILOAD, 4);
-            l3 = new Label();
-            mv.visitJumpInsn(IF_ICMPGE, l3);
-            String writeMethod = getWriteMethod(pfi.protoField.type());
-            if (pfi.protoField.type() != Type.OBJECT) {
-                mv.visitVarInsn(ALOAD, 0);
-                mv.visitVarInsn(ALOAD, 1);
-                mv.visitVarInsn(ALOAD, 2);
-                mv.visitVarInsn(ALOAD, 3);
-                mv.visitVarInsn(ILOAD, 5);
-                mv.visitInsn(AALOAD);
-                visitMethod(mv, INVOKEVIRTUAL, pojoCodecName, writeMethod,
-                        "(L" + WRITER_NAME + ";[B" + itemName + ")V", false);
-            } else {
-                mv.visitVarInsn(ALOAD, 1);
-                mv.visitVarInsn(ALOAD, 2);
-                mv.visitVarInsn(ALOAD, 3);
-                mv.visitVarInsn(ILOAD, 5);
-                mv.visitInsn(AALOAD);
-                visitMethod(mv, INVOKEINTERFACE, WRITER_NAME, writeMethod,
-                        "([BLjava/lang/Object;)V", true);
-            }
-            mv.visitIincInsn(5, 1);
-        } else {
-            mv.visitVarInsn(ILOAD, 4);
-            mv.visitInsn(ICONST_1);
-            mv.visitInsn(ISUB);
-            mv.visitVarInsn(ISTORE, 5);
-            l2 = new Label();
-            mv.visitLabel(l2);
-            mv.visitFrame(F_APPEND, 3, new Object[]{"[" + itemName,
-                    INTEGER, INTEGER}, 0, null);
-            mv.visitVarInsn(ILOAD, 5);
-            l3 = new Label();
-            mv.visitJumpInsn(IFLT, l3);
+        mv.visitInsn(ICONST_0);
+        mv.visitVarInsn(ISTORE, 5);
+        l2 = new Label();
+        mv.visitLabel(l2);
+        mv.visitFrame(F_APPEND, 3, new Object[]{"[" + itemName,
+                INTEGER, INTEGER}, 0, null);
+        mv.visitVarInsn(ILOAD, 5);
+        mv.visitVarInsn(ILOAD, 4);
+        l3 = new Label();
+        mv.visitJumpInsn(IF_ICMPGE, l3);
+        String writeMethod = getWriteMethod(pfi.protoField.type());
+        if (pfi.protoField.type() != Type.OBJECT) {
             mv.visitVarInsn(ALOAD, 0);
             mv.visitVarInsn(ALOAD, 1);
             mv.visitVarInsn(ALOAD, 2);
             mv.visitVarInsn(ALOAD, 3);
             mv.visitVarInsn(ILOAD, 5);
             mv.visitInsn(AALOAD);
-
-            String writeMethod = getWriteMethod(pfi.protoField.type());
             visitMethod(mv, INVOKEVIRTUAL, pojoCodecName, writeMethod,
                     "(L" + WRITER_NAME + ";[B" + itemName + ")V", false);
-            mv.visitIincInsn(5, -1);
+        } else {
+            mv.visitVarInsn(ALOAD, 1);
+            mv.visitVarInsn(ALOAD, 2);
+            mv.visitVarInsn(ALOAD, 3);
+            mv.visitVarInsn(ILOAD, 5);
+            mv.visitInsn(AALOAD);
+            visitMethod(mv, INVOKEINTERFACE, WRITER_NAME, writeMethod,
+                    "([BLjava/lang/Object;)V", true);
         }
+        mv.visitIincInsn(5, 1);
+
         mv.visitJumpInsn(GOTO, l2);
         mv.visitLabel(l3);
         mv.visitFrame(F_CHOP,3, null, 0, null);
@@ -1359,8 +1305,11 @@ public class ProtoBufEncoderGenerator {
         mv.visitVarInsn(ALOAD, 0);
         mv.visitFieldInsn(GETSTATIC, REGISTER_NAME, "INSTANCE", "L" + REGISTER_NAME + ";");
         mv.visitLdcInsn(org.objectweb.asm.Type.getType("L" + itemType + ";"));
-        mv.visitFieldInsn(GETSTATIC, WRITE_ORDER_NAME, writeOrder.name(), "L" + WRITE_ORDER_NAME + ";");
-        mv.visitMethodInsn(INVOKEVIRTUAL, REGISTER_NAME, "getEncoder", "(Ljava/lang/Class;L" + WRITE_ORDER_NAME + ";)L" + IFACE_NAME + ";", false);
+        mv.visitVarInsn(ALOAD, 0);
+        mv.visitMethodInsn(INVOKESPECIAL, pojoCodecName, "getProtoBufOption",
+                "()L" + PROTOBUF_OPTIION_NAME + ";", false);
+        mv.visitMethodInsn(INVOKEVIRTUAL, REGISTER_NAME, "getEncoder",
+                "(Ljava/lang/Class;L" + PROTOBUF_OPTIION_NAME + ";)L" + IFACE_NAME + ";", false);
         mv.visitFieldInsn(PUTFIELD, pojoCodecName, codecName, "L" + IFACE_NAME + ";");
         mv.visitLabel(l0);
         mv.visitFrame(Opcodes.F_SAME, 0, null, 0, null);
@@ -1378,7 +1327,7 @@ public class ProtoBufEncoderGenerator {
         for (java.lang.reflect.Type type : pojoTypes) {
             String itemType = toInternalName(((Class)type).getName());
             String codecName = getPojoEncoderName(type);
-            String encoderName = toInternalName(getEncoderName((Class)type, encodeType, writeOrder));
+            String encoderName = toInternalName(getEncoderName((Class)type, option));
             if (!encoderName.equals(pojoCodecName) && !codecNames.contains(codecName)) {
                 cw.visitField(ACC_PRIVATE, codecName, "L" + IFACE_NAME + ";",
                         "L" + IFACE_NAME + "<L" + itemType + ";>;", null);
@@ -1421,17 +1370,6 @@ public class ProtoBufEncoderGenerator {
 //                        codecName, "L" + IFACE_NAME + ";");
 //            }
 //        }
-        for (Map.Entry<String, String> mapFields : mapNames.entrySet()) {
-            mv.visitVarInsn(ALOAD, 0);
-            mv.visitFieldInsn(GETSTATIC, REGISTER_NAME,
-                    "INSTANCE", "L" + REGISTER_NAME + ";");
-            mv.visitLdcInsn(org.objectweb.asm.Type.getType(mapFields.getValue()));
-            mv.visitFieldInsn(GETSTATIC, WRITE_ORDER_NAME, writeOrder.name(), "L" + WRITE_ORDER_NAME + ";");
-            visitMethod(mv, INVOKEVIRTUAL, REGISTER_NAME, getCodecName,
-                    "(Ljava/lang/Class;L" + WRITE_ORDER_NAME + ";)L" + IFACE_NAME + ";", false);
-            mv.visitFieldInsn(PUTFIELD, pojoCodecName,
-                    mapFields.getKey(), "L" + IFACE_NAME + ";");
-        }
 
         visitReflectField(mv, fields);
 
@@ -1539,15 +1477,12 @@ public class ProtoBufEncoderGenerator {
         return sb.toString();
     }
 
-    static String getEncoderName(Class pojoCls, EncodeType encodeType, WriteOrder writeOrder) {
+    static String getEncoderName(Class pojoCls, ProtoBufOption option) {
         if (pojoCls == null) {
             return "";
         }
         StringBuilder sb = new StringBuilder("pbe.");
         sb.append(pojoCls.getName());
-        if (writeOrder == WriteOrder.REVERSE) {
-            sb.append("R");
-        }
         sb.append("Encoder");
         return sb.toString();
     }

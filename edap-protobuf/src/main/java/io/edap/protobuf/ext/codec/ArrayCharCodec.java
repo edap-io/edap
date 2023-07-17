@@ -50,13 +50,7 @@ public class ArrayCharCodec implements ExtCodec<char[]> {
             bs[pos++] = (byte)v;
             bs[pos++] = (byte)(v >> 8);
         }
-        if (writer.getWriteOrder() == ProtoBufWriter.WriteOrder.SEQUENTIAL) {
-            writer.writeByte((byte)RANGE_ARRAY_CHAR);
-            writer.writeByteArray(bs, 0, bs.length);
-        } else {
-            writer.writeByteArray(bs, 0, bs.length);
-            writer.writeByte((byte)RANGE_ARRAY_CHAR);
-        }
-
+        writer.writeByte((byte)RANGE_ARRAY_CHAR);
+        writer.writeByteArray(bs, 0, bs.length);
     }
 }

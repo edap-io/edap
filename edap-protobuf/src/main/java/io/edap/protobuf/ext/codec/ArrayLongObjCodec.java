@@ -49,35 +49,18 @@ public class ArrayLongObjCodec implements ExtCodec<Long[]> {
 
         int len = longs.length;
         if (len == 0) {
-            if (writer.getWriteOrder() == ProtoBufWriter.WriteOrder.SEQUENTIAL) {
-                writer.writeByte((byte)RANGE_ARRAY_LONG_OBJ);
-                writer.writeInt32(0, true);
-            } else {
-                writer.writeInt32(0, true);
-                writer.writeByte((byte)RANGE_ARRAY_LONG_OBJ);
-            }
+            writer.writeByte((byte)RANGE_ARRAY_LONG_OBJ);
+            writer.writeInt32(0, true);
             return;
         }
-        if (writer.getWriteOrder() == ProtoBufWriter.WriteOrder.SEQUENTIAL) {
-            writer.writeByte((byte)RANGE_ARRAY_LONG_OBJ);
-            writer.writeInt32(len);
-            for (int i=0;i<len;i++) {
-                if (null == longs[i]) {
-                    writer.writeBytes(NULL_BS);
-                } else {
-                    writer.writeUInt64(encodeZigZag64(longs[i]));
-                }
+        writer.writeByte((byte)RANGE_ARRAY_LONG_OBJ);
+        writer.writeInt32(len);
+        for (int i=0;i<len;i++) {
+            if (null == longs[i]) {
+                writer.writeBytes(NULL_BS);
+            } else {
+                writer.writeUInt64(encodeZigZag64(longs[i]));
             }
-        } else {
-            for (int i=len-1;i>=0;i--) {
-                if (null == longs[i]) {
-                    writer.writeBytes(NULL_BS);
-                } else {
-                    writer.writeUInt64(encodeZigZag64(longs[i]));
-                }
-            }
-            writer.writeInt32(len);
-            writer.writeByte((byte)RANGE_ARRAY_LONG_OBJ);
         }
     }
 }

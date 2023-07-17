@@ -54,35 +54,18 @@ public class ArrayIntegerCodec implements ExtCodec<Integer[]> {
 
         int len = integers.length;
         if (len == 0) {
-            if (writer.getWriteOrder() == ProtoBufWriter.WriteOrder.SEQUENTIAL) {
-                writer.writeByte((byte)RANGE_ARRAY_INTEGER);
-                writer.writeInt32(0, true);
-            } else {
-                writer.writeInt32(0, true);
-                writer.writeByte((byte)RANGE_ARRAY_INTEGER);
-            }
+            writer.writeByte((byte)RANGE_ARRAY_INTEGER);
+            writer.writeInt32(0, true);
             return;
         }
-        if (writer.getWriteOrder() == ProtoBufWriter.WriteOrder.SEQUENTIAL) {
-            writer.writeByte((byte)RANGE_ARRAY_INTEGER);
-            writer.writeInt32(len);
-            for (int i=0;i<len;i++) {
-                if (null == integers[i]) {
-                    writer.writeUInt64(4294967296L);
-                } else {
-                    writer.writeInt32(encodeZigZag32(integers[i]), true);
-                }
+        writer.writeByte((byte)RANGE_ARRAY_INTEGER);
+        writer.writeInt32(len);
+        for (int i=0;i<len;i++) {
+            if (null == integers[i]) {
+                writer.writeUInt64(4294967296L);
+            } else {
+                writer.writeInt32(encodeZigZag32(integers[i]), true);
             }
-        } else {
-            for (int i=len-1;i>=0;i--) {
-                if (null == integers[i]) {
-                    writer.writeUInt64(4294967296L);
-                } else {
-                    writer.writeInt32(encodeZigZag32(integers[i]), true);
-                }
-            }
-            writer.writeInt32(len);
-            writer.writeByte((byte)RANGE_ARRAY_INTEGER);
         }
     }
 }

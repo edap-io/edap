@@ -46,28 +46,14 @@ public class ArrayLongCodec implements ExtCodec<long[]> {
     public void encode(ProtoBufWriter writer, long[] ints) throws EncodeException {
         int len = ints.length;
         if (len == 0) {
-            if (writer.getWriteOrder() == ProtoBufWriter.WriteOrder.SEQUENTIAL) {
                 writer.writeByte((byte)RANGE_ARRAY_LONG);
                 writer.writeInt32(0, true);
-            } else {
-                writer.writeInt32(0, true);
-                writer.writeByte((byte)RANGE_ARRAY_LONG);
-            }
             return;
         }
-        if (writer.getWriteOrder() == ProtoBufWriter.WriteOrder.SEQUENTIAL) {
-            writer.writeByte((byte)RANGE_ARRAY_LONG);
-            writer.writeInt32(len);
-            for (int i=0;i<len;i++) {
-                writer.writeUInt64(ints[i]);
-            }
-        } else {
-            for (int i=len-1;i>=0;i--) {
-                writer.writeUInt64(ints[i]);
-            }
-            writer.writeInt32(len);
-            writer.writeByte((byte)RANGE_ARRAY_LONG);
+        writer.writeByte((byte)RANGE_ARRAY_LONG);
+        writer.writeInt32(len);
+        for (int i=0;i<len;i++) {
+            writer.writeUInt64(ints[i]);
         }
-
     }
 }
