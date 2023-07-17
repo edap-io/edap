@@ -1481,7 +1481,15 @@ public class ProtoBufEncoderGenerator {
         if (pojoCls == null) {
             return "";
         }
-        StringBuilder sb = new StringBuilder("pbe.");
+        StringBuilder sb = new StringBuilder("pbe");
+        switch (option.getCodecType()) {
+            case FAST:
+                sb.append('f');
+                break;
+            default:
+                break;
+        }
+        sb.append('.');
         sb.append(pojoCls.getName());
         sb.append("Encoder");
         return sb.toString();
