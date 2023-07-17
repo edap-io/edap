@@ -82,7 +82,9 @@ public class AnyCodec {
     public static final int RANGE_ARRAY_OBJECT     = RANGE_ARRAY_BOOL_OBJ + 1; //108;
     public static final int RANGE_NULL             = RANGE_ARRAY_OBJECT + 1; //109;
 
-    public static final int RANG_LINKED_HASHMAPE   = RANGE_NULL + 1; //120;
+    public static final int RANGE_LINKED_HASHMAP   = RANGE_NULL + 1; //110;
+
+    public static final int RANGE_MAX              = RANGE_LINKED_HASHMAP + 1;
 
     static {
         MessageCodec msgCodec = new MessageCodec();
@@ -208,7 +210,7 @@ public class AnyCodec {
         DECODERS[RANGE_ARRAY_BOOL_OBJ]   = arrayBoolObjCodec;
         DECODERS[RANGE_ARRAY_OBJECT]     = arrayObjectCodec;
         DECODERS[RANGE_NULL]             = NULL_CODEC;
-        DECODERS[RANG_LINKED_HASHMAPE]   = linkedHashMapCodec;
+        DECODERS[RANGE_LINKED_HASHMAP]   = linkedHashMapCodec;
 
     }
 

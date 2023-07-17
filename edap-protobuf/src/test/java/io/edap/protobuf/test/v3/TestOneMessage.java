@@ -22,6 +22,7 @@ import io.edap.json.JsonObject;
 import io.edap.protobuf.EncodeException;
 import io.edap.protobuf.ProtoBuf;
 import io.edap.protobuf.ProtoBufException;
+import io.edap.protobuf.model.ProtoBufOption;
 import io.edap.protobuf.test.message.v3.OneMessage;
 import io.edap.protobuf.test.message.v3.OneMessageNoAccess;
 import io.edap.protobuf.test.message.v3.OneMessageOuterClass;
@@ -69,9 +70,14 @@ public class TestOneMessage {
         OneMessage OneMessage = new OneMessage();
         OneMessage.setProj(proj);
         byte[] epb = ProtoBuf.toByteArray(OneMessage);
-
-
         assertArrayEquals(pb, epb);
+
+        ProtoBufOption option = new ProtoBufOption();
+        option.setCodecType(ProtoBuf.CodecType.FAST);
+        epb = ProtoBuf.toByteArray(OneMessage, option);
+        System.out.println("+--------------------+");
+        System.out.println(conver2HexStr(epb));
+        System.out.println("+--------------------+");
     }
 
     @ParameterizedTest

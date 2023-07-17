@@ -1427,7 +1427,6 @@ public class ProtoBufEncoderGenerator {
     }
 
     private void visitClinitMethod(List<ProtoFieldInfo> fields) {
-        FieldVisitor fv;
         MethodVisitor mv;
         mv = cw.visitMethod(ACC_STATIC, "<clinit>", "()V", null, null);
         mv.visitCode();
@@ -1445,10 +1444,22 @@ public class ProtoBufEncoderGenerator {
     private void initFieldData(MethodVisitor mv, List<ProtoFieldInfo> fields) {
         FieldVisitor fv;
         for (ProtoFieldInfo pfi : fields) {
-            fv = cw.visitField(ACC_PRIVATE + ACC_FINAL + ACC_STATIC, "tag" + pfi.protoField.tag(), "[B", null, null);
+            fv = cw.visitField(ACC_PRIVATE + ACC_FINAL + ACC_STATIC,
+                    "tag" + pfi.protoField.tag(), "[B", null, null);
             fv.visitEnd();
             //mv.visitInsn(ICONST_1);
             visitTagOpcode(mv, pfi.protoField.tag());
+//            if (option.getCodecType() != null && option.getCodecType() == ProtoBuf.CodecType.FAST) {
+//                if (pfi.protoField.type() == Type.MESSAGE) {
+//                    mv.visitFieldInsn(GETSTATIC, FIELD_TYPE_NAME, Type.GROUP.name(),
+//                            "L" + FIELD_TYPE_NAME + ";");
+//                } else {
+//                    mv.visitFieldInsn(GETSTATIC, FIELD_TYPE_NAME, pfi.protoField.type().name(),
+//                            "L" + FIELD_TYPE_NAME + ";");
+//                }
+//            } else {
+//                mv.visitFieldInsn(GETSTATIC, FIELD_TYPE_NAME, pfi.protoField.type().name(), "L" + FIELD_TYPE_NAME + ";");
+//            }
             mv.visitFieldInsn(GETSTATIC, FIELD_TYPE_NAME, pfi.protoField.type().name(), "L" + FIELD_TYPE_NAME + ";");
             mv.visitFieldInsn(GETSTATIC, CARDINALITY_NAME, pfi.protoField.cardinality().name(), "L" + CARDINALITY_NAME + ";");
             visitMethod(mv, INVOKESTATIC, PROTOUTIL_NAME, "buildFieldData",
@@ -1482,12 +1493,14 @@ public class ProtoBufEncoderGenerator {
             return "";
         }
         StringBuilder sb = new StringBuilder("pbe");
-        switch (option.getCodecType()) {
-            case FAST:
-                sb.append('f');
-                break;
-            default:
-                break;
+        if (option != null && option.getCodecType() != null) {
+            switch (option.getCodecType()) {
+                case FAST:
+                    sb.append('f');
+                    break;
+                default:
+                    break;
+            }
         }
         sb.append('.');
         sb.append(pojoCls.getName());

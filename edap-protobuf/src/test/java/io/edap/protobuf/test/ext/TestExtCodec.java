@@ -36,8 +36,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 
-import static io.edap.protobuf.ext.AnyCodec.RANGE_CLASS;
-import static io.edap.protobuf.ext.AnyCodec.RANGE_NULL;
+import static io.edap.protobuf.ext.AnyCodec.*;
 import static io.edap.protobuf.test.TestUtil.conver2HexStr;
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -153,7 +152,7 @@ public class TestExtCodec {
 
     @Test
     void testAnyCodec() {
-        byte[] data = new byte[]{(byte)(RANGE_NULL + 1),106,97,118,97,46,117,116,105,108,46,84,114,101,101,77,97,112};
+        byte[] data = new byte[]{(byte)(RANGE_MAX),106,97,118,97,46,117,116,105,108,46,84,114,101,101,77,97,112};
         ByteArrayReader reader = new ByteArrayReader(data);
 
         ProtoBufException thrown = assertThrows(ProtoBufException.class,

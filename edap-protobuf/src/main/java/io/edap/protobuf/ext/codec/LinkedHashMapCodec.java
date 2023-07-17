@@ -9,7 +9,7 @@ import io.edap.protobuf.ext.ExtCodec;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-import static io.edap.protobuf.ext.AnyCodec.RANG_LINKED_HASHMAPE;
+import static io.edap.protobuf.ext.AnyCodec.RANGE_LINKED_HASHMAP;
 
 public class LinkedHashMapCodec implements ExtCodec<LinkedHashMap<Object, Object>>  {
     @Override
@@ -28,7 +28,7 @@ public class LinkedHashMapCodec implements ExtCodec<LinkedHashMap<Object, Object
 
     @Override
     public void encode(ProtoBufWriter writer, LinkedHashMap<Object, Object> map) throws EncodeException {
-        writer.writeByte((byte)(RANG_LINKED_HASHMAPE));
+        writer.writeByte((byte)(RANGE_LINKED_HASHMAP));
         for (Map.Entry entry : map.entrySet()) {
             writer.writeObject(entry.getKey());
             writer.writeObject(entry.getValue());

@@ -20,6 +20,7 @@ import io.edap.io.BufOut;
 import io.edap.protobuf.annotation.ProtoField;
 import io.edap.protobuf.ext.AnyCodec;
 import io.edap.protobuf.internal.ProtoBufOut;
+import io.edap.protobuf.model.ProtoBufOption;
 import io.edap.protobuf.reader.ByteArrayReader;
 import io.edap.protobuf.writer.StandardProtoBufWriter;
 
@@ -81,6 +82,30 @@ public class ProtoBuf {
             return null;
         }
         ProtoBufEncoder codec = REGISTER.getEncoder(obj.getClass());
+        ProtoBufWriter writer = THREAD_WRITER.get();
+        writer.reset();
+        BufOut out = writer.getBufOut();
+        out.reset();
+        byte[] bs;
+        try {
+            codec.encode(writer, obj);
+            int len = writer.size();
+            bs = new byte[len];
+            System.arraycopy(out.getWriteBuf().bs, 0, bs, 0, len);
+            return bs;
+        } catch (EncodeException e) {
+            //throw e;
+        } finally {
+            THREAD_WRITER.set(writer);
+        }
+        return null;
+    }
+
+    public static byte [] toByteArray(Object obj, ProtoBufOption option) {
+        if (obj == null) {
+            return null;
+        }
+        ProtoBufEncoder codec = REGISTER.getEncoder(obj.getClass(), option);
         ProtoBufWriter writer = THREAD_WRITER.get();
         writer.reset();
         BufOut out = writer.getBufOut();
