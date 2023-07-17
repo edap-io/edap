@@ -82,6 +82,7 @@ public class AnyCodec {
     public static final int RANGE_ARRAY_OBJECT     = RANGE_ARRAY_BOOL_OBJ + 1; //108;
     public static final int RANGE_NULL             = RANGE_ARRAY_OBJECT + 1; //109;
 
+    public static final int RANG_LINKED_HASHMAPE   = RANGE_NULL + 1; //120;
 
     static {
         MessageCodec msgCodec = new MessageCodec();
@@ -119,6 +120,7 @@ public class AnyCodec {
         HashMapCodec        hashMapCodec        = new HashMapCodec();
         ArrayListCodec      arrayListCodec      = new ArrayListCodec();
         ArrayObjectCodec    arrayObjectCodec    = new ArrayObjectCodec();
+        LinkedHashMapCodec  linkedHashMapCodec  = new LinkedHashMapCodec();
 
         MSG_ENCODERS.put("java.lang.String",            stringCodec);
         MSG_ENCODERS.put("java.lang.Integer",           integerCodec);
@@ -136,6 +138,7 @@ public class AnyCodec {
         MSG_ENCODERS.put("java.lang.Class",             classCodec);
         MSG_ENCODERS.put("java.util.HashMap",           hashMapCodec);
         MSG_ENCODERS.put("java.util.ArrayList",         arrayListCodec);
+        MSG_ENCODERS.put("java.util.LinkedHashMap",     linkedHashMapCodec);
 
         MSG_ENCODERS.put("[B",                          arrayByteCodec);
         MSG_ENCODERS.put("[C",                          arrayCharCodec);
@@ -205,6 +208,7 @@ public class AnyCodec {
         DECODERS[RANGE_ARRAY_BOOL_OBJ]   = arrayBoolObjCodec;
         DECODERS[RANGE_ARRAY_OBJECT]     = arrayObjectCodec;
         DECODERS[RANGE_NULL]             = NULL_CODEC;
+        DECODERS[RANG_LINKED_HASHMAPE]   = linkedHashMapCodec;
 
     }
 
