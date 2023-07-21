@@ -27,8 +27,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
 import java.lang.reflect.Field;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 
 import static io.edap.protobuf.test.TestUtil.conver2HexStr;
 import static org.junit.jupiter.api.Assertions.*;
@@ -290,19 +289,25 @@ public class TestAllType {
             builder.setField7(jvalue.getFloatValue("field7"));
             builder.setField8(jvalue.getIntValue("field8"));
             builder.setField9(jvalue.getLongValue("field9"));
-            for (Map.Entry<String, Object> jv : jvalue.getJsonObject("field10").entrySet()) {
-                JsonObject jp = (JsonObject) jv.getValue();
+
+            Set<String> keys = jvalue.getJsonObject("field10").keySet();
+            List<String> mapKeys = new ArrayList<>();
+            mapKeys.addAll(keys);
+            Collections.sort(mapKeys);
+            for (String key : mapKeys) {
+                JsonObject jp = jvalue.getJsonObject("field10");
                 OneMapOuterClass.Project.Builder pbuider = OneMapOuterClass.Project.newBuilder();
                 pbuider.setId(jp.getLongValue("id"));
                 pbuider.setName(jp.getString("name"));
                 pbuider.setRepoPath(jp.getString("repoPath"));
-                builder.putField10(jv.getKey(), pbuider.build());
+                builder.putField10(key, pbuider.build());
             }
             OneMessageOuterClass.Proj.Builder projB = OneMessageOuterClass.Proj.newBuilder();
 
             projB.setId(jproj.getLongValue("id"));
             projB.setName(jproj.getString("name"));
             projB.setRepoPath(jproj.getString("repoPath"));
+
             builder.setField11(projB.build());
             builder.setField12(jvalue.getIntValue("field12"));
             builder.setField13(jvalue.getLongValue("field13"));
@@ -333,16 +338,15 @@ public class TestAllType {
             allType.field6 = jvalue.getLongValue("field6");
             allType.field7 = jvalue.getFloatValue("field7");
             allType.field8 = jvalue.getIntValue("field8");
-            allType.field8 = jvalue.getIntValue("field8");
             allType.field9 = jvalue.getLongValue("field9");
-            Map<String, Project> projects = new HashMap<>();
-            for (Map.Entry<String, Object> jv : jvalue.getJsonObject("field10").entrySet()) {
-                JsonObject jp = (JsonObject) jv.getValue();
+            Map<String, Project> projects = new LinkedHashMap<>();
+            for (String key : mapKeys) {
+                JsonObject jp = jvalue.getJsonObject("field10");
                 Project project = new Project();
                 project.setId(jp.getLongValue("id"));
                 project.setName(jp.getString("name"));
                 project.setRepoPath(jp.getString("repoPath"));
-                projects.put(jv.getKey(), project);
+                projects.put(key, project);
             }
             allType.field10 = projects;
             allType.field11 = proj;

@@ -21,7 +21,9 @@ import io.edap.protobuf.annotation.ProtoField;
 import io.edap.protobuf.ext.AnyCodec;
 import io.edap.protobuf.internal.ProtoBufOut;
 import io.edap.protobuf.model.ProtoBufOption;
+import io.edap.protobuf.reader.ByteArrayFastReader;
 import io.edap.protobuf.reader.ByteArrayReader;
+import io.edap.protobuf.writer.FastProtoBufWriter;
 import io.edap.protobuf.writer.StandardProtoBufWriter;
 
 import java.io.IOException;
@@ -64,10 +66,18 @@ public class ProtoBuf {
      */
     private static final ThreadLocal<ProtoBufWriter> THREAD_WRITER;
 
+    private static final ThreadLocal<ProtoBufWriter> THREAD_FAST_WRITER;
+
     static {
         THREAD_WRITER = ThreadLocal.withInitial(() -> {
             BufOut out    = new ProtoBufOut();
             ProtoBufWriter writer = new StandardProtoBufWriter(out);
+            return writer;
+        });
+
+        THREAD_FAST_WRITER = ThreadLocal.withInitial(() -> {
+            BufOut out    = new ProtoBufOut();
+            ProtoBufWriter writer = new FastProtoBufWriter(out);
             return writer;
         });
     }
@@ -96,7 +106,7 @@ public class ProtoBuf {
         } catch (EncodeException e) {
             //throw e;
         } finally {
-            THREAD_WRITER.set(writer);
+            //THREAD_WRITER.set(writer);
         }
         return null;
     }
@@ -106,7 +116,12 @@ public class ProtoBuf {
             return null;
         }
         ProtoBufEncoder codec = REGISTER.getEncoder(obj.getClass(), option);
-        ProtoBufWriter writer = THREAD_WRITER.get();
+        ProtoBufWriter writer;
+        if (option != null && CodecType.FAST == option.getCodecType()) {
+            writer = THREAD_FAST_WRITER.get();
+        } else {
+            writer = THREAD_WRITER.get();
+        }
         writer.reset();
         BufOut out = writer.getBufOut();
         out.reset();
@@ -120,7 +135,7 @@ public class ProtoBuf {
         } catch (EncodeException e) {
             //throw e;
         } finally {
-            THREAD_WRITER.set(writer);
+            //THREAD_WRITER.set(writer);
         }
         return null;
     }
@@ -144,6 +159,31 @@ public class ProtoBuf {
         byte[] bs;
         try {
             AnyCodec.encode(writer, obj);
+            int len = writer.size();
+            bs = new byte[len];
+            System.arraycopy(out.getWriteBuf().bs, 0, bs, 0, len);
+            out.reset();
+            return bs;
+        } catch (EncodeException e) {
+            throw e;
+        } finally {
+            THREAD_WRITER.set(writer);
+        }
+    }
+
+    public static byte [] ser(Object obj, ProtoBufOption option) throws EncodeException {
+        ProtoBufWriter writer;
+        if (option != null && CodecType.FAST == option.getCodecType()) {
+            writer = THREAD_FAST_WRITER.get();
+        } else {
+            writer = THREAD_WRITER.get();
+        }
+        writer.reset();
+        BufOut out = writer.getBufOut();
+        out.reset();
+        byte[] bs;
+        try {
+            AnyCodec.encode(writer, obj, option);
             int len = writer.size();
             bs = new byte[len];
             System.arraycopy(out.getWriteBuf().bs, 0, bs, 0, len);
@@ -224,6 +264,15 @@ public class ProtoBuf {
         return null;
     }
 
+    public static <T> T toObject(byte [] bs, Class<T> cls, ProtoBufOption option) {
+        try {
+            return toObject(bs, 0, bs.length, cls, option);
+        } catch (Exception e) {
+
+        }
+        return null;
+    }
+
     /**
      * 将protobuf的字节数组，反序列化为对象，如果protobuf字节数组和给定的java类的数据类型不一致
      * 则报错
@@ -239,6 +288,29 @@ public class ProtoBuf {
             throws ProtoBufException {
         ByteArrayReader reader = new ByteArrayReader(bs, offset, len);
         ProtoBufDecoder codec = REGISTER.getDecoder(cls);
+        return (T)codec.decode(reader);
+    }
+
+    /**
+     * 将protobuf的字节数组，反序列化为对象，如果protobuf字节数组和给定的java类的数据类型不一致
+     * 则报错
+     * @param <T> 对象类型
+     * @param bs 自己数组
+     * @param offset 数组开始的下标
+     * @param len protobuf数据的长度
+     * @param cls 给定的java对象的class
+     * @return 返回java对象
+     * @throws ProtoBufException
+     */
+    public static <T> T toObject(byte [] bs, int offset, int len, Class<T> cls, ProtoBufOption option)
+            throws ProtoBufException {
+        ByteArrayReader reader;
+        if (option != null && CodecType.FAST == option.getCodecType()) {
+            reader = new ByteArrayFastReader(bs, offset, len);
+        } else {
+            reader = new ByteArrayReader(bs, offset, len);
+        }
+        ProtoBufDecoder<T> codec = REGISTER.getDecoder(cls, option);
         return (T)codec.decode(reader);
     }
 }

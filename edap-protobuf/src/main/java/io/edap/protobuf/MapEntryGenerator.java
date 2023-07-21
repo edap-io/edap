@@ -127,7 +127,7 @@ public class MapEntryGenerator {
             valTypeStr = ClazzUtil.getDescriptor((Class)valType);
             valTypeDesc = null;
         }
-        //System.out.println("keyProtoType=" + keyProtoType + ",valProtoType=" + valProtoType);
+
         fv = cw.visitField(ACC_PUBLIC, "key", keyTypeStr,
                 keyTypeDesc, null);
         av = fv.visitAnnotation(ANNOTATION_NAME, true);

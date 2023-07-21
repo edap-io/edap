@@ -29,4 +29,8 @@ public interface ProtoBufDecoder<T> {
      * @throws ProtoBufException 如果给定的数据不是正确的ProtoBuf编码的数据则抛错
      */
     T decode(ProtoBufReader reader) throws ProtoBufException;
+
+    default T decode(ProtoBufReader reader, int endGroupTag) throws ProtoBufException {
+        throw new RuntimeException("Not support method readMessage(ProtoBufDecoder<T> decoder, int endTag)");
+    }
 }

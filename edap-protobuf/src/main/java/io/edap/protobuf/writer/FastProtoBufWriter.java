@@ -72,11 +72,18 @@ public class FastProtoBufWriter extends StandardProtoBufWriter {
     }
 
     @Override
+    public <T> void writeMessage(T v, ProtoBufEncoder<T> codec) throws EncodeException {
+        writeUInt32(WireFormat.makeTag(1, WireType.START_GROUP));
+        codec.encode(this, v);
+        writeUInt32(WireFormat.makeTag(1, WireType.END_GROUP));
+    }
+
+    @Override
     public <T> void writeMessage(byte[] fieldData, int tag, T v, ProtoBufEncoder<T> codec) throws EncodeException {
         if (v == null) {
             return;
         }
-        writeUInt32(WireFormat.makeTag(tag, WireType.START_GROUP));
+        writeFieldData(fieldData);
         codec.encode(this, v);
         writeUInt32(WireFormat.makeTag(tag, WireType.END_GROUP));
     }
@@ -87,17 +94,37 @@ public class FastProtoBufWriter extends StandardProtoBufWriter {
         expand(MAX_VARINT_SIZE);
         writeFieldData(fieldData);
         codec.encode(this, vs.get(0));
+        int end = WireFormat.makeTag(tag, WireType.END_GROUP);
         if (size == 1) {
-            expand(MAX_VARINT_SIZE);
-            writeFieldData(fieldData);
+            writeUInt32(end);
         } else {
+            writeUInt32(end);
             for (int i=1;i<size;i++) {
                 expand(MAX_VARINT_SIZE * 2);
                 writeFieldData2(fieldData);
                 codec.encode(this, vs.get(i));
+                writeUInt32(end);
             }
-            expand(MAX_VARINT_SIZE);
-            writeFieldData(fieldData);
         }
+    }
+
+    @Override
+    public <T> void writeMessages(byte[] fieldData, int tag, T[] vs, ProtoBufEncoder<T> codec) throws EncodeException {
+        if (vs == null) {
+            return;
+        }
+        int end = WireFormat.makeTag(tag, WireType.END_GROUP);
+        int size = vs.length;
+        for (int i=0;i<size;i++) {
+            //for (T v : vs) {
+            T v = vs[i];
+            writeMessage0(fieldData, tag, v, codec, end);
+        }
+    }
+
+    public <T> void writeMessage0(byte[] fieldData, int tag, T v, ProtoBufEncoder<T> codec, int end) throws EncodeException {
+        writeFieldData(fieldData);
+        codec.encode(this, v);
+        writeUInt32(end);
     }
 }

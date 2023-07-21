@@ -16,6 +16,7 @@
 
 package io.edap.protobuf.util;
 
+import io.edap.protobuf.ProtoBuf;
 import io.edap.protobuf.ProtoBuf.ProtoFieldInfo;
 import io.edap.protobuf.ProtoBufCodecRegister;
 import io.edap.protobuf.ProtoPersister;
@@ -23,6 +24,7 @@ import io.edap.protobuf.annotation.ProtoField;
 import io.edap.protobuf.builder.ProtoV2Builder;
 import io.edap.protobuf.builder.ProtoV3Builder;
 import io.edap.protobuf.model.MessageInfo;
+import io.edap.protobuf.model.ProtoBufOption;
 import io.edap.protobuf.model.ProtoTypeInfo;
 import io.edap.protobuf.wire.*;
 import io.edap.protobuf.wire.Field.Cardinality;
@@ -496,7 +498,6 @@ public class ProtoUtil {
         Object[] params = new Object[0];
         for (int i=0;i<values.length;i++) {
             Object v = values[i];
-            System.out.println("v=" + v);
             ProtoEnum.EnumEntry entry = new ProtoEnum.EnumEntry();
             entry.setLabel(v.toString());
             int value = i;
@@ -760,8 +761,12 @@ public class ProtoUtil {
         return pf;
     }
 
-    public static String buildMapEncodeName(java.lang.reflect.Type mapType) {
-        StringBuilder name = new StringBuilder("io.edap.protobuf.mapencoder.MapEncoder_");
+    public static String buildMapEncodeName(java.lang.reflect.Type mapType, ProtoBufOption option) {
+        StringBuilder name = new StringBuilder("io.edap.protobuf.");
+        if (option != null && ProtoBuf.CodecType.FAST == option.getCodecType()) {
+            name.append('f');
+        }
+        name.append("mapencoder.MapEncoder_");
         if (mapType instanceof ParameterizedType) {
             ParameterizedType ptype = (ParameterizedType)mapType;
             java.lang.reflect.Type[] types = ptype.getActualTypeArguments();

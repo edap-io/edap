@@ -244,6 +244,18 @@ public interface ProtoBufReader {
      * @throws ProtoBufException
      */
     <T extends Object> T readMessage(ProtoBufDecoder<T> decoder) throws ProtoBufException;
+
+    /**
+     * 使用GROUP包含时，解码Message
+     * @param decoder 解码器
+     * @param endTag 结束的tag值，该值为tag和END_GROUP计算后的值
+     * @return
+     * @param <T>
+     * @throws ProtoBufException
+     */
+    default <T extends Object> T readMessage(ProtoBufDecoder<T> decoder, int endTag) throws ProtoBufException {
+        throw new RuntimeException("Not support method readMessage(ProtoBufDecoder<T> decoder, int endTag)");
+    }
     /**
      * 跳过一个Tag
      * @param tag tag的序号

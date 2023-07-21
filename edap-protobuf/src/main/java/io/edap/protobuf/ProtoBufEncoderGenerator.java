@@ -317,7 +317,7 @@ public class ProtoBufEncoderGenerator {
                 }
             }
         }
-        Class mapEntryCls = ProtoBufCodecRegister.INSTANCE.generateMapEntryClass(parentMapType);
+        Class mapEntryCls = ProtoBufCodecRegister.INSTANCE.generateMapEntryClass(parentMapType, option);
         int index = mapMethods.indexOf(mapEntryCls.getName());
         String mapMethod;
         if (index < 0) {
@@ -341,7 +341,7 @@ public class ProtoBufEncoderGenerator {
     private void visitMapOpcodes(MethodVisitor mv, ProtoFieldInfo pfi) {
         String rType = getDescriptor(pfi.field.getType());
         Class mapEntryCls = ProtoBufCodecRegister.INSTANCE.generateMapEntryClass(
-                pfi.field.getGenericType());
+                pfi.field.getGenericType(), option);
         int index = mapMethods.indexOf(mapEntryCls.getName());
         String mapMethod;
         if (index < 0) {
@@ -428,6 +428,10 @@ public class ProtoBufEncoderGenerator {
         mv.visitFieldInsn(GETSTATIC, REGISTER_NAME,
                 "INSTANCE", "L" + REGISTER_NAME + ";");
         mv.visitLdcInsn(org.objectweb.asm.Type.getType(itemTypeDesc));
+        mv.visitVarInsn(ALOAD, 0);
+        visitMethod(mv, INVOKEVIRTUAL, pojoCodecName,
+                "getProtoBufOption", "()L" + PROTOBUF_OPTIION_NAME + ";",
+                false);
         visitMethod(mv, INVOKEVIRTUAL, REGISTER_NAME,
                 "getEncoder", "(Ljava/lang/Class;L" + PROTOBUF_OPTIION_NAME + ";)L" + IFACE_NAME + ";",
                 false);
@@ -1337,7 +1341,7 @@ public class ProtoBufEncoderGenerator {
         Map<String, String> mapNames = new HashMap<>();
         for (ProtoFieldInfo pfi : mapFields) {
             Class mapCls = ProtoBufCodecRegister.INSTANCE
-                    .generateMapEntryClass(pfi.field.getGenericType());
+                    .generateMapEntryClass(pfi.field.getGenericType(), option);
             String codecName = getMapCodecName(mapCls);
             if (!mapNames.containsKey(codecName)) {
                 String itemType = toInternalName(mapCls.getName());
@@ -1449,18 +1453,18 @@ public class ProtoBufEncoderGenerator {
             fv.visitEnd();
             //mv.visitInsn(ICONST_1);
             visitTagOpcode(mv, pfi.protoField.tag());
-//            if (option.getCodecType() != null && option.getCodecType() == ProtoBuf.CodecType.FAST) {
-//                if (pfi.protoField.type() == Type.MESSAGE) {
-//                    mv.visitFieldInsn(GETSTATIC, FIELD_TYPE_NAME, Type.GROUP.name(),
-//                            "L" + FIELD_TYPE_NAME + ";");
-//                } else {
-//                    mv.visitFieldInsn(GETSTATIC, FIELD_TYPE_NAME, pfi.protoField.type().name(),
-//                            "L" + FIELD_TYPE_NAME + ";");
-//                }
-//            } else {
-//                mv.visitFieldInsn(GETSTATIC, FIELD_TYPE_NAME, pfi.protoField.type().name(), "L" + FIELD_TYPE_NAME + ";");
-//            }
-            mv.visitFieldInsn(GETSTATIC, FIELD_TYPE_NAME, pfi.protoField.type().name(), "L" + FIELD_TYPE_NAME + ";");
+            if (option != null && option.getCodecType() == ProtoBuf.CodecType.FAST) {
+                if (pfi.protoField.type() == Type.MESSAGE || pfi.protoField.type() == Type.MAP) {
+                    mv.visitFieldInsn(GETSTATIC, FIELD_TYPE_NAME, Type.GROUP.name(),
+                            "L" + FIELD_TYPE_NAME + ";");
+                } else {
+                    mv.visitFieldInsn(GETSTATIC, FIELD_TYPE_NAME, pfi.protoField.type().name(),
+                            "L" + FIELD_TYPE_NAME + ";");
+                }
+            } else {
+                mv.visitFieldInsn(GETSTATIC, FIELD_TYPE_NAME, pfi.protoField.type().name(), "L" + FIELD_TYPE_NAME + ";");
+            }
+            //mv.visitFieldInsn(GETSTATIC, FIELD_TYPE_NAME, pfi.protoField.type().name(), "L" + FIELD_TYPE_NAME + ";");
             mv.visitFieldInsn(GETSTATIC, CARDINALITY_NAME, pfi.protoField.cardinality().name(), "L" + CARDINALITY_NAME + ";");
             visitMethod(mv, INVOKESTATIC, PROTOUTIL_NAME, "buildFieldData",
                     "(IL" + FIELD_TYPE_NAME + ";L" + CARDINALITY_NAME + ";)[B", false);

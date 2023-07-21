@@ -18,6 +18,7 @@ package io.edap.protobuf.ext;
 
 import io.edap.protobuf.*;
 import io.edap.protobuf.ext.codec.*;
+import io.edap.protobuf.model.ProtoBufOption;
 
 import java.util.HashMap;
 
@@ -31,8 +32,13 @@ public class AnyCodec {
     static ProtoBufDecoder[] DECODERS = new ProtoBufDecoder[256];
     static HashMap<String, ProtoBufDecoder> MSG_DECODERS = new HashMap<>();
     static HashMap<String, ProtoBufEncoder> MSG_ENCODERS = new HashMap<>();
+
+    static HashMap<String, ProtoBufEncoder> MSG_FAST_ENCODERS = new HashMap<>();
+
     static NullCodec       NULL_CODEC = new NullCodec();
     static ProtoBufEncoder MSG_ENCODER;
+
+    static ProtoBufEncoder MSG_FAST_ENCODER;
     static ProtoBufDecoder MSG_DECODER;
 
     /**
@@ -88,8 +94,10 @@ public class AnyCodec {
 
     static {
         MessageCodec msgCodec = new MessageCodec();
+        MessageFastCodec msgFastCodec = new MessageFastCodec();
         MSG_ENCODER = msgCodec;
         MSG_DECODER = msgCodec;
+        MSG_FAST_ENCODER = msgFastCodec;
 
         StringCodec         stringCodec         = new StringCodec();
         IntegerCodec        integerCodec        = new IntegerCodec();
@@ -157,6 +165,39 @@ public class AnyCodec {
         MSG_ENCODERS.put("[Ljava.lang.Boolean;",        arrayBoolObjCodec);
         MSG_ENCODERS.put("[Ljava.lang.Object;",         arrayObjectCodec);
 
+        MSG_FAST_ENCODERS.put("java.lang.String",            stringCodec);
+        MSG_FAST_ENCODERS.put("java.lang.Integer",           integerCodec);
+        MSG_FAST_ENCODERS.put("java.lang.Long",              longCodec);
+        MSG_FAST_ENCODERS.put("java.lang.Boolean",           boolCodec);
+        MSG_FAST_ENCODERS.put("java.lang.Double",            doubleCodec);
+        MSG_FAST_ENCODERS.put("java.lang.Float",             floatCodec);
+        MSG_FAST_ENCODERS.put("java.util.Date",              dateCodec);
+        MSG_FAST_ENCODERS.put("java.time.LocalDate",         localDateCodec);
+        MSG_FAST_ENCODERS.put("java.time.LocalTime",         localTimeCodec);
+        MSG_FAST_ENCODERS.put("java.time.LocalDateTime",     localDateTimeCodec);
+        MSG_FAST_ENCODERS.put("java.util.GregorianCalendar", calendarCodec);
+        MSG_FAST_ENCODERS.put("java.math.BigInteger",        bigIntegerCodec);
+        MSG_FAST_ENCODERS.put("java.math.BigDecimal",        bigDecimalCodec);
+        MSG_FAST_ENCODERS.put("java.lang.Class",             classCodec);
+        MSG_FAST_ENCODERS.put("java.util.HashMap",           hashMapCodec);
+        MSG_FAST_ENCODERS.put("java.util.ArrayList",         arrayListCodec);
+        MSG_FAST_ENCODERS.put("java.util.LinkedHashMap",     linkedHashMapCodec);
+
+        MSG_FAST_ENCODERS.put("[B",                          arrayByteCodec);
+        MSG_FAST_ENCODERS.put("[C",                          arrayCharCodec);
+        MSG_FAST_ENCODERS.put("[I",                          arrayIntCodec);
+        MSG_FAST_ENCODERS.put("[Ljava.lang.Integer;",        arrayIntegerCodec);
+        MSG_FAST_ENCODERS.put("[J",                          arrayLongCodec);
+        MSG_FAST_ENCODERS.put("[Ljava.lang.Long;",           arrayLongObjCodec);
+        MSG_FAST_ENCODERS.put("[F",                          arrayFloatCodec);
+        MSG_FAST_ENCODERS.put("[Ljava.lang.Float;",          arrayFloatObjCodec);
+        MSG_FAST_ENCODERS.put("[D",                          arrayDoubleCodec);
+        MSG_FAST_ENCODERS.put("[Ljava.lang.Double;",         arrayDoubleObjCodec);
+        MSG_FAST_ENCODERS.put("[Ljava.lang.String;",         arrayStringCodec);
+        MSG_FAST_ENCODERS.put("[Z",                          arrayBoolCodec);
+        MSG_FAST_ENCODERS.put("[Ljava.lang.Boolean;",        arrayBoolObjCodec);
+        MSG_FAST_ENCODERS.put("[Ljava.lang.Object;",         arrayObjectCodec);
+
         // int的编码范围
         for (int i=RANGE_INT_START;i<RANGE_INT_END;i++) {
             DECODERS[i]  = new IntegerCodec(i);
@@ -222,6 +263,18 @@ public class AnyCodec {
         ProtoBufEncoder encoder = MSG_ENCODERS.get(v.getClass().getName());
         if (null == encoder) {
             encoder = MSG_ENCODER;
+        }
+        encoder.encode(writer, v);
+    }
+
+    public static void encode(ProtoBufWriter writer, Object v, ProtoBufOption option) throws EncodeException {
+        if (null == v) {
+            NULL_CODEC.encode(writer, v);
+            return;
+        }
+        ProtoBufEncoder encoder = MSG_FAST_ENCODERS.get(v.getClass().getName());
+        if (null == encoder) {
+            encoder = MSG_FAST_ENCODER;
         }
         encoder.encode(writer, v);
     }

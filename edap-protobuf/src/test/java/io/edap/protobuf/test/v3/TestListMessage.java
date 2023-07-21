@@ -22,6 +22,7 @@ import io.edap.json.JsonObject;
 import io.edap.protobuf.EncodeException;
 import io.edap.protobuf.ProtoBuf;
 import io.edap.protobuf.ProtoBufException;
+import io.edap.protobuf.model.ProtoBufOption;
 import io.edap.protobuf.test.message.v3.*;
 import io.edap.util.ClazzUtil;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -81,6 +82,13 @@ public class TestListMessage {
 
 
         assertArrayEquals(pb, epb);
+
+        ProtoBufOption option = new ProtoBufOption();
+        option.setCodecType(ProtoBuf.CodecType.FAST);
+        epb = ProtoBuf.toByteArray(listMessage, option);
+        System.out.println("+-fepb[" + epb.length + "]-------------------+");
+        System.out.println(conver2HexStr(epb));
+        System.out.println("+--------------------+");
     }
 
     @ParameterizedTest
@@ -119,6 +127,23 @@ public class TestListMessage {
 
         ListMessage listMessage1s = ProtoBuf.toObject(pb, ListMessage.class);
 
+        assertEquals(listMessage1s.list.size(), pbOfs.getValueList().size());
+        for (int i=0;i<listMessage1s.list.size();i++) {
+            OneMessageOuterClass.Proj pbOf = pbOfs.getValueList().get(i);
+            Proj proj = listMessage1s.list.get(i);
+            assertEquals(pbOf.getId(), proj.getId());
+            assertEquals(pbOf.getName(), proj.getName());
+            assertEquals(pbOf.getRepoPath(), proj.getRepoPath());
+        }
+
+        ProtoBufOption option = new ProtoBufOption();
+        option.setCodecType(ProtoBuf.CodecType.FAST);
+        byte[] epb = ProtoBuf.toByteArray(listMessage1s, option);
+        System.out.println("+-fepb[" + epb.length + "]-------------------+");
+        System.out.println(conver2HexStr(epb));
+        System.out.println("+--------------------+");
+
+        listMessage1s = ProtoBuf.toObject(epb, ListMessage.class, option);
         assertEquals(listMessage1s.list.size(), pbOfs.getValueList().size());
         for (int i=0;i<listMessage1s.list.size();i++) {
             OneMessageOuterClass.Proj pbOf = pbOfs.getValueList().get(i);
@@ -173,6 +198,13 @@ public class TestListMessage {
         System.out.println("+--------------------+");
 
         assertArrayEquals(pb, epb);
+
+        ProtoBufOption option = new ProtoBufOption();
+        option.setCodecType(ProtoBuf.CodecType.FAST);
+        epb = ProtoBuf.toByteArray(listMessage, option);
+        System.out.println("+-fepb[" + epb.length + "]-------------------+");
+        System.out.println(conver2HexStr(epb));
+        System.out.println("+--------------------+");
     }
 
     @ParameterizedTest
@@ -201,6 +233,24 @@ public class TestListMessage {
         ListMessageOuterClass.ListMessage pbOfs = ListMessageOuterClass.ListMessage.parseFrom(pb);
 
         ArrayMessage listMessage1s = ProtoBuf.toObject(pb, ArrayMessage.class);
+
+        assertEquals(listMessage1s.list.length, pbOfs.getValueList().size());
+        for (int i=0;i<listMessage1s.list.length;i++) {
+            OneMessageOuterClass.Proj pbOf = pbOfs.getValueList().get(i);
+            Proj proj = listMessage1s.list[i];
+            assertEquals(pbOf.getId(), proj.getId());
+            assertEquals(pbOf.getName(), proj.getName());
+            assertEquals(pbOf.getRepoPath(), proj.getRepoPath());
+        }
+
+        ProtoBufOption option = new ProtoBufOption();
+        option.setCodecType(ProtoBuf.CodecType.FAST);
+        byte[] epb = ProtoBuf.toByteArray(listMessage1s, option);
+        System.out.println("+-fepb[" + epb.length + "]-------------------+");
+        System.out.println(conver2HexStr(epb));
+        System.out.println("+--------------------+");
+
+        listMessage1s = ProtoBuf.toObject(epb, ArrayMessage.class, option);
 
         assertEquals(listMessage1s.list.length, pbOfs.getValueList().size());
         for (int i=0;i<listMessage1s.list.length;i++) {
@@ -257,6 +307,13 @@ public class TestListMessage {
 
 
         assertArrayEquals(pb, epb);
+
+        ProtoBufOption option = new ProtoBufOption();
+        option.setCodecType(ProtoBuf.CodecType.FAST);
+        epb = ProtoBuf.toByteArray(listMessage, option);
+        System.out.println("+-fepb[" + epb.length + "]-------------------+");
+        System.out.println(conver2HexStr(epb));
+        System.out.println("+--------------------+");
     }
 
     @ParameterizedTest
@@ -292,7 +349,7 @@ public class TestListMessage {
         byte[] pb = oi32.toByteArray();
 
 
-        System.out.println("+--------------------+");
+        System.out.println("+-fepb[" + pb.length + "]-------------------+");
         System.out.println(conver2HexStr(pb));
         System.out.println("+--------------------+");
 
@@ -305,6 +362,13 @@ public class TestListMessage {
         System.out.println("+--------------------+");
 
         assertArrayEquals(pb, epb);
+
+        ProtoBufOption option = new ProtoBufOption();
+        option.setCodecType(ProtoBuf.CodecType.FAST);
+        epb = ProtoBuf.toByteArray(listMessage, option);
+        System.out.println("+-fepb[" + epb.length + "]-------------------+");
+        System.out.println(conver2HexStr(epb));
+        System.out.println("+--------------------+");
     }
 
     @ParameterizedTest
@@ -354,6 +418,24 @@ public class TestListMessage {
             assertEquals(pbOf.getName(), proj.getName());
             assertEquals(pbOf.getRepoPath(), proj.getRepoPath());
         }
+
+        ProtoBufOption option = new ProtoBufOption();
+        option.setCodecType(ProtoBuf.CodecType.FAST);
+        byte[] epb = ProtoBuf.toByteArray(listMessage1s, option);
+        System.out.println("+-fepb[" + epb.length + "]-------------------+");
+        System.out.println(conver2HexStr(epb));
+        System.out.println("+--------------------+");
+
+        listMessage1s = ProtoBuf.toObject(epb, ListMessageNoAccess.class, option);
+        list = (List<Proj>)fieldF.get(listMessage1s);
+        assertEquals(list.size(), pbOfs.getValueList().size());
+        for (int i=0;i<list.size();i++) {
+            OneMessageOuterClass.Proj pbOf = pbOfs.getValueList().get(i);
+            Proj proj = list.get(i);
+            assertEquals(pbOf.getId(), proj.getId());
+            assertEquals(pbOf.getName(), proj.getName());
+            assertEquals(pbOf.getRepoPath(), proj.getRepoPath());
+        }
     }
 
     @ParameterizedTest
@@ -386,6 +468,24 @@ public class TestListMessage {
         fieldF.setAccessible(true);
 
         Proj[] list = (Proj[])fieldF.get(listMessage1s);
+        assertEquals(list.length, pbOfs.getValueList().size());
+        for (int i=0;i<list.length;i++) {
+            OneMessageOuterClass.Proj pbOf = pbOfs.getValueList().get(i);
+            Proj proj = list[i];
+            assertEquals(pbOf.getId(), proj.getId());
+            assertEquals(pbOf.getName(), proj.getName());
+            assertEquals(pbOf.getRepoPath(), proj.getRepoPath());
+        }
+
+        ProtoBufOption option = new ProtoBufOption();
+        option.setCodecType(ProtoBuf.CodecType.FAST);
+        byte[] epb = ProtoBuf.toByteArray(listMessage1s, option);
+        System.out.println("+-fepb[" + epb.length + "]-------------------+");
+        System.out.println(conver2HexStr(epb));
+        System.out.println("+--------------------+");
+
+        listMessage1s = ProtoBuf.toObject(epb, ArrayMessageNoAccess.class, option);
+        list = (Proj[])fieldF.get(listMessage1s);
         assertEquals(list.length, pbOfs.getValueList().size());
         for (int i=0;i<list.length;i++) {
             OneMessageOuterClass.Proj pbOf = pbOfs.getValueList().get(i);

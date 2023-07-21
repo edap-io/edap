@@ -60,7 +60,7 @@ public class TestOneMessage {
         byte[] pb = oi32.toByteArray();
 
 
-        System.out.println("+--------------------+");
+        System.out.println("+-[" + pb.length + "]-------------------+");
         System.out.println(conver2HexStr(pb));
         System.out.println("+--------------------+");
         Proj proj = new Proj();
@@ -70,12 +70,15 @@ public class TestOneMessage {
         OneMessage OneMessage = new OneMessage();
         OneMessage.setProj(proj);
         byte[] epb = ProtoBuf.toByteArray(OneMessage);
+        System.out.println("+-epb[" + pb.length + "]-------------------+");
+        System.out.println(conver2HexStr(pb));
+        System.out.println("+--------------------+");
         assertArrayEquals(pb, epb);
 
         ProtoBufOption option = new ProtoBufOption();
         option.setCodecType(ProtoBuf.CodecType.FAST);
         epb = ProtoBuf.toByteArray(OneMessage, option);
-        System.out.println("+--------------------+");
+        System.out.println("+-fepb[" + epb.length + "]-------------------+");
         System.out.println(conver2HexStr(epb));
         System.out.println("+--------------------+");
     }
@@ -99,12 +102,24 @@ public class TestOneMessage {
 
         OneMessageOuterClass.OneMessage pbOf = OneMessageOuterClass.OneMessage.parseFrom(pb);
 
-        OneMessage OneMessage = ProtoBuf.toObject(pb, OneMessage.class);
+        OneMessage oneMessage = ProtoBuf.toObject(pb, OneMessage.class);
+
+        assertEquals(pbOf.getValue().getId(), oneMessage.getProj().getId());
+        assertEquals(pbOf.getValue().getName(), oneMessage.getProj().getName());
+        assertEquals(pbOf.getValue().getRepoPath(), oneMessage.getProj().getRepoPath());
 
 
-        assertEquals(pbOf.getValue().getId(), OneMessage.getProj().getId());
-        assertEquals(pbOf.getValue().getName(), OneMessage.getProj().getName());
-        assertEquals(pbOf.getValue().getRepoPath(), OneMessage.getProj().getRepoPath());
+        ProtoBufOption option = new ProtoBufOption();
+        option.setCodecType(ProtoBuf.CodecType.FAST);
+        byte[] epb = ProtoBuf.toByteArray(oneMessage, option);
+        System.out.println("+-fepb[" + epb.length + "]-------------------+");
+        System.out.println(conver2HexStr(epb));
+        System.out.println("+--------------------+");
+        oneMessage = ProtoBuf.toObject(epb, OneMessage.class, option);
+
+        assertEquals(pbOf.getValue().getId(), oneMessage.getProj().getId());
+        assertEquals(pbOf.getValue().getName(), oneMessage.getProj().getName());
+        assertEquals(pbOf.getValue().getRepoPath(), oneMessage.getProj().getRepoPath());
     }
 
     @ParameterizedTest
@@ -168,6 +183,18 @@ public class TestOneMessage {
         fieldF.setAccessible(true);
 
         Proj proj = (Proj)fieldF.get(OneMessage);
+        assertEquals(pbOf.getValue().getId(), proj.getId());
+        assertEquals(pbOf.getValue().getName(), proj.getName());
+        assertEquals(pbOf.getValue().getRepoPath(), proj.getRepoPath());
+
+        ProtoBufOption option = new ProtoBufOption();
+        option.setCodecType(ProtoBuf.CodecType.FAST);
+        byte[] epb = ProtoBuf.toByteArray(OneMessage, option);
+        System.out.println("+-fepb[" + epb.length + "]-------------------+");
+        System.out.println(conver2HexStr(epb));
+        System.out.println("+--------------------+");
+        OneMessageNoAccess oneMessage = ProtoBuf.toObject(epb, OneMessageNoAccess.class, option);
+        proj = (Proj)fieldF.get(OneMessage);
         assertEquals(pbOf.getValue().getId(), proj.getId());
         assertEquals(pbOf.getValue().getName(), proj.getName());
         assertEquals(pbOf.getValue().getRepoPath(), proj.getRepoPath());

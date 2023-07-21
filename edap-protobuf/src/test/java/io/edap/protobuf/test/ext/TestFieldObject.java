@@ -665,8 +665,10 @@ public class TestFieldObject {
     })
     void testMapCodec(String value) throws EncodeException, ProtoBufException {
 
-        Map<String, Object> map = Eson.parseJsonObject(value);
+        Map<String, Object> map = new HashMap<>();
+        Map<String, Object> omap = Eson.parseJsonObject(value);
 
+        map.putAll(omap);
         FieldObject fo = new FieldObject();
         fo.setObj(map);
         byte[] epb = ProtoBuf.toByteArray(fo);
@@ -678,6 +680,8 @@ public class TestFieldObject {
         Iterator<String> keys = map.keySet().iterator();
         boolean equal = true;
         Map<String, Object> nmap = (Map<String, Object>)nfo.getObj();
+        System.out.println("nmap.size=" + nmap.size() + ",map.size=" + map.size());
+        System.out.println("nmap.size=" + nmap + ",map.size=" + map);
         while (keys.hasNext()) {
             String key = keys.next();
             Object obj = nmap.get(key);

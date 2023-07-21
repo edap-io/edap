@@ -36,7 +36,7 @@ public abstract class AbstractEncoder {
     private ProtoBufOption option;
 
     public void setProtoBufOption(ProtoBufOption option) {
-        this.setProtoBufOption(option);
+        this.option = option;
     }
 
     public ProtoBufOption getProtoBufOption() {

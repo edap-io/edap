@@ -23,6 +23,7 @@ import io.edap.protobuf.util.ProtoUtil;
 import io.edap.protobuf.wire.Field;
 import io.edap.protobuf.wire.Field.Type;
 import io.edap.protobuf.wire.WireFormat;
+import io.edap.protobuf.wire.WireType;
 import io.edap.util.*;
 import io.edap.util.internal.GeneratorClassInfo;
 import org.objectweb.asm.*;
@@ -35,6 +36,7 @@ import java.util.*;
 import static io.edap.protobuf.ProtoBufEncoderGenerator.CLAZZ_UTIL_NAME;
 import static io.edap.protobuf.util.ProtoAsmUtil.visitGetFieldValue;
 import static io.edap.protobuf.util.ProtoUtil.*;
+import static io.edap.protobuf.wire.WireFormat.makeTag;
 import static io.edap.util.AsmUtil.*;
 import static io.edap.util.ClazzUtil.getDescriptor;
 import static io.edap.util.ClazzUtil.getTypeName;
@@ -49,6 +51,8 @@ public class ProtoBufDecoderGenerator {
     static final String COLLECTION_UTIL = toInternalName(CollectionUtils.class.getName());
     static final String FIELD_TYPE_NAME = toInternalName(Field.Type.class.getName());
     static final String CLAZZ_UTIL_NAME = toInternalName(ClazzUtil.class.getName());
+
+    static final String PROTO_OPTION_NAME = toInternalName(ProtoBufOption.class.getName());
 
     private ClassWriter cw;
     private final Class pojoCls;
@@ -137,7 +141,12 @@ public class ProtoBufDecoderGenerator {
         }
         visitClinitMethod();
         visitInitMethod(pojoTypes, fields);
-        visitDecodeMethod(fields);
+        visitDoDecodeMethod(fields);
+        visitDecodeMethod();
+        if (option != null && ProtoBuf.CodecType.FAST == option.getCodecType()) {
+            visitDecodeWithEndTagMethod();
+            visitDecodeWithEndTagBridgeMethod();
+        }
 
         visitDecodeBridgeMethod();
 
@@ -148,16 +157,63 @@ public class ProtoBufDecoderGenerator {
         return gci;
     }
 
-    private void visitDecodeMethod(List<ProtoFieldInfo> fields) {
+    private void visitDecodeWithEndTagMethod() {
+        MethodVisitor mv;
+        String exName = toInternalName(ProtoBufException.class.getName());
+
+        mv = cw.visitMethod(ACC_PUBLIC, "decode",
+                "(L" + READER_NAME + ";I)L" + pojoName + ";", null,
+                new String[] { exName });
+
+        mv.visitCode();
+        mv.visitVarInsn(ALOAD, 0);
+        mv.visitVarInsn(ALOAD, 1);
+        mv.visitVarInsn(ILOAD, 2);
+        mv.visitMethodInsn(INVOKEVIRTUAL, pojoCodecName, "doDecode",
+                "(L" + READER_NAME + ";I)L" + pojoName + ";", false);
+        mv.visitInsn(ARETURN);
+        mv.visitMaxs(3, 3);
+        mv.visitEnd();
+    }
+
+    private void visitDecodeMethod() {
         MethodVisitor mv;
         String exName = toInternalName(ProtoBufException.class.getName());
 
         mv = cw.visitMethod(ACC_PUBLIC, "decode",
                 "(L" + READER_NAME + ";)L" + pojoName + ";", null,
                 new String[] { exName });
+
+        mv.visitCode();
+        mv.visitVarInsn(ALOAD, 0);
+        mv.visitVarInsn(ALOAD, 1);
+        mv.visitInsn(ICONST_0);
+        mv.visitMethodInsn(INVOKEVIRTUAL, pojoCodecName, "doDecode",
+                "(L" + READER_NAME + ";I)L" + pojoName + ";", false);
+        mv.visitInsn(ARETURN);
+        mv.visitMaxs(3, 2);
+        mv.visitEnd();
+    }
+
+    private void visitDoDecodeMethod(List<ProtoFieldInfo> fields) {
+        MethodVisitor mv;
+        String exName = toInternalName(ProtoBufException.class.getName());
+
+        mv = cw.visitMethod(ACC_PRIVATE, "doDecode",
+                "(L" + READER_NAME + ";I)L" + pojoName + ";", null,
+                new String[] { exName });
+
+        boolean isFast;
+        if (option != null && ProtoBuf.CodecType.FAST == option.getCodecType()) {
+            isFast = true;
+        } else {
+            isFast = false;
+        }
+
         mv.visitCode();
         int varReader = 1;
-        int varPojo = 2;
+        int varEndTag = 2;
+        int varPojo = 3;
         mv.visitTypeInsn(NEW, pojoName);
         mv.visitInsn(DUP);
         visitMethod(mv, INVOKESPECIAL, pojoName, "<init>", "()V", false);
@@ -166,7 +222,7 @@ public class ProtoBufDecoderGenerator {
         List<Object> framObjs = new ArrayList<>();
         framObjs.add(pojoName);
 
-        int preNextVar = 2;
+        int preNextVar = 3;
         Map<Integer, Integer> aArrayTag = new HashMap<>();
         for (int i=0;i<arrayFields.size();i++) {
             ProtoFieldInfo pfi = arrayFields.get(i);
@@ -269,7 +325,12 @@ public class ProtoBufDecoderGenerator {
         labels[0] = new Label();
         for (int i = 0; i < fieldCount; i++) {
             ProtoField pfi = sortFields.get(i).protoField;
-            tagArray[i+1] = buildFieldValue(pfi.tag(), pfi.type(), pfi.cardinality());
+            if (isFast) {
+                Type type = pfi.type()==Type.MESSAGE?Type.GROUP:pfi.type();
+                tagArray[i + 1] = buildFieldValue(pfi.tag(), type, pfi.cardinality());
+            } else {
+                tagArray[i + 1] = buildFieldValue(pfi.tag(), pfi.type(), pfi.cardinality());
+            }
             //tagArray[i] = pfi.tag();
             labels[i+1] = new Label();
         }
@@ -311,8 +372,14 @@ public class ProtoBufDecoderGenerator {
                         mv.visitFieldInsn(GETFIELD, pojoCodecName, pname,
                                 "L" + IFACE_NAME + ";");
                     }
-                    visitMethod(mv, INVOKEINTERFACE, READER_NAME, "readMessage",
-                            "(L" + IFACE_NAME + ";)Ljava/lang/Object;", true);
+                    if (isFast) {
+                        visitIntInsn(makeTag(pfi.protoField.tag(), WireType.END_GROUP), mv);
+                        visitMethod(mv, INVOKEINTERFACE, READER_NAME, "readMessage",
+                                "(L" + IFACE_NAME + ";I)Ljava/lang/Object;", true);
+                    } else {
+                        visitMethod(mv, INVOKEINTERFACE, READER_NAME, "readMessage",
+                                "(L" + IFACE_NAME + ";)Ljava/lang/Object;", true);
+                    }
                     mv.visitTypeInsn(CHECKCAST, itemTypeName);
                     visitMethod(mv, INVOKEINTERFACE, "java/util/List", "add",
                             "(Ljava/lang/Object;)Z", true);
@@ -327,7 +394,7 @@ public class ProtoBufDecoderGenerator {
                         mv.visitVarInsn(ALOAD, 0);
                         mv.visitFieldInsn(GETFIELD, pojoCodecName, pfi.field.getName() + "F", "Ljava/lang/reflect/Field;");
                     }
-                    mv.visitVarInsn(ALOAD, 2);
+                    mv.visitVarInsn(ALOAD, varPojo);
                     mv.visitVarInsn(ALOAD, 1);
                     mv.visitMethodInsn(INVOKEINTERFACE, READER_NAME, readMethodName, "()[" + itemDesc, true);
                     visitSetValueOpcode(mv, pfi);
@@ -336,7 +403,7 @@ public class ProtoBufDecoderGenerator {
                         mv.visitVarInsn(ALOAD, 0);
                         mv.visitFieldInsn(GETFIELD, pojoCodecName, pfi.field.getName() + "F", "Ljava/lang/reflect/Field;");
                     }
-                    mv.visitVarInsn(ALOAD, 2);
+                    mv.visitVarInsn(ALOAD, varPojo);
                     mv.visitVarInsn(ALOAD, 1);
                     mv.visitMethodInsn(INVOKEINTERFACE, READER_NAME, readMethod.method, "()" + readMethod.returnType, true);
                     visitSetValueOpcode(mv, pfi);
@@ -346,7 +413,7 @@ public class ProtoBufDecoderGenerator {
                         mv.visitVarInsn(ALOAD, 0);
                         mv.visitFieldInsn(GETFIELD, pojoCodecName, pfi.field.getName() + "F", "Ljava/lang/reflect/Field;");
                     }
-                    mv.visitVarInsn(ALOAD, 2);
+                    mv.visitVarInsn(ALOAD, varPojo);
                     mv.visitVarInsn(ALOAD, 0);
                     mv.visitVarInsn(ALOAD, 1);
                     mv.visitFieldInsn(GETSTATIC, FIELD_TYPE_NAME, "INT32", "L" + FIELD_TYPE_NAME + ";");
@@ -399,7 +466,7 @@ public class ProtoBufDecoderGenerator {
                     mv.visitFieldInsn(GETFIELD, pojoCodecName, pfi.field.getName() + "F", "Ljava/lang/reflect/Field;");
                 }
                 String enumName = toInternalName(getTypeName(pfi.field.getType()));
-                mv.visitVarInsn(ALOAD, 2);
+                mv.visitVarInsn(ALOAD, varPojo);
                 if (!implInterface(pfi.field.getType(), ProtoBufEnum.class)) {
                     visitMethod(mv, INVOKESTATIC, enumName, "values",
                             "()[L" + enumName + ";", false);
@@ -466,8 +533,14 @@ public class ProtoBufDecoderGenerator {
                         mv.visitFieldInsn(GETFIELD, pojoCodecName, pname,
                                 "L" + IFACE_NAME + ";");
                     }
-                    visitMethod(mv, INVOKEINTERFACE, READER_NAME, "readMessage",
-                            "(L" + IFACE_NAME + ";)Ljava/lang/Object;", true);
+                    if (isFast) {
+                        visitIntInsn(makeTag(pfi.protoField.tag(), WireType.END_GROUP), mv);
+                        visitMethod(mv, INVOKEINTERFACE, READER_NAME, "readMessage",
+                                "(L" + IFACE_NAME + ";I)Ljava/lang/Object;", true);
+                    } else {
+                        visitMethod(mv, INVOKEINTERFACE, READER_NAME, "readMessage",
+                                "(L" + IFACE_NAME + ";)Ljava/lang/Object;", true);
+                    }
                     mv.visitTypeInsn(CHECKCAST, itemTypeName);
                     visitMethod(mv, INVOKEINTERFACE, "java/util/List", "add",
                             "(Ljava/lang/Object;)Z", true);
@@ -478,7 +551,7 @@ public class ProtoBufDecoderGenerator {
                         mv.visitVarInsn(ALOAD, 0);
                         mv.visitFieldInsn(GETFIELD, pojoCodecName, pfi.field.getName() + "F", "Ljava/lang/reflect/Field;");
                     }
-                    mv.visitVarInsn(ALOAD, 2);
+                    mv.visitVarInsn(ALOAD, varPojo);
                     mv.visitVarInsn(ALOAD, 0);
                     mv.visitVarInsn(ALOAD, 1);
                     mv.visitFieldInsn(GETSTATIC, FIELD_TYPE_NAME, "INT32", "L" + FIELD_TYPE_NAME + ";");
@@ -494,7 +567,7 @@ public class ProtoBufDecoderGenerator {
                         mv.visitVarInsn(ALOAD, 0);
                         mv.visitFieldInsn(GETFIELD, pojoCodecName, pfi.field.getName() + "F", "Ljava/lang/reflect/Field;");
                     }
-                    mv.visitVarInsn(ALOAD, 2);
+                    mv.visitVarInsn(ALOAD, varPojo);
                     mv.visitVarInsn(ALOAD, 1);
                     if (!StringUtil.isEmpty(readMethod.paramType)) {
                         mv.visitFieldInsn(GETSTATIC, FIELD_TYPE_NAME,
@@ -530,7 +603,7 @@ public class ProtoBufDecoderGenerator {
                     mv.visitVarInsn(ALOAD, 0);
                     mv.visitFieldInsn(GETFIELD, pojoCodecName, pfi.field.getName() + "F", "Ljava/lang/reflect/Field;");
                 }
-                mv.visitVarInsn(ALOAD, 2);
+                mv.visitVarInsn(ALOAD, varPojo);
                 mv.visitVarInsn(ALOAD, 1);
                 mv.visitVarInsn(ALOAD, 0);
                 String decodeName = getDecoderName((Class)pfi.field.getGenericType(), option);
@@ -538,8 +611,14 @@ public class ProtoBufDecoderGenerator {
                     mv.visitFieldInsn(GETFIELD, pojoCodecName, pname,
                             "L" + IFACE_NAME + ";");
                 }
-                visitMethod(mv, INVOKEINTERFACE, READER_NAME, "readMessage",
-                        "(L" + IFACE_NAME + ";)Ljava/lang/Object;", true);
+                if (isFast) {
+                    visitIntInsn(makeTag(pfi.protoField.tag(), WireType.END_GROUP), mv);
+                    visitMethod(mv, INVOKEINTERFACE, READER_NAME, "readMessage",
+                            "(L" + IFACE_NAME + ";I)Ljava/lang/Object;", true);
+                } else {
+                    visitMethod(mv, INVOKEINTERFACE, READER_NAME, "readMessage",
+                            "(L" + IFACE_NAME + ";)Ljava/lang/Object;", true);
+                }
                 mv.visitTypeInsn(CHECKCAST, pojo);
                 visitSetValueOpcode(mv, pfi);
                 if (pfi.setMethod != null
@@ -552,7 +631,7 @@ public class ProtoBufDecoderGenerator {
                     mv.visitFieldInsn(GETFIELD, pojoCodecName, pfi.field.getName() + "F", "Ljava/lang/reflect/Field;");
                 }
                 String timeUtil = toInternalName(TimeUtil.class.getName());
-                mv.visitVarInsn(ALOAD, 2);
+                mv.visitVarInsn(ALOAD, varPojo);
                 mv.visitVarInsn(ALOAD, 1);
                 String resType = readMethod.returnType;
                 if ("readObject".equals(readMethod.method)) {
@@ -616,6 +695,23 @@ public class ProtoBufDecoderGenerator {
 
         mv.visitLabel(dfltLabel);
         mv.visitFrame(Opcodes.F_SAME, 0, null, 0, null);
+
+        if (isFast) {
+            // 如果是用group包装的message则判断tag是否是该message的endGroup
+            mv.visitVarInsn(ILOAD, varEndTag);
+            Label varLbSkip = new Label();
+            // 如果endTag小于0则跳转到skipField
+            mv.visitJumpInsn(IFLE, varLbSkip);
+            mv.visitVarInsn(ILOAD, varEndTag);
+            mv.visitVarInsn(ILOAD, varTag);
+            // 如果tag和endTag不等则跳转到skipField
+            mv.visitJumpInsn(IF_ICMPNE, varLbSkip);
+            // 为循环标记赋值为结束
+            mv.visitInsn(ICONST_1);
+            mv.visitVarInsn(ISTORE, varFinished);
+            mv.visitJumpInsn(GOTO, finishLabel);
+            mv.visitLabel(varLbSkip);
+        }
         mv.visitVarInsn(ALOAD, varReader);
         mv.visitVarInsn(ILOAD, varTag);
         mv.visitVarInsn(ILOAD, varTag);
@@ -932,7 +1028,6 @@ public class ProtoBufDecoderGenerator {
                         valType);
             }
         } else {
-            System.out.println(pfi.field.getType().getName());
             switch (pfi.field.getType().getName()) {
                 case "boolean":
                     visitMethod(mv, INVOKESTATIC, "java/lang/Boolean",
@@ -1294,6 +1389,24 @@ public class ProtoBufDecoderGenerator {
         mv.visitEnd();
     }
 
+    private void visitDecodeWithEndTagBridgeMethod() {
+        MethodVisitor mv;
+        mv = cw.visitMethod(ACC_PUBLIC + ACC_BRIDGE + ACC_SYNTHETIC, "decode",
+                "(L" + READER_NAME + ";I)Ljava/lang/Object;", null, null);
+
+        mv.visitCode();
+        mv.visitVarInsn(ALOAD, 0);
+        mv.visitVarInsn(ALOAD, 1);
+        mv.visitVarInsn(ILOAD, 2);
+        visitMethod(mv, INVOKEVIRTUAL, pojoCodecName,
+                "decode", "(L" + READER_NAME + ";I)L"
+                        + toInternalName(pojoCls.getName())
+                        + ";", false);
+        mv.visitInsn(ARETURN);
+        mv.visitMaxs(0, 0);
+        mv.visitEnd();
+    }
+
     private void visitInitMethod(List<java.lang.reflect.Type> pojoTypes, List<ProtoFieldInfo> fields) {
 
         for (java.lang.reflect.Type type : pojoTypes) {
@@ -1343,13 +1456,35 @@ public class ProtoBufDecoderGenerator {
             String codecName = getPojoDecoderName(type);
             String encoderName = toInternalName(getDecoderName((Class)type, option));
             if (!encoderName.equals(pojoCodecName)) {
+                boolean isFast = false;
+                if (option != null && ProtoBuf.CodecType.FAST == option.getCodecType()) {
+                    isFast = true;
+                }
+                if (isFast) {
+                    mv.visitTypeInsn(NEW, PROTO_OPTION_NAME);
+                    mv.visitInsn(DUP);
+                    mv.visitMethodInsn(INVOKESPECIAL, PROTO_OPTION_NAME, "<init>",
+                            "()V", false);
+                    mv.visitVarInsn(ASTORE, 1);
+                    mv.visitVarInsn(ALOAD, 1);
+                    mv.visitFieldInsn(GETSTATIC, "io/edap/protobuf/ProtoBuf$CodecType",
+                            "FAST", "Lio/edap/protobuf/ProtoBuf$CodecType;");
+                    mv.visitMethodInsn(INVOKEVIRTUAL, PROTO_OPTION_NAME, "setCodecType",
+                            "(Lio/edap/protobuf/ProtoBuf$CodecType;)V", false);
+                }
                 mv.visitVarInsn(ALOAD, 0);
                 mv.visitFieldInsn(GETSTATIC, REGISTER_NAME,
                         "INSTANCE", "L" + REGISTER_NAME + ";");
                 String tdescriptor = getDescriptor(type);
                 mv.visitLdcInsn(org.objectweb.asm.Type.getType(tdescriptor));
-                visitMethod(mv, INVOKEVIRTUAL, REGISTER_NAME, getCodecName,
-                        "(Ljava/lang/Class;)L" + IFACE_NAME + ";", false);
+                if (isFast) {
+                    mv.visitVarInsn(ALOAD, 1);
+                    visitMethod(mv, INVOKEVIRTUAL, REGISTER_NAME, getCodecName,
+                            "(Ljava/lang/Class;L" + PROTO_OPTION_NAME + ";)L" + IFACE_NAME + ";", false);
+                } else {
+                    visitMethod(mv, INVOKEVIRTUAL, REGISTER_NAME, getCodecName,
+                            "(Ljava/lang/Class;)L" + IFACE_NAME + ";", false);
+                }
                 mv.visitFieldInsn(PUTFIELD, pojoCodecName,
                         codecName, "L" + IFACE_NAME + ";");
             }
@@ -1518,7 +1653,11 @@ public class ProtoBufDecoderGenerator {
         if (pojoCls == null) {
             return "";
         }
-        StringBuilder sb = new StringBuilder("pbd.");
+        StringBuilder sb = new StringBuilder("pbd");
+        if (option != null && ProtoBuf.CodecType.FAST == option.getCodecType()) {
+            sb.append("f");
+        }
+        sb.append('.');
         if (pojoCls.getPackage() != null) {
             sb.append(pojoCls.getPackage().getName()).append(".");
         }
