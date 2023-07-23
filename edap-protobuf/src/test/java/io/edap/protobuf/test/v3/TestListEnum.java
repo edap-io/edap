@@ -21,6 +21,7 @@ import io.edap.json.JsonArray;
 import io.edap.protobuf.EncodeException;
 import io.edap.protobuf.ProtoBuf;
 import io.edap.protobuf.ProtoBufException;
+import io.edap.protobuf.model.ProtoBufOption;
 import io.edap.protobuf.test.message.v3.*;
 import io.edap.util.ClazzUtil;
 import org.junit.jupiter.api.Test;
@@ -59,12 +60,20 @@ public class TestListEnum {
 
         System.out.println(conver2HexStr(pb));
 
-        ListEnum ListEnum = new ListEnum();
-        ListEnum.list = vs;
-        byte[] epb = ProtoBuf.toByteArray(ListEnum);
+        ListEnum listEnum = new ListEnum();
+        listEnum.list = vs;
+        byte[] epb = ProtoBuf.toByteArray(listEnum);
         System.out.println(conver2HexStr(epb));
 
         assertArrayEquals(pb, epb);
+
+
+        ProtoBufOption option = new ProtoBufOption();
+        option.setCodecType(ProtoBuf.CodecType.FAST);
+        epb = ProtoBuf.toByteArray(listEnum, option);
+        System.out.println("+-epbf[" + epb.length + "]-------------------+");
+        System.out.println(conver2HexStr(epb));
+        System.out.println("+--------------------+");
     }
 
     @ParameterizedTest
@@ -98,6 +107,19 @@ public class TestListEnum {
             assertEquals(pbOd.getCorpusList().get(i).name(), listEnum.list.get(i).name());
         }
 
+
+        ProtoBufOption option = new ProtoBufOption();
+        option.setCodecType(ProtoBuf.CodecType.FAST);
+        byte[] epb = ProtoBuf.toByteArray(listEnum, option);
+        System.out.println("+-epbf[" + epb.length + "]-------------------+");
+        System.out.println(conver2HexStr(epb));
+        System.out.println("+--------------------+");
+
+        listEnum = ProtoBuf.toObject(epb, ListEnum.class, option);
+        assertEquals(pbOd.getCorpusList().size(), listEnum.list.size());
+        for (int i=0;i<pbOd.getCorpusList().size();i++) {
+            assertEquals(pbOd.getCorpusList().get(i).name(), listEnum.list.get(i).name());
+        }
     }
 
     @ParameterizedTest
@@ -128,6 +150,20 @@ public class TestListEnum {
         System.out.println(conver2HexStr(epb));
 
         assertArrayEquals(pb, epb);
+
+
+        ProtoBufOption option = new ProtoBufOption();
+        option.setCodecType(ProtoBuf.CodecType.FAST);
+        epb = ProtoBuf.toByteArray(arrayEnum, option);
+        System.out.println("+-epbf[" + epb.length + "]-------------------+");
+        System.out.println(conver2HexStr(epb));
+        System.out.println("+--------------------+");
+
+        arrayEnum = ProtoBuf.toObject(epb, ArrayEnum.class, option);
+        assertEquals(od.getCorpusList().size(), arrayEnum.values.length);
+        for (int i=0;i<od.getCorpusList().size();i++) {
+            assertEquals(od.getCorpusList().get(i).name(), arrayEnum.values[i].name());
+        }
     }
 
     @Test
@@ -178,6 +214,19 @@ public class TestListEnum {
             assertEquals(pbOd.getCorpusList().get(i).name(), listEnum.values[i].name());
         }
 
+
+        ProtoBufOption option = new ProtoBufOption();
+        option.setCodecType(ProtoBuf.CodecType.FAST);
+        byte[] epb = ProtoBuf.toByteArray(listEnum, option);
+        System.out.println("+-epbf[" + epb.length + "]-------------------+");
+        System.out.println(conver2HexStr(epb));
+        System.out.println("+--------------------+");
+
+        listEnum = ProtoBuf.toObject(epb, ArrayEnum.class, option);
+        assertEquals(od.getCorpusList().size(), listEnum.values.length);
+        for (int i=0;i<od.getCorpusList().size();i++) {
+            assertEquals(od.getCorpusList().get(i).name(), listEnum.values[i].name());
+        }
     }
 
     @ParameterizedTest
@@ -204,12 +253,21 @@ public class TestListEnum {
         Field field1F = ClazzUtil.getDeclaredField(ListEnumNoAccess.class, "list");
         field1F.setAccessible(true);
 
-        ListEnumNoAccess ListEnum = new ListEnumNoAccess();
-        field1F.set(ListEnum, vs);
-        byte[] epb = ProtoBuf.toByteArray(ListEnum);
+        ListEnumNoAccess listEnum = new ListEnumNoAccess();
+        field1F.set(listEnum, vs);
+        byte[] epb = ProtoBuf.toByteArray(listEnum);
         System.out.println(conver2HexStr(epb));
 
         assertArrayEquals(pb, epb);
+
+
+        ProtoBufOption option = new ProtoBufOption();
+        option.setCodecType(ProtoBuf.CodecType.FAST);
+        epb = ProtoBuf.toByteArray(listEnum, option);
+        System.out.println("+-epbf[" + epb.length + "]-------------------+");
+        System.out.println(conver2HexStr(epb));
+        System.out.println("+--------------------+");
+
     }
 
     @ParameterizedTest
@@ -243,6 +301,20 @@ public class TestListEnum {
         System.out.println(conver2HexStr(epb));
 
         assertArrayEquals(pb, epb);
+
+
+        ProtoBufOption option = new ProtoBufOption();
+        option.setCodecType(ProtoBuf.CodecType.FAST);
+        epb = ProtoBuf.toByteArray(arrayEnum, option);
+        System.out.println("+-epbf[" + epb.length + "]-------------------+");
+        System.out.println(conver2HexStr(epb));
+        System.out.println("+--------------------+");
+
+        arrayEnum = ProtoBuf.toObject(epb, ArrayEnumNoAccess.class, option);
+        assertEquals(od.getCorpusList().size(), ((Corpus[])field1F.get(arrayEnum)).length);
+        for (int i=0;i<od.getCorpusList().size();i++) {
+            assertEquals(od.getCorpusList().get(i).name(), ((Corpus[])field1F.get(arrayEnum))[i].name());
+        }
     }
 
     @ParameterizedTest
@@ -276,6 +348,20 @@ public class TestListEnum {
         assertEquals(pbOd.getCorpusList().size(), list.size());
         for (int i=0;i<pbOd.getCorpusList().size();i++) {
             assertEquals(pbOd.getCorpusList().get(i).name(), list.get(i).name());
+        }
+
+
+        ProtoBufOption option = new ProtoBufOption();
+        option.setCodecType(ProtoBuf.CodecType.FAST);
+        byte[] epb = ProtoBuf.toByteArray(listEnum, option);
+        System.out.println("+-epbf[" + epb.length + "]-------------------+");
+        System.out.println(conver2HexStr(epb));
+        System.out.println("+--------------------+");
+
+        listEnum = ProtoBuf.toObject(epb, ListEnumNoAccess.class, option);
+        assertEquals(od.getCorpusList().size(), ((List)fieldF.get(listEnum)).size());
+        for (int i=0;i<od.getCorpusList().size();i++) {
+            assertEquals(od.getCorpusList().get(i).name(), ((List<Corpus>)fieldF.get(listEnum)).get(i).name());
         }
 
     }
@@ -313,5 +399,18 @@ public class TestListEnum {
             assertEquals(pbOd.getCorpusList().get(i).name(), values[i].name());
         }
 
+
+        ProtoBufOption option = new ProtoBufOption();
+        option.setCodecType(ProtoBuf.CodecType.FAST);
+        byte[] epb = ProtoBuf.toByteArray(listEnum, option);
+        System.out.println("+-epbf[" + epb.length + "]-------------------+");
+        System.out.println(conver2HexStr(epb));
+        System.out.println("+--------------------+");
+
+        listEnum = ProtoBuf.toObject(epb, ArrayEnumNoAccess.class, option);
+        assertEquals(od.getCorpusList().size(), ((Corpus[])fieldF.get(listEnum)).length);
+        for (int i=0;i<od.getCorpusList().size();i++) {
+            assertEquals(od.getCorpusList().get(i).name(), ((Corpus[])fieldF.get(listEnum))[i].name());
+        }
     }
 }

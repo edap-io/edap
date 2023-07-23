@@ -21,6 +21,7 @@ import io.edap.json.JsonArray;
 import io.edap.protobuf.EncodeException;
 import io.edap.protobuf.ProtoBuf;
 import io.edap.protobuf.ProtoBufException;
+import io.edap.protobuf.model.ProtoBufOption;
 import io.edap.protobuf.test.message.v3.*;
 import io.edap.util.ClazzUtil;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -64,6 +65,14 @@ public class TestListSint64 {
         System.out.println(conver2HexStr(epb));
 
         assertArrayEquals(pb, epb);
+
+
+        ProtoBufOption option = new ProtoBufOption();
+        option.setCodecType(ProtoBuf.CodecType.FAST);
+        epb = ProtoBuf.toByteArray(listSint64, option);
+        System.out.println("+-epbf[" + epb.length + "]-------------------+");
+        System.out.println(conver2HexStr(epb));
+        System.out.println("+--------------------+");
     }
 
     @ParameterizedTest
@@ -89,14 +98,27 @@ public class TestListSint64 {
 
         ListSint64OuterClass.ListSint64 pbOd = ListSint64OuterClass.ListSint64.parseFrom(pb);
 
-        ListSint64 ListSint64 = ProtoBuf.toObject(pb, ListSint64.class);
+        ListSint64 listSint64 = ProtoBuf.toObject(pb, ListSint64.class);
 
 
-        assertEquals(pbOd.getValueList().size(), ListSint64.list.size());
+        assertEquals(pbOd.getValueList().size(), listSint64.list.size());
         for (int i=0;i<pbOd.getValueList().size();i++) {
-            assertEquals(pbOd.getValueList().get(i), ListSint64.list.get(i));
+            assertEquals(pbOd.getValueList().get(i), listSint64.list.get(i));
         }
 
+
+        ProtoBufOption option = new ProtoBufOption();
+        option.setCodecType(ProtoBuf.CodecType.FAST);
+        byte[] epb = ProtoBuf.toByteArray(listSint64, option);
+        System.out.println("+-epbf[" + epb.length + "]-------------------+");
+        System.out.println(conver2HexStr(epb));
+        System.out.println("+--------------------+");
+
+        listSint64 = ProtoBuf.toObject(epb, ListSint64.class, option);
+        assertEquals(od.getValueList().size(), listSint64.list.size());
+        for (int i=0;i<od.getValueList().size();i++) {
+            assertEquals(od.getValueList().get(i), listSint64.list.get(i));
+        }
     }
 
     @ParameterizedTest
@@ -121,12 +143,20 @@ public class TestListSint64 {
 
         System.out.println(conver2HexStr(pb));
 
-        ArraySint64 listSint64 = new ArraySint64();
-        listSint64.list = vs;
-        byte[] epb = ProtoBuf.toByteArray(listSint64);
+        ArraySint64 arraySint64 = new ArraySint64();
+        arraySint64.list = vs;
+        byte[] epb = ProtoBuf.toByteArray(arraySint64);
         System.out.println(conver2HexStr(epb));
 
         assertArrayEquals(pb, epb);
+
+
+        ProtoBufOption option = new ProtoBufOption();
+        option.setCodecType(ProtoBuf.CodecType.FAST);
+        epb = ProtoBuf.toByteArray(arraySint64, option);
+        System.out.println("+-epbf[" + epb.length + "]-------------------+");
+        System.out.println(conver2HexStr(epb));
+        System.out.println("+--------------------+");
     }
 
     @ParameterizedTest
@@ -158,6 +188,19 @@ public class TestListSint64 {
             assertEquals(pbOd.getValueList().get(i), arraySint64.list[i].longValue());
         }
 
+
+        ProtoBufOption option = new ProtoBufOption();
+        option.setCodecType(ProtoBuf.CodecType.FAST);
+        byte[] epb = ProtoBuf.toByteArray(arraySint64, option);
+        System.out.println("+-epbf[" + epb.length + "]-------------------+");
+        System.out.println(conver2HexStr(epb));
+        System.out.println("+--------------------+");
+
+        arraySint64 = ProtoBuf.toObject(epb, ArraySint64.class, option);
+        assertEquals(od.getValueList().size(), arraySint64.list.length);
+        for (int i=0;i<od.getValueList().size();i++) {
+            assertEquals(od.getValueList().get(i), arraySint64.list[i]);
+        }
     }
 
     @ParameterizedTest
@@ -188,6 +231,14 @@ public class TestListSint64 {
         System.out.println(conver2HexStr(epb));
 
         assertArrayEquals(pb, epb);
+
+
+        ProtoBufOption option = new ProtoBufOption();
+        option.setCodecType(ProtoBuf.CodecType.FAST);
+        epb = ProtoBuf.toByteArray(listSint64, option);
+        System.out.println("+-epbf[" + epb.length + "]-------------------+");
+        System.out.println(conver2HexStr(epb));
+        System.out.println("+--------------------+");
     }
 
     @ParameterizedTest
@@ -219,6 +270,19 @@ public class TestListSint64 {
             assertEquals(pbOd.getValueList().get(i), arraySint64.list[i]);
         }
 
+
+        ProtoBufOption option = new ProtoBufOption();
+        option.setCodecType(ProtoBuf.CodecType.FAST);
+        byte[] epb = ProtoBuf.toByteArray(arraySint64, option);
+        System.out.println("+-epbf[" + epb.length + "]-------------------+");
+        System.out.println(conver2HexStr(epb));
+        System.out.println("+--------------------+");
+
+        arraySint64 = ProtoBuf.toObject(epb, ArraySint64Unboxed.class, option);
+        assertEquals(od.getValueList().size(), arraySint64.list.length);
+        for (int i=0;i<od.getValueList().size();i++) {
+            assertEquals(od.getValueList().get(i), arraySint64.list[i]);
+        }
     }
 
     @ParameterizedTest
@@ -251,6 +315,15 @@ public class TestListSint64 {
         System.out.println(conver2HexStr(epb));
 
         assertArrayEquals(pb, epb);
+
+
+        ProtoBufOption option = new ProtoBufOption();
+        option.setCodecType(ProtoBuf.CodecType.FAST);
+        epb = ProtoBuf.toByteArray(listSint64, option);
+        System.out.println("+-epbf[" + epb.length + "]-------------------+");
+        System.out.println(conver2HexStr(epb));
+        System.out.println("+--------------------+");
+
     }
 
     @ParameterizedTest
@@ -284,6 +357,15 @@ public class TestListSint64 {
         System.out.println(conver2HexStr(epb));
 
         assertArrayEquals(pb, epb);
+
+
+        ProtoBufOption option = new ProtoBufOption();
+        option.setCodecType(ProtoBuf.CodecType.FAST);
+        epb = ProtoBuf.toByteArray(listSint64, option);
+        System.out.println("+-epbf[" + epb.length + "]-------------------+");
+        System.out.println(conver2HexStr(epb));
+        System.out.println("+--------------------+");
+
     }
 
     @ParameterizedTest
@@ -317,6 +399,20 @@ public class TestListSint64 {
         System.out.println(conver2HexStr(epb));
 
         assertArrayEquals(pb, epb);
+
+
+        ProtoBufOption option = new ProtoBufOption();
+        option.setCodecType(ProtoBuf.CodecType.FAST);
+        epb = ProtoBuf.toByteArray(listSint64, option);
+        System.out.println("+-epbf[" + epb.length + "]-------------------+");
+        System.out.println(conver2HexStr(epb));
+        System.out.println("+--------------------+");
+
+        listSint64 = ProtoBuf.toObject(epb, ArraySint64UnboxedNoAccess.class, option);
+        assertEquals(od.getValueList().size(), ((long[])field1F.get(listSint64)).length);
+        for (int i=0;i<od.getValueList().size();i++) {
+            assertEquals(od.getValueList().get(i), ((long[])field1F.get(listSint64))[i]);
+        }
     }
 
     @ParameterizedTest
@@ -342,16 +438,29 @@ public class TestListSint64 {
 
         ListSint64OuterClass.ListSint64 pbOd = ListSint64OuterClass.ListSint64.parseFrom(pb);
 
-        ListSint64NoAccess ListSint64 = ProtoBuf.toObject(pb, ListSint64NoAccess.class);
+        ListSint64NoAccess listSint64 = ProtoBuf.toObject(pb, ListSint64NoAccess.class);
         Field fieldF = ClazzUtil.getDeclaredField(ListSint64NoAccess.class, "list");
         fieldF.setAccessible(true);
 
-        List<Long> list = (List<Long>)fieldF.get(ListSint64);
+        List<Long> list = (List<Long>)fieldF.get(listSint64);
         assertEquals(pbOd.getValueList().size(), list.size());
         for (int i=0;i<pbOd.getValueList().size();i++) {
             assertEquals(pbOd.getValueList().get(i), list.get(i));
         }
 
+
+        ProtoBufOption option = new ProtoBufOption();
+        option.setCodecType(ProtoBuf.CodecType.FAST);
+        byte[] epb = ProtoBuf.toByteArray(listSint64, option);
+        System.out.println("+-epbf[" + epb.length + "]-------------------+");
+        System.out.println(conver2HexStr(epb));
+        System.out.println("+--------------------+");
+
+        listSint64 = ProtoBuf.toObject(epb, ListSint64NoAccess.class, option);
+        assertEquals(od.getValueList().size(), ((List<Long>)fieldF.get(listSint64)).size());
+        for (int i=0;i<od.getValueList().size();i++) {
+            assertEquals(od.getValueList().get(i), ((List<Long>)fieldF.get(listSint64)).get(i));
+        }
     }
 
     @ParameterizedTest
@@ -377,16 +486,29 @@ public class TestListSint64 {
 
         ListSint64OuterClass.ListSint64 pbOd = ListSint64OuterClass.ListSint64.parseFrom(pb);
 
-        ArraySint64NoAccess ListSint64 = ProtoBuf.toObject(pb, ArraySint64NoAccess.class);
+        ArraySint64NoAccess listSint64 = ProtoBuf.toObject(pb, ArraySint64NoAccess.class);
         Field fieldF = ClazzUtil.getDeclaredField(ArraySint64NoAccess.class, "list");
         fieldF.setAccessible(true);
 
-        Long[] list = (Long[])fieldF.get(ListSint64);
+        Long[] list = (Long[])fieldF.get(listSint64);
         assertEquals(pbOd.getValueList().size(), list.length);
         for (int i=0;i<pbOd.getValueList().size();i++) {
             assertEquals(pbOd.getValueList().get(i), list[i].longValue());
         }
 
+
+        ProtoBufOption option = new ProtoBufOption();
+        option.setCodecType(ProtoBuf.CodecType.FAST);
+        byte[] epb = ProtoBuf.toByteArray(listSint64, option);
+        System.out.println("+-epbf[" + epb.length + "]-------------------+");
+        System.out.println(conver2HexStr(epb));
+        System.out.println("+--------------------+");
+
+        listSint64 = ProtoBuf.toObject(epb, ArraySint64NoAccess.class, option);
+        assertEquals(od.getValueList().size(), ((Long[])fieldF.get(listSint64)).length);
+        for (int i=0;i<od.getValueList().size();i++) {
+            assertEquals(od.getValueList().get(i), ((Long[])fieldF.get(listSint64))[i]);
+        }
     }
 
     @ParameterizedTest
@@ -412,15 +534,28 @@ public class TestListSint64 {
 
         ListSint64OuterClass.ListSint64 pbOd = ListSint64OuterClass.ListSint64.parseFrom(pb);
 
-        ArraySint64UnboxedNoAccess ListSint64 = ProtoBuf.toObject(pb, ArraySint64UnboxedNoAccess.class);
+        ArraySint64UnboxedNoAccess arraySint64 = ProtoBuf.toObject(pb, ArraySint64UnboxedNoAccess.class);
         Field fieldF = ClazzUtil.getDeclaredField(ArraySint64UnboxedNoAccess.class, "list");
         fieldF.setAccessible(true);
 
-        long[] list = (long[])fieldF.get(ListSint64);
+        long[] list = (long[])fieldF.get(arraySint64);
         assertEquals(pbOd.getValueList().size(), list.length);
         for (int i=0;i<pbOd.getValueList().size();i++) {
             assertEquals(pbOd.getValueList().get(i), list[i]);
         }
 
+
+        ProtoBufOption option = new ProtoBufOption();
+        option.setCodecType(ProtoBuf.CodecType.FAST);
+        byte[] epb = ProtoBuf.toByteArray(arraySint64, option);
+        System.out.println("+-epbf[" + epb.length + "]-------------------+");
+        System.out.println(conver2HexStr(epb));
+        System.out.println("+--------------------+");
+
+        arraySint64 = ProtoBuf.toObject(epb, ArraySint64UnboxedNoAccess.class, option);
+        assertEquals(od.getValueList().size(), ((long[])fieldF.get(arraySint64)).length);
+        for (int i=0;i<od.getValueList().size();i++) {
+            assertEquals(od.getValueList().get(i), ((long[])fieldF.get(arraySint64))[i]);
+        }
     }
 }

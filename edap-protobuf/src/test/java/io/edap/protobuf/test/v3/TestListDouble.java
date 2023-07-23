@@ -21,6 +21,7 @@ import io.edap.json.JsonArray;
 import io.edap.protobuf.EncodeException;
 import io.edap.protobuf.ProtoBuf;
 import io.edap.protobuf.ProtoBufException;
+import io.edap.protobuf.model.ProtoBufOption;
 import io.edap.protobuf.test.message.v3.*;
 import io.edap.util.ClazzUtil;
 import org.junit.jupiter.api.Test;
@@ -63,6 +64,15 @@ public class TestListDouble {
         System.out.println(conver2HexStr(epb));
 
         assertArrayEquals(pb, epb);
+
+
+        ProtoBufOption option = new ProtoBufOption();
+        option.setCodecType(ProtoBuf.CodecType.FAST);
+        epb = ProtoBuf.toByteArray(ListDouble, option);
+        System.out.println("+-epbf[" + epb.length + "]-------------------+");
+        System.out.println(conver2HexStr(epb));
+        System.out.println("+--------------------+");
+
     }
 
     @ParameterizedTest

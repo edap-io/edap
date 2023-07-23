@@ -129,7 +129,7 @@ public class TestOneMap {
         System.out.println(conver2HexStr(epb));
         System.out.println("+--------------------+");
 
-        OneMap = ProtoBuf.toObject(pb, OneMap.class, option);
+        OneMap = ProtoBuf.toObject(epb, OneMap.class, option);
         assertEquals(pbOf.getValueMap().size(), OneMap.getValue().size());
 
         Iterator<String> iter = pbOf.getValueMap().keySet().iterator();

@@ -19,6 +19,7 @@ package io.edap.protobuf.test.v3;
 import io.edap.json.JsonArray;
 import io.edap.protobuf.EncodeException;
 import io.edap.protobuf.ProtoBuf;
+import io.edap.protobuf.model.ProtoBufOption;
 import io.edap.protobuf.test.message.v3.*;
 import io.edap.util.ClazzUtil;
 import org.junit.jupiter.api.Test;
@@ -53,13 +54,23 @@ public class TestListBool {
 
         System.out.println(conver2HexStr(pb));
 
-        ListBool ListBool = new ListBool();
-        ListBool.values = vs;
-        byte[] epb = ProtoBuf.toByteArray(ListBool);
+        ListBool listBool = new ListBool();
+        listBool.values = vs;
+        byte[] epb = ProtoBuf.toByteArray(listBool);
 
+        System.out.println("+-epb[" + epb.length + "]-------------------+");
         System.out.println(conver2HexStr(epb));
+        System.out.println("+--------------------+");
 
         assertArrayEquals(pb, epb);
+
+
+        ProtoBufOption option = new ProtoBufOption();
+        option.setCodecType(ProtoBuf.CodecType.FAST);
+        epb = ProtoBuf.toByteArray(listBool, option);
+        System.out.println("+-epbf[" + epb.length + "]-------------------+");
+        System.out.println(conver2HexStr(epb));
+        System.out.println("+--------------------+");
     }
 
     @ParameterizedTest
@@ -83,10 +94,24 @@ public class TestListBool {
 
             ListBoolOuterClass.ListBool pbOd = ListBoolOuterClass.ListBool.parseFrom(pb);
 
-            ListBool ListBool = ProtoBuf.toObject(pb, ListBool.class);
+            ListBool listBool = ProtoBuf.toObject(pb, ListBool.class);
+
+            assertEquals(pbOd.getValueList().size(), listBool.values.size());
 
 
-            assertEquals(pbOd.getValueList().size(), ListBool.values.size());
+            ProtoBufOption option = new ProtoBufOption();
+            option.setCodecType(ProtoBuf.CodecType.FAST);
+            byte[] epb = ProtoBuf.toByteArray(listBool, option);
+            System.out.println("+-epbf[" + epb.length + "]-------------------+");
+            System.out.println(conver2HexStr(epb));
+            System.out.println("+--------------------+");
+
+            listBool = ProtoBuf.toObject(epb, ListBool.class, option);
+            assertEquals(pbOd.getValueList().size(), listBool.values.size());
+            for (int i=0;i<pbOd.getValueList().size();i++) {
+                assertEquals(pbOd.getValueList().get(i), listBool.values.get(i));
+            }
+
         } catch (Exception e) {
             fail(e);
         }
@@ -119,6 +144,15 @@ public class TestListBool {
         System.out.println(conver2HexStr(epb));
 
         assertArrayEquals(pb, epb);
+
+
+        ProtoBufOption option = new ProtoBufOption();
+        option.setCodecType(ProtoBuf.CodecType.FAST);
+        epb = ProtoBuf.toByteArray(arrayBool, option);
+        System.out.println("+-epbf[" + epb.length + "]-------------------+");
+        System.out.println(conver2HexStr(epb));
+        System.out.println("+--------------------+");
+
     }
 
     @Test
@@ -180,6 +214,20 @@ public class TestListBool {
 
 
             assertEquals(pbOd.getValueList().size(), arrayBool.values.length);
+
+
+            ProtoBufOption option = new ProtoBufOption();
+            option.setCodecType(ProtoBuf.CodecType.FAST);
+            byte[] epb = ProtoBuf.toByteArray(arrayBool, option);
+            System.out.println("+-epbf[" + epb.length + "]-------------------+");
+            System.out.println(conver2HexStr(epb));
+            System.out.println("+--------------------+");
+
+            arrayBool = ProtoBuf.toObject(epb, ArrayBool.class, option);
+            assertEquals(pbOd.getValueList().size(), arrayBool.values.length);
+            for (int i=0;i<pbOd.getValueList().size();i++) {
+                assertEquals(pbOd.getValueList().get(i), arrayBool.values[i]);
+            }
         } catch (Exception e) {
             fail(e);
         }
@@ -212,6 +260,14 @@ public class TestListBool {
         System.out.println(conver2HexStr(epb));
 
         assertArrayEquals(pb, epb);
+
+
+        ProtoBufOption option = new ProtoBufOption();
+        option.setCodecType(ProtoBuf.CodecType.FAST);
+        epb = ProtoBuf.toByteArray(arrayBool, option);
+        System.out.println("+-epbf[" + epb.length + "]-------------------+");
+        System.out.println(conver2HexStr(epb));
+        System.out.println("+--------------------+");
     }
 
     @ParameterizedTest
@@ -237,8 +293,21 @@ public class TestListBool {
 
             ArrayBoolUnboxed arrayBool = ProtoBuf.toObject(pb, ArrayBoolUnboxed.class);
 
-
             assertEquals(pbOd.getValueList().size(), arrayBool.values.length);
+
+
+            ProtoBufOption option = new ProtoBufOption();
+            option.setCodecType(ProtoBuf.CodecType.FAST);
+            byte[] epb = ProtoBuf.toByteArray(arrayBool, option);
+            System.out.println("+-epbf[" + epb.length + "]-------------------+");
+            System.out.println(conver2HexStr(epb));
+            System.out.println("+--------------------+");
+
+            arrayBool = ProtoBuf.toObject(epb, ArrayBoolUnboxed.class, option);
+            assertEquals(pbOd.getValueList().size(), arrayBool.values.length);
+            for (int i=0;i<pbOd.getValueList().size();i++) {
+                assertEquals(pbOd.getValueList().get(i), arrayBool.values[i]);
+            }
         } catch (Exception e) {
             fail(e);
         }
@@ -272,6 +341,15 @@ public class TestListBool {
         System.out.println(conver2HexStr(epb));
 
         assertArrayEquals(pb, epb);
+
+
+        ProtoBufOption option = new ProtoBufOption();
+        option.setCodecType(ProtoBuf.CodecType.FAST);
+        epb = ProtoBuf.toByteArray(listBool, option);
+        System.out.println("+-epbf[" + epb.length + "]-------------------+");
+        System.out.println(conver2HexStr(epb));
+        System.out.println("+--------------------+");
+
     }
 
     @ParameterizedTest
@@ -303,6 +381,14 @@ public class TestListBool {
         System.out.println(conver2HexStr(epb));
 
         assertArrayEquals(pb, epb);
+
+
+        ProtoBufOption option = new ProtoBufOption();
+        option.setCodecType(ProtoBuf.CodecType.FAST);
+        epb = ProtoBuf.toByteArray(arrayBool, option);
+        System.out.println("+-epbf[" + epb.length + "]-------------------+");
+        System.out.println(conver2HexStr(epb));
+        System.out.println("+--------------------+");
     }
 
     @ParameterizedTest
@@ -334,6 +420,15 @@ public class TestListBool {
         System.out.println(conver2HexStr(epb));
 
         assertArrayEquals(pb, epb);
+
+
+        ProtoBufOption option = new ProtoBufOption();
+        option.setCodecType(ProtoBuf.CodecType.FAST);
+        epb = ProtoBuf.toByteArray(arrayBool, option);
+        System.out.println("+-epbf[" + epb.length + "]-------------------+");
+        System.out.println(conver2HexStr(epb));
+        System.out.println("+--------------------+");
+
     }
 
     @ParameterizedTest
@@ -357,11 +452,25 @@ public class TestListBool {
 
             ListBoolOuterClass.ListBool pbOd = ListBoolOuterClass.ListBool.parseFrom(pb);
 
-            ListBoolNoAccess ListBool = ProtoBuf.toObject(pb, ListBoolNoAccess.class);
+            ListBoolNoAccess listBool = ProtoBuf.toObject(pb, ListBoolNoAccess.class);
             Field fieldF = ClazzUtil.getDeclaredField(ListBoolNoAccess.class, "values");
             fieldF.setAccessible(true);
 
-            assertEquals(pbOd.getValueList().size(), ((List)fieldF.get(ListBool)).size());
+            assertEquals(pbOd.getValueList().size(), ((List)fieldF.get(listBool)).size());
+
+
+            ProtoBufOption option = new ProtoBufOption();
+            option.setCodecType(ProtoBuf.CodecType.FAST);
+            byte[] epb = ProtoBuf.toByteArray(listBool, option);
+            System.out.println("+-epbf[" + epb.length + "]-------------------+");
+            System.out.println(conver2HexStr(epb));
+            System.out.println("+--------------------+");
+
+            listBool = ProtoBuf.toObject(epb, ListBoolNoAccess.class, option);
+            assertEquals(pbOd.getValueList().size(), ((List)fieldF.get(listBool)).size());
+            for (int i=0;i<pbOd.getValueList().size();i++) {
+                assertEquals(pbOd.getValueList().get(i), ((List)fieldF.get(listBool)).get(i));
+            }
         } catch (Exception e) {
             fail(e);
         }
@@ -393,6 +502,20 @@ public class TestListBool {
             fieldF.setAccessible(true);
 
             assertEquals(pbOd.getValueList().size(), ((Boolean[])fieldF.get(arrayBool)).length);
+
+
+            ProtoBufOption option = new ProtoBufOption();
+            option.setCodecType(ProtoBuf.CodecType.FAST);
+            byte[] epb = ProtoBuf.toByteArray(arrayBool, option);
+            System.out.println("+-epbf[" + epb.length + "]-------------------+");
+            System.out.println(conver2HexStr(epb));
+            System.out.println("+--------------------+");
+
+            arrayBool = ProtoBuf.toObject(epb, ArrayBoolNoAccess.class, option);
+            assertEquals(pbOd.getValueList().size(), ((Boolean[])fieldF.get(arrayBool)).length);
+            for (int i=0;i<pbOd.getValueList().size();i++) {
+                assertEquals(pbOd.getValueList().get(i), (((Boolean[])fieldF.get(arrayBool))[i]));
+            }
         } catch (Exception e) {
             fail(e);
         }
@@ -424,6 +547,20 @@ public class TestListBool {
             fieldF.setAccessible(true);
 
             assertEquals(pbOd.getValueList().size(), ((boolean[])fieldF.get(arrayBool)).length);
+
+
+            ProtoBufOption option = new ProtoBufOption();
+            option.setCodecType(ProtoBuf.CodecType.FAST);
+            byte[] epb = ProtoBuf.toByteArray(arrayBool, option);
+            System.out.println("+-epbf[" + epb.length + "]-------------------+");
+            System.out.println(conver2HexStr(epb));
+            System.out.println("+--------------------+");
+
+            arrayBool = ProtoBuf.toObject(epb, ArrayBoolUnboxedNoAccess.class, option);
+            assertEquals(pbOd.getValueList().size(), ((boolean[])fieldF.get(arrayBool)).length);
+            for (int i=0;i<pbOd.getValueList().size();i++) {
+                assertEquals(pbOd.getValueList().get(i), (((boolean[])fieldF.get(arrayBool))[i]));
+            }
         } catch (Exception e) {
             fail(e);
         }

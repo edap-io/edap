@@ -114,12 +114,9 @@ public abstract class AbstractWriter implements ProtoBufWriter {
         } else if (len == 2) {
             bs[pos++] = fieldData[0];
             bs[pos++] = fieldData[1];
-            bs[pos++] = fieldData[0];
-            bs[pos++] = fieldData[1];
         } else {
             for (int i = 0; i < len; i++) {
                 bs[pos++] = fieldData[i];
-                bs[pos+len] = fieldData[i];
             }
         }
     }
@@ -348,11 +345,17 @@ public abstract class AbstractWriter implements ProtoBufWriter {
         if (isEmpty(values)) {
             return;
         }
-        int[] vs = new int[values.size()];
-        for (int i=0;i<values.size();i++) {
-            vs[i] = values.get(i)?1:0;
+        expand(MAX_VARINT_SIZE * 2 + values.size());
+        int size = values.size();
+        writeFieldData(fieldData);
+        writeInt32_0(size);
+        for (int i=0;i<size;i++) {
+            if (values.get(i)) {
+                writeByte((byte) 1);
+            } else {
+                writeByte((byte)0);
+            }
         }
-        writePackedInts(fieldData, vs, Field.Type.UINT32);
     }
 
     @Override

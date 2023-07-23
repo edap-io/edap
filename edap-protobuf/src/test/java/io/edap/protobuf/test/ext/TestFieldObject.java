@@ -568,6 +568,8 @@ public class TestFieldObject {
         byte[] epb = ProtoBuf.toByteArray(fo);
         System.out.println(conver2HexStr(epb));
 
+        fo = ProtoBuf.toObject(epb, FieldObject.class);
+        assertArrayEquals(vs,(boolean[]) fo.getObj());
     }
 
     @ParameterizedTest
@@ -592,6 +594,8 @@ public class TestFieldObject {
         fo.setObj(vs);
         byte[] epb = ProtoBuf.toByteArray(fo);
         System.out.println(conver2HexStr(epb));
+
+        fo = ProtoBuf.toObject(epb, FieldObject.class);
 
     }
 

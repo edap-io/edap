@@ -21,6 +21,7 @@ import io.edap.json.JsonArray;
 import io.edap.protobuf.EncodeException;
 import io.edap.protobuf.ProtoBuf;
 import io.edap.protobuf.ProtoBufException;
+import io.edap.protobuf.model.ProtoBufOption;
 import io.edap.protobuf.test.message.v3.*;
 import io.edap.util.ClazzUtil;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -58,12 +59,21 @@ public class TestListSint32 {
 
         System.out.println(conver2HexStr(pb));
 
-        ListSint32 ListSint32 = new ListSint32();
-        ListSint32.list = vs;
-        byte[] epb = ProtoBuf.toByteArray(ListSint32);
+        ListSint32 listSint32 = new ListSint32();
+        listSint32.list = vs;
+        byte[] epb = ProtoBuf.toByteArray(listSint32);
         System.out.println(conver2HexStr(epb));
 
         assertArrayEquals(pb, epb);
+
+
+        ProtoBufOption option = new ProtoBufOption();
+        option.setCodecType(ProtoBuf.CodecType.FAST);
+        epb = ProtoBuf.toByteArray(listSint32, option);
+        System.out.println("+-epbf[" + epb.length + "]-------------------+");
+        System.out.println(conver2HexStr(epb));
+        System.out.println("+--------------------+");
+
     }
 
     @ParameterizedTest
@@ -97,6 +107,19 @@ public class TestListSint32 {
             assertEquals(pbOd.getValueList().get(i), listSint32.list.get(i));
         }
 
+
+        ProtoBufOption option = new ProtoBufOption();
+        option.setCodecType(ProtoBuf.CodecType.FAST);
+        byte[] epb = ProtoBuf.toByteArray(listSint32, option);
+        System.out.println("+-epbf[" + epb.length + "]-------------------+");
+        System.out.println(conver2HexStr(epb));
+        System.out.println("+--------------------+");
+
+        listSint32 = ProtoBuf.toObject(epb, ListSint32.class, option);
+        assertEquals(od.getValueList().size(), listSint32.list.size());
+        for (int i=0;i<od.getValueList().size();i++) {
+            assertEquals(od.getValueList().get(i), listSint32.list.get(i));
+        }
     }
 
     @ParameterizedTest
@@ -127,6 +150,15 @@ public class TestListSint32 {
         System.out.println(conver2HexStr(epb));
 
         assertArrayEquals(pb, epb);
+
+
+        ProtoBufOption option = new ProtoBufOption();
+        option.setCodecType(ProtoBuf.CodecType.FAST);
+        epb = ProtoBuf.toByteArray(arraySint32, option);
+        System.out.println("+-epbf[" + epb.length + "]-------------------+");
+        System.out.println(conver2HexStr(epb));
+        System.out.println("+--------------------+");
+
     }
 
     @ParameterizedTest
@@ -150,14 +182,27 @@ public class TestListSint32 {
 
         ListSint32OuterClass.ListSint32 pbOd = ListSint32OuterClass.ListSint32.parseFrom(pb);
 
-        ArraySint32 listSint32 = ProtoBuf.toObject(pb, ArraySint32.class);
+        ArraySint32 arraySint32 = ProtoBuf.toObject(pb, ArraySint32.class);
 
 
-        assertEquals(pbOd.getValueList().size(), listSint32.list.length);
+        assertEquals(pbOd.getValueList().size(), arraySint32.list.length);
         for (int i=0;i<pbOd.getValueList().size();i++) {
-            assertEquals(pbOd.getValueList().get(i).intValue(), listSint32.list[i].intValue());
+            assertEquals(pbOd.getValueList().get(i).intValue(), arraySint32.list[i].intValue());
         }
 
+
+        ProtoBufOption option = new ProtoBufOption();
+        option.setCodecType(ProtoBuf.CodecType.FAST);
+        byte[] epb = ProtoBuf.toByteArray(arraySint32, option);
+        System.out.println("+-epbf[" + epb.length + "]-------------------+");
+        System.out.println(conver2HexStr(epb));
+        System.out.println("+--------------------+");
+
+        arraySint32 = ProtoBuf.toObject(epb, ArraySint32.class, option);
+        assertEquals(od.getValueList().size(), arraySint32.list.length);
+        for (int i=0;i<od.getValueList().size();i++) {
+            assertEquals(od.getValueList().get(i), arraySint32.list[i]);
+        }
     }
 
     @ParameterizedTest
@@ -188,6 +233,15 @@ public class TestListSint32 {
         System.out.println(conver2HexStr(epb));
 
         assertArrayEquals(pb, epb);
+
+
+        ProtoBufOption option = new ProtoBufOption();
+        option.setCodecType(ProtoBuf.CodecType.FAST);
+        epb = ProtoBuf.toByteArray(arraySint32, option);
+        System.out.println("+-epbf[" + epb.length + "]-------------------+");
+        System.out.println(conver2HexStr(epb));
+        System.out.println("+--------------------+");
+
     }
 
     @ParameterizedTest
@@ -211,14 +265,27 @@ public class TestListSint32 {
 
         ListSint32OuterClass.ListSint32 pbOd = ListSint32OuterClass.ListSint32.parseFrom(pb);
 
-        ArraySint32Unboxed listSint32 = ProtoBuf.toObject(pb, ArraySint32Unboxed.class);
+        ArraySint32Unboxed arraySint32 = ProtoBuf.toObject(pb, ArraySint32Unboxed.class);
 
 
-        assertEquals(pbOd.getValueList().size(), listSint32.list.length);
+        assertEquals(pbOd.getValueList().size(), arraySint32.list.length);
         for (int i=0;i<pbOd.getValueList().size();i++) {
-            assertEquals(pbOd.getValueList().get(i).intValue(), listSint32.list[i]);
+            assertEquals(pbOd.getValueList().get(i).intValue(), arraySint32.list[i]);
         }
 
+
+        ProtoBufOption option = new ProtoBufOption();
+        option.setCodecType(ProtoBuf.CodecType.FAST);
+        byte[] epb = ProtoBuf.toByteArray(arraySint32, option);
+        System.out.println("+-epbf[" + epb.length + "]-------------------+");
+        System.out.println(conver2HexStr(epb));
+        System.out.println("+--------------------+");
+
+        arraySint32 = ProtoBuf.toObject(epb, ArraySint32Unboxed.class, option);
+        assertEquals(od.getValueList().size(), arraySint32.list.length);
+        for (int i=0;i<od.getValueList().size();i++) {
+            assertEquals(od.getValueList().get(i), arraySint32.list[i]);
+        }
     }
 
     @ParameterizedTest
@@ -251,6 +318,15 @@ public class TestListSint32 {
         System.out.println(conver2HexStr(epb));
 
         assertArrayEquals(pb, epb);
+
+
+        ProtoBufOption option = new ProtoBufOption();
+        option.setCodecType(ProtoBuf.CodecType.FAST);
+        epb = ProtoBuf.toByteArray(listSint32, option);
+        System.out.println("+-epbf[" + epb.length + "]-------------------+");
+        System.out.println(conver2HexStr(epb));
+        System.out.println("+--------------------+");
+
     }
 
     @ParameterizedTest
@@ -284,6 +360,15 @@ public class TestListSint32 {
         System.out.println(conver2HexStr(epb));
 
         assertArrayEquals(pb, epb);
+
+
+        ProtoBufOption option = new ProtoBufOption();
+        option.setCodecType(ProtoBuf.CodecType.FAST);
+        epb = ProtoBuf.toByteArray(arraySint32, option);
+        System.out.println("+-epbf[" + epb.length + "]-------------------+");
+        System.out.println(conver2HexStr(epb));
+        System.out.println("+--------------------+");
+
     }
 
     @ParameterizedTest
@@ -317,6 +402,15 @@ public class TestListSint32 {
         System.out.println(conver2HexStr(epb));
 
         assertArrayEquals(pb, epb);
+
+
+        ProtoBufOption option = new ProtoBufOption();
+        option.setCodecType(ProtoBuf.CodecType.FAST);
+        epb = ProtoBuf.toByteArray(arraySint32, option);
+        System.out.println("+-epbf[" + epb.length + "]-------------------+");
+        System.out.println(conver2HexStr(epb));
+        System.out.println("+--------------------+");
+
     }
 
     @ParameterizedTest
@@ -352,6 +446,19 @@ public class TestListSint32 {
             assertEquals(pbOd.getValueList().get(i), list.get(i).intValue());
         }
 
+
+        ProtoBufOption option = new ProtoBufOption();
+        option.setCodecType(ProtoBuf.CodecType.FAST);
+        byte[] epb = ProtoBuf.toByteArray(listSint32, option);
+        System.out.println("+-epbf[" + epb.length + "]-------------------+");
+        System.out.println(conver2HexStr(epb));
+        System.out.println("+--------------------+");
+
+        listSint32 = ProtoBuf.toObject(epb, ListSint32NoAccess.class, option);
+        assertEquals(od.getValueList().size(), ((List<Integer>)fieldF.get(listSint32)).size());
+        for (int i=0;i<od.getValueList().size();i++) {
+            assertEquals(od.getValueList().get(i), ((List<Integer>)fieldF.get(listSint32)).get(i));
+        }
     }
 
     @ParameterizedTest
@@ -387,6 +494,19 @@ public class TestListSint32 {
             assertEquals(pbOd.getValueList().get(i), list[i].intValue());
         }
 
+
+        ProtoBufOption option = new ProtoBufOption();
+        option.setCodecType(ProtoBuf.CodecType.FAST);
+        byte[] epb = ProtoBuf.toByteArray(listSint32, option);
+        System.out.println("+-epbf[" + epb.length + "]-------------------+");
+        System.out.println(conver2HexStr(epb));
+        System.out.println("+--------------------+");
+
+        listSint32 = ProtoBuf.toObject(epb, ArraySint32NoAccess.class, option);
+        assertEquals(od.getValueList().size(), ((Integer[])fieldF.get(listSint32)).length);
+        for (int i=0;i<od.getValueList().size();i++) {
+            assertEquals(od.getValueList().get(i), ((Integer[])fieldF.get(listSint32))[i]);
+        }
     }
 
     @ParameterizedTest
@@ -422,5 +542,18 @@ public class TestListSint32 {
             assertEquals(pbOd.getValueList().get(i), list[i]);
         }
 
+
+        ProtoBufOption option = new ProtoBufOption();
+        option.setCodecType(ProtoBuf.CodecType.FAST);
+        byte[] epb = ProtoBuf.toByteArray(listSint32, option);
+        System.out.println("+-epbf[" + epb.length + "]-------------------+");
+        System.out.println(conver2HexStr(epb));
+        System.out.println("+--------------------+");
+
+        listSint32 = ProtoBuf.toObject(epb, ArraySint32UnboxedNoAccess.class, option);
+        assertEquals(od.getValueList().size(), ((int[])fieldF.get(listSint32)).length);
+        for (int i=0;i<od.getValueList().size();i++) {
+            assertEquals(od.getValueList().get(i), ((int[])fieldF.get(listSint32))[i]);
+        }
     }
 }

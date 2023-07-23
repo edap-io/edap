@@ -21,7 +21,9 @@ import io.edap.json.Eson;
 import io.edap.json.JsonObject;
 import io.edap.json.JsonObjectImpl;
 import io.edap.protobuf.ProtoBuf;
+import io.edap.protobuf.model.ProtoBufOption;
 import io.edap.protobuf.test.message.v3.*;
+import io.edap.protobuf.wire.Proto;
 import io.edap.util.ClazzUtil;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -139,10 +141,19 @@ public class TestAllType {
             allType.field18 = jvalue.getLongValue("field18");
 
             byte[] epb = ProtoBuf.toByteArray(allType);
-            //System.out.println("----------------------");
+            System.out.println("+-[" + epb.length + "]-------------------+");
             System.out.println(conver2HexStr(epb));
             System.out.println("+--------------------+");
             assertArrayEquals(pb, epb);
+
+
+            ProtoBufOption option = new ProtoBufOption();
+            option.setCodecType(ProtoBuf.CodecType.FAST);
+            epb = ProtoBuf.toByteArray(allType);
+            System.out.println("+-[" + epb.length + "]-------------------+");
+            System.out.println(conver2HexStr(epb));
+            System.out.println("+--------------------+");
+
         } catch (Exception e) {
             fail(e);
         }
@@ -210,45 +221,60 @@ public class TestAllType {
             AllTypeOuterClass.AllType oi32 = builder.build();
             byte[] pb = oi32.toByteArray();
 
-
+            System.out.println("+-epb[" + pb.length + "]-------------------+");
+            System.out.println(conver2HexStr(pb));
+            System.out.println("+--------------------+");
             AllTypeOuterClass.AllType pbOf = AllTypeOuterClass.AllType.parseFrom(pb);
 
-            AllTypeUnboxed allType = ProtoBuf.toObject(pb, AllTypeUnboxed.class);
+            AllType allType = ProtoBuf.toObject(pb, AllType.class);
+            equalsAllType(pbOf, allType);
 
 
-            assertEquals(pbOf.getField1(), allType.field1);
-            assertArrayEquals(pbOf.getField2().toByteArray(), allType.field2);
-            assertEquals(pbOf.getField3(), allType.field3);
-            assertEquals(pbOf.getField4().name(), allType.field4.name());
-            assertEquals(pbOf.getField5(), allType.field5);
-            assertEquals(pbOf.getField6(), allType.field6);
-            assertEquals(pbOf.getField7(), allType.field7);
-            assertEquals(pbOf.getField8(), allType.field8);
-            assertEquals(pbOf.getField9(), allType.field9);
+            ProtoBufOption option = new ProtoBufOption();
+            option.setCodecType(ProtoBuf.CodecType.FAST);
+            byte[] epb = ProtoBuf.toByteArray(allType, option);
+            System.out.println("+-epbf[" + epb.length + "]-------------------+");
+            System.out.println(conver2HexStr(epb));
+            System.out.println("+--------------------+");
 
-            assertEquals(pbOf.getField10Map().size(), allType.field10.size());
-            for (Map.Entry<String, OneMapOuterClass.Project> entry : pbOf.getField10Map().entrySet()) {
-                Project project = allType.field10.get(entry.getKey());
-                assertEquals(project.getId(), entry.getValue().getId());
-                assertEquals(project.getName(), entry.getValue().getName());
-                assertEquals(project.getRepoPath(), entry.getValue().getRepoPath());
-            }
-            OneMessageOuterClass.Proj pproj = pbOf.getField11();
-            Proj proj = allType.field11;
-            assertEquals(proj.getId(), pproj.getId());
-            assertEquals(proj.getName(), pproj.getName());
-            assertEquals(proj.getRepoPath(), pproj.getRepoPath());
-
-            assertEquals(pbOf.getField12(), allType.field12);
-            assertEquals(pbOf.getField13(), allType.field13);
-            assertEquals(pbOf.getField14(), allType.field14);
-            assertEquals(pbOf.getField15(), allType.field15);
-            assertEquals(pbOf.getField16(), allType.field16);
-            assertEquals(pbOf.getField17(), allType.field17);
-            assertEquals(pbOf.getField18(), allType.field18);
+            allType = ProtoBuf.toObject(epb, AllType.class, option);
+            equalsAllType(pbOf, allType);
         } catch (Exception e) {
             fail(e);
         }
+    }
+
+    private void equalsAllType(AllTypeOuterClass.AllType pbOf, AllType allType) {
+        assertEquals(pbOf.getField1(), allType.field1);
+        assertArrayEquals(pbOf.getField2().toByteArray(), allType.field2);
+        assertEquals(pbOf.getField3(), allType.field3);
+        assertEquals(pbOf.getField4().name(), allType.field4.name());
+        assertEquals(pbOf.getField5(), allType.field5);
+        assertEquals(pbOf.getField6(), allType.field6);
+        assertEquals(pbOf.getField7(), allType.field7);
+        assertEquals(pbOf.getField8(), allType.field8);
+        assertEquals(pbOf.getField9(), allType.field9);
+
+        assertEquals(pbOf.getField10Map().size(), allType.field10.size());
+        for (Map.Entry<String, OneMapOuterClass.Project> entry : pbOf.getField10Map().entrySet()) {
+            Project project = allType.field10.get(entry.getKey());
+            assertEquals(project.getId(), entry.getValue().getId());
+            assertEquals(project.getName(), entry.getValue().getName());
+            assertEquals(project.getRepoPath(), entry.getValue().getRepoPath());
+        }
+        OneMessageOuterClass.Proj pproj = pbOf.getField11();
+        Proj proj = allType.field11;
+        assertEquals(proj.getId(), pproj.getId());
+        assertEquals(proj.getName(), pproj.getName());
+        assertEquals(proj.getRepoPath(), pproj.getRepoPath());
+
+        assertEquals(pbOf.getField12(), allType.field12);
+        assertEquals(pbOf.getField13(), allType.field13);
+        assertEquals(pbOf.getField14(), allType.field14);
+        assertEquals(pbOf.getField15(), allType.field15);
+        assertEquals(pbOf.getField16(), allType.field16);
+        assertEquals(pbOf.getField17(), allType.field17);
+        assertEquals(pbOf.getField18(), allType.field18);
     }
 
     @ParameterizedTest
@@ -360,10 +386,18 @@ public class TestAllType {
             allType.field18 = jvalue.getLongValue("field18");
 
             byte[] epb = ProtoBuf.toByteArray(allType);
-            //System.out.println("----------------------");
+            System.out.println("+-epb[" + epb.length + "]---------------------");
             System.out.println(conver2HexStr(epb));
             System.out.println("+--------------------+");
             assertArrayEquals(pb, epb);
+
+            ProtoBufOption option = new ProtoBufOption();
+            option.setCodecType(ProtoBuf.CodecType.FAST);
+            epb = ProtoBuf.toByteArray(allType, option);
+            System.out.println("+-epbf[" + epb.length + "]---------------------");
+            System.out.println(conver2HexStr(epb));
+            System.out.println("+--------------------+");
+
         } catch (Exception e) {
             fail(e);
         }
@@ -434,42 +468,55 @@ public class TestAllType {
 
             AllTypeOuterClass.AllType pbOf = AllTypeOuterClass.AllType.parseFrom(pb);
 
-            AllType allType = ProtoBuf.toObject(pb, AllType.class);
+            AllTypeUnboxed allType = ProtoBuf.toObject(pb, AllTypeUnboxed.class);
+            equalsAllTypeUnboxed(pbOf, allType);
 
 
-            assertEquals(pbOf.getField1(), allType.field1);
-            assertArrayEquals(pbOf.getField2().toByteArray(), allType.field2);
-            assertEquals(pbOf.getField3(), allType.field3);
-            assertEquals(pbOf.getField4().name(), allType.field4.name());
-            assertEquals(pbOf.getField5(), allType.field5);
-            assertEquals(pbOf.getField6(), allType.field6);
-            assertEquals(pbOf.getField7(), allType.field7);
-            assertEquals(pbOf.getField8(), allType.field8);
-            assertEquals(pbOf.getField9(), allType.field9);
+            ProtoBufOption option = new ProtoBufOption();
+            option.setCodecType(ProtoBuf.CodecType.FAST);
+            byte[] epb = ProtoBuf.toByteArray(allType, option);
+            System.out.println("+-epbf[" + epb.length + "]-------------------+");
+            System.out.println(conver2HexStr(epb));
+            System.out.println("+--------------------+");
 
-            assertEquals(pbOf.getField10Map().size(), allType.field10.size());
-            for (Map.Entry<String, OneMapOuterClass.Project> entry : pbOf.getField10Map().entrySet()) {
-                Project project = allType.field10.get(entry.getKey());
-                assertEquals(project.getId(), entry.getValue().getId());
-                assertEquals(project.getName(), entry.getValue().getName());
-                assertEquals(project.getRepoPath(), entry.getValue().getRepoPath());
-            }
-            OneMessageOuterClass.Proj pproj = pbOf.getField11();
-            Proj proj = allType.field11;
-            assertEquals(proj.getId(), pproj.getId());
-            assertEquals(proj.getName(), pproj.getName());
-            assertEquals(proj.getRepoPath(), pproj.getRepoPath());
-
-            assertEquals(pbOf.getField12(), allType.field12);
-            assertEquals(pbOf.getField13(), allType.field13);
-            assertEquals(pbOf.getField14(), allType.field14);
-            assertEquals(pbOf.getField15(), allType.field15);
-            assertEquals(pbOf.getField16(), allType.field16);
-            assertEquals(pbOf.getField17(), allType.field17);
-            assertEquals(pbOf.getField18(), allType.field18);
+            allType = ProtoBuf.toObject(epb, AllTypeUnboxed.class, option);
+            equalsAllTypeUnboxed(pbOf, allType);
         } catch (Exception e) {
             fail(e);
         }
+    }
+
+    private void equalsAllTypeUnboxed(AllTypeOuterClass.AllType pbOf, AllTypeUnboxed allType) {
+        assertEquals(pbOf.getField1(), allType.field1);
+        assertArrayEquals(pbOf.getField2().toByteArray(), allType.field2);
+        assertEquals(pbOf.getField3(), allType.field3);
+        assertEquals(pbOf.getField4().name(), allType.field4.name());
+        assertEquals(pbOf.getField5(), allType.field5);
+        assertEquals(pbOf.getField6(), allType.field6);
+        assertEquals(pbOf.getField7(), allType.field7);
+        assertEquals(pbOf.getField8(), allType.field8);
+        assertEquals(pbOf.getField9(), allType.field9);
+
+        assertEquals(pbOf.getField10Map().size(), allType.field10.size());
+        for (Map.Entry<String, OneMapOuterClass.Project> entry : pbOf.getField10Map().entrySet()) {
+            Project project = allType.field10.get(entry.getKey());
+            assertEquals(project.getId(), entry.getValue().getId());
+            assertEquals(project.getName(), entry.getValue().getName());
+            assertEquals(project.getRepoPath(), entry.getValue().getRepoPath());
+        }
+        OneMessageOuterClass.Proj pproj = pbOf.getField11();
+        Proj proj = allType.field11;
+        assertEquals(proj.getId(), pproj.getId());
+        assertEquals(proj.getName(), pproj.getName());
+        assertEquals(proj.getRepoPath(), pproj.getRepoPath());
+
+        assertEquals(pbOf.getField12(), allType.field12);
+        assertEquals(pbOf.getField13(), allType.field13);
+        assertEquals(pbOf.getField14(), allType.field14);
+        assertEquals(pbOf.getField15(), allType.field15);
+        assertEquals(pbOf.getField16(), allType.field16);
+        assertEquals(pbOf.getField17(), allType.field17);
+        assertEquals(pbOf.getField18(), allType.field18);
     }
 
     @ParameterizedTest
@@ -612,10 +659,17 @@ public class TestAllType {
             field18F.set(allType, jvalue.getLongValue("field18"));
 
             byte[] epb = ProtoBuf.toByteArray(allType);
-            //System.out.println("----------------------");
+            System.out.println("+-epb[" + epb.length + "]-------------------+");
             System.out.println(conver2HexStr(epb));
             System.out.println("+--------------------+");
             assertArrayEquals(pb, epb);
+
+
+            epb = ProtoBuf.toByteArray(allType);
+            System.out.println("+-epbf[" + epb.length + "]-------------------+");
+            System.out.println(conver2HexStr(epb));
+            System.out.println("+--------------------+");
+
         } catch (Exception e) {
             fail(e);
         }
@@ -760,10 +814,18 @@ public class TestAllType {
             field18F.set(allType, jvalue.getLongValue("field18"));
 
             byte[] epb = ProtoBuf.toByteArray(allType);
-            //System.out.println("----------------------");
+            System.out.println("+-epb[" + epb.length + "]-------------------+");
             System.out.println(conver2HexStr(epb));
             System.out.println("+--------------------+");
             assertArrayEquals(pb, epb);
+
+            ProtoBufOption option = new ProtoBufOption();
+            option.setCodecType(ProtoBuf.CodecType.FAST);
+            epb = ProtoBuf.toByteArray(allType, option);
+            System.out.println("+-epbf[" + epb.length + "]-------------------+");
+            System.out.println(conver2HexStr(epb));
+            System.out.println("+--------------------+");
+
         } catch (Exception e) {
             fail(e);
         }
@@ -835,78 +897,92 @@ public class TestAllType {
             AllTypeOuterClass.AllType pbOf = AllTypeOuterClass.AllType.parseFrom(pb);
 
             AllTypeNoAccess allType = ProtoBuf.toObject(pb, AllTypeNoAccess.class);
-
-            Field field1F = ClazzUtil.getDeclaredField(AllTypeNoAccess.class, "field1");
-            Field field2F = ClazzUtil.getDeclaredField(AllTypeNoAccess.class, "field2");
-            Field field3F = ClazzUtil.getDeclaredField(AllTypeNoAccess.class, "field3");
-            Field field4F = ClazzUtil.getDeclaredField(AllTypeNoAccess.class, "field4");
-            Field field5F = ClazzUtil.getDeclaredField(AllTypeNoAccess.class, "field5");
-            Field field6F = ClazzUtil.getDeclaredField(AllTypeNoAccess.class, "field6");
-            Field field7F = ClazzUtil.getDeclaredField(AllTypeNoAccess.class, "field7");
-            Field field8F = ClazzUtil.getDeclaredField(AllTypeNoAccess.class, "field8");
-            Field field9F = ClazzUtil.getDeclaredField(AllTypeNoAccess.class, "field9");
-            Field field10F = ClazzUtil.getDeclaredField(AllTypeNoAccess.class, "field10");
-            Field field11F = ClazzUtil.getDeclaredField(AllTypeNoAccess.class, "field11");
-            Field field12F = ClazzUtil.getDeclaredField(AllTypeNoAccess.class, "field12");
-            Field field13F = ClazzUtil.getDeclaredField(AllTypeNoAccess.class, "field13");
-            Field field14F = ClazzUtil.getDeclaredField(AllTypeNoAccess.class, "field14");
-            Field field15F = ClazzUtil.getDeclaredField(AllTypeNoAccess.class, "field15");
-            Field field16F = ClazzUtil.getDeclaredField(AllTypeNoAccess.class, "field16");
-            Field field17F = ClazzUtil.getDeclaredField(AllTypeNoAccess.class, "field17");
-            Field field18F = ClazzUtil.getDeclaredField(AllTypeNoAccess.class, "field18");
-            field1F.setAccessible(true);
-            field2F.setAccessible(true);
-            field3F.setAccessible(true);
-            field4F.setAccessible(true);
-            field5F.setAccessible(true);
-            field6F.setAccessible(true);
-            field7F.setAccessible(true);
-            field8F.setAccessible(true);
-            field9F.setAccessible(true);
-            field10F.setAccessible(true);
-            field11F.setAccessible(true);
-            field12F.setAccessible(true);
-            field13F.setAccessible(true);
-            field14F.setAccessible(true);
-            field15F.setAccessible(true);
-            field16F.setAccessible(true);
-            field17F.setAccessible(true);
-            field18F.setAccessible(true);
+            equalsNoAccess(pbOf, allType);
 
 
-            assertEquals(pbOf.getField1(), (Boolean) field1F.get(allType));
-            assertArrayEquals(pbOf.getField2().toByteArray(), (byte[])field2F.get(allType));
-            assertEquals(pbOf.getField3(), (Double)field3F.get(allType));
-            assertEquals(pbOf.getField4().name(), ((Corpus)field4F.get(allType)).name());
-            assertEquals(pbOf.getField5(), (Integer)field5F.get(allType));
-            assertEquals(pbOf.getField6(), (Long)field6F.get(allType));
-            assertEquals(pbOf.getField7(), (Float)field7F.get(allType));
-            assertEquals(pbOf.getField8(), (Integer)field8F.get(allType));
-            assertEquals(pbOf.getField9(), (Long)field9F.get(allType));
+            ProtoBufOption option = new ProtoBufOption();
+            option.setCodecType(ProtoBuf.CodecType.FAST);
+            byte[] epb = ProtoBuf.toByteArray(allType, option);
+            System.out.println("+-epbf[" + epb.length + "]-------------------+");
+            System.out.println(conver2HexStr(epb));
+            System.out.println("+--------------------+");
 
-            Map<String, Project> f10 = (Map<String, Project>) field10F.get(allType);
-            assertEquals(pbOf.getField10Map().size(), f10.size());
-            for (Map.Entry<String, OneMapOuterClass.Project> entry : pbOf.getField10Map().entrySet()) {
-                Project project = f10.get(entry.getKey());
-                assertEquals(project.getId(), entry.getValue().getId());
-                assertEquals(project.getName(), entry.getValue().getName());
-                assertEquals(project.getRepoPath(), entry.getValue().getRepoPath());
-            }
-            OneMessageOuterClass.Proj pproj = pbOf.getField11();
-            Proj proj = (Proj)field11F.get(allType);
-            assertEquals(proj.getId(), pproj.getId());
-            assertEquals(proj.getName(), pproj.getName());
-            assertEquals(proj.getRepoPath(), pproj.getRepoPath());
-
-            assertEquals(pbOf.getField12(), field12F.get(allType));
-            assertEquals(pbOf.getField13(), field13F.get(allType));
-            assertEquals(pbOf.getField14(), field14F.get(allType));
-            assertEquals(pbOf.getField15(), field15F.get(allType));
-            assertEquals(pbOf.getField16(), field16F.get(allType));
-            assertEquals(pbOf.getField17(), field17F.get(allType));
-            assertEquals(pbOf.getField18(), field18F.get(allType));
+            allType = ProtoBuf.toObject(epb, AllTypeNoAccess.class, option);
+            equalsNoAccess(pbOf, allType);
         } catch (Exception e) {
             fail(e);
         }
+    }
+
+    private void equalsNoAccess(AllTypeOuterClass.AllType pbOf, AllTypeNoAccess allType) throws NoSuchFieldException, IllegalAccessException {
+        Field field1F = ClazzUtil.getDeclaredField(AllTypeNoAccess.class, "field1");
+        Field field2F = ClazzUtil.getDeclaredField(AllTypeNoAccess.class, "field2");
+        Field field3F = ClazzUtil.getDeclaredField(AllTypeNoAccess.class, "field3");
+        Field field4F = ClazzUtil.getDeclaredField(AllTypeNoAccess.class, "field4");
+        Field field5F = ClazzUtil.getDeclaredField(AllTypeNoAccess.class, "field5");
+        Field field6F = ClazzUtil.getDeclaredField(AllTypeNoAccess.class, "field6");
+        Field field7F = ClazzUtil.getDeclaredField(AllTypeNoAccess.class, "field7");
+        Field field8F = ClazzUtil.getDeclaredField(AllTypeNoAccess.class, "field8");
+        Field field9F = ClazzUtil.getDeclaredField(AllTypeNoAccess.class, "field9");
+        Field field10F = ClazzUtil.getDeclaredField(AllTypeNoAccess.class, "field10");
+        Field field11F = ClazzUtil.getDeclaredField(AllTypeNoAccess.class, "field11");
+        Field field12F = ClazzUtil.getDeclaredField(AllTypeNoAccess.class, "field12");
+        Field field13F = ClazzUtil.getDeclaredField(AllTypeNoAccess.class, "field13");
+        Field field14F = ClazzUtil.getDeclaredField(AllTypeNoAccess.class, "field14");
+        Field field15F = ClazzUtil.getDeclaredField(AllTypeNoAccess.class, "field15");
+        Field field16F = ClazzUtil.getDeclaredField(AllTypeNoAccess.class, "field16");
+        Field field17F = ClazzUtil.getDeclaredField(AllTypeNoAccess.class, "field17");
+        Field field18F = ClazzUtil.getDeclaredField(AllTypeNoAccess.class, "field18");
+        field1F.setAccessible(true);
+        field2F.setAccessible(true);
+        field3F.setAccessible(true);
+        field4F.setAccessible(true);
+        field5F.setAccessible(true);
+        field6F.setAccessible(true);
+        field7F.setAccessible(true);
+        field8F.setAccessible(true);
+        field9F.setAccessible(true);
+        field10F.setAccessible(true);
+        field11F.setAccessible(true);
+        field12F.setAccessible(true);
+        field13F.setAccessible(true);
+        field14F.setAccessible(true);
+        field15F.setAccessible(true);
+        field16F.setAccessible(true);
+        field17F.setAccessible(true);
+        field18F.setAccessible(true);
+
+
+        assertEquals(pbOf.getField1(), (Boolean) field1F.get(allType));
+        assertArrayEquals(pbOf.getField2().toByteArray(), (byte[])field2F.get(allType));
+        assertEquals(pbOf.getField3(), (Double)field3F.get(allType));
+        assertEquals(pbOf.getField4().name(), ((Corpus)field4F.get(allType)).name());
+        assertEquals(pbOf.getField5(), (Integer)field5F.get(allType));
+        assertEquals(pbOf.getField6(), (Long)field6F.get(allType));
+        assertEquals(pbOf.getField7(), (Float)field7F.get(allType));
+        assertEquals(pbOf.getField8(), (Integer)field8F.get(allType));
+        assertEquals(pbOf.getField9(), (Long)field9F.get(allType));
+
+        Map<String, Project> f10 = (Map<String, Project>) field10F.get(allType);
+        assertEquals(pbOf.getField10Map().size(), f10.size());
+        for (Map.Entry<String, OneMapOuterClass.Project> entry : pbOf.getField10Map().entrySet()) {
+            Project project = f10.get(entry.getKey());
+            assertEquals(project.getId(), entry.getValue().getId());
+            assertEquals(project.getName(), entry.getValue().getName());
+            assertEquals(project.getRepoPath(), entry.getValue().getRepoPath());
+        }
+        OneMessageOuterClass.Proj pproj = pbOf.getField11();
+        Proj proj = (Proj)field11F.get(allType);
+        assertEquals(proj.getId(), pproj.getId());
+        assertEquals(proj.getName(), pproj.getName());
+        assertEquals(proj.getRepoPath(), pproj.getRepoPath());
+
+        assertEquals(pbOf.getField12(), field12F.get(allType));
+        assertEquals(pbOf.getField13(), field13F.get(allType));
+        assertEquals(pbOf.getField14(), field14F.get(allType));
+        assertEquals(pbOf.getField15(), field15F.get(allType));
+        assertEquals(pbOf.getField16(), field16F.get(allType));
+        assertEquals(pbOf.getField17(), field17F.get(allType));
+        assertEquals(pbOf.getField18(), field18F.get(allType));
     }
 }
