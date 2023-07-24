@@ -22,6 +22,7 @@ import io.edap.protobuf.model.ProtoBufOption;
 import io.edap.protobuf.util.ProtoUtil;
 import io.edap.protobuf.wire.Field;
 import io.edap.protobuf.wire.Field.Type;
+import io.edap.protobuf.wire.Syntax;
 import io.edap.protobuf.wire.WireFormat;
 import io.edap.protobuf.wire.WireType;
 import io.edap.util.*;
@@ -327,7 +328,7 @@ public class ProtoBufDecoderGenerator {
             ProtoField pfi = sortFields.get(i).protoField;
             if (isFast) {
                 Type type = (pfi.type()==Type.MESSAGE || pfi.type()==Type.MAP)?Type.GROUP:pfi.type();
-                tagArray[i + 1] = buildFieldValue(pfi.tag(), type, pfi.cardinality());
+                tagArray[i + 1] = buildFieldValue(pfi.tag(), type, pfi.cardinality(), Syntax.PROTO_3, option);
             } else {
                 tagArray[i + 1] = buildFieldValue(pfi.tag(), pfi.type(), pfi.cardinality());
             }

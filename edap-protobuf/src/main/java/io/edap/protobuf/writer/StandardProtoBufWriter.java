@@ -326,18 +326,6 @@ public class StandardProtoBufWriter extends AbstractWriter {
         switch (type) {
             case INT32:
             case UINT32:
-
-//                len = 0;
-//                for (Integer i : values) {
-//                    len += computeRawVarint32Size(i);
-//                }
-//                expand(wbuf, MAX_VARINT_SIZE << 1 + len);
-//                writeFieldData(fieldData);
-//                writeUInt32_0(values.size());
-//                for (Integer i : values) {
-//                    writeUInt32_0(i);
-//                }
-//
                 len = size * 5;
                 expand((MAX_VARLONG_SIZE << 1) + len);
                 writeFieldData(fieldData);

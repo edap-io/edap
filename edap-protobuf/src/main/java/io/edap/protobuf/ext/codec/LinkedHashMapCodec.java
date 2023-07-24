@@ -10,6 +10,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 import static io.edap.protobuf.ext.AnyCodec.RANGE_LINKED_HASHMAP;
+import static io.edap.protobuf.ext.AnyCodec.RANGE_NULL;
 
 public class LinkedHashMapCodec implements ExtCodec<LinkedHashMap<Object, Object>>  {
     @Override
@@ -29,6 +30,7 @@ public class LinkedHashMapCodec implements ExtCodec<LinkedHashMap<Object, Object
     @Override
     public void encode(ProtoBufWriter writer, LinkedHashMap<Object, Object> map) throws EncodeException {
         writer.writeByte((byte)(RANGE_LINKED_HASHMAP));
+        writer.writeInt32(map.size(), true);
         for (Map.Entry entry : map.entrySet()) {
             writer.writeObject(entry.getKey());
             writer.writeObject(entry.getValue());

@@ -20,6 +20,8 @@ import com.google.protobuf.InvalidProtocolBufferException;
 import io.edap.protobuf.EncodeException;
 import io.edap.protobuf.ProtoBuf;
 import io.edap.protobuf.ProtoBufException;
+import io.edap.protobuf.model.ProtoBufOption;
+import io.edap.protobuf.test.message.v3.ListUint32;
 import io.edap.protobuf.test.message.v3.OneString;
 import io.edap.protobuf.test.message.v3.OneStringNoAccess;
 import io.edap.protobuf.test.message.v3.OneStringOuterClass;
@@ -60,8 +62,16 @@ public class TestOneString {
         oneString.setValue(value);
         byte[] epb = ProtoBuf.toByteArray(oneString);
 
-
         assertArrayEquals(pb, epb);
+
+
+        ProtoBufOption option = new ProtoBufOption();
+        option.setCodecType(ProtoBuf.CodecType.FAST);
+        epb = ProtoBuf.toByteArray(oneString, option);
+        System.out.println("+-epbf[" + epb.length + "]-------------------+");
+        System.out.println(conver2HexStr(epb));
+        System.out.println("+--------------------+");
+
     }
 
     @Test
@@ -95,8 +105,8 @@ public class TestOneString {
 
         OneStringOuterClass.OneString.Builder builder = OneStringOuterClass.OneString.newBuilder();
         builder.setValue(value);
-        OneStringOuterClass.OneString oint32 = builder.build();
-        byte[] pb = oint32.toByteArray();
+        OneStringOuterClass.OneString pbOneString = builder.build();
+        byte[] pb = pbOneString.toByteArray();
 
 
         OneStringOuterClass.OneString pbOf = OneStringOuterClass.OneString.parseFrom(pb);
@@ -105,6 +115,17 @@ public class TestOneString {
 
 
         assertEquals(pbOf.getValue(), oneString.getValue());
+
+
+        ProtoBufOption option = new ProtoBufOption();
+        option.setCodecType(ProtoBuf.CodecType.FAST);
+        byte[] epb = ProtoBuf.toByteArray(oneString, option);
+        System.out.println("+-epbf[" + epb.length + "]-------------------+");
+        System.out.println(conver2HexStr(epb));
+        System.out.println("+--------------------+");
+
+        oneString = ProtoBuf.toObject(epb, OneString.class, option);
+        assertEquals(pbOneString.getValue(), oneString.getValue());
 
     }
 
@@ -133,8 +154,16 @@ public class TestOneString {
         fieldF.set(oneString, value);
         byte[] epb = ProtoBuf.toByteArray(oneString);
 
-
         assertArrayEquals(pb, epb);
+
+
+        ProtoBufOption option = new ProtoBufOption();
+        option.setCodecType(ProtoBuf.CodecType.FAST);
+        epb = ProtoBuf.toByteArray(oneString, option);
+        System.out.println("+-epbf[" + epb.length + "]-------------------+");
+        System.out.println(conver2HexStr(epb));
+        System.out.println("+--------------------+");
+
     }
 
     @ParameterizedTest
@@ -162,6 +191,17 @@ public class TestOneString {
         fieldF.setAccessible(true);
 
         assertEquals(pbOf.getValue(), (String)fieldF.get(oneString));
+
+
+        ProtoBufOption option = new ProtoBufOption();
+        option.setCodecType(ProtoBuf.CodecType.FAST);
+        byte[] epb = ProtoBuf.toByteArray(oneString, option);
+        System.out.println("+-epbf[" + epb.length + "]-------------------+");
+        System.out.println(conver2HexStr(epb));
+        System.out.println("+--------------------+");
+
+        oneString = ProtoBuf.toObject(epb, OneStringNoAccess.class, option);
+        assertEquals(pbOf.getValue(), fieldF.get(oneString));
 
     }
 }

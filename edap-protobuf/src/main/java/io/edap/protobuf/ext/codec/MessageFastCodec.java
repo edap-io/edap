@@ -23,6 +23,8 @@ import io.edap.protobuf.model.ProtoBufOption;
 import java.util.HashMap;
 
 import static io.edap.protobuf.ext.AnyCodec.RANGE_MESSAGE;
+import static io.edap.protobuf.wire.WireFormat.makeTag;
+import static io.edap.protobuf.wire.WireType.END_GROUP;
 
 /**
  * 普通javabean的编解码器
@@ -46,7 +48,7 @@ public class MessageFastCodec implements ExtCodec<Object> {
         if (null == decoder) {
             throw new ProtoBufException(uri + "'s Decoder not found!");
         }
-        return reader.readMessage(decoder);
+        return reader.readMessage(decoder, makeTag(1, END_GROUP));
     }
 
     private ProtoBufDecoder getDecoder(String uri) {
@@ -54,7 +56,9 @@ public class MessageFastCodec implements ExtCodec<Object> {
         if (null == decoder) {
             try {
                 Class cls = Class.forName(uri);
-                decoder = ProtoBufCodecRegister.INSTANCE.getDecoder(cls);
+                ProtoBufOption option = new ProtoBufOption();
+                option.setCodecType(ProtoBuf.CodecType.FAST);
+                decoder = ProtoBufCodecRegister.INSTANCE.getDecoder(cls, option);
                 DECODERS.put(uri, decoder);
             } catch (Exception e) {
 

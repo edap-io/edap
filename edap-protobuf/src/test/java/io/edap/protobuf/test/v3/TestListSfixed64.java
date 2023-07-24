@@ -21,6 +21,7 @@ import io.edap.json.JsonArray;
 import io.edap.protobuf.EncodeException;
 import io.edap.protobuf.ProtoBuf;
 import io.edap.protobuf.ProtoBufException;
+import io.edap.protobuf.model.ProtoBufOption;
 import io.edap.protobuf.test.message.v3.*;
 import io.edap.util.ClazzUtil;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -89,14 +90,27 @@ public class TestListSfixed64 {
 
         ListSfixed64OuterClass.ListSfixed64 pbOd = ListSfixed64OuterClass.ListSfixed64.parseFrom(pb);
 
-        ListSfixed64 ListSfixed64 = ProtoBuf.toObject(pb, ListSfixed64.class);
+        ListSfixed64 listSfixed64 = ProtoBuf.toObject(pb, ListSfixed64.class);
 
 
-        assertEquals(pbOd.getValueList().size(), ListSfixed64.list.size());
+        assertEquals(pbOd.getValueList().size(), listSfixed64.list.size());
         for (int i=0;i<pbOd.getValueList().size();i++) {
-            assertEquals(pbOd.getValueList().get(i), ListSfixed64.list.get(i));
+            assertEquals(pbOd.getValueList().get(i), listSfixed64.list.get(i));
         }
 
+
+        ProtoBufOption option = new ProtoBufOption();
+        option.setCodecType(ProtoBuf.CodecType.FAST);
+        byte[] epb = ProtoBuf.toByteArray(listSfixed64, option);
+        System.out.println("+-epbf[" + epb.length + "]-------------------+");
+        System.out.println(conver2HexStr(epb));
+        System.out.println("+--------------------+");
+
+        listSfixed64 = ProtoBuf.toObject(epb, ListSfixed64.class, option);
+        assertEquals(od.getValueList().size(), listSfixed64.list.size());
+        for (int i=0;i<od.getValueList().size();i++) {
+            assertEquals(od.getValueList().get(i), listSfixed64.list.get(i));
+        }
     }
 
     @ParameterizedTest
@@ -158,6 +172,19 @@ public class TestListSfixed64 {
             assertEquals(pbOd.getValueList().get(i), arraySfixed64.list[i].longValue());
         }
 
+
+        ProtoBufOption option = new ProtoBufOption();
+        option.setCodecType(ProtoBuf.CodecType.FAST);
+        byte[] epb = ProtoBuf.toByteArray(arraySfixed64, option);
+        System.out.println("+-epbf[" + epb.length + "]-------------------+");
+        System.out.println(conver2HexStr(epb));
+        System.out.println("+--------------------+");
+
+        arraySfixed64 = ProtoBuf.toObject(epb, ArraySfixed64.class, option);
+        assertEquals(od.getValueList().size(), arraySfixed64.list.length);
+        for (int i=0;i<od.getValueList().size();i++) {
+            assertEquals(od.getValueList().get(i), arraySfixed64.list[i]);
+        }
     }
 
     @ParameterizedTest

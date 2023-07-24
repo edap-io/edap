@@ -30,6 +30,9 @@ import java.util.HashMap;
 public class AnyCodec {
 
     static ProtoBufDecoder[] DECODERS = new ProtoBufDecoder[256];
+
+    static ProtoBufDecoder[] FAST_DECODERS = new ProtoBufDecoder[256];
+
     static HashMap<String, ProtoBufDecoder> MSG_DECODERS = new HashMap<>();
     static HashMap<String, ProtoBufEncoder> MSG_ENCODERS = new HashMap<>();
 
@@ -40,6 +43,8 @@ public class AnyCodec {
 
     static ProtoBufEncoder MSG_FAST_ENCODER;
     static ProtoBufDecoder MSG_DECODER;
+
+    static ProtoBufDecoder MSG_FAST_DECODER;
 
     /**
      * 整数编码开始的值
@@ -98,6 +103,7 @@ public class AnyCodec {
         MSG_ENCODER = msgCodec;
         MSG_DECODER = msgCodec;
         MSG_FAST_ENCODER = msgFastCodec;
+        MSG_FAST_DECODER = msgFastCodec;
 
         StringCodec         stringCodec         = new StringCodec();
         IntegerCodec        integerCodec        = new IntegerCodec();
@@ -253,6 +259,61 @@ public class AnyCodec {
         DECODERS[RANGE_NULL]             = NULL_CODEC;
         DECODERS[RANGE_LINKED_HASHMAP]   = linkedHashMapCodec;
 
+        // int的编码范围
+        for (int i=RANGE_INT_START;i<RANGE_INT_END;i++) {
+            FAST_DECODERS[i]  = new IntegerCodec(i);
+        }
+        FAST_DECODERS[RANGE_INT_END]  = new IntegerCodec();
+
+        // String的编码范围
+        for (int i=RANGE_STRING_START;i<RANGE_STRING_END;i++) {
+            FAST_DECODERS[i]  = new StringCodec(i-RANGE_STRING_START);
+        }
+        FAST_DECODERS[RANGE_STRING_END]  = new StringCodec();
+
+        // HashMap的编码范围
+        for (int i=RANGE_HASHMAP_START;i<RANGE_HASHMAP_END;i++) {
+            FAST_DECODERS[i]  = new HashMapCodec(i-RANGE_HASHMAP_START);
+        }
+        FAST_DECODERS[RANGE_HASHMAP_END] = new HashMapCodec();
+
+        FAST_DECODERS[RANGE_LONG]          = longCodec;
+        FAST_DECODERS[RANGE_BOOL_FALSE]    = new BoolCodec(false);
+        FAST_DECODERS[RANGE_BOOL_TRUE]     = new BoolCodec(true);
+        FAST_DECODERS[RANGE_DOUBLE]        = doubleCodec;
+        FAST_DECODERS[RANGE_FLOAT]         = floatCodec;
+        FAST_DECODERS[RANGE_DATE]          = dateCodec;
+        FAST_DECODERS[RANGE_LOCALDATE]     = localDateCodec;
+        FAST_DECODERS[RANGE_LOCALTIME]     = localTimeCodec;
+        FAST_DECODERS[RANGE_LOCALDATETIME] = localDateTimeCodec;
+        FAST_DECODERS[RANGE_CALENDAR]      = calendarCodec;
+        FAST_DECODERS[RANGE_BIGINTEGER]    = bigIntegerCodec;
+        FAST_DECODERS[RANGE_BIGDDECIMAL]   = bigDecimalCodec;
+        FAST_DECODERS[RANGE_CLASS]         = classCodec;
+        // ArrayList的编码范围
+        for (int i=RANGE_ARRAYLIST_START;i<RANGE_ARRAYLIST_END;i++) {
+            FAST_DECODERS[i] = new ArrayListCodec(i-RANGE_ARRAYLIST_START);
+        }
+        FAST_DECODERS[RANGE_ARRAYLIST_END] = new ArrayListCodec();
+        FAST_DECODERS[RANGE_MESSAGE]       = MSG_FAST_DECODER;
+//
+        FAST_DECODERS[RANGE_ARRAY_BYTE]       = arrayByteCodec;
+        FAST_DECODERS[RANGE_ARRAY_CHAR]       = arrayCharCodec;
+        FAST_DECODERS[RANGE_ARRAY_INT]        = arrayIntCodec;
+        FAST_DECODERS[RANGE_ARRAY_INTEGER]    = arrayIntegerCodec;
+        FAST_DECODERS[RANGE_ARRAY_LONG]       = arrayLongCodec;
+        FAST_DECODERS[RANGE_ARRAY_LONG_OBJ]   = arrayLongObjCodec;
+        FAST_DECODERS[RANGE_ARRAY_FLOAT]      = arrayFloatCodec;
+        FAST_DECODERS[RANGE_ARRAY_FLOAT_OBJ]  = arrayFloatObjCodec;
+        FAST_DECODERS[RANGE_ARRAY_DOUBLE]     = arrayDoubleCodec;
+        FAST_DECODERS[RANGE_ARRAY_DOUBLE_OBJ] = arrayDoubleObjCodec;
+        FAST_DECODERS[RANGE_ARRAY_STRING]     = arrayStringCodec;
+        FAST_DECODERS[RANGE_ARRAY_BOOL]       = arrayBoolCodec;
+        FAST_DECODERS[RANGE_ARRAY_BOOL_OBJ]   = arrayBoolObjCodec;
+        FAST_DECODERS[RANGE_ARRAY_OBJECT]     = arrayObjectCodec;
+        FAST_DECODERS[RANGE_NULL]             = NULL_CODEC;
+        FAST_DECODERS[RANGE_LINKED_HASHMAP]   = linkedHashMapCodec;
+
     }
 
     public static void encode(ProtoBufWriter writer, Object v) throws EncodeException {
@@ -268,6 +329,10 @@ public class AnyCodec {
     }
 
     public static void encode(ProtoBufWriter writer, Object v, ProtoBufOption option) throws EncodeException {
+        if (option == null || ProtoBuf.CodecType.FAST != option.getCodecType()) {
+            encode(writer, v);
+            return;
+        }
         if (null == v) {
             NULL_CODEC.encode(writer, v);
             return;
@@ -283,6 +348,23 @@ public class AnyCodec {
         int type = reader.getByte() & 0xff;
         try {
             ProtoBufDecoder decoder = DECODERS[type];
+            if (decoder != null) {
+                return decoder.decode(reader);
+            } else {
+                throw new ProtoBufException("type[" + type + "] hasn't ProtoBufDecoder");
+            }
+        } catch (Exception e) {
+            throw new ProtoBufException(e);
+        }
+    }
+
+    public static Object decode(ProtoBufReader reader, ProtoBufOption option) throws ProtoBufException {
+        if (option == null || ProtoBuf.CodecType.FAST != option.getCodecType()) {
+            return decode(reader);
+        }
+        int type = reader.getByte() & 0xff;
+        try {
+            ProtoBufDecoder decoder = FAST_DECODERS[type];
             if (decoder != null) {
                 return decoder.decode(reader);
             } else {

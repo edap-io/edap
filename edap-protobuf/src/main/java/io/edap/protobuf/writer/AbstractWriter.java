@@ -648,7 +648,7 @@ public abstract class AbstractWriter implements ProtoBufWriter {
         pos += writeLenMoveBytes(bs, oldPos, len);
     }
 
-    private final int writeChars(final String value, int start, int end, int pos) {
+    protected final int writeChars(final String value, int start, int end, int pos) {
         String v = value;
         int p = pos;
         byte[] _bs = this.bs;

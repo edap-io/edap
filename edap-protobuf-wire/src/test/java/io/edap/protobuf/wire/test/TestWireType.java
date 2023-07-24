@@ -52,12 +52,15 @@ public class TestWireType {
         wireType = WireType.fromValue(6);
         assertEquals(WireType.OBJECT, wireType);
 
+        wireType = WireType.fromValue(7);
+        assertEquals(WireType.CHAR_LENGHT_STRING, wireType);
+
         WireType varIntType = WireType.VARINT;
         assertEquals(0, varIntType.getValue());
     }
 
     @ParameterizedTest
-    @ValueSource(ints = {7,8,10, 200})
+    @ValueSource(ints = {8,9,10, 200})
     void testWireTypeWrongValue(int v) {
         IllegalArgumentException thrown = assertThrows(IllegalArgumentException.class,
                 () -> {

@@ -94,7 +94,8 @@ public class TestListMessage {
     @ParameterizedTest
     @ValueSource(strings = {
             "[{\"id\":1,\"name\":\"edap\",\"repoPath\":\"https://www.easyea.com/edap/edap.git\"}," +
-                    "{\"id\":2,\"name\":\"edao\",\"repoPath\":\"https://www.easyea.com/easyea/edao.git\"}]"
+                    "{\"id\":2,\"name\":\"edao\",\"repoPath\":\"https://www.easyea.com/easyea/edao.git\"}]",
+            "[{\"id\":1,\"name\":\"edap\",\"repoPath\":\"https://www.easyea.com/edap/edap.git\"}]"
     })
     void testDecode(String v) throws InvalidProtocolBufferException, ProtoBufException {
         JsonArray jvs = JsonArray.parseArray(v);

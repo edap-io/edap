@@ -1447,13 +1447,29 @@ public class ProtoBufEncoderGenerator {
      */
     private void initFieldData(MethodVisitor mv, List<ProtoFieldInfo> fields) {
         FieldVisitor fv;
+        boolean isFast = false;
+        if (option != null && ProtoBuf.CodecType.FAST == option.getCodecType()) {
+            isFast = true;
+        }
         for (ProtoFieldInfo pfi : fields) {
             fv = cw.visitField(ACC_PRIVATE + ACC_FINAL + ACC_STATIC,
                     "tag" + pfi.protoField.tag(), "[B", null, null);
             fv.visitEnd();
+            if (isFast) {
+                mv.visitTypeInsn(NEW, PROTOBUF_OPTIION_NAME);
+                mv.visitInsn(DUP);
+                mv.visitMethodInsn(INVOKESPECIAL, PROTOBUF_OPTIION_NAME, "<init>",
+                        "()V", false);
+                mv.visitVarInsn(ASTORE, 0);
+                mv.visitVarInsn(ALOAD, 0);
+                mv.visitFieldInsn(GETSTATIC, "io/edap/protobuf/ProtoBuf$CodecType",
+                        "FAST", "Lio/edap/protobuf/ProtoBuf$CodecType;");
+                mv.visitMethodInsn(INVOKEVIRTUAL, PROTOBUF_OPTIION_NAME, "setCodecType",
+                        "(Lio/edap/protobuf/ProtoBuf$CodecType;)V", false);
+            }
             //mv.visitInsn(ICONST_1);
             visitTagOpcode(mv, pfi.protoField.tag());
-            if (option != null && option.getCodecType() == ProtoBuf.CodecType.FAST) {
+            if (isFast) {
                 if (pfi.protoField.type() == Type.MESSAGE || pfi.protoField.type() == Type.MAP) {
                     mv.visitFieldInsn(GETSTATIC, FIELD_TYPE_NAME, Type.GROUP.name(),
                             "L" + FIELD_TYPE_NAME + ";");
@@ -1466,8 +1482,18 @@ public class ProtoBufEncoderGenerator {
             }
             //mv.visitFieldInsn(GETSTATIC, FIELD_TYPE_NAME, pfi.protoField.type().name(), "L" + FIELD_TYPE_NAME + ";");
             mv.visitFieldInsn(GETSTATIC, CARDINALITY_NAME, pfi.protoField.cardinality().name(), "L" + CARDINALITY_NAME + ";");
-            visitMethod(mv, INVOKESTATIC, PROTOUTIL_NAME, "buildFieldData",
-                    "(IL" + FIELD_TYPE_NAME + ";L" + CARDINALITY_NAME + ";)[B", false);
+            if (isFast) {
+                mv.visitFieldInsn(GETSTATIC, "io/edap/protobuf/wire/Syntax", "PROTO_3",
+                        "Lio/edap/protobuf/wire/Syntax;");
+                mv.visitVarInsn(ALOAD, 0);
+                visitMethod(mv, INVOKESTATIC, PROTOUTIL_NAME, "buildFieldData",
+                        "(IL" + FIELD_TYPE_NAME + ";L" + CARDINALITY_NAME
+                                + ";Lio/edap/protobuf/wire/Syntax;" +
+                                "Lio/edap/protobuf/model/ProtoBufOption;)[B", false);
+            } else {
+                visitMethod(mv, INVOKESTATIC, PROTOUTIL_NAME, "buildFieldData",
+                        "(IL" + FIELD_TYPE_NAME + ";L" + CARDINALITY_NAME + ";)[B", false);
+            }
             mv.visitFieldInsn(PUTSTATIC, pojoCodecName, "tag" + pfi.protoField.tag(), "[B");
         }
         // 如果父类是Map类型初始化tag为

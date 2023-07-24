@@ -203,16 +203,13 @@ public class ProtoUtil {
         return new HashMap<>();
     }
 
-    public static byte[] buildFieldData(int tag, io.edap.protobuf.wire.Field.Type type, io.edap.protobuf.wire.Field.Cardinality cardinality) {
+    public static byte[] buildFieldData(int tag, Type type, Cardinality cardinality) {
         return buildFieldData(tag, type, cardinality, Syntax.PROTO_3, null);
     }
 
-    public static byte[] buildbuildFieldDataFieldData(int tag, Type type, Cardinality cardinality, Syntax syntax) {
-        return buildFieldData(tag, type, cardinality, syntax, null);
-    }
-
-    public static byte[] buildFieldData(int tag, Type type, Cardinality cardinality, Syntax syntax, String... options) {
-        return varIntEncode(buildFieldValue(tag, type, cardinality, syntax, options));
+    public static byte[] buildFieldData(int tag, Type type, Cardinality cardinality, Syntax syntax,
+                                        ProtoBufOption option) {
+        return varIntEncode(buildFieldValue(tag, type, cardinality, syntax, option));
     }
 
     public static int buildFieldValue(int tag, Type type, Cardinality cardinality) {
@@ -223,7 +220,12 @@ public class ProtoUtil {
         return buildFieldValue(tag, type, cardinality, syntax, null);
     }
 
-    public static int buildFieldValue(int tag, Type type, Cardinality cardinality, Syntax syntax, String... options) {
+    public static int buildFieldValue(int tag, Type type, Cardinality cardinality, Syntax syntax,
+                                      ProtoBufOption option) {
+        boolean isFast = false;
+        if (option != null && ProtoBuf.CodecType.FAST == option.getCodecType()) {
+            isFast = true;
+        }
         WireType wireType;
         switch (type) {
             case INT32:
@@ -263,6 +265,13 @@ public class ProtoUtil {
                 break;
             case OBJECT:
                 wireType = WireType.OBJECT;
+                break;
+            case STRING:
+                if (isFast) {
+                    wireType = WireType.CHAR_LENGHT_STRING;
+                } else {
+                    wireType = WireType.LENGTH_DELIMITED;
+                }
                 break;
             default:
                 wireType = WireType.LENGTH_DELIMITED;

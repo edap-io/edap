@@ -22,7 +22,9 @@ import io.edap.protobuf.EncodeException;
 import io.edap.protobuf.ProtoBuf;
 import io.edap.protobuf.ProtoBufException;
 import io.edap.protobuf.ProtoBufWriter;
+import io.edap.protobuf.model.ProtoBufOption;
 import io.edap.protobuf.test.message.ext.FieldObject;
+import io.edap.protobuf.test.message.v3.Project;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -66,6 +68,16 @@ public class TestFieldObject {
         System.out.println(conver2HexStr(epb));
 
         FieldObject nfo = ProtoBuf.toObject(epb, FieldObject.class);
+        System.out.println(nfo.getObj());
+        assertEquals(nfo.getObj(), value);
+
+
+        ProtoBufOption option = new ProtoBufOption();
+        option.setCodecType(ProtoBuf.CodecType.FAST);
+        epb = ProtoBuf.toByteArray(fo, option);
+        System.out.println(conver2HexStr(epb));
+
+        nfo = ProtoBuf.toObject(epb, FieldObject.class, option);
         System.out.println(nfo.getObj());
         assertEquals(nfo.getObj(), value);
     }
@@ -303,6 +315,12 @@ public class TestFieldObject {
         System.out.println(nfo.getObj());
         assertEquals(nfo.getObj(), bv);
 
+        fo = ProtoBuf.toObject(epb, FieldObject.class);
+        assertNotNull(fo);
+        assertNotNull(fo.getObj());
+        assertTrue(fo.getObj() instanceof BigDecimal);
+        assertEquals(((BigDecimal)fo.getObj()), bv);
+
     }
 
     @ParameterizedTest
@@ -322,6 +340,11 @@ public class TestFieldObject {
         byte[] epb = ProtoBuf.toByteArray(fo);
         System.out.println(conver2HexStr(epb));
 
+        fo = ProtoBuf.toObject(epb, FieldObject.class);
+        assertNotNull(fo);
+        assertNotNull(fo.getObj());
+        assertTrue(fo.getObj() instanceof byte[]);
+        assertArrayEquals((byte[])fo.getObj(), value.getBytes("utf-8"));
     }
 
     @ParameterizedTest
@@ -340,6 +363,14 @@ public class TestFieldObject {
         byte[] epb = ProtoBuf.toByteArray(fo);
         System.out.println(conver2HexStr(epb));
 
+        fo = ProtoBuf.toObject(epb, FieldObject.class);
+        assertNotNull(fo);
+        assertNotNull(fo.getObj());
+        assertTrue(fo.getObj() instanceof char[]);
+        assertNotNull(fo);
+        assertNotNull(fo.getObj());
+        assertTrue(fo.getObj() instanceof char[]);
+        assertArrayEquals((char[])fo.getObj(), value.toCharArray());
     }
 
     @ParameterizedTest
@@ -360,6 +391,11 @@ public class TestFieldObject {
         byte[] epb = ProtoBuf.toByteArray(fo);
         System.out.println(conver2HexStr(epb));
 
+        fo = ProtoBuf.toObject(epb, FieldObject.class);
+        assertNotNull(fo);
+        assertNotNull(fo.getObj());
+        assertTrue(fo.getObj() instanceof int[]);
+        assertArrayEquals((int[])fo.getObj(), vs);
     }
 
     @ParameterizedTest
@@ -389,6 +425,9 @@ public class TestFieldObject {
         byte[] epb = ProtoBuf.toByteArray(fo);
         System.out.println(conver2HexStr(epb));
 
+        fo = ProtoBuf.toObject(epb, FieldObject.class);
+        assertNotNull(fo);
+        assertArrayEquals((Integer[])fo.getObj(), vs);
     }
 
     @ParameterizedTest
@@ -412,6 +451,9 @@ public class TestFieldObject {
         byte[] epb = ProtoBuf.toByteArray(fo);
         System.out.println(conver2HexStr(epb));
 
+        fo = ProtoBuf.toObject(epb, FieldObject.class);
+        assertNotNull(fo);
+        assertArrayEquals((long[])fo.getObj(), vs);
     }
 
     @ParameterizedTest
@@ -437,7 +479,11 @@ public class TestFieldObject {
         byte[] epb = ProtoBuf.toByteArray(fo);
         System.out.println(conver2HexStr(epb));
 
-
+        fo = ProtoBuf.toObject(epb, FieldObject.class);
+        assertNotNull(fo);
+        assertNotNull(fo.getObj());
+        assertTrue(fo.getObj() instanceof Long[]);
+        assertArrayEquals((Long[])fo.getObj(), vs);
     }
 
     @ParameterizedTest
@@ -457,6 +503,11 @@ public class TestFieldObject {
         byte[] epb = ProtoBuf.toByteArray(fo);
         System.out.println(conver2HexStr(epb));
 
+        fo = ProtoBuf.toObject(epb, FieldObject.class);
+        assertNotNull(fo);
+        assertNotNull(fo.getObj());
+        assertTrue(fo.getObj() instanceof float[]);
+        assertArrayEquals((float[])fo.getObj(), vs);
     }
 
     @ParameterizedTest
@@ -481,6 +532,11 @@ public class TestFieldObject {
         byte[] epb = ProtoBuf.toByteArray(fo);
         System.out.println(conver2HexStr(epb));
 
+        fo = ProtoBuf.toObject(epb, FieldObject.class);
+        assertNotNull(fo);
+        assertNotNull(fo.getObj());
+        assertTrue(fo.getObj() instanceof Float[]);
+        assertArrayEquals((Float[])fo.getObj(), vs);
     }
 
     @ParameterizedTest
@@ -502,6 +558,11 @@ public class TestFieldObject {
         byte[] epb = ProtoBuf.toByteArray(fo);
         System.out.println(conver2HexStr(epb));
 
+        fo = ProtoBuf.toObject(epb, FieldObject.class);
+        assertNotNull(fo);
+        assertNotNull(fo.getObj());
+        assertTrue(fo.getObj() instanceof double[]);
+        assertArrayEquals((double[])fo.getObj(), vs);
     }
 
     @ParameterizedTest
@@ -528,6 +589,11 @@ public class TestFieldObject {
         byte[] epb = ProtoBuf.toByteArray(fo);
         System.out.println(conver2HexStr(epb));
 
+        fo = ProtoBuf.toObject(epb, FieldObject.class);
+        assertNotNull(fo);
+        assertNotNull(fo.getObj());
+        assertTrue(fo.getObj() instanceof Double[]);
+        assertArrayEquals((Double[])fo.getObj(), vs);
     }
 
     @ParameterizedTest
@@ -548,6 +614,12 @@ public class TestFieldObject {
         byte[] epb = ProtoBuf.toByteArray(fo);
         System.out.println(conver2HexStr(epb));
 
+
+        fo = ProtoBuf.toObject(epb, FieldObject.class);
+        assertNotNull(fo);
+        assertNotNull(fo.getObj());
+        assertTrue(fo.getObj() instanceof String[]);
+        assertArrayEquals((String[])fo.getObj(), vs);
     }
 
     @ParameterizedTest
@@ -657,6 +729,9 @@ public class TestFieldObject {
         System.out.println("class=" + cls);
         System.out.println(conver2HexStr(epb));
 
+        fo = ProtoBuf.toObject(epb, FieldObject.class);
+        Class ncls = (Class)fo.getObj();
+        assertEquals(ncls, cls);
     }
 
     @ParameterizedTest
@@ -694,6 +769,45 @@ public class TestFieldObject {
             }
         }
         assertTrue(equal);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "{\"name\":\"louis\"}",
+            "{\"name1\":\"louis\",\"name2\":\"louis\",\"name3\":\"louis\",\"name4\":\"louis\","
+                    + "\"name5\":\"louis\",\"name6\":\"louis\",\"name7\":\"louis\",\"name8\":\"louis\","
+                    + "\"name9\":\"louis\",\"name10\":\"louis\",\"name11\":\"louis\",\"name12\":\"louis\","
+                    + "\"name13\":\"louis\",\"name14\":\"louis\",\"name15\":\"louis\",\"name16\":\"louis\"}"
+    })
+    void testLinkedHashMapCodec(String value) throws EncodeException, ProtoBufException {
+
+        Map<String, Object> map = new LinkedHashMap<>();
+        Map<String, Object> omap = Eson.parseJsonObject(value);
+
+        map.putAll(omap);
+        FieldObject fo = new FieldObject();
+        fo.setObj(map);
+        byte[] epb = ProtoBuf.toByteArray(fo);
+        System.out.println(conver2HexStr(epb));
+
+        FieldObject nfo = ProtoBuf.toObject(epb, FieldObject.class);
+        System.out.println(nfo.getObj());
+        //assertEquals(nfo.getObj(), map);
+        Iterator<String> keys = map.keySet().iterator();
+        boolean equal = true;
+        Map<String, Object> nmap = (Map<String, Object>)nfo.getObj();
+        System.out.println("nmap.size=" + nmap.size() + ",map.size=" + map.size());
+        System.out.println("nmap.size=" + nmap + ",map.size=" + map);
+        while (keys.hasNext()) {
+            String key = keys.next();
+            Object obj = nmap.get(key);
+            if (obj == null || !obj.equals(map.get(key))) {
+                equal = false;
+            }
+        }
+        assertTrue(equal);
+
+        fo = new FieldObject();
     }
 
     @ParameterizedTest
@@ -778,6 +892,31 @@ public class TestFieldObject {
         Object v = ProtoBuf.der(edata);
         System.out.println("decode value = " + v);
         assertNull(v);
+    }
+
+    @Test
+    public void testEncodecMessage() throws ProtoBufException, EncodeException {
+        Project project = new Project();
+        project.setId(1L);
+        project.setName("edap");
+        project.setRepoPath("https://www.easyea.com/edap/edap.git");
+
+        FieldObject fo = new FieldObject();
+        fo.setObj(project);
+
+        ProtoBufOption option = new ProtoBufOption();
+        option.setCodecType(ProtoBuf.CodecType.FAST);
+        byte[] epb = ProtoBuf.ser(fo, option);
+        System.out.println("+-epbf[" + epb.length + "]-------------------+");
+        System.out.println(conver2HexStr(epb));
+        System.out.println("+--------------------+");
+
+        fo = (FieldObject)ProtoBuf.der(epb, option);
+        assertNotNull(fo);
+        Project proj = (Project)fo.getObj();
+        assertEquals(proj.getId(), project.getId());
+        assertEquals(proj.getName(), project.getName());
+        assertEquals(proj.getRepoPath(), project.getRepoPath());
     }
 
     @Test

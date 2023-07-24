@@ -192,7 +192,6 @@ public class ProtoBuf {
         } catch (EncodeException e) {
             throw e;
         } finally {
-            THREAD_WRITER.set(writer);
         }
     }
 
@@ -213,7 +212,6 @@ public class ProtoBuf {
         } catch (EncodeException e) {
             throw e;
         } finally {
-            THREAD_WRITER.set(writer);
         }
     }
 
@@ -233,13 +231,23 @@ public class ProtoBuf {
         } catch (EncodeException | IOException e) {
             throw new EncodeException(e);
         } finally {
-            THREAD_WRITER.set(writer);
         }
     }
 
     public static Object der(byte[] data) throws ProtoBufException {
         ByteArrayReader reader = new ByteArrayReader(data);
         return AnyCodec.decode(reader);
+    }
+
+
+    public static Object der(byte[] data, ProtoBufOption option) throws ProtoBufException {
+        ByteArrayReader reader = new ByteArrayReader(data);
+        if (option != null && CodecType.FAST == option.getCodecType()) {
+            reader = new ByteArrayFastReader(data);
+        } else {
+            reader = new ByteArrayReader(data);
+        }
+        return AnyCodec.decode(reader, option);
     }
 
     public static Object der(byte[] data, int offset, int len) throws ProtoBufException {

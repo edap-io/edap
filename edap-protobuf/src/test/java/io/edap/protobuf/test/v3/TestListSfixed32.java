@@ -21,6 +21,7 @@ import io.edap.json.JsonArray;
 import io.edap.protobuf.EncodeException;
 import io.edap.protobuf.ProtoBuf;
 import io.edap.protobuf.ProtoBufException;
+import io.edap.protobuf.model.ProtoBufOption;
 import io.edap.protobuf.test.message.v3.*;
 import io.edap.util.ClazzUtil;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -86,17 +87,33 @@ public class TestListSfixed32 {
         ListSfixed32OuterClass.ListSfixed32 od = builder.build();
         byte[] pb = od.toByteArray();
 
+        System.out.println("+-pb[" + pb.length + "]-------------------+");
+        System.out.println(conver2HexStr(pb));
+        System.out.println("+--------------------+");
 
         ListSfixed32OuterClass.ListSfixed32 pbOd = ListSfixed32OuterClass.ListSfixed32.parseFrom(pb);
 
-        ListSfixed32 ListSfixed32 = ProtoBuf.toObject(pb, ListSfixed32.class);
+        ListSfixed32 listSfixed32 = ProtoBuf.toObject(pb, ListSfixed32.class);
 
 
-        assertEquals(pbOd.getValueList().size(), ListSfixed32.list.size());
+        assertEquals(pbOd.getValueList().size(), listSfixed32.list.size());
         for (int i=0;i<pbOd.getValueList().size();i++) {
-            assertEquals(pbOd.getValueList().get(i), ListSfixed32.list.get(i));
+            assertEquals(pbOd.getValueList().get(i), listSfixed32.list.get(i));
         }
 
+
+        ProtoBufOption option = new ProtoBufOption();
+        option.setCodecType(ProtoBuf.CodecType.FAST);
+        byte[] epb = ProtoBuf.toByteArray(listSfixed32, option);
+        System.out.println("+-epbf[" + epb.length + "]-------------------+");
+        System.out.println(conver2HexStr(epb));
+        System.out.println("+--------------------+");
+
+        listSfixed32 = ProtoBuf.toObject(epb, ListSfixed32.class, option);
+        assertEquals(od.getValueList().size(), listSfixed32.list.size());
+        for (int i=0;i<od.getValueList().size();i++) {
+            assertEquals(od.getValueList().get(i), listSfixed32.list.get(i));
+        }
     }
 
     @ParameterizedTest
@@ -158,6 +175,19 @@ public class TestListSfixed32 {
             assertEquals(pbOd.getValueList().get(i).intValue(), arraySfixed32.list[i].intValue());
         }
 
+
+        ProtoBufOption option = new ProtoBufOption();
+        option.setCodecType(ProtoBuf.CodecType.FAST);
+        byte[] epb = ProtoBuf.toByteArray(arraySfixed32, option);
+        System.out.println("+-epbf[" + epb.length + "]-------------------+");
+        System.out.println(conver2HexStr(epb));
+        System.out.println("+--------------------+");
+
+        arraySfixed32 = ProtoBuf.toObject(epb, ArraySfixed32.class, option);
+        assertEquals(od.getValueList().size(), arraySfixed32.list.length);
+        for (int i=0;i<od.getValueList().size();i++) {
+            assertEquals(od.getValueList().get(i), arraySfixed32.list[i]);
+        }
     }
 
     @ParameterizedTest
@@ -219,6 +249,19 @@ public class TestListSfixed32 {
             assertEquals(pbOd.getValueList().get(i).intValue(), arraySfixed32.list[i]);
         }
 
+
+        ProtoBufOption option = new ProtoBufOption();
+        option.setCodecType(ProtoBuf.CodecType.FAST);
+        byte[] epb = ProtoBuf.toByteArray(arraySfixed32, option);
+        System.out.println("+-epbf[" + epb.length + "]-------------------+");
+        System.out.println(conver2HexStr(epb));
+        System.out.println("+--------------------+");
+
+        arraySfixed32 = ProtoBuf.toObject(epb, ArraySfixed32Unboxed.class, option);
+        assertEquals(od.getValueList().size(), arraySfixed32.list.length);
+        for (int i=0;i<od.getValueList().size();i++) {
+            assertEquals(od.getValueList().get(i), arraySfixed32.list[i]);
+        }
     }
 
     @ParameterizedTest

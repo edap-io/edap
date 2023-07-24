@@ -23,6 +23,7 @@ import io.edap.protobuf.ProtoBufWriter;
 import io.edap.protobuf.wire.Field;
 import io.edap.protobuf.wire.WireFormat;
 import io.edap.protobuf.wire.WireType;
+import io.edap.util.StringUtil;
 
 import java.util.List;
 
@@ -30,371 +31,392 @@ import static io.edap.protobuf.util.ProtoUtil.computeRawVarint64Size;
 import static io.edap.protobuf.wire.WireFormat.MAX_VARINT_SIZE;
 import static io.edap.protobuf.wire.WireFormat.MAX_VARLONG_SIZE;
 import static io.edap.util.CollectionUtils.isEmpty;
+import static io.edap.util.StringUtil.IS_BYTE_ARRAY;
+import static io.edap.util.StringUtil.isLatin1;
 
 public class FastProtoBufWriter extends StandardProtoBufWriter {
+
+    static int START_TAG = WireFormat.makeTag(1, WireType.START_GROUP);
+
+    static int END_TAG = WireFormat.makeTag(1, WireType.END_GROUP);
 
     public FastProtoBufWriter(BufOut out) {
         super(out);
     }
 
-    public void writeString9(final String value) {
+    @Override
+    public <T> void writeMessage(T v, ProtoBufEncoder<T> codec) throws EncodeException {
+        writeInt32(START_TAG);
+        codec.encode(this, v);
+        writeInt32(END_TAG);
+    }
+
+    @Override
+    public void writeString(final byte[] fieldData, final String value) {
+        if (value == null || value.length() == 0) {
+            return;
+        }
+        expand(fieldData.length);
+        writeFieldData(fieldData);
+        writeString(value);
+    }
+
+    @Override
+    public void writeString(final String value) {
+        if (value == null) {
+            writeInt32(-1);
+            return;
+        }
         //char[] cs = (char[])UnsafeMemory.getValue(value, StringUtil.STRING_VALUE_OFFSET);
         int charLen = value.length();
         if (charLen == 0) {
-            writeUInt32(0);
+            writeInt32(0, true);
             return;
         }
-        int start = charLen;
-        //int start = charLen;
-        /**/
-        expand(start + MAX_VARINT_SIZE);
-        writeUInt32(start);
-
-        int p = pos;
-        byte[] bs = this.bs;
-        for (int i=0;i<charLen;i++) {
-            char c = value.charAt(i);
-            if (c < 128) {
-                bs[p++] = (byte) c;
-            } else if (c < 0x800) {
-                bs[p++] = (byte) ((0xF << 6) | (c >>> 6));
-                bs[p++] = (byte) (0x80 | (0x3F & c));
-            } else if (Character.isHighSurrogate(c) && i+1<charLen
-                    && Character.isLowSurrogate(value.charAt(i+1))) {
-                int codePoint = Character.toCodePoint((char) c, (char) value.charAt(i+1));
-                bs[p++] = (byte) (0xF0 | ((codePoint >> 18) & 0x07));
-                bs[p++] = (byte) (0x80 | ((codePoint >> 12) & 0x3F));
-                bs[p++] = (byte) (0x80 | ((codePoint >>  6) & 0x3F));
-                bs[p++] = (byte) (0x80 | ( codePoint        & 0x3F));
-                i++;
-            } else {
-                bs[p++] = (byte) ((0xF << 5) | (c >>> 12));
-                bs[p++] = (byte) (0x80 | (0x3F & (c >>> 6)));
-                bs[p++] = (byte) (0x80 | (0x3F & c));
-            }
-        }
-        pos = p;
+        writeString0(value);
     }
 
-    @Override
-    public void writePackedLongs(byte[] fieldData, Long[] values, Field.Type type) {
-        if (values == null || values.length == 0) {
+    /**
+     * 将不为空的字符串写入到缓存中
+     * @param value
+     */
+    private final void writeString0(final String value) {
+        String v = value;
+        int charLen = v.length();
+        // 如果jvm是9以上版本，并且字符串为Latin1的编码，长度大于5时直接copy字符串对象额value字节数组
+        if (IS_BYTE_ARRAY && isLatin1(v) && charLen > 5) {
+            byte[] data = StringUtil.getValue(v);
+            writeByteArray(data, 0, charLen);
             return;
         }
-        int len;
-        int size = values.length;
-        switch (type) {
-            case INT64:
-            case UINT64:
-                len = MAX_VARLONG_SIZE * size;
-                expand(MAX_VARINT_SIZE << 1 + len);
-                writeFieldData(fieldData);
-                writeUInt32_0(size);
-                for (int i=0;i<size;i++) {
-                    writeUInt64_0(values[i]);
-                }
-                return;
-            case SINT64:
-                len = MAX_VARLONG_SIZE * size;
-                expand(MAX_VARINT_SIZE << 1 + len);
-                writeFieldData(fieldData);
-                writeUInt32_0(size);
-                for (int i=0;i<size;i++) {
-                    writeUInt64_0(ProtoBufWriter.encodeZigZag64(values[i]));
-                }
-                return;
-            case FIXED64:
-            case SFIXED64:
-                expand(MAX_VARINT_SIZE << 1 + size << 3);
-                writeFieldData(fieldData);
-                writeUInt32_0(size << 3);
-                for (int i=0;i<size;i++) {
-                    writeFixed64_0(values[i]);
-                }
-            default:
+        // 转为utf8后最大的所需字节数
+        int maxBytes = charLen * 3;
+        // 如果所需最大字节数小于3k + 编码int最大字节数 则直接扩容所需最大字节数
+        if (maxBytes <= 3072) {
+            expand(maxBytes + 1);
+            int _pos = pos;
+            writeInt32(charLen);
+            int len = writeChars(v, 0, charLen, _pos+1);
+            pos += len;
+            return;
+        }
 
+        // 每次取最大为1024个字符进行写入
+        int start = 0;
+        int end = Math.min((start + 1024), charLen);
+
+        writeInt32(charLen);
+        int _pos   = pos;
+        expand(maxBytes + 1);
+        while (start < charLen) {
+            expand(3072);
+            _pos += writeChars(v, start, end, _pos);
+            pos = _pos;
+            start += 1024;
+            end = Math.min((start + 1024), charLen);
         }
     }
 
-    @Override
-    public void writePackedLongs(byte[] fieldData, List<Long> values, Field.Type type) {
-        if (isEmpty(values)) {
-            return;
-        }
-        int len;
-        switch (type) {
-            case INT64:
-            case UINT64:
-                int size = values.size();
-                len = size * MAX_VARLONG_SIZE;
-                expand(MAX_VARINT_SIZE << 1 + len);
-                writeFieldData(fieldData);
-                writeUInt32_0(size);
-                for (long l : values) {
-                    writeUInt64_0(l);
-                }
-                return;
-            case SINT64:
-                size = values.size();
-                len = size * MAX_VARLONG_SIZE;
-                expand(MAX_VARINT_SIZE << 1 + len);
-                writeFieldData(fieldData);
-                writeUInt32_0(size);
-                for (long l : values) {
-                    writeUInt64_0(ProtoBufWriter.encodeZigZag64(l));
-                }
-                return;
-            case FIXED64:
-            case SFIXED64:
-                size = values.size();
-                expand(MAX_VARINT_SIZE << 1 + size << 3);
-                writeFieldData(fieldData);
-                writeUInt32_0(size << 3);
-                for (long l : values) {
-                    writeFixed64_0(l);
-                }
-            default:
-
-        }
-    }
-
-    @Override
-    public void writePackedInts(byte[] fieldData, List<Integer> values, Field.Type type) {
-        if (isEmpty(values)) {
-            return;
-        }
-        int len;
-        int size;
-        switch (type) {
-            case INT32:
-            case UINT32:
-
-//                len = 0;
-//                for (Integer i : values) {
-//                    len += computeRawVarint32Size(i);
+//    @Override
+//    public void writePackedLongs(byte[] fieldData, Long[] values, Field.Type type) {
+//        if (values == null || values.length == 0) {
+//            return;
+//        }
+//        int len;
+//        int size = values.length;
+//        switch (type) {
+//            case INT64:
+//            case UINT64:
+//                len = MAX_VARLONG_SIZE * size;
+//                expand(MAX_VARINT_SIZE << 1 + len);
+//                writeFieldData(fieldData);
+//                writeUInt32_0(size);
+//                for (int i=0;i<size;i++) {
+//                    writeUInt64_0(values[i]);
 //                }
-//                expand(wbuf, MAX_VARINT_SIZE << 1 + len);
+//                return;
+//            case SINT64:
+//                len = MAX_VARLONG_SIZE * size;
+//                expand(MAX_VARINT_SIZE << 1 + len);
+//                writeFieldData(fieldData);
+//                writeUInt32_0(size);
+//                for (int i=0;i<size;i++) {
+//                    writeUInt64_0(ProtoBufWriter.encodeZigZag64(values[i]));
+//                }
+//                return;
+//            case FIXED64:
+//            case SFIXED64:
+//                expand(MAX_VARINT_SIZE << 1 + size << 3);
+//                writeFieldData(fieldData);
+//                writeUInt32_0(size << 3);
+//                for (int i=0;i<size;i++) {
+//                    writeFixed64_0(values[i]);
+//                }
+//            default:
+//
+//        }
+//    }
+//
+//    @Override
+//    public void writePackedLongs(byte[] fieldData, List<Long> values, Field.Type type) {
+//        if (isEmpty(values)) {
+//            return;
+//        }
+//        int len;
+//        switch (type) {
+//            case INT64:
+//            case UINT64:
+//                int size = values.size();
+//                len = size * MAX_VARLONG_SIZE;
+//                expand(MAX_VARINT_SIZE << 1 + len);
+//                writeFieldData(fieldData);
+//                writeUInt32_0(size);
+//                for (long l : values) {
+//                    writeUInt64_0(l);
+//                }
+//                return;
+//            case SINT64:
+//                size = values.size();
+//                len = size * MAX_VARLONG_SIZE;
+//                expand(MAX_VARINT_SIZE << 1 + len);
+//                writeFieldData(fieldData);
+//                writeUInt32_0(size);
+//                for (long l : values) {
+//                    writeUInt64_0(ProtoBufWriter.encodeZigZag64(l));
+//                }
+//                return;
+//            case FIXED64:
+//            case SFIXED64:
+//                size = values.size();
+//                expand(MAX_VARINT_SIZE << 1 + size << 3);
+//                writeFieldData(fieldData);
+//                writeUInt32_0(size << 3);
+//                for (long l : values) {
+//                    writeFixed64_0(l);
+//                }
+//            default:
+//
+//        }
+//    }
+//
+//    @Override
+//    public void writePackedInts(byte[] fieldData, List<Integer> values, Field.Type type) {
+//        if (isEmpty(values)) {
+//            return;
+//        }
+//        int len;
+//        int size;
+//        switch (type) {
+//            case INT32:
+//            case UINT32:
+//                size = values.size();
+//                len = size * 5;
+//                expand((MAX_VARLONG_SIZE << 1) + len);
 //                writeFieldData(fieldData);
 //                writeUInt32_0(values.size());
-//                for (Integer i : values) {
-//                    writeUInt32_0(i);
+//                int i = 0;
+//                writeInt32_0(values.get(i++));
+//                if (size > 1) {
+//                    writeInt32_0(values.get(i++));
 //                }
+//                if (size > 2) {
+//                    writeInt32_0(values.get(i++));
+//                }
+//                if (size > 3) {
+//                    writeInt32_0(values.get(i++));
+//                }
+//                if (size > 4) {
+//                    writeInt32_0(values.get(i++));
+//                }
+//                if (size > 5) {
+//                    writeInt32_0(values.get(i++));
+//                }
+//                if (size > 6) {
+//                    writeInt32_0(values.get(i++));
+//                }
+//                if (size > 7) {
+//                    writeUInt32_0(values.get(i++));
+//                }
+//                if (size > 8) {
+//                    writeInt32_0(values.get(i++));
+//                }
+//                if (size > 9) {
+//                    writeInt32_0(values.get(i++));
+//                }
+//                if (size > 10) {
+//                    for (i=10;i<size;i++) {
+//                        writeInt32_0(values.get(i));
+//                    }
+//                }
+//                return;
+//            case SINT32:
+//                len = values.size() * MAX_VARINT_SIZE;
+//                expand(MAX_VARINT_SIZE << 1 + len);
+//                writeFieldData(fieldData);
+//                writeUInt32_0(values.size());
+//                for (Integer v : values) {
+//                    writeUInt32_0(ProtoBufWriter.encodeZigZag32(v));
+//                }
+//                return;
+//            case FIXED32:
+//            case SFIXED32:
+//                size = values.size();
+//                expand(MAX_VARINT_SIZE << 1 + size << 2);
+//                writeFieldData(fieldData);
+//                writeUInt32_0(size << 2);
+//                for (Integer v : values) {
+//                    writeFixed32_0(v);
+//                }
+//            default:
+//                break;
+//        }
+//    }
 //
-                size = values.size();
-                len = size * 5;
-                expand((MAX_VARLONG_SIZE << 1) + len);
-                writeFieldData(fieldData);
-                writeUInt32_0(values.size());
-                int i = 0;
-                writeInt32_0(values.get(i++));
-                if (size > 1) {
-                    writeInt32_0(values.get(i++));
-                }
-                if (size > 2) {
-                    writeInt32_0(values.get(i++));
-                }
-                if (size > 3) {
-                    writeInt32_0(values.get(i++));
-                }
-                if (size > 4) {
-                    writeInt32_0(values.get(i++));
-                }
-                if (size > 5) {
-                    writeInt32_0(values.get(i++));
-                }
-                if (size > 6) {
-                    writeInt32_0(values.get(i++));
-                }
-                if (size > 7) {
-                    writeUInt32_0(values.get(i++));
-                }
-                if (size > 8) {
-                    writeInt32_0(values.get(i++));
-                }
-                if (size > 9) {
-                    writeInt32_0(values.get(i++));
-                }
-                if (size > 10) {
-                    for (i=10;i<size;i++) {
-                        writeInt32_0(values.get(i));
-                    }
-                }
-                return;
-            case SINT32:
-                len = values.size() * MAX_VARINT_SIZE;
-                expand(MAX_VARINT_SIZE << 1 + len);
-                writeFieldData(fieldData);
-                writeUInt32_0(values.size());
-                for (Integer v : values) {
-                    writeUInt32_0(ProtoBufWriter.encodeZigZag32(v));
-                }
-                return;
-            case FIXED32:
-            case SFIXED32:
-                size = values.size();
-                expand(MAX_VARINT_SIZE << 1 + size << 2);
-                writeFieldData(fieldData);
-                writeUInt32_0(size << 2);
-                for (Integer v : values) {
-                    writeFixed32_0(v);
-                }
-            default:
-                break;
-        }
-    }
-
-    @Override
-    public void writePackedInts(byte[] fieldData, Integer[] values, Field.Type type) {
-        if (values == null || values.length == 0) {
-            return;
-        }
-        int size = values.length;
-        int len;
-        switch (type) {
-            case INT32:
-            case UINT32:
-                size = values.length;
-                len = size * MAX_VARINT_SIZE;
-                expand((MAX_VARINT_SIZE << 1) + len);
-                writeFieldData(fieldData);
-                writeUInt32_0(values.length);
-                int i = 0;
-                writeInt32_0(values[i++]);
-                if (size > 1) {
-                    writeInt32_0(values[i++]);
-                }
-                if (size > 2) {
-                    writeInt32_0(values[i++]);
-                }
-                if (size > 3) {
-                    writeInt32_0(values[i++]);
-                }
-                if (size > 4) {
-                    writeInt32_0(values[i++]);
-                }
-                if (size > 5) {
-                    writeInt32_0(values[i++]);
-                }
-                if (size > 6) {
-                    writeInt32_0(values[i++]);
-                }
-                if (size > 7) {
-                    writeInt32_0(values[i++]);
-                }
-                if (size > 8) {
-                    writeInt32_0(values[i++]);
-                }
-                if (size > 9) {
-                    writeInt32_0(values[i++]);
-                }
-                if (size > 10) {
-                    for (i=10;i<size;i++) {
-                        writeInt32_0(values[i]);
-                    }
-                }
-                return;
-            case SINT32:
-                len = size * MAX_VARINT_SIZE;
-                expand(MAX_VARINT_SIZE << 1 + len);
-                writeFieldData(fieldData);
-                writeUInt32_0(values.length);
-                for (i=0;i<size;i++) {
-                    writeUInt32_0(ProtoBufWriter.encodeZigZag32(values[i]));
-                }
-                return;
-            case FIXED32:
-            case SFIXED32:
-                expand(MAX_VARINT_SIZE << 1 + size << 2);
-                writeFieldData(fieldData);
-                writeUInt32_0(size << 2);
-                for (i=0;i<size;i++) {
-                    writeFixed32_0(values[i]);
-                }
-            default:
-                break;
-        }
-    }
-
-    @Override
-    public void writePackedInts(byte[] fieldData, int[] values, Field.Type type) {
-        if (values == null || values.length == 0) {
-            return;
-        }
-        int size = values.length;
-        int len;
-        switch (type) {
-            case INT32:
-            case UINT32:
-                size = values.length;
-                len = size * 5;
-                expand((MAX_VARLONG_SIZE << 1) + len);
-                writeFieldData(fieldData);
-                writeInt32_0(size);
-                int i = 0;
-                writeInt32_0(values[i++]);
-                if (size > 1) {
-                    writeInt32_0(values[i++]);
-                }
-                if (size > 2) {
-                    writeInt32_0(values[i++]);
-                }
-                if (size > 3) {
-                    writeInt32_0(values[i++]);
-                }
-                if (size > 4) {
-                    writeInt32_0(values[i++]);
-                }
-                if (size > 5) {
-                    writeInt32_0(values[i++]);
-                }
-                if (size > 6) {
-                    writeInt32_0(values[i++]);
-                }
-                if (size > 7) {
-                    writeInt32_0(values[i++]);
-                }
-                if (size > 8) {
-                    writeInt32_0(values[i++]);
-                }
-                if (size > 9) {
-                    writeInt32_0(values[i++]);
-                }
-                if (size > 10) {
-                    for (i=10;i<size;i++) {
-                        writeInt32_0(values[i]);
-                    }
-                }
-                return;
-            case SINT32:
-                size = values.length;
-                len = size * 5;
-                expand((MAX_VARLONG_SIZE << 1) + len);
-                writeFieldData(fieldData);
-                writeInt32_0(size);
-                //writeUInt32_0(len);
-                for (i=0;i<size;i++) {
-                    writeUInt32_0(ProtoBufWriter.encodeZigZag32(values[i]));
-                }
-                return;
-            case FIXED32:
-            case SFIXED32:
-                expand(MAX_VARINT_SIZE << 1 + size << 2);
-                writeFieldData(fieldData);
-                writeUInt32_0(size << 2);
-                for (i=0;i<size;i++) {
-                    writeFixed32_0(values[i]);
-                }
-            default:
-                break;
-        }
-    }
-
-    @Override
-    public <T> void writeMessage(T v, ProtoBufEncoder<T> codec) throws EncodeException {
-        writeUInt32(WireFormat.makeTag(1, WireType.START_GROUP));
-        codec.encode(this, v);
-        writeUInt32(WireFormat.makeTag(1, WireType.END_GROUP));
-    }
+//    @Override
+//    public void writePackedInts(byte[] fieldData, Integer[] values, Field.Type type) {
+//        if (values == null || values.length == 0) {
+//            return;
+//        }
+//        int size = values.length;
+//        int len;
+//        switch (type) {
+//            case INT32:
+//            case UINT32:
+//                size = values.length;
+//                len = size * MAX_VARINT_SIZE;
+//                expand((MAX_VARINT_SIZE << 1) + len);
+//                writeFieldData(fieldData);
+//                writeUInt32_0(values.length);
+//                int i = 0;
+//                writeInt32_0(values[i++]);
+//                if (size > 1) {
+//                    writeInt32_0(values[i++]);
+//                }
+//                if (size > 2) {
+//                    writeInt32_0(values[i++]);
+//                }
+//                if (size > 3) {
+//                    writeInt32_0(values[i++]);
+//                }
+//                if (size > 4) {
+//                    writeInt32_0(values[i++]);
+//                }
+//                if (size > 5) {
+//                    writeInt32_0(values[i++]);
+//                }
+//                if (size > 6) {
+//                    writeInt32_0(values[i++]);
+//                }
+//                if (size > 7) {
+//                    writeInt32_0(values[i++]);
+//                }
+//                if (size > 8) {
+//                    writeInt32_0(values[i++]);
+//                }
+//                if (size > 9) {
+//                    writeInt32_0(values[i++]);
+//                }
+//                if (size > 10) {
+//                    for (i=10;i<size;i++) {
+//                        writeInt32_0(values[i]);
+//                    }
+//                }
+//                return;
+//            case SINT32:
+//                len = size * MAX_VARINT_SIZE;
+//                expand(MAX_VARINT_SIZE << 1 + len);
+//                writeFieldData(fieldData);
+//                writeUInt32_0(values.length);
+//                for (i=0;i<size;i++) {
+//                    writeUInt32_0(ProtoBufWriter.encodeZigZag32(values[i]));
+//                }
+//                return;
+//            case FIXED32:
+//            case SFIXED32:
+//                expand(MAX_VARINT_SIZE << 1 + size << 2);
+//                writeFieldData(fieldData);
+//                writeUInt32_0(size << 2);
+//                for (i=0;i<size;i++) {
+//                    writeFixed32_0(values[i]);
+//                }
+//            default:
+//                break;
+//        }
+//    }
+//
+//    @Override
+//    public void writePackedInts(byte[] fieldData, int[] values, Field.Type type) {
+//        if (values == null || values.length == 0) {
+//            return;
+//        }
+//        int size = values.length;
+//        int len;
+//        switch (type) {
+//            case INT32:
+//            case UINT32:
+//                size = values.length;
+//                len = size * 5;
+//                expand((MAX_VARLONG_SIZE << 1) + len);
+//                writeFieldData(fieldData);
+//                writeInt32_0(size);
+//                int i = 0;
+//                writeInt32_0(values[i++]);
+//                if (size > 1) {
+//                    writeInt32_0(values[i++]);
+//                }
+//                if (size > 2) {
+//                    writeInt32_0(values[i++]);
+//                }
+//                if (size > 3) {
+//                    writeInt32_0(values[i++]);
+//                }
+//                if (size > 4) {
+//                    writeInt32_0(values[i++]);
+//                }
+//                if (size > 5) {
+//                    writeInt32_0(values[i++]);
+//                }
+//                if (size > 6) {
+//                    writeInt32_0(values[i++]);
+//                }
+//                if (size > 7) {
+//                    writeInt32_0(values[i++]);
+//                }
+//                if (size > 8) {
+//                    writeInt32_0(values[i++]);
+//                }
+//                if (size > 9) {
+//                    writeInt32_0(values[i++]);
+//                }
+//                if (size > 10) {
+//                    for (i=10;i<size;i++) {
+//                        writeInt32_0(values[i]);
+//                    }
+//                }
+//                return;
+//            case SINT32:
+//                size = values.length;
+//                len = size * 5;
+//                expand((MAX_VARLONG_SIZE << 1) + len);
+//                writeFieldData(fieldData);
+//                writeInt32_0(size);
+//                //writeUInt32_0(len);
+//                for (i=0;i<size;i++) {
+//                    writeUInt32_0(ProtoBufWriter.encodeZigZag32(values[i]));
+//                }
+//                return;
+//            case FIXED32:
+//            case SFIXED32:
+//                expand(MAX_VARINT_SIZE << 1 + size << 2);
+//                writeFieldData(fieldData);
+//                writeUInt32_0(size << 2);
+//                for (i=0;i<size;i++) {
+//                    writeFixed32_0(values[i]);
+//                }
+//            default:
+//                break;
+//        }
+//    }
 
     @Override
     public <T> void writeMessage(byte[] fieldData, int tag, T v, ProtoBufEncoder<T> codec) throws EncodeException {
