@@ -110,7 +110,6 @@ public abstract class AbstractWriter implements ProtoBufWriter {
         int len = fieldData.length;
         if (len == 1) {
             bs[pos++] = fieldData[0];
-            bs[pos++] = fieldData[0];
         } else if (len == 2) {
             bs[pos++] = fieldData[0];
             bs[pos++] = fieldData[1];

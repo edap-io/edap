@@ -51,7 +51,7 @@ public class StandardProtoBufWriter extends AbstractWriter {
             case INT32:
             case UINT32:
                 size = values.length;
-                len = size * 5;
+                len = size * MAX_VARINT_SIZE;
                 expand((MAX_VARLONG_SIZE << 1) + len);
                 writeFieldData(fieldData);
                 int oldPos = pos;
@@ -95,11 +95,7 @@ public class StandardProtoBufWriter extends AbstractWriter {
                 pos += writeLenMoveBytes(bs, oldPos, len);
                 return;
             case SINT32:
-                len = 0;
-                for (i=0;i<size;i++) {
-                    len += computeRawVarint32Size(encodeZigZag32(values[i]));
-                }
-                expand(MAX_VARINT_SIZE << 1 + len*MAX_VARINT_SIZE);
+                expand(MAX_VARINT_SIZE << 1 + size*MAX_VARINT_SIZE);
                 writeFieldData(fieldData);
                 oldPos = pos;
                 pos++;
@@ -536,28 +532,28 @@ public class StandardProtoBufWriter extends AbstractWriter {
         switch (type) {
             case INT64:
             case UINT64:
-                len = 0;
-                for (int i=0;i<size;i++) {
-                    len += computeRawVarint64Size(values[i]);
-                }
-                expand(MAX_VARINT_SIZE << 1 + len);
+                expand(MAX_VARINT_SIZE);
                 writeFieldData(fieldData);
-                writeUInt32_0(len);
+                int oldPos = pos;
+                pos++;
+                expand(MAX_VARLONG_SIZE * values.length);
                 for (int i=0;i<size;i++) {
                     writeUInt64_0(values[i]);
                 }
+                len = pos - oldPos - 1;
+                pos += writeLenMoveBytes(bs, oldPos, len);
                 return;
             case SINT64:
-                len = 0;
-                for (int i=0;i<size;i++) {
-                    len += computeRawVarint64Size(encodeZigZag64(values[i]));
-                }
-                expand(MAX_VARINT_SIZE << 1 + len);
+                expand(MAX_VARINT_SIZE);
                 writeFieldData(fieldData);
-                writeUInt32_0(len);
+                oldPos = pos;
+                pos++;
+                expand(MAX_VARLONG_SIZE * values.length);
                 for (int i=0;i<size;i++) {
                     writeUInt64_0(encodeZigZag64(values[i]));
                 }
+                len = pos - oldPos - 1;
+                pos += writeLenMoveBytes(bs, oldPos, len);
                 return;
             case FIXED64:
             case SFIXED64:
@@ -582,28 +578,26 @@ public class StandardProtoBufWriter extends AbstractWriter {
         switch (type) {
             case INT64:
             case UINT64:
-                len = 0;
-                for (int i=0;i<size;i++) {
-                    len += computeRawVarint64Size(values[i]);
-                }
-                expand(MAX_VARINT_SIZE << 1 + len);
+                expand(MAX_VARINT_SIZE << 1 + MAX_VARLONG_SIZE * values.length);
                 writeFieldData(fieldData);
-                writeUInt32_0(len);
+                int oldPos = pos;
+                pos++;
                 for (int i=0;i<size;i++) {
                     writeUInt64_0(values[i]);
                 }
+                len = pos - oldPos - 1;
+                pos += writeLenMoveBytes(bs, oldPos, len);
                 return;
             case SINT64:
-                len = 0;
-                for (int i=0;i<size;i++) {
-                    len += computeRawVarint64Size(encodeZigZag64(values[i]));
-                }
-                expand(MAX_VARINT_SIZE << 1 + len);
+                expand(MAX_VARINT_SIZE << 1 + MAX_VARLONG_SIZE * values.length);
                 writeFieldData(fieldData);
-                writeUInt32_0(len);
+                oldPos = pos;
+                pos++;
                 for (int i=0;i<size;i++) {
                     writeUInt64_0(encodeZigZag64(values[i]));
                 }
+                len = pos - oldPos - 1;
+                pos += writeLenMoveBytes(bs, oldPos, len);
                 return;
             case FIXED64:
             case SFIXED64:
@@ -627,28 +621,26 @@ public class StandardProtoBufWriter extends AbstractWriter {
         switch (type) {
             case INT64:
             case UINT64:
-                len = 0;
-                for (long l : values) {
-                    len += computeRawVarint64Size(l);
-                }
-                expand(MAX_VARINT_SIZE << 1 + len);
+                expand(MAX_VARINT_SIZE << 1 + MAX_VARLONG_SIZE * values.size());
                 writeFieldData(fieldData);
-                writeUInt32_0(len);
+                int oldPos = pos;
+                pos++;
                 for (long l : values) {
                     writeUInt64_0(l);
                 }
+                len = pos - oldPos - 1;
+                pos += writeLenMoveBytes(bs, oldPos, len);
                 return;
             case SINT64:
-                len = 0;
-                for (long l : values) {
-                    len += computeRawVarint64Size(encodeZigZag64(l));
-                }
-                expand(MAX_VARINT_SIZE << 1 + len);
+                expand(MAX_VARINT_SIZE << 1 + MAX_VARLONG_SIZE * values.size());
                 writeFieldData(fieldData);
-                writeUInt32_0(len);
+                oldPos = pos;
+                pos++;
                 for (long l : values) {
                     writeUInt64_0(encodeZigZag64(l));
                 }
+                len = pos - oldPos - 1;
+                pos += writeLenMoveBytes(bs, oldPos, len);
                 return;
             case FIXED64:
             case SFIXED64:
@@ -906,30 +898,4 @@ public class StandardProtoBufWriter extends AbstractWriter {
         }
     }
 
-    protected ProtoBufWriter getLocalWriter() {
-        Queue<ProtoBufWriter> outQueue = LOCAL_BUFOUT_QUEUE.get();
-        ProtoBufWriter writer = outQueue.poll();
-        if (writer == null) {
-            ProtoBufOut out = new ProtoBufOut();
-            writer = new StandardProtoBufWriter(out);
-        }
-        writer.reset();
-        return writer;
-    }
-
-    protected void releaseLocalWriter(ProtoBufWriter writer) {
-        Queue<ProtoBufWriter> outQueue = LOCAL_BUFOUT_QUEUE.get();
-        //out.reset();
-        writer.getBufOut().reset();
-        outQueue.offer(writer);
-    }
-
-    static final ThreadLocal<Queue<ProtoBufWriter>> LOCAL_BUFOUT_QUEUE =
-            new ThreadLocal<Queue<ProtoBufWriter>>() {
-                @Override
-                protected Queue<ProtoBufWriter> initialValue() {
-                    Queue<ProtoBufWriter> queue = new ArrayDeque<>(16);
-                    return queue;
-                }
-            };
 }

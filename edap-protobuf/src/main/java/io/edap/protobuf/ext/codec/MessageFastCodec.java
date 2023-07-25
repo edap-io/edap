@@ -48,6 +48,7 @@ public class MessageFastCodec implements ExtCodec<Object> {
         if (null == decoder) {
             throw new ProtoBufException(uri + "'s Decoder not found!");
         }
+        reader.readTag();
         return reader.readMessage(decoder, makeTag(1, END_GROUP));
     }
 

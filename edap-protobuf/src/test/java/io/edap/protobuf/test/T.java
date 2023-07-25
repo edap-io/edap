@@ -10,6 +10,7 @@ public class T {
         System.out.println(Integer.parseInt("b", 16));
         System.out.println(Integer.parseInt("c", 16));
         System.out.println(makeTag(10, WireType.START_GROUP));
-        System.out.println(makeTag(10, WireType.END_GROUP));
+        System.out.println(makeTag(1, WireType.OBJECT));
+        System.out.println(Integer.toHexString(makeTag(1, WireType.OBJECT)));
     }
 }

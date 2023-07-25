@@ -7,6 +7,10 @@ import io.edap.protobuf.wire.Field;
 import java.util.ArrayList;
 import java.util.List;
 
+import static io.edap.protobuf.wire.WireFormat.getTagFieldNumber;
+import static io.edap.protobuf.wire.WireFormat.makeTag;
+import static io.edap.protobuf.wire.WireType.END_GROUP;
+
 public class ByteArrayFastReader extends ByteArrayReader {
     public ByteArrayFastReader(byte[] buf) {
         super(buf);
@@ -234,5 +238,28 @@ public class ByteArrayFastReader extends ByteArrayReader {
     public <T extends Object> T readMessage(ProtoBufDecoder<T> decoder, int endTag)
             throws ProtoBufException {
         return decoder.decode(this, endTag);
+    }
+
+    @Override
+    boolean skipMessage(int tag) throws ProtoBufException {
+        //int tag = readTag();
+        int tagNum = getTagFieldNumber(tag);
+        int end = makeTag(tagNum, END_GROUP);
+        int _pos = pos;
+        while (_pos < limit) {
+            if (readRawVarint32() == end) {
+                pos = _pos;
+                return true;
+            }
+            _pos++;
+        }
+        return true;
+    }
+
+    @Override
+    boolean skipString() throws ProtoBufException {
+        int len = readRawVarint32();
+        readString(len);
+        return true;
     }
 }

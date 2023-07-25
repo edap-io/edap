@@ -454,6 +454,11 @@ public class ByteArrayReader extends AbstractReader {
     }
 
     @Override
+    boolean skipString() throws ProtoBufException {
+        return true;
+    }
+
+    @Override
     boolean skipRawBytes(int len) throws ProtoBufException {
         if (limit - pos >= len) {
             pos += len;
@@ -463,7 +468,7 @@ public class ByteArrayReader extends AbstractReader {
     }
 
     @Override
-    boolean skipMessage() throws ProtoBufException {
+    boolean skipMessage(int tag) throws ProtoBufException {
         int len = readRawVarint32();
         return skipRawBytes(len);
     }

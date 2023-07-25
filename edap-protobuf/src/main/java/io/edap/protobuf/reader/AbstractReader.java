@@ -24,8 +24,7 @@ import java.util.List;
 
 import static io.edap.protobuf.ProtoBufReader.decodeZigZag32;
 import static io.edap.protobuf.ProtoBufReader.decodeZigZag64;
-import static io.edap.protobuf.wire.WireFormat.FIXED_32_SIZE;
-import static io.edap.protobuf.wire.WireFormat.FIXED_64_SIZE;
+import static io.edap.protobuf.wire.WireFormat.*;
 
 public abstract class AbstractReader implements ProtoBufReader {
 
@@ -192,6 +191,7 @@ public abstract class AbstractReader implements ProtoBufReader {
 
     @Override
     public boolean skipField(int tag, int wireType) throws ProtoBufException {
+        wireType = getTagWireType(tag);
         switch (wireType) {
             case 0:  //VARINT
                 return skipRawVarint();
@@ -207,7 +207,9 @@ public abstract class AbstractReader implements ProtoBufReader {
                     throw ProtoBufException.malformedVarint();
                 }
             case 3:  //START_GROUP
-                return skipMessage();
+                return skipMessage(tag);
+            case 7:
+                return skipString();
             case 4:  //END_GROUP
                 return true;
 
@@ -217,9 +219,11 @@ public abstract class AbstractReader implements ProtoBufReader {
 
     abstract boolean skipRawVarint() throws ProtoBufException;
 
+    abstract boolean skipString() throws ProtoBufException;
+
     abstract boolean skipRawBytes(int len) throws ProtoBufException;
 
-    abstract boolean skipMessage() throws ProtoBufException;
+    abstract boolean skipMessage(int tag) throws ProtoBufException;
 
     abstract int readRawVarint32() throws ProtoBufException;
 

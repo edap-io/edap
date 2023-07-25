@@ -61,4 +61,6 @@ public class AllType {
     public Integer field17;
     @ProtoField(tag = 18, type = Field.Type.UINT64)
     public Long field18;
+    @ProtoField(tag = 19, type = Field.Type.STRING)
+    public String field19;
 }
