@@ -245,12 +245,10 @@ public class ByteArrayFastReader extends ByteArrayReader {
     boolean skipMessage(int tag) throws ProtoBufException {
         int tagNum = getTagFieldNumber(tag);
         int end = makeTag(tagNum, END_GROUP);
-        int _pos = pos;
         Stack<Integer> msgStack = new Stack<>();
-        while (_pos < limit) {
+        while (pos < limit) {
             int rawInt = readRawVarint32();
             if (rawInt == end && msgStack.empty()) {
-                pos = _pos;
                 return true;
             }
             int wireType = getTagWireType(rawInt);
@@ -287,9 +285,7 @@ public class ByteArrayFastReader extends ByteArrayReader {
                         throw ProtoBufException.malformedVarint();
 
                 }
-                _pos = pos;
             }
-            _pos++;
         }
         return true;
     }
