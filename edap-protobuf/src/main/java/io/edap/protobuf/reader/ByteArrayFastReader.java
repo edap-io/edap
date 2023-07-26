@@ -3,12 +3,13 @@ package io.edap.protobuf.reader;
 import io.edap.protobuf.ProtoBufDecoder;
 import io.edap.protobuf.ProtoBufException;
 import io.edap.protobuf.wire.Field;
+import io.edap.protobuf.wire.WireType;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Stack;
 
-import static io.edap.protobuf.wire.WireFormat.getTagFieldNumber;
-import static io.edap.protobuf.wire.WireFormat.makeTag;
+import static io.edap.protobuf.wire.WireFormat.*;
 import static io.edap.protobuf.wire.WireType.END_GROUP;
 
 public class ByteArrayFastReader extends ByteArrayReader {
@@ -242,14 +243,51 @@ public class ByteArrayFastReader extends ByteArrayReader {
 
     @Override
     boolean skipMessage(int tag) throws ProtoBufException {
-        //int tag = readTag();
         int tagNum = getTagFieldNumber(tag);
         int end = makeTag(tagNum, END_GROUP);
         int _pos = pos;
+        Stack<Integer> msgStack = new Stack<>();
         while (_pos < limit) {
-            if (readRawVarint32() == end) {
+            int rawInt = readRawVarint32();
+            if (rawInt == end && msgStack.empty()) {
                 pos = _pos;
                 return true;
+            }
+            int wireType = getTagWireType(rawInt);
+            if (wireType == WireType.START_GROUP.getValue()) {
+                msgStack.push(rawInt);
+            } else if (wireType == END_GROUP.getValue()) {
+                msgStack.pop();
+            } else {
+                switch (wireType) {
+                    case 0:  //VARINT
+                        skipRawVarint();
+                        break;
+                    case 5:  //FIXED32
+                        skipRawBytes(FIXED_32_SIZE);
+                        break;
+                    case 1:  //FIXED64
+                        skipRawBytes(FIXED_64_SIZE);
+                        break;
+                    case 2:  //LENGTH_DELIMITED
+                        int len = readRawVarint32();
+                        if (len >= 0) {
+                            skipRawBytes(len);
+                            break;
+                        } else {
+                            throw ProtoBufException.malformedVarint();
+                        }
+                    case 3:  //START_GROUP
+                        skipMessage(tag);
+                        break;
+                    case 7:
+                        skipString();
+                        break;
+                    default:
+                        throw ProtoBufException.malformedVarint();
+
+                }
+                _pos = pos;
             }
             _pos++;
         }
