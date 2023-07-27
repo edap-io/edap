@@ -33,8 +33,7 @@ import java.util.concurrent.locks.ReentrantLock;
 import static io.edap.protobuf.ProtoBufDecoderGenerator.getDecoderName;
 import static io.edap.protobuf.ProtoBufEncoderGenerator.getEncoderName;
 import static io.edap.protobuf.util.ProtoUtil.buildMapEncodeName;
-import static io.edap.util.AsmUtil.toInternalName;
-import static io.edap.util.AsmUtil.toLangName;
+import static io.edap.util.AsmUtil.*;
 import static io.edap.util.CollectionUtils.isEmpty;
 
 /**
@@ -317,22 +316,6 @@ public enum ProtoBufCodecRegister {
                     + cls.getName() + " error", e);
         }
         return encoderCls;
-    }
-
-    public static void saveJavaFile(String javaFilePath, byte[] data)
-            throws IOException {
-        File f = new File(javaFilePath);
-        if (f.exists()) {
-            Files.delete(f.toPath());
-        } else {
-            if (!f.getParentFile().exists()) {
-                f.getParentFile().mkdirs();
-            }
-        }
-
-        try (RandomAccessFile java = new RandomAccessFile(javaFilePath, "rw")) {
-            java.write(data);
-        }
     }
 
     private Class generateDecoderClass(Class cls, ProtoBufOption option) {
