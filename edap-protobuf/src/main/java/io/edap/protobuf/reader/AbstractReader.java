@@ -206,13 +206,10 @@ public abstract class AbstractReader implements ProtoBufReader {
                 return skipRawBytes(FIXED_32_SIZE);
             case 6:
                 return skipObject();
-            case 7:
+            default:  //END_GROUP
                 return skipString();
-            case 4:  //END_GROUP
-                return true;
 
         }
-        return false;
     }
 
     abstract boolean skipRawVarint() throws ProtoBufException;

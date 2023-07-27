@@ -191,5 +191,61 @@ public class TestExtCodec {
                     AnyCodec.decode(reader);
                 });
         assertTrue(thrown.getMessage().contains("] hasn't ProtoBufDecoder"));
+
+        thrown = assertThrows(ProtoBufException.class,
+                () -> {
+                    reader.reset();
+                    AnyCodec.decode(reader, new ProtoBufOption());
+                });
+        assertTrue(thrown.getMessage().contains("] hasn't ProtoBufDecoder"));
+
+        thrown = assertThrows(ProtoBufException.class,
+                () -> {
+                    reader.reset();
+                    ProtoBufOption option = new ProtoBufOption();
+                    option.setCodecType(ProtoBuf.CodecType.FAST);
+                    AnyCodec.decode(reader, option);
+                });
+        assertTrue(thrown.getMessage().contains("] hasn't ProtoBufDecoder"));
+
+        thrown = assertThrows(ProtoBufException.class,
+                () -> {
+                    reader.reset();
+                    ProtoBufOption option = new ProtoBufOption();
+                    option.setCodecType(ProtoBuf.CodecType.FAST);
+                    AnyCodec.skipObject(reader);
+                });
+        assertTrue(thrown.getMessage().contains("] hasn't ProtoBufDecoder"));
+
+
+        thrown = assertThrows(ProtoBufException.class,
+                () -> {
+                    ByteArrayFastReader reader2 = new ByteArrayFastReader(data);
+                    reader2.reset();
+                    ProtoBufOption option = new ProtoBufOption();
+                    option.setCodecType(ProtoBuf.CodecType.FAST);
+                    AnyCodec.skipObject(reader2);
+                });
+        assertTrue(thrown.getMessage().contains("] hasn't ProtoBufDecoder"));
+    }
+
+    @Test
+    public void testEncodeWithOption() throws EncodeException {
+        Class cls = null;
+
+        ProtoBufWriter writer = new StandardProtoBufWriter(new ProtoBufOut());
+        ClassCodec codec = new ClassCodec();
+        byte[] clsNullData = new byte[]{-114};
+        ProtoBufOption option = new ProtoBufOption();
+        AnyCodec.encode(writer, cls, option);
+        byte[] data = writer.toByteArray();
+
+        assertArrayEquals(data, clsNullData);
+
+        option.setCodecType(ProtoBuf.CodecType.FAST);
+        writer.reset();
+        AnyCodec.encode(writer, cls, option);
+        data = writer.toByteArray();
+        assertArrayEquals(data, clsNullData);
     }
 }

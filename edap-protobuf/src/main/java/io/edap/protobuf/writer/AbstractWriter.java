@@ -495,62 +495,6 @@ public abstract class AbstractWriter implements ProtoBufWriter {
         writeString(value);
     }
 
-    public static int computeUTF8Size(final String str, final int index, final int len)
-    {
-        int size = len;
-        for (int i = index; i < len; i++) {
-            final char c = str.charAt(i);
-            if (c < 0x0080) {
-                continue;
-            }
-            if (c < 0x0800) {
-                size++;
-            } else if (Character.isHighSurrogate(c) && i+1<len
-                    && Character.isLowSurrogate(str.charAt(i+1))) {
-                size += 2;
-                i++;
-            } else {
-                size += 2;
-            }
-        }
-        return size;
-    }
-    public final void writeString1(final String value) {
-        int charLen = value.length();
-        if (charLen == 0) {
-            writeUInt32(0);
-            return;
-        }
-        int oldPos = pos;
-        int start = pos + 1;
-        expand(charLen * 4 + MAX_VARINT_SIZE);
-        byte[] _bs = bs;
-        for (int i=0;i<charLen;i++) {
-            char c = value.charAt(i);
-            if (c < 128) {
-                _bs[start++] = (byte) c;
-            } else if (c < 0x800) {
-                _bs[start++] = (byte) ((0xF << 6) | (c >>> 6));
-                _bs[start++] = (byte) (0x80 | (0x3F & c));
-            } else if (Character.isHighSurrogate(c) && i+1<charLen
-                    && Character.isLowSurrogate(value.charAt(i+1))) {
-                int codePoint = Character.toCodePoint((char) c, (char) value.charAt(i+1));
-                _bs[start++] = (byte) (0xF0 | ((codePoint >> 18) & 0x07));
-                _bs[start++] = (byte) (0x80 | ((codePoint >> 12) & 0x3F));
-                _bs[start++] = (byte) (0x80 | ((codePoint >>  6) & 0x3F));
-                _bs[start++] = (byte) (0x80 | ( codePoint        & 0x3F));
-                i++;
-            } else {
-                _bs[start++] = (byte) ((0xF << 5) | (c >>> 12));
-                _bs[start++] = (byte) (0x80 | (0x3F & (c >>> 6)));
-                _bs[start++] = (byte) (0x80 | (0x3F & c));
-            }
-        }
-        pos = start;
-        int len = start - oldPos - 5;
-        pos += writeLenMoveBytes(bs, oldPos, len);
-    }
-
     @Override
     public void writeStringUtf8(final String value, int len) {
         String v = value;
