@@ -37,6 +37,12 @@ public class DateCodec implements ExtCodec<Date> {
     }
 
     @Override
+    public boolean skip(ProtoBufReader reader) throws ProtoBufException {
+        reader.readInt64();
+        return true;
+    }
+
+    @Override
     public void encode(ProtoBufWriter writer, Date v) throws EncodeException {
         writer.writeByte((byte)RANGE_DATE);
         writer.writeUInt64(v.getTime());

@@ -21,7 +21,6 @@ import io.edap.protobuf.ProtoBufException;
 import io.edap.protobuf.ext.AnyCodec;
 import io.edap.protobuf.wire.Field.Type;
 
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -618,6 +617,10 @@ public class ByteArrayReader extends AbstractReader {
                 | ((buf[pos++] & 0xFF) << 24));
     }
 
+    @Override
+    boolean skipObject() throws ProtoBufException {
+        return AnyCodec.skipObject(this);
+    }
 
 
     @Override
@@ -645,5 +648,19 @@ public class ByteArrayReader extends AbstractReader {
     @Override
     public void reset() {
         pos = 0;
+    }
+
+    @Override
+    public void skip(int len) {
+        if (pos + len > limit) {
+            pos = limit;
+        } else {
+            pos += len;
+        }
+    }
+
+    @Override
+    public boolean isFastCodec() {
+        return false;
     }
 }

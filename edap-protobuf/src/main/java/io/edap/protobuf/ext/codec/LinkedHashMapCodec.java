@@ -28,6 +28,16 @@ public class LinkedHashMapCodec implements ExtCodec<LinkedHashMap<Object, Object
     }
 
     @Override
+    public boolean skip(ProtoBufReader reader) throws ProtoBufException {
+        int len = reader.readInt32();
+        for (int i=0;i<len;i++) {
+            reader.readObject();
+            reader.readObject();
+        }
+        return true;
+    }
+
+    @Override
     public void encode(ProtoBufWriter writer, LinkedHashMap<Object, Object> map) throws EncodeException {
         writer.writeByte((byte)(RANGE_LINKED_HASHMAP));
         writer.writeInt32(map.size(), true);

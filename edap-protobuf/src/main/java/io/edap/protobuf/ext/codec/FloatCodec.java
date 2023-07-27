@@ -35,6 +35,12 @@ public class FloatCodec implements ExtCodec<Float> {
     }
 
     @Override
+    public boolean skip(ProtoBufReader reader) throws ProtoBufException {
+        reader.skip(4);
+        return true;
+    }
+
+    @Override
     public void encode(ProtoBufWriter writer, Float v) throws EncodeException {
         writer.writeByte((byte)RANGE_FLOAT);
         writer.writeFixed32(Float.floatToRawIntBits(v));

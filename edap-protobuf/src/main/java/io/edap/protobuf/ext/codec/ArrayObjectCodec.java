@@ -42,6 +42,15 @@ public class ArrayObjectCodec implements ExtCodec<Object[]> {
     }
 
     @Override
+    public boolean skip(ProtoBufReader reader) throws ProtoBufException {
+        int len = reader.readInt32();
+        for (int i=0;i<len;i++) {
+            reader.readObject();
+        }
+        return true;
+    }
+
+    @Override
     public void encode(ProtoBufWriter writer, Object[] vs) throws EncodeException {
         int len = vs.length;
         if (len == 0) {

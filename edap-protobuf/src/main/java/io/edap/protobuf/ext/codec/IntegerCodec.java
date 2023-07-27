@@ -49,6 +49,12 @@ public class IntegerCodec implements ExtCodec<Integer> {
     }
 
     @Override
+    public boolean skip(ProtoBufReader reader) throws ProtoBufException {
+        reader.readSInt32();
+        return true;
+    }
+
+    @Override
     public void encode(ProtoBufWriter writer, Integer v) throws EncodeException {
         if (v >= RANGE_INT_START && v < RANGE_INT_END) {
             writer.writeInt32(v, true);

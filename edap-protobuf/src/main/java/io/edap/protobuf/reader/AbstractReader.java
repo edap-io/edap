@@ -195,19 +195,17 @@ public abstract class AbstractReader implements ProtoBufReader {
         switch (wireType) {
             case 0:  //VARINT
                 return skipRawVarint();
-            case 5:  //FIXED32
-                return skipRawBytes(FIXED_32_SIZE);
             case 1:  //FIXED64
                 return skipRawBytes(FIXED_64_SIZE);
             case 2:  //LENGTH_DELIMITED
                 int len = readRawVarint32();
-                if (len >= 0) {
-                    return skipRawBytes(len);
-                } else {
-                    throw ProtoBufException.malformedVarint();
-                }
+                return skipRawBytes(len);
             case 3:  //START_GROUP
                 return skipMessage(tag);
+            case 5:  //FIXED32
+                return skipRawBytes(FIXED_32_SIZE);
+            case 6:
+                return skipObject();
             case 7:
                 return skipString();
             case 4:  //END_GROUP
@@ -232,4 +230,6 @@ public abstract class AbstractReader implements ProtoBufReader {
     abstract long readRawLittleEndian64() throws ProtoBufException;
 
     abstract int readRawLittleEndian32() throws ProtoBufException;
+
+    abstract boolean skipObject() throws ProtoBufException;
 }

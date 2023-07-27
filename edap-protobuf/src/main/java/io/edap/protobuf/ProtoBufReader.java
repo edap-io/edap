@@ -26,6 +26,10 @@ import java.util.List;
  */
 public interface ProtoBufReader {
 
+    void skip(int len);
+
+    boolean isFastCodec();
+
     public static final Charset CHARSET_UTF8 = Charset.forName("utf-8");
 
     byte getByte(int pos);

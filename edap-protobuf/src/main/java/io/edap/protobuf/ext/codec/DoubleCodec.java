@@ -35,6 +35,12 @@ public class DoubleCodec implements ExtCodec<Double> {
     }
 
     @Override
+    public boolean skip(ProtoBufReader reader) throws ProtoBufException {
+        reader.skip(8);
+        return true;
+    }
+
+    @Override
     public void encode(ProtoBufWriter writer, Double v) throws EncodeException {
         writer.writeByte((byte)RANGE_DOUBLE);
         writer.writeFixed64(Double.doubleToRawLongBits(v));

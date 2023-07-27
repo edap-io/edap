@@ -62,6 +62,12 @@ public class ClassCodec implements ExtCodec<Class> {
     }
 
     @Override
+    public boolean skip(ProtoBufReader reader) throws ProtoBufException {
+        reader.readString();
+        return true;
+    }
+
+    @Override
     public void encode(ProtoBufWriter writer, Class aClass) throws EncodeException {
         String s = null;
         if (aClass != null) {

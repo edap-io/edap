@@ -24,8 +24,11 @@ import io.edap.protobuf.ProtoBufWriter;
 import io.edap.protobuf.ext.AnyCodec;
 import io.edap.protobuf.ext.codec.ClassCodec;
 import io.edap.protobuf.ext.codec.MessageCodec;
+import io.edap.protobuf.ext.codec.MessageFastCodec;
 import io.edap.protobuf.ext.codec.NullCodec;
 import io.edap.protobuf.internal.ProtoBufOut;
+import io.edap.protobuf.model.ProtoBufOption;
+import io.edap.protobuf.reader.ByteArrayFastReader;
 import io.edap.protobuf.reader.ByteArrayReader;
 import io.edap.protobuf.writer.StandardProtoBufWriter;
 import org.junit.jupiter.api.Test;
@@ -99,6 +102,34 @@ public class TestExtCodec {
                     msgCodec.decode(reader);
                 });
         assertTrue(thrown.getMessage().contains("s Decoder not found!"));
+
+        ByteArrayReader reader2 = new ByteArrayReader(data);
+        MessageFastCodec msgCodec2 = new MessageFastCodec();
+
+        ProtoBufException thrown2 = assertThrows(ProtoBufException.class,
+                () -> {
+                    msgCodec2.decode(reader2);
+                });
+        assertTrue(thrown2.getMessage().contains("s Decoder not found!"));
+
+
+        ByteArrayReader reader3 = new ByteArrayReader(data);
+        MessageCodec msgCodec3 = new MessageCodec();
+
+        ProtoBufException thrown3 = assertThrows(ProtoBufException.class,
+                () -> {
+                    msgCodec3.skip(reader3);
+                });
+        assertTrue(thrown3.getMessage().contains("s Decoder not found!"));
+
+        ByteArrayReader reader4 = new ByteArrayReader(data);
+        MessageFastCodec msgCodec4 = new MessageFastCodec();
+
+        ProtoBufException thrown4 = assertThrows(ProtoBufException.class,
+                () -> {
+                    msgCodec4.skip(reader4);
+                });
+        assertTrue(thrown4.getMessage().contains("s Decoder not found!"));
     }
 
     @Test

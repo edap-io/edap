@@ -50,6 +50,17 @@ public class StringCodec implements ExtCodec<String> {
     }
 
     @Override
+    public boolean skip(ProtoBufReader reader) throws ProtoBufException {
+        if (null != len) {
+            reader.readString(len);
+            return true;
+        }
+        int l = reader.readInt32();
+        reader.readString(l);
+        return true;
+    }
+
+    @Override
     public void encode(ProtoBufWriter writer, String s) throws EncodeException {
         int len = s.length();
         if (len < RANGE_STRING_END - RANGE_STRING_START) {

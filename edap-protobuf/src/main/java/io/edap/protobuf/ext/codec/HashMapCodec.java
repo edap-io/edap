@@ -65,6 +65,21 @@ public class HashMapCodec implements ExtCodec<HashMap<Object, Object>> {
     }
 
     @Override
+    public boolean skip(ProtoBufReader reader) throws ProtoBufException {
+        int len;
+        if (null == size) {
+            len =reader.readInt32();
+        } else {
+            len = size.intValue();
+        }
+        for (int i=0;i<len;i++) {
+            reader.readObject();
+            reader.readObject();
+        }
+        return true;
+    }
+
+    @Override
     public void encode(ProtoBufWriter writer, HashMap<Object, Object> map) throws EncodeException {
         if (map.size() > RANGE_HASHMAP_END - RANGE_HASHMAP_START) {
             writer.writeByte((byte)RANGE_HASHMAP_END);

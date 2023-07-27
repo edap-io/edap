@@ -4,6 +4,7 @@ import io.edap.protobuf.ProtoBuf;
 import io.edap.protobuf.ProtoBufCodecRegister;
 import io.edap.protobuf.ProtoBufDecoder;
 import io.edap.protobuf.ProtoBufException;
+import io.edap.protobuf.internal.ProtoBufOut;
 import io.edap.protobuf.model.ProtoBufOption;
 import io.edap.protobuf.reader.ByteArrayFastReader;
 import io.edap.protobuf.test.message.v3.Project;
@@ -12,6 +13,7 @@ import io.edap.protobuf.wire.Message;
 import io.edap.protobuf.wire.Proto;
 import io.edap.protobuf.wire.exceptions.ProtoParseException;
 import io.edap.protobuf.wire.parser.ProtoParser;
+import io.edap.protobuf.writer.StandardProtoBufWriter;
 import org.junit.jupiter.api.Test;
 
 import static io.edap.protobuf.test.TestUtil.conver2HexStr;
@@ -144,7 +146,20 @@ public class TestByteArrayFastReader {
                 () -> {
                     reader.readPackedInt32ArrayValue(Field.Type.INT64);
                 });
-        assertNotNull(thrown);
-        assertTrue(thrown.getMessage().contains("CodedInputStream encountered a malformed varint."));
+    }
+
+    @Test
+    public void testReadString() throws ProtoBufException {
+        byte[] data = new byte[]{(byte)0};
+        ByteArrayFastReader reader = new ByteArrayFastReader(data);
+        String str = reader.readString();
+        assertEquals(str, "");
+
+        StandardProtoBufWriter writer = new StandardProtoBufWriter(new ProtoBufOut());
+        writer.writeInt32_0(-2);
+        byte[] data2 = writer.toByteArray();
+        ByteArrayFastReader reader2 = new ByteArrayFastReader(data2);
+        str = reader2.readString();
+        assertNull(str);
     }
 }

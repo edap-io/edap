@@ -47,6 +47,17 @@ public class ArrayDoubleObjCodec implements ExtCodec<Double[]> {
     }
 
     @Override
+    public boolean skip(ProtoBufReader reader) throws ProtoBufException {
+        int len = reader.readInt32();
+        for (int i=0;i<len;i++) {
+            if (!reader.readBool()) {
+                reader.readDouble();
+            }
+        }
+        return true;
+    }
+
+    @Override
     public void encode(ProtoBufWriter writer, Double[] doubles) throws EncodeException {
         int len = doubles.length;
         if (len == 0) {

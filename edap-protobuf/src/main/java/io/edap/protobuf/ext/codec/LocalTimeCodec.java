@@ -42,6 +42,12 @@ public class LocalTimeCodec implements ExtCodec<LocalTime> {
     }
 
     @Override
+    public boolean skip(ProtoBufReader reader) throws ProtoBufException {
+        reader.readInt64();
+        return true;
+    }
+
+    @Override
     public void encode(ProtoBufWriter writer, LocalTime v) throws EncodeException {
         writer.writeByte((byte)RANGE_LOCALTIME);
         writer.writeUInt64(v.atDate(START_DAY).toInstant(ZoneOffset.UTC).toEpochMilli());

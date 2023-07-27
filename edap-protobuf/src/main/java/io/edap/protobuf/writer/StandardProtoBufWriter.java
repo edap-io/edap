@@ -19,9 +19,7 @@ package io.edap.protobuf.writer;
 import io.edap.io.BufOut;
 import io.edap.protobuf.EncodeException;
 import io.edap.protobuf.ProtoBufEncoder;
-import io.edap.protobuf.ProtoBufWriter;
 import io.edap.protobuf.ext.AnyCodec;
-import io.edap.protobuf.internal.ProtoBufOut;
 import io.edap.protobuf.wire.Field;
 import io.edap.util.CollectionUtils;
 
@@ -814,9 +812,6 @@ public class StandardProtoBufWriter extends AbstractWriter {
 
     @Override
     public void writeObject(byte[] fieldData, Object v) throws EncodeException {
-        if (null == v) {
-            return;
-        }
         expand(MAX_VARINT_SIZE);
         writeFieldData(fieldData);
         AnyCodec.encode(this, v);

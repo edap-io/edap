@@ -43,6 +43,14 @@ public class BigDecimalCodec implements ExtCodec<BigDecimal> {
     }
 
     @Override
+    public boolean skip(ProtoBufReader reader) throws ProtoBufException {
+        int len = reader.readInt32();
+        reader.skip(len);
+        reader.readInt32();
+        return true;
+    }
+
+    @Override
     public void encode(ProtoBufWriter writer, BigDecimal bigDecimal) throws EncodeException {
         if (bigDecimal == BigDecimal.ZERO) {
             writer.writeByte((byte)RANGE_BIGDDECIMAL);

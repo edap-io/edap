@@ -35,6 +35,12 @@ public class LongCodec implements ExtCodec<Long> {
     }
 
     @Override
+    public boolean skip(ProtoBufReader reader) throws ProtoBufException {
+        reader.readInt64();
+        return true;
+    }
+
+    @Override
     public void encode(ProtoBufWriter writer, Long v) throws EncodeException {
         writer.writeByte((byte)RANGE_LONG);
         writer.writeUInt64(v);

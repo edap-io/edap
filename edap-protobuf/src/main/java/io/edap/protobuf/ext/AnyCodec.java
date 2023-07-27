@@ -29,11 +29,10 @@ import java.util.HashMap;
  */
 public class AnyCodec {
 
-    static ProtoBufDecoder[] DECODERS = new ProtoBufDecoder[256];
+    static ExtCodec[] DECODERS = new ExtCodec[256];
 
-    static ProtoBufDecoder[] FAST_DECODERS = new ProtoBufDecoder[256];
+    static ExtCodec[] FAST_DECODERS = new ExtCodec[256];
 
-    static HashMap<String, ProtoBufDecoder> MSG_DECODERS = new HashMap<>();
     static HashMap<String, ProtoBufEncoder> MSG_ENCODERS = new HashMap<>();
 
     static HashMap<String, ProtoBufEncoder> MSG_FAST_ENCODERS = new HashMap<>();
@@ -42,9 +41,9 @@ public class AnyCodec {
     static ProtoBufEncoder MSG_ENCODER;
 
     static ProtoBufEncoder MSG_FAST_ENCODER;
-    static ProtoBufDecoder MSG_DECODER;
+    static ExtCodec MSG_DECODER;
 
-    static ProtoBufDecoder MSG_FAST_DECODER;
+    static ExtCodec MSG_FAST_DECODER;
 
     /**
      * 整数编码开始的值
@@ -352,6 +351,29 @@ public class AnyCodec {
                 return decoder.decode(reader);
             } else {
                 throw new ProtoBufException("type[" + type + "] hasn't ProtoBufDecoder");
+            }
+        } catch (Exception e) {
+            throw new ProtoBufException(e);
+        }
+    }
+
+    public static boolean skipObject(ProtoBufReader reader) throws ProtoBufException {
+        int type = reader.getByte() & 0xff;
+        try {
+            if (reader.isFastCodec()) {
+                ExtCodec decoder = FAST_DECODERS[type];
+                if (decoder != null) {
+                    return decoder.skip(reader);
+                } else {
+                    throw new ProtoBufException("type[" + type + "] hasn't ProtoBufDecoder");
+                }
+            } else {
+                ExtCodec decoder = DECODERS[type];
+                if (decoder != null) {
+                    return decoder.skip(reader);
+                } else {
+                    throw new ProtoBufException("type[" + type + "] hasn't ProtoBufDecoder");
+                }
             }
         } catch (Exception e) {
             throw new ProtoBufException(e);

@@ -35,6 +35,13 @@ public class ArrayByteCodec implements ExtCodec<byte[]> {
     }
 
     @Override
+    public boolean skip(ProtoBufReader reader) throws ProtoBufException {
+        int len = reader.readInt32();
+        reader.skip(len);
+        return true;
+    }
+
+    @Override
     public void encode(ProtoBufWriter writer, byte[] bytes) throws EncodeException {
         if (bytes.length == 0) {
             writer.writeByte((byte)RANGE_ARRAY_BYTE);

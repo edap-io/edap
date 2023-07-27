@@ -34,6 +34,11 @@ public class NullCodec implements ExtCodec<Object> {
     }
 
     @Override
+    public boolean skip(ProtoBufReader reader) throws ProtoBufException {
+        return true;
+    }
+
+    @Override
     public void encode(ProtoBufWriter writer, Object o) throws EncodeException {
         if (o != null) {
             throw new EncodeException("Object is not null", null);

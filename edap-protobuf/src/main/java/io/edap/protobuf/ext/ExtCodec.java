@@ -18,10 +18,13 @@ package io.edap.protobuf.ext;
 
 import io.edap.protobuf.ProtoBufDecoder;
 import io.edap.protobuf.ProtoBufEncoder;
+import io.edap.protobuf.ProtoBufException;
+import io.edap.protobuf.ProtoBufReader;
 
 /**
  * 扩展数据类型的编解码器接口
  */
 public interface ExtCodec<T> extends ProtoBufEncoder<T>, ProtoBufDecoder<T> {
 
+    boolean skip(ProtoBufReader reader) throws ProtoBufException;
 }

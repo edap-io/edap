@@ -48,6 +48,13 @@ public class BigIntegerCodec implements ExtCodec<BigInteger> {
     }
 
     @Override
+    public boolean skip(ProtoBufReader reader) throws ProtoBufException {
+        int len = reader.readInt32();
+        reader.skip(len);
+        return true;
+    }
+
+    @Override
     public void encode(ProtoBufWriter writer, BigInteger v) throws EncodeException {
         if (v == BigInteger.ZERO) {
             writer.writeByte((byte)RANGE_BIGINTEGER);

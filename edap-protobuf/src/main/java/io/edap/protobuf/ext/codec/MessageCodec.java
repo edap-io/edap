@@ -40,6 +40,17 @@ public class MessageCodec implements ExtCodec<Object> {
         return reader.readMessage(decoder);
     }
 
+    @Override
+    public boolean skip(ProtoBufReader reader) throws ProtoBufException {
+        String uri = reader.readString();
+        ProtoBufDecoder decoder = getDecoder(uri);
+        if (null == decoder) {
+            throw new ProtoBufException(uri + "'s Decoder not found!");
+        }
+        reader.readMessage(decoder);
+        return true;
+    }
+
     private ProtoBufDecoder getDecoder(String uri) {
         ProtoBufDecoder decoder = DECODERS.get(uri);
         if (null == decoder) {

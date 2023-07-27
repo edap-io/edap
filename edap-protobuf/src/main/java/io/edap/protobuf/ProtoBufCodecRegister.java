@@ -31,6 +31,7 @@ import java.util.concurrent.locks.ReentrantLock;
 
 
 import static io.edap.protobuf.ProtoBufDecoderGenerator.getDecoderName;
+import static io.edap.protobuf.ProtoBufEncoderGenerator.getEncoderName;
 import static io.edap.protobuf.util.ProtoUtil.buildMapEncodeName;
 import static io.edap.util.AsmUtil.toInternalName;
 import static io.edap.util.AsmUtil.toLangName;
@@ -251,7 +252,12 @@ public enum ProtoBufCodecRegister {
 
     private ProtoBufEncoder generateEncoder(Class cls, ProtoBufOption option) {
         ProtoBufEncoder codec = null;
-        Class encoderCls = generateEncoderClass(cls, option);
+        Class encoderCls = null;
+        try {
+            encoderCls = encoderLoader.loadClass(getEncoderName(cls, option));
+        } catch (Throwable t) {
+            encoderCls = generateEncoderClass(cls, option);
+        }
         if (encoderCls != null) {
             try {
                 codec = (ProtoBufEncoder)encoderCls.newInstance();
@@ -284,7 +290,7 @@ public enum ProtoBufCodecRegister {
 
     private Class generateEncoderClass(Class cls, ProtoBufOption otpion) {
         Class encoderCls;
-        String encoderName = ProtoBufEncoderGenerator.getEncoderName(cls, otpion);
+        String encoderName = getEncoderName(cls, otpion);
         try {
             ProtoBufEncoderGenerator generator = new ProtoBufEncoderGenerator(cls, otpion);
             GeneratorClassInfo gci = generator.getClassInfo();

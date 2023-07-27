@@ -63,6 +63,20 @@ public class ArrayListCodec implements ExtCodec<ArrayList> {
     }
 
     @Override
+    public boolean skip(ProtoBufReader reader) throws ProtoBufException {
+        int len;
+        if (null != this.size) {
+            len = size.intValue();
+        } else {
+            len = reader.readInt32();
+        }
+        for (int i=0;i<len;i++) {
+            reader.readObject();
+        }
+        return true;
+    }
+
+    @Override
     public void encode(ProtoBufWriter writer, ArrayList arrayList) throws EncodeException {
         int len = arrayList.size();
         if (len > RANGE_ARRAYLIST_END - RANGE_ARRAYLIST_START) {

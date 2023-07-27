@@ -21,6 +21,12 @@ public class ByteArrayFastReader extends ByteArrayReader {
         super(buf, offset, len);
     }
 
+
+    @Override
+    public boolean isFastCodec() {
+        return true;
+    }
+
     @Override
     public String readString() throws ProtoBufException {
         int len = readRawVarint32();
@@ -54,11 +60,11 @@ public class ByteArrayFastReader extends ByteArrayReader {
                             b = ((b & 0x07) << 18) + ((b2 & 0x3F) << 12)
                                     + ((b3 & 0x3F) << 6) + (b4 & 0x3F);
                         } else {
-                            throw new RuntimeException();
+                            throw new RuntimeException("Not well UTF-8 String");
                         }
                         if (b >= 0x10000) {
                             if (b >= 0x110000) {
-                                throw new RuntimeException();
+                                throw new RuntimeException("Not well UTF-8 String");
                             }
                             int sup = b - 0x10000;
                             cs[index++] = (char)((sup >>> 10) + 0xd800);
@@ -252,39 +258,35 @@ public class ByteArrayFastReader extends ByteArrayReader {
                 return true;
             }
             int wireType = getTagWireType(rawInt);
-            if (wireType == WireType.START_GROUP.getValue()) {
-                msgStack.push(rawInt);
-            } else if (wireType == END_GROUP.getValue()) {
-                msgStack.pop();
-            } else {
-                switch (wireType) {
-                    case 0:  //VARINT
-                        skipRawVarint();
-                        break;
-                    case 5:  //FIXED32
-                        skipRawBytes(FIXED_32_SIZE);
-                        break;
-                    case 1:  //FIXED64
-                        skipRawBytes(FIXED_64_SIZE);
-                        break;
-                    case 2:  //LENGTH_DELIMITED
-                        int len = readRawVarint32();
-                        if (len >= 0) {
-                            skipRawBytes(len);
-                            break;
-                        } else {
-                            throw ProtoBufException.malformedVarint();
-                        }
-                    case 3:  //START_GROUP
-                        skipMessage(tag);
-                        break;
-                    case 7:
-                        skipString();
-                        break;
-                    default:
-                        throw ProtoBufException.malformedVarint();
+            switch (wireType) {
+                case 0:  //VARINT
+                    skipRawVarint();
+                    break;
+                case 1:  //FIXED64
+                    skipRawBytes(FIXED_64_SIZE);
+                    break;
+                case 2:  //LENGTH_DELIMITED
+                    int len = readRawVarint32();
+                    skipRawBytes(len);
+                    break;
+                case 3:  //START_GROUP
+                    msgStack.push(rawInt);
+                    break;
+                case 4:  //START_GROUP
+                    msgStack.pop();
+                    break;
+                case 5:  //FIXED32
+                    skipRawBytes(FIXED_32_SIZE);
+                    break;
+                case 6:
+                    skipObject();
+                    break;
+                case 7:
+                    skipString();
+                    break;
+                default:
+                    break;
 
-                }
             }
         }
         return true;

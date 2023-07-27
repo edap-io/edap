@@ -43,6 +43,13 @@ public class ArrayFloatCodec implements ExtCodec<float[]> {
     }
 
     @Override
+    public boolean skip(ProtoBufReader reader) throws ProtoBufException {
+        int len = reader.readInt32();
+        reader.skip(len<<2);
+        return true;
+    }
+
+    @Override
     public void encode(ProtoBufWriter writer, float[] floats) throws EncodeException {
         int len = floats.length;
         if (len == 0) {

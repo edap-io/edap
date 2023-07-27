@@ -39,6 +39,12 @@ public class CalendarCodec implements ExtCodec<Calendar> {
     }
 
     @Override
+    public boolean skip(ProtoBufReader reader) throws ProtoBufException {
+        reader.readInt64();
+        return true;
+    }
+
+    @Override
     public void encode(ProtoBufWriter writer, Calendar v) throws EncodeException {
         writer.writeByte((byte)RANGE_CALENDAR);
         writer.writeUInt64(v.getTimeInMillis());

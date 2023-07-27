@@ -41,6 +41,13 @@ public class ArrayCharCodec implements ExtCodec<char[]> {
     }
 
     @Override
+    public boolean skip(ProtoBufReader reader) throws ProtoBufException {
+        int len = reader.readInt32();
+        reader.skip(len << 1);
+        return true;
+    }
+
+    @Override
     public void encode(ProtoBufWriter writer, char[] chars) throws EncodeException {
         int len = chars.length;
         byte[] bs = new byte[len<<1];

@@ -52,6 +52,18 @@ public class MessageFastCodec implements ExtCodec<Object> {
         return reader.readMessage(decoder, makeTag(1, END_GROUP));
     }
 
+    @Override
+    public boolean skip(ProtoBufReader reader) throws ProtoBufException {
+        String uri = reader.readString();
+        ProtoBufDecoder decoder = getDecoder(uri);
+        if (null == decoder) {
+            throw new ProtoBufException(uri + "'s Decoder not found!");
+        }
+        reader.readTag();
+        reader.readMessage(decoder, makeTag(1, END_GROUP));
+        return true;
+    }
+
     private ProtoBufDecoder getDecoder(String uri) {
         ProtoBufDecoder decoder = DECODERS.get(uri);
         if (null == decoder) {

@@ -53,4 +53,9 @@ public class BoolCodec implements ExtCodec<Boolean> {
             writer.writeByte((byte)RANGE_BOOL_TRUE);
         }
     }
+
+    @Override
+    public boolean skip(ProtoBufReader reader) {
+        return true;
+    }
 }

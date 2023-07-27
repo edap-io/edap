@@ -40,6 +40,12 @@ public class LocalDateCodec implements ExtCodec<LocalDate> {
     }
 
     @Override
+    public boolean skip(ProtoBufReader reader) throws ProtoBufException {
+        reader.readInt32();
+        return true;
+    }
+
+    @Override
     public void encode(ProtoBufWriter writer, LocalDate v) throws EncodeException {
         writer.writeByte((byte)RANGE_LOCALDATE);
         writer.writeInt32((int)START_DAY.until(v, ChronoUnit.DAYS), true);
