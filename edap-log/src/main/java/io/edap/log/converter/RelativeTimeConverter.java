@@ -3,7 +3,6 @@ package io.edap.log.converter;
 import io.edap.log.Converter;
 import io.edap.log.LogEvent;
 import io.edap.log.helps.ByteArrayBuilder;
-import sun.rmi.runtime.Log;
 
 public class RelativeTimeConverter implements Converter<LogEvent> {
 

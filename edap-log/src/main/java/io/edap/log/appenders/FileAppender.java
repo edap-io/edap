@@ -19,12 +19,10 @@ package io.edap.log.appenders;
 import io.edap.log.LogEvent;
 import io.edap.log.helps.ByteArrayBuilder;
 import io.edap.log.io.BaseLogOutputStream;
-import javafx.util.Builder;
 
 import java.io.*;
 import java.nio.channels.FileChannel;
 import java.nio.channels.FileLock;
-import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
 import static io.edap.log.helpers.Util.printError;
