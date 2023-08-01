@@ -36,6 +36,7 @@
         <system.lambda.version>1.2.1</system.lambda.version>
         <jmh.version>1.36</jmh.version>
         <HikariCP.version>4.0.3</HikariCP.version>
+        <spring.version>5.3.20</spring.version>
     </properties>
 
     <modules>
@@ -148,6 +149,11 @@
                 <groupId>com.zaxxer</groupId>
                 <artifactId>HikariCP</artifactId>
                 <version>${HikariCP.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.edap</groupId>
+                <artifactId>edap-data-jdbc-dao</artifactId>
+                <version>0.1-SNAPSHOT</version>
             </dependency>
         </dependencies>
     </dependencyManagement>

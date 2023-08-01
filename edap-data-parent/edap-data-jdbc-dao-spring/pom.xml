@@ -5,17 +5,10 @@
     <modelVersion>4.0.0</modelVersion>
     <parent>
         <groupId>io.edap</groupId>
-        <artifactId>edap</artifactId>
+        <artifactId>edap-data-parent</artifactId>
         <version>0.1-SNAPSHOT</version>
     </parent>
-
-    <artifactId>edap-data-parent</artifactId>
-    <packaging>pom</packaging>
-    <modules>
-        <module>edap-data-api</module>
-        <module>edap-data-jdbc-dao</module>
-        <module>edap-data-jdbc-dao-spring</module>
-    </modules>
+    <artifactId>edap-data-jdbc-dao-spring</artifactId>
 
     <properties>
         <maven.compiler.source>8</maven.compiler.source>
@@ -23,4 +16,16 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
 
+    <dependencies>
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-jdbc</artifactId>
+            <version>${spring.version}</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.edap</groupId>
+            <artifactId>edap-data-jdbc-dao</artifactId>
+        </dependency>
+    </dependencies>
 </project>
