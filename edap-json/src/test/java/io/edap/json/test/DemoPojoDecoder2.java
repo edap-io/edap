@@ -22,12 +22,11 @@ import io.edap.json.JsonParseException;
 import io.edap.json.JsonReader;
 import io.edap.json.model.DataRange;
 import io.edap.json.model.StringDataRange;
-import io.edap.json.test.model.DemoOneString;
 import io.edap.json.test.model.DemoPojo;
 
 import java.lang.reflect.InvocationTargetException;
 
-public class DemoPojoDecoder extends AbstractDecoder implements JsonDecoder<DemoPojo> {
+public class DemoPojoDecoder2 extends AbstractDecoder implements JsonDecoder<DemoPojo> {
 
     static DataRange<String> NAME_DR = StringDataRange.from("name");
 

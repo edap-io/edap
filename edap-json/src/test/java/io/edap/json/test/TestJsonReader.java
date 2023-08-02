@@ -711,7 +711,7 @@ public class TestJsonReader {
     public void testReadPojo() throws InvocationTargetException, InstantiationException, IllegalAccessException {
         String json = "{\"name\":\"john\",\"age\":0,\"integral\":0,\"balance\":0}";
         StringJsonReader reader = new StringJsonReader(json);
-        DemoPojoDecoder decoder = new DemoPojoDecoder();
+        DemoPojoDecoder2 decoder = new DemoPojoDecoder2();
         decoder.decode(reader);
         DemoPojo pojo = new StringJsonReader(json).readObject(DemoPojo.class);
         assertNotNull(pojo);

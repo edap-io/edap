@@ -16,6 +16,8 @@
 
 package io.edap.json.test.model;
 
+import java.util.List;
+
 public class DemoPojo {
 
     private String name;
@@ -27,6 +29,8 @@ public class DemoPojo {
     private double balance;
 
     private long integral;
+
+    private List<DemoPojo> children;
 
     public String getName() {
         return name;
@@ -66,5 +70,13 @@ public class DemoPojo {
 
     public void setIntegral(long integral) {
         this.integral = integral;
+    }
+
+    public List<DemoPojo> getChildren() {
+        return children;
+    }
+
+    public void setChildren(List<DemoPojo> children) {
+        this.children = children;
     }
 }
