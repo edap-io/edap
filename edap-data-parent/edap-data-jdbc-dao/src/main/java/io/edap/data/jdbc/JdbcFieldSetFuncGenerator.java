@@ -82,6 +82,9 @@ public class JdbcFieldSetFuncGenerator {
         List<JdbcInfo> jdbcInfos = DaoUtil.getJdbcInfos(entity);
         if (!CollectionUtils.isEmpty(jdbcInfos)) {
             for (JdbcInfo jdbcInfo : jdbcInfos) {
+                if (!CollectionUtils.isEmpty(columns) && !columns.contains(jdbcInfo.getColumnName())) {
+                    continue;
+                }
                 mv.visitVarInsn(ALOAD, 1);
                 mv.visitVarInsn(ALOAD, 2);
                 mv.visitLdcInsn(jdbcInfo.getColumnName());
