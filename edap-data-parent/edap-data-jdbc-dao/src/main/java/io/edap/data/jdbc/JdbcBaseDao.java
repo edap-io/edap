@@ -103,6 +103,9 @@ public abstract class JdbcBaseDao {
 
     public void setDataSource(DataSource dataSource) {
         this.dataSource = dataSource;
+        if (connectionHolder != null) {
+            connectionHolder.setDataSource(dataSource);
+        }
     }
 
     public void setConnection(Connection con) {
@@ -125,6 +128,7 @@ public abstract class JdbcBaseDao {
         if (dataSource != null) {
             session.setDataSource(dataSource);
         }
+        session.setConHolder(connectionHolder);
         return session;
     }
 

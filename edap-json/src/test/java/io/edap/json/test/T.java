@@ -23,6 +23,7 @@ import io.edap.json.JsonEncoder;
 import io.edap.json.enums.DataType;
 import io.edap.json.test.model.DemoOneString;
 import io.edap.json.test.model.DemoPojo;
+import io.edap.json.test.model.TableExpectInfo;
 import io.edap.json.writer.ByteArrayJsonWriter;
 
 import java.io.IOException;
@@ -32,6 +33,6 @@ public class T {
 
     public static void main(String[] args) throws IOException {
 
-        JsonCodecRegister.instance().getDecoder(DemoPojo.class, DataType.STRING);
+        JsonCodecRegister.instance().getEncoder(TableExpectInfo.class);
     }
 }

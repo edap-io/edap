@@ -1,4 +1,4 @@
-package dao;
+package io.edap.data.jdbc.dao;
 
 import io.edap.data.jdbc.ConnectionHolder;
 import org.springframework.jdbc.datasource.DataSourceUtils;
