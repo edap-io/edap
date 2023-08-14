@@ -24,6 +24,7 @@ import io.edap.util.CollectionUtils;
 import java.io.UnsupportedEncodingException;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
 public class Eson {
 
@@ -92,6 +93,20 @@ public class Eson {
                 codec.encode(writer, c);
             }
             writer.write((byte)']');
+        } else if (obj instanceof Map) {
+            boolean needDou = false;
+            writer.write((byte)'{');
+            for (Map.Entry<String, Object> entry : ((Map<String, Object>)obj).entrySet()) {
+                if (!needDou) {
+                    needDou = true;
+                } else {
+                    writer.write((byte)',');
+                }
+                writer.write(entry.getKey());
+                writer.write((byte)':');
+                writer.writeObject(entry.getValue());
+            }
+            writer.write((byte)'}');
         } else if (obj.getClass().isArray()) {
             Class<?> cType = obj.getClass().getComponentType();
             Object[] array = (Object[])obj;

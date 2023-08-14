@@ -164,8 +164,12 @@ public class JsonEncoderGenerator {
                 }
                 visitMethod(mv, INVOKEINTERFACE, IFACE_NAME, "encode", "(L" + WRITER_NAME + ";Ljava/lang/Object;)V", true);
             } else if (isPojo(jfi.field.getGenericType())) {
-                mv.visitFieldInsn(GETSTATIC, encoderName, getCodecFieldName(jfi.field.getGenericType()),
-                        "L" + IFACE_NAME + ";");
+                if (!jfi.field.getType().getName().equals(pojoCls.getName())) {
+                    mv.visitFieldInsn(GETSTATIC, encoderName, getCodecFieldName(jfi.field.getGenericType()),
+                            "L" + IFACE_NAME + ";");
+                } else {
+                    mv.visitVarInsn(ALOAD, 0);
+                }
                 mv.visitVarInsn(ALOAD, 1);
                 mv.visitVarInsn(ALOAD, 2);
                 if (jfi.method != null) {
@@ -367,6 +371,9 @@ public class JsonEncoderGenerator {
                         pojoCls = (Class) t;
                     } else if (t instanceof TypeVariable) {
                         pojoCls = Object.class;
+                    } else if (t instanceof ParameterizedType) {
+                        ParameterizedType pojot = (ParameterizedType)t;
+                        pojoCls = (Class) pojot.getRawType();
                     }
                     pojoType = t;
                 }
@@ -408,8 +415,11 @@ public class JsonEncoderGenerator {
         mv.visitVarInsn(ISTORE, 4);
         mv.visitLabel(label6);
         if (isPojo(pojoType)) {
-            mv.visitFrame(Opcodes.F_SAME, 0, null, 0, null);
-            mv.visitFieldInsn(GETSTATIC, encoderName, getCodecFieldName(pojoCls), "L" + IFACE_NAME + ";");
+            if (!((Class)pojoType).getName().equals(this.pojoCls.getName())) {
+                mv.visitFieldInsn(GETSTATIC, encoderName, getCodecFieldName(pojoCls), "L" + IFACE_NAME + ";");
+            } else {
+                mv.visitVarInsn(ALOAD, 0);
+            }
             mv.visitVarInsn(ALOAD, 1);
             mv.visitVarInsn(ALOAD, 6);
             mv.visitMethodInsn(INVOKEINTERFACE, IFACE_NAME, "encode",
@@ -464,7 +474,12 @@ public class JsonEncoderGenerator {
         });
 
         //为属性以及泛型是POJO的类型赋值JSON编码器
-        allPojos.forEach(t -> assignPojoEncoders(mv, t));
+        allPojos.forEach(t -> {
+            Class cls = (Class)t;
+            if (!cls.getName().equals(pojoCls.getName())) {
+                assignPojoEncoders(mv, t);
+            }
+        });
 
 
         enumFields.forEach(e -> {
@@ -606,20 +621,22 @@ public class JsonEncoderGenerator {
             return;
         }
         pojos.forEach(t -> {
-            if (!allPojos.contains(t)) {
-                allPojos.add(t);
-            }
-            int codecsIndex = codecNames.indexOf(t);
-            if (codecsIndex < 0) {
-                codecsIndex = codecNames.size();
-                String fname = ENCODER_PREFIX + codecsIndex;
-                String encoderName = "L" + IFACE_NAME + ";";
-                String encoderDescriptor = "L" + IFACE_NAME +
-                        "<L" + toInternalName(((Class)t).getName()) + ";>;";
-                FieldVisitor fv = cw.visitField(ACC_PRIVATE + ACC_FINAL
-                        + ACC_STATIC, fname, encoderName, encoderDescriptor, null);
-                fv.visitEnd();
-                codecNames.add(t);
+            if (!((Class)t).getName().equals(pojoCls.getName())) {
+                if (!allPojos.contains(t)) {
+                    allPojos.add(t);
+                }
+                int codecsIndex = codecNames.indexOf(t);
+                if (codecsIndex < 0) {
+                    codecsIndex = codecNames.size();
+                    String fname = ENCODER_PREFIX + codecsIndex;
+                    String encoderName = "L" + IFACE_NAME + ";";
+                    String encoderDescriptor = "L" + IFACE_NAME +
+                            "<L" + toInternalName(((Class) t).getName()) + ";>;";
+                    FieldVisitor fv = cw.visitField(ACC_PRIVATE + ACC_FINAL
+                            + ACC_STATIC, fname, encoderName, encoderDescriptor, null);
+                    fv.visitEnd();
+                    codecNames.add(t);
+                }
             }
         });
     }

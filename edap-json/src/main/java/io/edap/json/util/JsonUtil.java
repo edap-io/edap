@@ -255,6 +255,8 @@ public class JsonUtil {
             return "write";
         }
         switch (type) {
+            case "boolean":
+            case "java.lang.Boolean":
             case "java.lang.String":
             case "int":
             case "java.lang.Integer":
