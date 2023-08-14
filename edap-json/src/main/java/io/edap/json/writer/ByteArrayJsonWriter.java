@@ -46,6 +46,32 @@ public class ByteArrayJsonWriter extends AbstractJsonWriter implements JsonWrite
     }
 
     @Override
+    public void write(boolean bool) {
+        expand(5);
+        if (bool) {
+            buf[pos++] = 't';
+            buf[pos++] = 'r';
+            buf[pos++] = 'u';
+            buf[pos++] = 'e';
+        } else {
+            buf[pos++] = 'f';
+            buf[pos++] = 'a';
+            buf[pos++] = 'l';
+            buf[pos++] = 's';
+            buf[pos++] = 'e';
+        }
+    }
+
+    @Override
+    public void write(Boolean bool) {
+        if (bool == null) {
+            writeNull();
+        } else {
+            write(bool.booleanValue());
+        }
+    }
+
+    @Override
     public void write(byte b) {
         expand(1);
         buf[pos++] = b;

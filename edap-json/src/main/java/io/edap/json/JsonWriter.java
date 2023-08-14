@@ -12,6 +12,9 @@ import java.math.BigDecimal;
  */
 public interface JsonWriter extends BufWriter {
 
+    void write(boolean bool);
+    void write(Boolean bool);
+    
     void write(byte b);
     void write(byte b1, byte b2);
     void write(byte b1, byte b2, byte b3);
