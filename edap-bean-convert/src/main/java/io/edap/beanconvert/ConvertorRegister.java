@@ -180,7 +180,13 @@ public class ConvertorRegister {
         }
         ConvertorGenerator generator = new ConvertorGenerator(orignalClass, destlClass, mappers);
         String codecName = toLangName(getConvertorName(orignalClass, destlClass));
+        boolean isExists = false;
         Class encoderCls;
+        try {
+            encoderCls = convertorLoader.loadClass(codecName);
+            return encoderCls;
+        } catch (ClassNotFoundException e) {
+        }
         try {
             GeneratorClassInfo gci = generator.getClassInfo();
             byte[] bs = gci.clazzBytes;
