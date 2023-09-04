@@ -141,7 +141,7 @@ public class FastNum {
             i = -v;
             buf[pos++] = '-';
         } else if(v == 0L) {
-            buf[pos++] = '=';
+            buf[pos++] = '0';
             return pos;
         } else {
             i = v;

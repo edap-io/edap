@@ -146,7 +146,7 @@ public class ConvertorGenerator {
         });
         MethodVisitor mv;
         mv = cw.visitMethod(ACC_PUBLIC, "convert", "(L" + toInternalName(orignalCls.getName())
-                +  ";)L" + toInternalName(destCls.getName()) + ";", null, null);
+                + ";)L" + toInternalName(destCls.getName()) + ";", null, null);
         mv.visitCode();
         mv.visitVarInsn(ALOAD, 1);
         mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/Object", "getClass", "()Ljava/lang/Class;", false);
@@ -300,11 +300,15 @@ public class ConvertorGenerator {
                         break;
                     case "long":
                         mv.visitMethodInsn(INVOKESTATIC, "java/lang/Long", "valueOf", "(I)Ljava/lang/Long;", false);
+                        break;
+                    case "float":
+                        mv.visitMethodInsn(INVOKESTATIC, "java/lang/Float", "valueOf", "(I)Ljava/lang/Float;", false);
+                        break;
                     case "boolean":
                         mv.visitMethodInsn(INVOKESTATIC, "java/lang/Boolean", "valueOf", "(I)Ljava/lang/Boolean;", false);
                         break;
                     default:
-                        mv.visitTypeInsn(CHECKCAST, toInternalName(destInfo.field.getType().getName()));
+                        mv.visitTypeInsn(CHECKCAST, origType);
                         break;
                 }
 
@@ -316,6 +320,7 @@ public class ConvertorGenerator {
                         break;
                     case "long":
                         mv.visitTypeInsn(CHECKCAST, toInternalName(Long.class.getName()));
+                        break;
                     case "boolean":
                         mv.visitTypeInsn(CHECKCAST, toInternalName(Boolean.class.getName()));
                         break;
@@ -396,16 +401,16 @@ public class ConvertorGenerator {
         // 如果原目标List未指定类型则可以直接转，如果目的类型指定类型并且目的类型是原类型或者原类型的父类则无需转换
         ListConvertInfo info = new ListConvertInfo();
         if (destType instanceof ParameterizedType) {
-            ParameterizedType destPt = (ParameterizedType)destType;
-            ParameterizedType orignalPt = (ParameterizedType)orignalType;
+            ParameterizedType destPt = (ParameterizedType) destType;
+            ParameterizedType orignalPt = (ParameterizedType) orignalType;
             java.lang.reflect.Type destRawType = destPt.getRawType();
             java.lang.reflect.Type orignalRawType = orignalPt.getRawType();
             java.lang.reflect.Type[] destActualTypes = destPt.getActualTypeArguments();
 
             java.lang.reflect.Type[] orignalActualTypes = orignalPt.getActualTypeArguments();
-            info.isNeed = !isInherit((Class)orignalActualTypes[0], (Class)destActualTypes[0]);
-            info.orignalType = (Class)orignalActualTypes[0];
-            info.destType = (Class)destActualTypes[0];
+            info.isNeed = !isInherit((Class) orignalActualTypes[0], (Class) destActualTypes[0]);
+            info.orignalType = (Class) orignalActualTypes[0];
+            info.destType = (Class) destActualTypes[0];
             return info;
         } else {
             return info;
@@ -438,7 +443,7 @@ public class ConvertorGenerator {
             String otype = orignalInfo.field.getType().getName();
             String dtype = pfi.field.getType().getName();
             if (convertor != null && convertor instanceof AbstractConvertor) {
-                AbstractConvertor conv = (AbstractConvertor)convertor;
+                AbstractConvertor conv = (AbstractConvertor) convertor;
                 otype = conv.getDestClazz().getName();
             }
             if (pfi.setMethod != null) {
@@ -566,10 +571,10 @@ public class ConvertorGenerator {
         mv.visitMethodInsn(INVOKESPECIAL, toInternalName(PARENT_ANME), "<init>", "()V", false);
         mv.visitVarInsn(ALOAD, 0);
         mv.visitLdcInsn(Type.getType("L" + toInternalName(orignalCls.getName()) + ";"));
-        mv.visitMethodInsn(INVOKEVIRTUAL, toInternalName(convertorName) , "setOrignalClazz", "(Ljava/lang/Class;)V", false);
+        mv.visitMethodInsn(INVOKEVIRTUAL, toInternalName(convertorName), "setOrignalClazz", "(Ljava/lang/Class;)V", false);
         mv.visitVarInsn(ALOAD, 0);
         mv.visitLdcInsn(Type.getType("L" + toInternalName(destCls.getName()) + ";"));
-        mv.visitMethodInsn(INVOKEVIRTUAL, toInternalName(convertorName) , "setDestClazz", "(Ljava/lang/Class;)V", false);
+        mv.visitMethodInsn(INVOKEVIRTUAL, toInternalName(convertorName), "setDestClazz", "(Ljava/lang/Class;)V", false);
 
         mv.visitInsn(RETURN);
         mv.visitMaxs(0, 0);
