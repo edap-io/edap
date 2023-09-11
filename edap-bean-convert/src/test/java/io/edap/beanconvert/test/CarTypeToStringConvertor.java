@@ -6,8 +6,7 @@ import io.edap.beanconvert.Convertor;
 public class CarTypeToStringConvertor extends AbstractConvertor<CarType, String> implements Convertor<CarType, String> {
 
     public CarTypeToStringConvertor() {
-        setOrignalClazz(CarType.class);
-        setDestClazz(String.class);
+        super(CarType.class, String.class);
     }
 
     @Override
