@@ -295,17 +295,29 @@ public class ConvertorGenerator {
                 visitGetFieldValue(mv, orignalCls, orignalInfo, rType);
                 String origType = toInternalName(orignalInfo.field.getType().getName());
                 switch (origType) {
+                    case "byte":
+                        mv.visitMethodInsn(INVOKESTATIC, "java/lang/Byte", "valueOf", "(B)Ljava/lang/Byte;", false);
+                        break;
+                    case "char":
+                        mv.visitMethodInsn(INVOKESTATIC, "java/lang/Character", "valueOf", "(C)Ljava/lang/Character;", false);
+                        break;
                     case "int":
                         mv.visitMethodInsn(INVOKESTATIC, "java/lang/Integer", "valueOf", "(I)Ljava/lang/Integer;", false);
                         break;
+                    case "short":
+                        mv.visitMethodInsn(INVOKESTATIC, "java/lang/Short", "valueOf", "(S)Ljava/lang/Short;", false);
+                        break;
                     case "long":
-                        mv.visitMethodInsn(INVOKESTATIC, "java/lang/Long", "valueOf", "(I)Ljava/lang/Long;", false);
+                        mv.visitMethodInsn(INVOKESTATIC, "java/lang/Long", "valueOf", "(J)Ljava/lang/Long;", false);
                         break;
                     case "float":
-                        mv.visitMethodInsn(INVOKESTATIC, "java/lang/Float", "valueOf", "(I)Ljava/lang/Float;", false);
+                        mv.visitMethodInsn(INVOKESTATIC, "java/lang/Float", "valueOf", "(F)Ljava/lang/Float;", false);
+                        break;
+                    case "double":
+                        mv.visitMethodInsn(INVOKESTATIC, "java/lang/Double", "valueOf", "(D)Ljava/lang/Double;", false);
                         break;
                     case "boolean":
-                        mv.visitMethodInsn(INVOKESTATIC, "java/lang/Boolean", "valueOf", "(I)Ljava/lang/Boolean;", false);
+                        mv.visitMethodInsn(INVOKESTATIC, "java/lang/Boolean", "valueOf", "(Z)Ljava/lang/Boolean;", false);
                         break;
                     default:
                         mv.visitTypeInsn(CHECKCAST, origType);
@@ -482,9 +494,17 @@ public class ConvertorGenerator {
                     visitMethod(mv, INVOKESTATIC, "java/lang/Boolean",
                             "valueOf", "(Z)Ljava/lang/Boolean;", false);
                     break;
-                case "double":
-                    visitMethod(mv, INVOKESTATIC, "java/lang/Double",
-                            "valueOf", "(D)Ljava/lang/Double;", false);
+                case "byte":
+                    visitMethod(mv, INVOKESTATIC, "java/lang/Byte",
+                            "valueOf", "(B)Ljava/lang/Byte;", false);
+                    break;
+                case "short":
+                    visitMethod(mv, INVOKESTATIC, "java/lang/Short",
+                            "valueOf", "(S)Ljava/lang/Short;", false);
+                    break;
+                case "char":
+                    visitMethod(mv, INVOKESTATIC, "java/lang/Character",
+                            "valueOf", "(C)Ljava/lang/Character;", false);
                     break;
                 case "int":
                     visitMethod(mv, INVOKESTATIC, "java/lang/Integer",
@@ -497,6 +517,10 @@ public class ConvertorGenerator {
                 case "float":
                     visitMethod(mv, INVOKESTATIC, "java/lang/Float",
                             "valueOf", "(F)Ljava/lang/Float;", false);
+                    break;
+                case "double":
+                    visitMethod(mv, INVOKESTATIC, "java/lang/Double",
+                            "valueOf", "(D)Ljava/lang/Double;", false);
                     break;
             }
             mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/reflect/Field", "set",
@@ -535,8 +559,20 @@ public class ConvertorGenerator {
                     "get", "(Ljava/lang/Object;)Ljava/lang/Object;", false);
 
             switch (rType) {
+                case "B":
+                    mv.visitTypeInsn(CHECKCAST, "java/lang/Byte");
+                    type = "Ljava/lang/Byte;";
+                    break;
+                case "C":
+                    mv.visitTypeInsn(CHECKCAST, "java/lang/Character");
+                    type = "Ljava/lang/Character;";
+                    break;
                 case "I":
                     mv.visitTypeInsn(CHECKCAST, "java/lang/Integer");
+                    type = "Ljava/lang/Integer;";
+                    break;
+                case "S":
+                    mv.visitTypeInsn(CHECKCAST, "java/lang/Short");
                     type = "Ljava/lang/Integer;";
                     break;
                 case "Z":
@@ -646,6 +682,24 @@ public class ConvertorGenerator {
                     case "boolean":
                         orignalType = "java/lang/Boolean";
                         break;
+                    case "byte":
+                        orignalType = "java/lang/Byte";
+                        break;
+                    case "char":
+                        orignalType = "java/lang/Character";
+                        break;
+                    case "float":
+                        orignalType = "java/lang/Float";
+                        break;
+                    case "double":
+                        orignalType = "java/lang/Double";
+                        break;
+                    case "short":
+                        orignalType = "java/lang/Short";
+                        break;
+                    case "long":
+                        orignalType = "java/lang/Long";
+                        break;
                 }
             }
             //if (cinfo.orignalInfo.field.getType().isEnum()) {
@@ -659,6 +713,24 @@ public class ConvertorGenerator {
                         break;
                     case "boolean":
                         destType = "java/lang/Boolean";
+                        break;
+                    case "byte":
+                        destType = "java/lang/Byte";
+                        break;
+                    case "char":
+                        destType = "java/lang/Character";
+                        break;
+                    case "float":
+                        destType = "java/lang/Float";
+                        break;
+                    case "double":
+                        destType = "java/lang/Double";
+                        break;
+                    case "short":
+                        destType = "java/lang/Short";
+                        break;
+                    case "long":
+                        destType = "java/lang/Long";
                         break;
                 }
             }
