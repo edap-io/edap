@@ -534,47 +534,72 @@ public class BaseDaoGenerator {
         mv = cw.visitMethod(ACC_PUBLIC, "query", "(Ljava/lang/String;)Ljava/util/List;",
                 "(Ljava/lang/String;)Ljava/util/List<L" + entityName + ";>;", new String[] { "java/lang/Exception" });
         mv.visitCode();
+
+        Label lbInnerTry     = new Label();
+        Label lbInnerFinally = new Label();
+        Label lbInnerThrow   = new Label();
+        mv.visitTryCatchBlock(lbInnerTry, lbInnerFinally, lbInnerThrow, null);
+
+        Label lbInnerTry2     = new Label();
+        Label lbInnerFinally2 = new Label();
+        mv.visitTryCatchBlock(lbInnerTry2, lbInnerFinally2, lbInnerThrow, null);
+
+        Label lbOuterFinally = new Label();
+        mv.visitTryCatchBlock(lbInnerThrow, lbOuterFinally, lbInnerThrow, null);
+
+        mv.visitLabel(lbInnerTry);
+
+        int varRs = 2;
+        int varResult = varRs + 1;
+        int varFuncRes = varResult + 1;
+        int varFieldSql = varFuncRes + 1;
+        int varList = varFieldSql + 1;
+        int varEntity = varList + 1;
+
         mv.visitVarInsn(ALOAD, 0);
         mv.visitVarInsn(ALOAD, 1);
         mv.visitMethodInsn(INVOKESTATIC, daoName, "fillSqlField", "(Ljava/lang/String;)Ljava/lang/String;", false);
         mv.visitMethodInsn(INVOKESPECIAL, daoName, "execute", "(Ljava/lang/String;)Ljava/sql/ResultSet;", false);
-        mv.visitVarInsn(ASTORE, 2);
-        mv.visitVarInsn(ALOAD, 2);
-        Label l0 = new Label();
-        mv.visitJumpInsn(IFNONNULL, l0);
+        mv.visitVarInsn(ASTORE, varRs);
+        mv.visitVarInsn(ALOAD, varRs);
+
+        mv.visitJumpInsn(IFNONNULL, lbInnerTry2);
         mv.visitFieldInsn(GETSTATIC, CONSTANTS_NAME, "EMPTY_LIST", "Ljava/util/List;");
+        mv.visitVarInsn(ASTORE, varResult);
+
+        mv.visitLabel(lbInnerFinally);
+        mv.visitVarInsn(ALOAD, 0);
+        mv.visitMethodInsn(INVOKEVIRTUAL, daoName, "closeStatmentSession", "()V", false);
+        mv.visitVarInsn(ALOAD, varResult);
         mv.visitInsn(ARETURN);
-        mv.visitLabel(l0);
-        mv.visitFrame(Opcodes.F_APPEND,1, new Object[] {"java/sql/ResultSet"}, 0, null);
+
+        mv.visitLabel(lbInnerTry2);
         mv.visitVarInsn(ALOAD, 0);
         mv.visitVarInsn(ALOAD, 1);
         mv.visitMethodInsn(INVOKESPECIAL, daoName, "getFieldsSql", "(Ljava/lang/String;)Ljava/lang/String;", false);
-        mv.visitVarInsn(ASTORE, 3);
+        mv.visitVarInsn(ASTORE, varFieldSql);
         mv.visitFieldInsn(GETSTATIC, daoName, "FIELD_SET_FUNCS", "Ljava/util/Map;");
-        mv.visitVarInsn(ALOAD, 3);
+        mv.visitVarInsn(ALOAD, varFieldSql);
         mv.visitMethodInsn(INVOKEINTERFACE, "java/util/Map", "get", "(Ljava/lang/Object;)Ljava/lang/Object;", true);
         mv.visitTypeInsn(CHECKCAST, FIELD_SET_FUNC_NAME);
-        mv.visitVarInsn(ASTORE, 4);
-        mv.visitVarInsn(ALOAD, 4);
+        mv.visitVarInsn(ASTORE, varFuncRes);
+        mv.visitVarInsn(ALOAD, varFuncRes);
         Label l1 = new Label();
         mv.visitJumpInsn(IFNONNULL, l1);
+        mv.visitFieldInsn(GETSTATIC, daoName, "FIELD_SET_FUNCS", "Ljava/util/Map;");
+        mv.visitVarInsn(ALOAD, varFieldSql);
         mv.visitVarInsn(ALOAD, 0);
-        mv.visitVarInsn(ALOAD, 2);
+        mv.visitVarInsn(ALOAD, varRs);
         mv.visitMethodInsn(INVOKESPECIAL, daoName, "getSqlFieldSetFunc",
                 "(Ljava/sql/ResultSet;)L" + FIELD_SET_FUNC_NAME + ";", false);
-        mv.visitVarInsn(ASTORE, 4);
-        mv.visitFieldInsn(GETSTATIC, daoName, "FIELD_SET_FUNCS", "Ljava/util/Map;");
-        mv.visitVarInsn(ALOAD, 3);
-        mv.visitVarInsn(ALOAD, 4);
-        mv.visitMethodInsn(INVOKEINTERFACE, "java/util/Map", "putIfAbsent",
-                "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;", true);
+        mv.visitMethodInsn(INVOKEINTERFACE, "java/util/Map", "putIfAbsent", "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;", true);
         mv.visitInsn(POP);
         mv.visitLabel(l1);
-        mv.visitFrame(Opcodes.F_APPEND,2, new Object[] {"java/lang/String", FIELD_SET_FUNC_NAME}, 0, null);
+
         mv.visitTypeInsn(NEW, "java/util/ArrayList");
         mv.visitInsn(DUP);
         mv.visitMethodInsn(INVOKESPECIAL, "java/util/ArrayList", "<init>", "()V", false);
-        mv.visitVarInsn(ASTORE, 5);
+        mv.visitVarInsn(ASTORE, varList);
         Label l2 = new Label();
         mv.visitLabel(l2);
         mv.visitFrame(Opcodes.F_APPEND,1, new Object[] {"java/util/List"}, 0, null);
@@ -585,21 +610,36 @@ public class BaseDaoGenerator {
         mv.visitTypeInsn(NEW, entityName);
         mv.visitInsn(DUP);
         mv.visitMethodInsn(INVOKESPECIAL, entityName, "<init>", "()V", false);
-        mv.visitVarInsn(ASTORE, 6);
-        mv.visitVarInsn(ALOAD, 4);
-        mv.visitVarInsn(ALOAD, 6);
+        mv.visitVarInsn(ASTORE, varEntity);
+        mv.visitVarInsn(ALOAD, varFuncRes);
+        mv.visitVarInsn(ALOAD, varEntity);
         mv.visitVarInsn(ALOAD, 2);
         mv.visitMethodInsn(INVOKEINTERFACE, FIELD_SET_FUNC_NAME, "set", "(Ljava/lang/Object;Ljava/sql/ResultSet;)V", true);
-        mv.visitVarInsn(ALOAD,5);
-        mv.visitVarInsn(ALOAD, 6);
+        mv.visitVarInsn(ALOAD,varList);
+        mv.visitVarInsn(ALOAD, varEntity);
         mv.visitMethodInsn(INVOKEVIRTUAL, "java/util/ArrayList", "add",
                 "(Ljava/lang/Object;)Z", false);
         mv.visitInsn(POP);
         mv.visitJumpInsn(GOTO, l2);
         mv.visitLabel(l3);
         mv.visitFrame(Opcodes.F_SAME, 0, null, 0, null);
-        mv.visitVarInsn(ALOAD, 5);
+        mv.visitVarInsn(ALOAD, varList);
+
+        mv.visitLabel(lbInnerFinally2);
+        mv.visitVarInsn(ALOAD, 0);
+        mv.visitMethodInsn(INVOKEVIRTUAL, daoName, "closeStatmentSession", "()V", false);
+        mv.visitVarInsn(ALOAD, varEntity);
         mv.visitInsn(ARETURN);
+
+
+        mv.visitLabel(lbInnerThrow);
+        mv.visitVarInsn(ASTORE, 7);
+        mv.visitLabel(lbOuterFinally);
+        mv.visitVarInsn(ALOAD, 0);
+        mv.visitMethodInsn(INVOKEVIRTUAL, daoName, "closeStatmentSession", "()V", false);
+        mv.visitVarInsn(ALOAD, 7);
+        mv.visitInsn(ATHROW);
+
         mv.visitMaxs(5, 7);
         mv.visitEnd();
     }
