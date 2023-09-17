@@ -225,8 +225,13 @@ public class JdbcEntityDaoGenerator extends BaseDaoGenerator {
         Label lbInnerThrow   = new Label();
         mv.visitTryCatchBlock(lbInnerTry, lbInnerFinally, lbInnerThrow, null);
 
+        Label lbInnerTry2     = new Label();
+        Label lbInnerFinally2 = new Label();
+        mv.visitTryCatchBlock(lbInnerTry2, lbInnerFinally2, lbInnerThrow, null);
+
         int varSession    = 2;
-        int varPstmt      = varSession + 1;
+        int varResult     = varSession + 1;
+        int varPstmt      = varResult + 1;
         int varHasIdVal   = varPstmt + 1;
         int varAutoCommit = varHasIdVal + 1;
         int varListSize   = varAutoCommit + 1;
@@ -240,20 +245,29 @@ public class JdbcEntityDaoGenerator extends BaseDaoGenerator {
         Label lbOuterFinally = new Label();
         mv.visitTryCatchBlock(lbInnerThrow, lbOuterFinally, lbInnerThrow, null);
 
-        mv.visitVarInsn(ALOAD, 1);
-        mv.visitMethodInsn(INVOKESTATIC, COLLECTION_UTIL_NAME, "isEmpty", "(Ljava/util/Collection;)Z", false);
-        Label l4 = new Label();
-        mv.visitJumpInsn(IFEQ, l4);
-        mv.visitInsn(ACONST_NULL);
-        mv.visitInsn(ARETURN);
-        mv.visitLabel(l4);
-
-        // 如果保存的对象列表不为空
+        // 获取数据操作的StatementSession
         mv.visitVarInsn(ALOAD, 0);
         mv.visitMethodInsn(INVOKEVIRTUAL, daoName, "getStatementSession", "()L" + STMT_SESSION_NAME + ";", false);
         mv.visitVarInsn(ASTORE, varSession);
         mv.visitLabel(lbInnerTry);
 
+        // 如果保存的对象列表不为空
+        mv.visitVarInsn(ALOAD, 1);
+        mv.visitMethodInsn(INVOKESTATIC, COLLECTION_UTIL_NAME, "isEmpty", "(Ljava/util/Collection;)Z", false);
+
+        //
+        mv.visitJumpInsn(IFEQ, lbInnerTry2);
+        mv.visitInsn(ACONST_NULL);
+        mv.visitVarInsn(ASTORE, varResult);
+
+        // 如果保存对象列表为空则执行Finally的逻辑
+        mv.visitLabel(lbInnerFinally);
+        mv.visitVarInsn(ALOAD, 2);
+        mv.visitMethodInsn(INVOKEINTERFACE, STMT_SESSION_NAME, "close", "()V", true);
+        mv.visitVarInsn(ALOAD, varResult);
+        mv.visitInsn(ARETURN);
+
+        mv.visitLabel(lbInnerTry2);
         // 判断是否设置了主键
         mv.visitVarInsn(ALOAD, 0);
         mv.visitVarInsn(ALOAD, 1);
@@ -436,7 +450,7 @@ public class JdbcEntityDaoGenerator extends BaseDaoGenerator {
         mv.visitFrame(Opcodes.F_SAME, 0, null, 0, null);
         mv.visitVarInsn(ALOAD, varRows);
         mv.visitVarInsn(ASTORE, varEntitySeq);
-        mv.visitLabel(lbInnerFinally);
+        mv.visitLabel(lbInnerFinally2);
         mv.visitVarInsn(ALOAD, varSession);
         mv.visitMethodInsn(INVOKEINTERFACE, STMT_SESSION_NAME, "close", "()V", true);
         mv.visitVarInsn(ALOAD, varEntitySeq);
