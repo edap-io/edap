@@ -16,6 +16,7 @@
 
 package io.edap.data.jdbc.jdbc.test;
 
+import io.edap.data.jdbc.jdbc.test.dao.DemoIntIdEntityDao;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.util.ASMifier;
@@ -38,7 +39,7 @@ public class Asm {
 
         System.out.println("short Max=" + Short.MAX_VALUE);
 
-        String clsPath = DaoTest.class.getName();
+        String clsPath = DemoIntIdEntityDao.class.getName();
         ClassReader cr;
         if (clsPath.endsWith(".class") || clsPath.indexOf('\\') > -1
                 || clsPath.indexOf('/') > -1) {

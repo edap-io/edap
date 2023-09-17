@@ -78,6 +78,7 @@ public class DemoLongObjIdEntityTest extends AbstractDaoTest {
             }
             allDao.insert(demos);
 
+            con = openConnection();
             ResultSet rs = con.createStatement().executeQuery("select * from demo_long_obj_id order by id");
             int rows = 0;
             while (rs.next()) {

@@ -432,11 +432,17 @@ public class AllTypeEntityTest extends AbstractDaoTest {
             DemoAllType demo = buildDemoAllType(1);
             allDao.insert(demo);
 
+            con = openConnection();
+            allDao.setConnection(con);
             DemoAllType qdemo = allDao.findOne(
                     "select * from demo_all_type where id=?", 1L);
             assertNotNull(qdemo);
             isAllEquals(demo, qdemo);
+            con = openConnection();
+            allDao.setConnection(con);
             allDao.update("update demo_all_type set field_big_decimal=31.41 where id=1");
+            con = openConnection();
+            allDao.setConnection(con);
             qdemo = allDao.findOne(
                     "select * from demo_all_type where id=?", 1L);
             assertNotNull(qdemo);
@@ -459,8 +465,13 @@ public class AllTypeEntityTest extends AbstractDaoTest {
                     allDao.setConnection(con2);
 
                     DemoAllType demo = buildDemoAllType(1);
+
+                    con2 = openConnection();
+                    allDao.setConnection(con2);
                     allDao.insert(demo);
 
+                    con2 = openConnection();
+                    allDao.setConnection(con2);
                     allDao.update("update demo_all_type set field_big_decimal=31.47 where id2=1");
                 });
         assertTrue(thrown.getMessage().contains("Column \"ID2\" not found"));

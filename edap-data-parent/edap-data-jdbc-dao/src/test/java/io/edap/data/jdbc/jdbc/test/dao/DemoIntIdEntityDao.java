@@ -73,12 +73,11 @@ public class DemoIntIdEntityDao extends JdbcBaseEntityDao implements JdbcEntityD
 
     @Override
     public int[] insert(List<DemoIntId> demos) throws Exception {
-        if (CollectionUtils.isEmpty(demos)) {
-            return null;
-        }
         StatementSession session = getStatementSession();
         try {
-
+            if (CollectionUtils.isEmpty(demos)) {
+                return null;
+            }
             PreparedStatement ps = session.prepareStatement("insert into demo (id,username,create_time) values (?,?,?,?)");
             boolean initAuto = session.getAutoCommit();
             if (initAuto) {
@@ -135,6 +134,7 @@ public class DemoIntIdEntityDao extends JdbcBaseEntityDao implements JdbcEntityD
             closeStatmentSession();
         }
     }
+
 
     private JdbcFieldSetFunc<DemoIntId> getSqlFieldSetFunc(ResultSet rs) throws SQLException {
         ResultSetMetaData metaData = rs.getMetaData();
