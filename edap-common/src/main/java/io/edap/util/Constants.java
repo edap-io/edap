@@ -17,6 +17,7 @@
 package io.edap.util;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 public class Constants {
@@ -34,5 +35,7 @@ public class Constants {
 
     public static final String EMPTY_STRING = "";
 
-    public static final List EMPTY_LIST = new ArrayList(0);
+    public static final List EMPTY_LIST = Collections.EMPTY_LIST;
+
+    public static final Object[] EMPTY_ARRAY = new Object[0];
 }
