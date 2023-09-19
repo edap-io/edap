@@ -34,6 +34,8 @@ public abstract class JdbcBaseDao {
 
     DataSource dataSource;
 
+    private Connection con;
+
     static final ThreadLocal<StatementSession> STMT_SESSION_LOCAL =
             ThreadLocal.withInitial(() -> {
                 StatementSession statementSession = new SingleStatementSession();
@@ -103,31 +105,24 @@ public abstract class JdbcBaseDao {
 
     public void setDataSource(DataSource dataSource) {
         this.dataSource = dataSource;
+        if (connectionHolder == null) {
+            connectionHolder = new ConnectionHolder.SimpleConnectionHolder();
+        }
         if (connectionHolder != null) {
             connectionHolder.setDataSource(dataSource);
         }
     }
 
     public void setConnection(Connection con) {
+        this.con = con;
         if (connectionHolder == null) {
             connectionHolder = new ConnectionHolder.SimpleConnectionHolder();
         }
-        connectionHolder.setConnect(con);
+        connectionHolder.setConnection(con);
     }
 
     public StatementSession getStatementSession() throws SQLException {
         StatementSession session = STMT_SESSION_LOCAL.get();
-        Connection con = connectionHolder.getConnection();
-        if (con != null && !con.isClosed()) {
-            session.setConnection(connectionHolder.getConnection());
-        } else {
-            if (dataSource != null) {
-                session.setConnection(dataSource.getConnection());
-            }
-        }
-        if (dataSource != null) {
-            session.setDataSource(dataSource);
-        }
         session.setConHolder(connectionHolder);
         return session;
     }

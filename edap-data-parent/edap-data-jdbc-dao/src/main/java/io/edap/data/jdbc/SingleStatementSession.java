@@ -31,20 +31,12 @@ public class SingleStatementSession implements StatementSession {
 
     static Logger LOG = LoggerManager.getLogger(SingleStatementSession.class);
 
-    private DataSource dataSource;
     private Connection con;
 
     private ConnectionHolder conHolder;
 
     private Map<String, PreparedStatement> preparedStmts = new HashMap<>();
 
-    private Connection getConnection() throws SQLException {
-        return con;
-    }
-
-    public void setConnection(Connection con) {
-        this.con = con;
-    }
 
     @Override
     public ConnectionHolder getConHolder() {
@@ -54,6 +46,13 @@ public class SingleStatementSession implements StatementSession {
     @Override
     public void setConHolder(ConnectionHolder conHolder) {
         this.conHolder = conHolder;
+    }
+
+    private Connection getConnection() throws SQLException {
+        if (con == null) {
+            con = conHolder.getConnection();
+        }
+        return con;
     }
 
     @Override
@@ -123,15 +122,5 @@ public class SingleStatementSession implements StatementSession {
     @Override
     public void commit() throws SQLException {
         con.commit();
-    }
-
-    @Override
-    public DataSource getDataSource() {
-        return dataSource;
-    }
-
-    @Override
-    public void setDataSource(DataSource dataSource) {
-        this.dataSource = dataSource;
     }
 }

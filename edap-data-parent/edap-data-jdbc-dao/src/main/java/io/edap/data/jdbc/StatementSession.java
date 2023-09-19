@@ -65,12 +65,6 @@ public interface StatementSession {
 
     void commit() throws SQLException;
 
-    DataSource getDataSource();
-
-    void setDataSource(DataSource dataSource);
-
-    void setConnection(Connection con);
-
     ConnectionHolder getConHolder();
 
     void setConHolder(ConnectionHolder conHolderer);
