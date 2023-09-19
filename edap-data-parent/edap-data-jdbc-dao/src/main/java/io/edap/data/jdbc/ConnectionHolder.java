@@ -47,7 +47,7 @@ public interface ConnectionHolder {
             if (this.con != null) {
                 return con;
             }
-            if (currentCon == null && ds != null) {
+            if ((currentCon == null || currentCon.isClosed()) && ds != null) {
                 currentCon = ds.getConnection();
             }
             return currentCon;
