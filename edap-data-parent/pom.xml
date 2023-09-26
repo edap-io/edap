@@ -6,7 +6,7 @@
     <parent>
         <groupId>io.edap</groupId>
         <artifactId>edap</artifactId>
-        <version>0.1-SNAPSHOT</version>
+        <version>0.1.2-SNAPSHOT</version>
     </parent>
 
     <artifactId>edap-data-parent</artifactId>

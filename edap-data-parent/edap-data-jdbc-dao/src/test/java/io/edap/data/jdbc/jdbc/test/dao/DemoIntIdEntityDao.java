@@ -20,6 +20,7 @@ import io.edap.data.*;
 import io.edap.data.jdbc.*;
 import io.edap.data.jdbc.jdbc.test.entity.DemoIntId;
 import io.edap.util.CollectionUtils;
+import io.edap.util.Constants;
 
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -27,9 +28,11 @@ import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+import static io.edap.util.Constants.EMPTY_ARRAY;
 import static io.edap.util.Constants.EMPTY_LIST;
 
 
@@ -112,27 +115,20 @@ public class DemoIntIdEntityDao extends JdbcBaseEntityDao implements JdbcEntityD
         }
     }
 
+    private static String fillSqlField(String var0) {
+        var0 = var0.trim();
+        int var1 = var0.length() > 7 ? 7 : var0.length();
+        if (!var0.substring(0, var1).toLowerCase(Locale.ENGLISH).startsWith("select ")) {
+            var0 = "SELECT id,product_line,service_name,name,dc,env,stage_info,operate_url,status,creator,create_time,update_time FROM biz_case " + var0;
+        }
+
+        return var0;
+    }
+
+
     @Override
     public List<DemoIntId> query(String sql) throws Exception {
-        try {
-            ResultSet rs = execute(sql, null);
-            if (rs == null) {
-                return EMPTY_LIST;
-            }
-            String fieldSql = getFieldsSql(sql);
-            JdbcFieldSetFunc<DemoIntId> func = FIELD_SET_FUNCS.get(fieldSql);
-            if (func == null) {
-                FIELD_SET_FUNCS.putIfAbsent(fieldSql, getSqlFieldSetFunc(rs));
-            }
-            List<DemoIntId> demos = new ArrayList<>();
-            while (rs.next()) {
-                DemoIntId demo = new DemoIntId();
-                func.set(demo, rs);
-            }
-            return demos;
-        } finally {
-            closeStatmentSession();
-        }
+        return query(sql, EMPTY_ARRAY);
     }
 
 
