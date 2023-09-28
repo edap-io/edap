@@ -40,18 +40,17 @@
     </properties>
 
     <modules>
-        <module>edap-protobuf-wire</module>
-        <module>edap-protobuf</module>
         <module>edap-common</module>
         <module>edap-log-api</module>
         <module>edap-bean-convert</module>
-        <module>edap-protobuf-idl</module>
         <module>edap-log</module>
         <module>edap-toml</module>
         <module>edap-json</module>
         <module>edap-core</module>
         <module>edap-data-parent</module>
         <module>edap-rpc</module>
+        <module>edap-http-parent</module>
+        <module>edap-protobuf-parent</module>
 
     </modules>
 
