@@ -41,9 +41,7 @@
 
     <modules>
         <module>edap-common</module>
-        <module>edap-log-api</module>
         <module>edap-bean-convert</module>
-        <module>edap-log</module>
         <module>edap-toml</module>
         <module>edap-json</module>
         <module>edap-core</module>
@@ -51,6 +49,7 @@
         <module>edap-rpc</module>
         <module>edap-http-parent</module>
         <module>edap-protobuf-parent</module>
+        <module>edap-log-parent</module>
 
     </modules>
 
