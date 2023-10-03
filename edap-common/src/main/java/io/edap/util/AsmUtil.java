@@ -34,17 +34,24 @@ public class AsmUtil {
 
     public static void saveJavaFile(String javaFilePath, byte[] data)
             throws IOException {
-        File f = new File(javaFilePath);
-        if (f.exists()) {
-            Files.delete(f.toPath());
-        } else {
-            if (!f.getParentFile().exists()) {
-                f.getParentFile().mkdirs();
-            }
+        String saveClassFile = System.getProperty("edap.debug.saveClassFile");
+        if (StringUtil.isEmpty(saveClassFile)) {
+            saveClassFile = System.getenv("edap.debug.saveClassFile");
         }
+        if ("true".equalsIgnoreCase(saveClassFile) || "t".equalsIgnoreCase(saveClassFile)
+                || "1".equalsIgnoreCase(saveClassFile)) {
+            File f = new File(javaFilePath);
+            if (f.exists()) {
+                Files.delete(f.toPath());
+            } else {
+                if (!f.getParentFile().exists()) {
+                    f.getParentFile().mkdirs();
+                }
+            }
 
-        try (RandomAccessFile java = new RandomAccessFile(javaFilePath, "rw")) {
-            java.write(data);
+            try (RandomAccessFile java = new RandomAccessFile(javaFilePath, "rw")) {
+                java.write(data);
+            }
         }
     }
 
