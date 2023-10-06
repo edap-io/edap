@@ -64,7 +64,7 @@ public class ProtoBuf {
     /**
      * 本地线程的ProtoBuf的Writer减少内存分配次数
      */
-    private static final ThreadLocal<ProtoBufWriter> THREAD_WRITER;
+    public static final ThreadLocal<ProtoBufWriter> THREAD_WRITER;
 
     private static final ThreadLocal<ProtoBufWriter> THREAD_FAST_WRITER;
 

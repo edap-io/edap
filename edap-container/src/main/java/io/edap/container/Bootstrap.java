@@ -14,9 +14,14 @@
  * under the License.
  */
 
-package io.edap.config;
+package io.edap.container;
 
-public class EdapConfig {
+/**
+ * edap微服务容器的启动程序，容器启动包含容器的管理接口以及部署接口
+ */
+public class Bootstrap {
 
+    public static void main(String[] args) {
 
+    }
 }

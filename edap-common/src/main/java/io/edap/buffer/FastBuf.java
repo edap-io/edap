@@ -17,6 +17,7 @@
 package io.edap.buffer;
 
 import io.edap.pool.BasePoolEntry;
+import io.edap.util.ByteData;
 import io.edap.util.UnsafeUtil;
 
 import java.io.IOException;
@@ -63,6 +64,33 @@ public class FastBuf extends BasePoolEntry {
 
     public long limit() {
         return writePos;
+    }
+
+    public byte get(long pos) {
+        return (byte)UnsafeUtil.readByte(pos);
+    }
+
+    public byte get() {
+        return UnsafeUtil.UNSAFE.getByte(readPos++);
+    }
+
+    public byte get(byte[] data) {
+        return (byte)0;
+    }
+
+    public void get(long l, byte[] bs) {
+    }
+
+    public int get(byte[] data, int len) {
+        return 0;
+    }
+
+    public int write(ByteData byteData) {
+        return 0;
+    }
+
+    public int writeRemain() {
+        return 0;
     }
 
     /**

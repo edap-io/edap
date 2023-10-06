@@ -14,9 +14,17 @@
  * under the License.
  */
 
-package io.edap.config;
-
-public class EdapConfig {
+package io.edap.http.handler;
 
 
+import io.edap.http.HttpHandler;
+import io.edap.http.HttpRequest;
+import io.edap.http.HttpResponse;
+
+public class NotSupportMethodHandler implements HttpHandler {
+
+    @Override
+    public void handle(HttpRequest req, HttpResponse resp) {
+
+    }
 }

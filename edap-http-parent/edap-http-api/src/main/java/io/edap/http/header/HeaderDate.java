@@ -14,9 +14,21 @@
  * under the License.
  */
 
-package io.edap.config;
+package io.edap.http.header;
 
-public class EdapConfig {
+import io.edap.http.HttpTime;
 
+public class HeaderDate extends Header {
+
+    private static HttpTime HTTP_TIME = HttpTime.instance();
+
+    public HeaderDate() {
+        super("Date", "");
+    }
+
+    @Override
+    public byte[] getBytes() {
+        return HTTP_TIME.getDateBytes();
+    }
 
 }

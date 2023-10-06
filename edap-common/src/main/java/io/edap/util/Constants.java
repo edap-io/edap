@@ -16,6 +16,8 @@
 
 package io.edap.util;
 
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -33,9 +35,13 @@ public class Constants {
      */
     public static final long FNV_1a_FACTOR_VAL = 0x1000193;
 
+    public static final int BKDR_HASH_SEED = 31;
+
     public static final String EMPTY_STRING = "";
 
     public static final List EMPTY_LIST = Collections.EMPTY_LIST;
 
     public static final Object[] EMPTY_ARRAY = new Object[0];
+
+    public static final Charset DEFAULT_CHARSET = StandardCharsets.UTF_8;
 }

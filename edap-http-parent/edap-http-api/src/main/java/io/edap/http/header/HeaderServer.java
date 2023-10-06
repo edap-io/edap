@@ -14,9 +14,12 @@
  * under the License.
  */
 
-package io.edap.config;
+package io.edap.http.header;
 
-public class EdapConfig {
+public class HeaderServer extends Header {
 
+    public HeaderServer() {
+        super("Server", "ews");
+    }
 
 }

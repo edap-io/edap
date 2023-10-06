@@ -14,9 +14,31 @@
  * under the License.
  */
 
-package io.edap.config;
+package io.edap.http;
 
-public class EdapConfig {
+import io.edap.util.ByteData;
 
+/**
+ */
+public interface HttpRequest {
 
+    PathInfo getPath();
+
+    HeaderValue getHeaderValue(String name);
+
+    ByteData getBody();
+
+    String getMethod();
+
+    MethodInfo getMethodInfo();
+
+    int getContentLength();
+
+    void setBody(ByteData data);
+
+    void reset();
+
+    HttpVersion getVersion();
+
+    HttpNioSession getHttpNioSession();
 }

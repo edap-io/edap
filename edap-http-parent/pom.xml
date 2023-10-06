@@ -9,7 +9,6 @@
         <version>0.1.2-SNAPSHOT</version>
     </parent>
 
-    <groupId>com.yonyou.cloud</groupId>
     <artifactId>edap-http-parent</artifactId>
     <packaging>pom</packaging>
     <modules>

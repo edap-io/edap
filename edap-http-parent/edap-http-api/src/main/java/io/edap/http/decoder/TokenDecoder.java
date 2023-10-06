@@ -14,9 +14,13 @@
  * under the License.
  */
 
-package io.edap.config;
+package io.edap.http.decoder;
 
-public class EdapConfig {
+import io.edap.buffer.FastBuf;
+import io.edap.codec.FastBufDataRange;
+import io.edap.http.HttpRequest;
 
+public interface TokenDecoder<T> {
 
+    T decode(FastBuf buf, FastBufDataRange dataRange, HttpRequest request);
 }

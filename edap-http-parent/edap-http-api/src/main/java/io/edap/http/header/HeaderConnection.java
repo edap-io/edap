@@ -14,9 +14,14 @@
  * under the License.
  */
 
-package io.edap.config;
+package io.edap.http.header;
 
-public class EdapConfig {
+public class HeaderConnection extends Header {
 
+    public static HeaderConnection KEEP_ALIVE = new HeaderConnection("Connection","keep-alive");
+    public static HeaderConnection CLOSE      = new HeaderConnection("Connection","close");
 
+    private HeaderConnection(String name, String value) {
+        super(name, value);
+    }
 }

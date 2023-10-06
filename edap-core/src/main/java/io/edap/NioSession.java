@@ -16,9 +16,11 @@
 
 package io.edap;
 
-import io.edap.buffer.FastBuf;
+import io.edap.buffer.BytesBuf;
 import io.edap.pool.BasePoolEntry;
 import sun.nio.ch.IOStatus;
+
+import io.edap.buffer.FastBuf;
 
 import java.io.FileDescriptor;
 import java.io.IOException;
@@ -93,6 +95,8 @@ public abstract class NioSession<T> extends BasePoolEntry {
     private static final MethodHandle READ0_MH;
     private static final MethodHandle WRITE0_MH;
     private static final MethodHandle WRITE0_MH2;
+
+    private BytesBuf wbuf;
 
     static {
         Class<?> fdi;
@@ -190,8 +194,17 @@ public abstract class NioSession<T> extends BasePoolEntry {
     }
 
     protected NioSession() {
-
+        wbuf = new BytesBuf(new byte[4096]);
     }
+
+    public BytesBuf getWbuf() {
+        return wbuf;
+    }
+
+    public void setWbuf(BytesBuf wbuf) {
+        this.wbuf = wbuf;
+    }
+
 
     public SocketChannel getSocketChannel() {
         return socketChannel;
@@ -311,7 +324,7 @@ public abstract class NioSession<T> extends BasePoolEntry {
     }
 
     int readInternal(FastBuf buf) throws IOException {
-        int n = read0(channelFd, buf.address(), buf.remain());
+        int n = read0(channelFd, buf.address(), buf.writeRemain());
         if ((n == IOStatus.INTERRUPTED) && socketChannel.isOpen()) {
             // The system call was interrupted but the channel
             // is still open, so retry

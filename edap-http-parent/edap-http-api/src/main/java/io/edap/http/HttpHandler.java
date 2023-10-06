@@ -14,9 +14,20 @@
  * under the License.
  */
 
-package io.edap.config;
+package io.edap.http;
 
-public class EdapConfig {
+import java.io.Serializable;
 
-
+/**
+ * @author : luysh@yonyou.com
+ * @date : 2020/10/12
+ */
+@FunctionalInterface
+public interface HttpHandler extends Serializable {
+    /**
+     * HTTP请求的处理器
+     * @param req
+     * @param resp
+     */
+    void handle(HttpRequest req, HttpResponse resp);
 }

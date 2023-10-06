@@ -14,9 +14,33 @@
  * under the License.
  */
 
-package io.edap.config;
+package io.edap.http.header;
 
-public class EdapConfig {
+public abstract class Header {
 
+    private String name;
+    private String value;
+    protected byte[] bytes;
 
+    public Header() {
+
+    }
+
+    public Header(String name, String value) {
+        this.name  = name;
+        this.value = value;
+        this.bytes = (name + ": " + value + "\r\n").getBytes();
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public String getValue() {
+        return value;
+    }
+
+    public byte[] getBytes() {
+        return this.bytes;
+    }
 }

@@ -51,6 +51,7 @@
         <module>edap-http-parent</module>
         <module>edap-protobuf-parent</module>
         <module>edap-log-parent</module>
+        <module>edap-container</module>
 
     </modules>
 
@@ -87,6 +88,23 @@
                 <artifactId>edap-json</artifactId>
                 <version>${project.version}</version>
             </dependency>
+
+            <dependency>
+                <groupId>io.edap</groupId>
+                <artifactId>edap-http-api</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.edap</groupId>
+                <artifactId>edap-http-server</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.edap</groupId>
+                <artifactId>edap-http-client</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
             <dependency>
                 <groupId>com.thoughtworks.qdox</groupId>
                 <artifactId>qdox</artifactId>

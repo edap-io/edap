@@ -14,9 +14,27 @@
  * under the License.
  */
 
-package io.edap.config;
+package io.edap.http;
 
-public class EdapConfig {
+public class MethodInfo {
 
+    private String method;
+    private int methodIndex;
+
+    public String getMethod() {
+        return method;
+    }
+
+    public void setMethod(String method) {
+        this.method = method;
+    }
+
+    public int getMethodIndex() {
+        return methodIndex;
+    }
+
+    public void setMethodIndex(int methodIndex) {
+        this.methodIndex = methodIndex;
+    }
 
 }

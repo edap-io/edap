@@ -134,6 +134,53 @@ public class FastNum {
         return pos;
     }
 
+    public static void uncheckWriteInt(ByteData buf, int v) {
+        int i;
+        byte[] bs = buf.getBytes();
+        int pos = buf.getOffset();
+        if (v < 0) {
+            i = -v;
+            bs[pos++] = '-';
+        } else if (v == 0) {
+            bs[pos++] = '0';
+            buf.setOffset(pos);
+            return;
+        } else {
+            i = v;
+        }
+        final int q1 = i / 1000;
+        if (q1 == 0) {
+            pos = writeFirstBuf(bs, pos, DIGITS[i]);
+            buf.setOffset(pos);
+            return;
+        }
+        final int r1 = i - q1 * 1000;
+        final int q2 = q1 / 1000;
+        if (q2 == 0) {
+            final int v1 = DIGITS[r1];
+            final int v2 = DIGITS[q1];
+            pos = writeFirstBuf(bs, pos, v2);
+            pos = writeBuf(bs, pos, v1);
+            buf.setOffset(pos);
+            return;
+        }
+
+        final int r2 = q1 - q2 * 1000;
+        final long q3 = q2 / 1000;
+        final int v1 = DIGITS[r1];
+        final int v2 = DIGITS[r2];
+        if (q3 == 0) {
+            pos = writeFirstBuf(bs, pos, DIGITS[q2]);
+        } else {
+            final int r3 = (int) (q2 - q3 * 1000);
+            bs[pos++] = (byte) (q3 + '0');
+            pos = writeBuf(bs, pos, DIGITS[r3]);
+        }
+        pos = writeBuf(bs, pos, v2);
+        pos = writeBuf(bs, pos, v1);
+        buf.setOffset(pos);
+    }
+
     public static int uncheckWriteLong(byte[] buf, int start, long v) {
         long i;
         int pos = start;
