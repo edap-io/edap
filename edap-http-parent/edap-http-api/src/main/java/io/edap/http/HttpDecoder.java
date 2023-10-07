@@ -19,8 +19,8 @@ package io.edap.http;
 import io.edap.Decoder;
 import io.edap.ParseResult;
 import io.edap.buffer.FastBuf;
-import io.edap.codec.FastBufDataRange;
 import io.edap.http.cache.HeaderNameCache;
+import io.edap.http.codec.HttpFastBufDataRange;
 import io.edap.http.decoder.*;
 import io.edap.http.model.QueryInfo;
 import io.edap.util.CollectionUtils;
@@ -67,7 +67,7 @@ public class HttpDecoder extends AbstractHttpDecoder implements Decoder<HttpRequ
 
     static {
         HeaderNameCache HEADER_NAME_CACHE = HeaderNameCache.instance();
-        HeaderName contentTypeInfo = HEADER_NAME_CACHE.get(FastBufDataRange.from("Content-Type"));
+        HeaderName contentTypeInfo = HEADER_NAME_CACHE.get(HttpFastBufDataRange.from("Content-Type"));
         contentTypeInfo.valueDecoder = CONTENT_TYPE_VALUE_DECODER;
 //        HeaderName host = HEADER_NAME_CACHE.get(DataRange.from("Host"));
 //        host.valueDecoder = HEADER_VALUE_CACHE_DECODER;
@@ -77,7 +77,7 @@ public class HttpDecoder extends AbstractHttpDecoder implements Decoder<HttpRequ
 //        ua.valueDecoder = HEADER_VALUE_CACHE_DECODER;
 //        HeaderName acceptLang = HEADER_NAME_CACHE.get(DataRange.from("Accept-Language"));
 //        acceptLang.valueDecoder = HEADER_VALUE_CACHE_DECODER;
-        HeaderName connection = HEADER_NAME_CACHE.get(FastBufDataRange.from("Connection"));
+        HeaderName connection = HEADER_NAME_CACHE.get(HttpFastBufDataRange.from("Connection"));
         connection.valueDecoder = CONNECTION_VALUE_DECODER;
     }
 
@@ -92,9 +92,9 @@ public class HttpDecoder extends AbstractHttpDecoder implements Decoder<HttpRequ
         List<ValueHttpRequest> requests = httpNioSession.getValueRequestPool();
         int index = 0;
         ValueHttpRequest request = requests.get(index++);
-        FastBufDataRange dataRange = httpNioSession.getDataRange();
+        HttpFastBufDataRange dataRange = httpNioSession.getDataRange();
         if (dataRange == null) {
-            dataRange = new FastBufDataRange();
+            dataRange = new HttpFastBufDataRange();
             httpNioSession.setDataRange(dataRange);
         }
         request.reset();
@@ -122,7 +122,7 @@ public class HttpDecoder extends AbstractHttpDecoder implements Decoder<HttpRequ
     }
 
 
-    public Result parseHttpRequest(FastBuf buf, State state, FastBufDataRange dataRange,
+    public Result parseHttpRequest(FastBuf buf, State state, HttpFastBufDataRange dataRange,
                                    ValueHttpRequest request, HttpNioSession httpNioSession) {
         Result result = new Result();
         result.state = state;

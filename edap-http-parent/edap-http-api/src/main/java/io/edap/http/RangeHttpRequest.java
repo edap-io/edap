@@ -16,14 +16,14 @@
 
 package io.edap.http;
 
-import io.edap.codec.FastBufDataRange;
+import io.edap.http.codec.HttpFastBufDataRange;
 import io.edap.util.ByteData;
 
 /**
  */
 public class RangeHttpRequest implements HttpRequest {
 
-    public FastBufDataRange queryStringRange = new FastBufDataRange();
+    public HttpFastBufDataRange queryStringRange = new HttpFastBufDataRange();
     public KeyValueRanges parameterRanges = new KeyValueRanges(128);
     public KeyValueRanges headerRanges = new KeyValueRanges(128);
     public HttpVersion version;

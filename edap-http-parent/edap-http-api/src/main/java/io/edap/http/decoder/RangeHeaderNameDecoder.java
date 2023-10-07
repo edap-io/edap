@@ -1,10 +1,10 @@
 package io.edap.http.decoder;
 
 import io.edap.buffer.FastBuf;
-import io.edap.codec.FastBufDataRange;
 import io.edap.http.HeaderName;
 import io.edap.http.HttpRequest;
 import io.edap.http.RangeHttpRequest;
+import io.edap.http.codec.HttpFastBufDataRange;
 
 import static io.edap.http.AbstractHttpDecoder.EMPTY_HEADERNAME;
 import static io.edap.http.AbstractHttpDecoder.FINISH_HEADERNAME;
@@ -12,7 +12,7 @@ import static io.edap.util.Constants.BKDR_HASH_SEED;
 
 public class RangeHeaderNameDecoder implements TokenDecoder<HeaderName> {
     @Override
-    public HeaderName decode(FastBuf buf, FastBufDataRange dataRange, HttpRequest request) {
+    public HeaderName decode(FastBuf buf, HttpFastBufDataRange dataRange, HttpRequest request) {
         FastBuf _buf = buf;
         int remain = _buf.remain();
         if (remain <= 0) {
@@ -35,7 +35,7 @@ public class RangeHeaderNameDecoder implements TokenDecoder<HeaderName> {
         hashCode = BKDR_HASH_SEED * hashCode + b;
         for (int i=1;i<remain;i++) {
             b = _buf.get(rpos+i);
-            FastBufDataRange keyRange;
+            HttpFastBufDataRange keyRange;
             RangeHttpRequest rangeHttpRequest;
             switch (b) {
                 case ':':

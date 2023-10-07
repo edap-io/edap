@@ -6,13 +6,14 @@ import io.edap.codec.FastBufDataRange;
 import io.edap.http.HeaderValue;
 import io.edap.http.HttpRequest;
 import io.edap.http.RangeHttpRequest;
+import io.edap.http.codec.HttpFastBufDataRange;
 
 import static io.edap.http.AbstractHttpDecoder.EMPTY_HEADERVALUE;
 
 public class RangeHeaderValueDecoder implements TokenDecoder<HeaderValue> {
 
     @Override
-    public HeaderValue decode(FastBuf buf, FastBufDataRange dataRange, HttpRequest request) {
+    public HeaderValue decode(FastBuf buf, HttpFastBufDataRange dataRange, HttpRequest request) {
         FastBuf _buf = buf;
         int remain = _buf.remain();
         if (remain <= 0) {

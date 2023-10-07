@@ -1,11 +1,10 @@
 package io.edap.http.decoder;
 
 import io.edap.buffer.FastBuf;
-import io.edap.codec.DataRange;
-import io.edap.codec.FastBufDataRange;
 import io.edap.http.HeaderValue;
 import io.edap.http.HttpRequest;
 import io.edap.http.cache.HeaderValueCache;
+import io.edap.http.codec.HttpFastBufDataRange;
 
 import static io.edap.util.Constants.FNV_1a_FACTOR_VAL;
 import static io.edap.util.Constants.FNV_1a_INIT_VAL;
@@ -18,7 +17,7 @@ public class HeaderValueCacheDecoder implements TokenDecoder<HeaderValue> {
     static HeaderValueCache CACHE = HeaderValueCache.instance();
 
     @Override
-    public HeaderValue decode(FastBuf buf, FastBufDataRange dataRange, HttpRequest request) {
+    public HeaderValue decode(FastBuf buf, HttpFastBufDataRange dataRange, HttpRequest request) {
         FastBuf _buf = buf;
         int remain = _buf.remain();
         if (remain <= 0) {

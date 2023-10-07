@@ -16,12 +16,31 @@
 
 package io.edap.container;
 
+import io.edap.Edap;
+import io.edap.ServerGroup;
+import io.edap.http.HttpServerBuilder;
+
+import java.io.IOException;
+
 /**
  * edap微服务容器的启动程序，容器启动包含容器的管理接口以及部署接口
  */
 public class Bootstrap {
 
     public static void main(String[] args) {
+        // 创建Edap容器管理的容器对象
+        Edap manager = new Edap();
+        ServerGroup serverGroup = new ServerGroup();
+        HttpServerBuilder builder = new HttpServerBuilder();
+        serverGroup.addServer(builder.build());
+        serverGroup.setName("edap-manager");
+        manager.addServerGroup(serverGroup);
 
+        try {
+            manager.run();
+        } catch (IOException e) {
+            System.err.println("启动失败\n" + e.getMessage());
+            e.printStackTrace();
+        }
     }
 }

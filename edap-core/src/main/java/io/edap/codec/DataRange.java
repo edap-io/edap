@@ -26,10 +26,6 @@ import java.nio.charset.StandardCharsets;
  */
 public interface DataRange<P, B> {
 
-    boolean urlEncoded();
-
-    DataRange<P, B> urlEncoded(boolean urlEncoded);
-
     /**
      * 数据块判断相同时是否采用严格的匹配模式
      * @return 返回是否采用严格匹配模式

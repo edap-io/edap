@@ -20,6 +20,7 @@ import io.edap.NioSession;
 import io.edap.ParseResult;
 import io.edap.codec.BytesDataRange;
 import io.edap.codec.FastBufDataRange;
+import io.edap.http.codec.HttpFastBufDataRange;
 import io.edap.http.handler.NotFoundHandler;
 import io.edap.http.handler.NotSupportMethodHandler;
 import io.edap.log.Logger;
@@ -43,7 +44,7 @@ public class HttpNioSession extends NioSession<HttpRequest> {
     private HttpRequest request;
     private ParseResult<HttpRequest> parseResult;
     private HttpDecoder.State decodeState;
-    private FastBufDataRange dataRange;
+    private HttpFastBufDataRange dataRange;
     private BytesDataRange bytesDataRange;
     private ByteData tmpData;
     private HttpResponse response;
@@ -111,11 +112,11 @@ public class HttpNioSession extends NioSession<HttpRequest> {
         this.decodeState = decodeState;
     }
 
-    public FastBufDataRange getDataRange() {
+    public HttpFastBufDataRange getDataRange() {
         return dataRange;
     }
 
-    public void setDataRange(FastBufDataRange dataRange) {
+    public void setDataRange(HttpFastBufDataRange dataRange) {
         this.dataRange = dataRange;
     }
 

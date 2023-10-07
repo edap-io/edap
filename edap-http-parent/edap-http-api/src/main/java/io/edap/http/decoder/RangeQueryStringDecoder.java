@@ -17,24 +17,24 @@
 package io.edap.http.decoder;
 
 import io.edap.buffer.FastBuf;
-import io.edap.codec.FastBufDataRange;
 import io.edap.http.HttpRequest;
 import io.edap.http.RangeHttpRequest;
+import io.edap.http.codec.HttpFastBufDataRange;
 
 import static io.edap.http.HttpConsts.BYTE_VALUES;
 import static io.edap.util.Constants.BKDR_HASH_SEED;
 
 /**
  */
-public class RangeQueryStringDecoder implements TokenDecoder<FastBufDataRange> {
+public class RangeQueryStringDecoder implements TokenDecoder<HttpFastBufDataRange> {
 
-    static FastBufDataRange EMPTY_QUERY_INFO = new FastBufDataRange();
+    static HttpFastBufDataRange EMPTY_QUERY_INFO = new HttpFastBufDataRange();
     static {
         EMPTY_QUERY_INFO.length(0);
     }
 
     @Override
-    public FastBufDataRange decode(FastBuf buf, FastBufDataRange dataRange, HttpRequest request) {
+    public HttpFastBufDataRange decode(FastBuf buf, HttpFastBufDataRange dataRange, HttpRequest request) {
         RangeHttpRequest rangeHttpRequest = (RangeHttpRequest)request;
         switch (buf.get()) {
             case '?':
@@ -47,8 +47,8 @@ public class RangeQueryStringDecoder implements TokenDecoder<FastBufDataRange> {
         return decodeQuery(buf, dataRange, rangeHttpRequest);
     }
 
-    private FastBufDataRange decodeQuery(FastBuf buf, FastBufDataRange dr, RangeHttpRequest rangeHttpRequest) {
-        FastBufDataRange queryRange = rangeHttpRequest.queryStringRange;
+    private HttpFastBufDataRange decodeQuery(FastBuf buf, HttpFastBufDataRange dr, RangeHttpRequest rangeHttpRequest) {
+        HttpFastBufDataRange queryRange = rangeHttpRequest.queryStringRange;
         FastBuf _buf = buf;
         int remain = _buf.remain();
         long rpos = _buf.rpos();
@@ -57,8 +57,8 @@ public class RangeQueryStringDecoder implements TokenDecoder<FastBufDataRange> {
 
         int index = rangeHttpRequest.parameterRanges.length;
 
-        FastBufDataRange keyRange = rangeHttpRequest.parameterRanges.keys[index];
-        FastBufDataRange valRange = rangeHttpRequest.parameterRanges.values[index];
+        HttpFastBufDataRange keyRange = rangeHttpRequest.parameterRanges.keys[index];
+        HttpFastBufDataRange valRange = rangeHttpRequest.parameterRanges.values[index];
         byte b;
         int hashCode = 0;
         int queryHash = 0;

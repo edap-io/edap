@@ -19,15 +19,14 @@ package io.edap.http;
 import java.io.Serializable;
 
 /**
- * @author : luysh@yonyou.com
- * @date : 2020/10/12
+ * HTTP处理器的接口定义
  */
 @FunctionalInterface
 public interface HttpHandler extends Serializable {
     /**
-     * HTTP请求的处理器
-     * @param req
-     * @param resp
+     * HTTP请求的处理接口，处理HTTP请求并返回响应的数据
+     * @param req HTTP请求
+     * @param resp HTTP的相应实例
      */
     void handle(HttpRequest req, HttpResponse resp);
 }

@@ -64,17 +64,6 @@ public class BytesDataRange implements DataRange<Integer, byte[]> {
     }
 
     @Override
-    public boolean urlEncoded() {
-        return urlEncoded;
-    }
-
-    @Override
-    public DataRange<Integer, byte[]> urlEncoded(boolean urlEncoded) {
-        this.urlEncoded = urlEncoded;
-        return this;
-    }
-
-    @Override
     public boolean matchStrict() {
         return strict;
     }

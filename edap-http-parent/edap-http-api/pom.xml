@@ -24,8 +24,6 @@
         <dependency>
             <groupId>io.edap</groupId>
             <artifactId>edap-core</artifactId>
-            <version>0.1.2-SNAPSHOT</version>
-            <scope>compile</scope>
         </dependency>
         <dependency>
             <groupId>io.edap</groupId>

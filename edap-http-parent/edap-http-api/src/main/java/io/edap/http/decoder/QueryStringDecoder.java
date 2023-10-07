@@ -4,6 +4,7 @@ import io.edap.buffer.FastBuf;
 import io.edap.codec.FastBufDataRange;
 import io.edap.http.HttpRequest;
 import io.edap.http.cache.ParamKeyCache;
+import io.edap.http.codec.HttpFastBufDataRange;
 import io.edap.http.model.ParamPair;
 import io.edap.http.model.QueryInfo;
 import io.edap.util.FastList;
@@ -23,7 +24,7 @@ public class QueryStringDecoder implements TokenDecoder<QueryInfo> {
     static ParamKeyCache KEY_CACHE = ParamKeyCache.instance();
 
     @Override
-    public QueryInfo decode(FastBuf buf, FastBufDataRange dataRange, HttpRequest request) {
+    public QueryInfo decode(FastBuf buf, HttpFastBufDataRange dataRange, HttpRequest request) {
         FastBuf _buf = buf;
         int remain = _buf.remain();
         if (remain <= 0) {
@@ -98,7 +99,7 @@ public class QueryStringDecoder implements TokenDecoder<QueryInfo> {
                 case '+':
                     hashCode ^= ' ';
                     hashCode *= FNV_1a_FACTOR_VAL;
-                    dataRange.urlEncoded(true);
+                    //dataRange.urlEncoded(true);
                     break;
                 case '%':
                     if (i < remain - 2) {
@@ -109,7 +110,7 @@ public class QueryStringDecoder implements TokenDecoder<QueryInfo> {
                         i += 2;
                         hashCode ^= (byte) v;
                         hashCode *= FNV_1a_FACTOR_VAL;
-                        dataRange.urlEncoded(true);
+                        //dataRange.urlEncoded(true);
                         break;
                     } else {
                         return null;

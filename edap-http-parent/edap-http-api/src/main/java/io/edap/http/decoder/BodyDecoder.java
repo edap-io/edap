@@ -18,8 +18,8 @@ package io.edap.http.decoder;
 
 
 import io.edap.buffer.FastBuf;
-import io.edap.codec.FastBufDataRange;
 import io.edap.http.AbstractHttpDecoder;
+import io.edap.http.codec.HttpFastBufDataRange;
 import io.edap.http.header.ContentType;
 import io.edap.http.HeaderValue;
 import io.edap.http.HttpNioSession;
@@ -29,7 +29,7 @@ import io.edap.util.ByteData;
 
 public class BodyDecoder {
 
-    public void decode(HttpRequest request, FastBuf buf, FastBufDataRange dataRange,
+    public void decode(HttpRequest request, FastBuf buf, HttpFastBufDataRange dataRange,
                        AbstractHttpDecoder.Result result, HttpNioSession httpNioSession) {
         String method = request.getMethod();
         int contentLength = request.getContentLength();

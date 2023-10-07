@@ -4,13 +4,14 @@ import io.edap.buffer.FastBuf;
 import io.edap.codec.FastBufDataRange;
 import io.edap.http.HttpRequest;
 import io.edap.http.HttpVersion;
+import io.edap.http.codec.HttpFastBufDataRange;
 
 import static io.edap.http.HttpVersion.*;
 
 public class HttpVersionDecoder implements TokenDecoder<HttpVersion> {
 
     @Override
-    public HttpVersion decode(FastBuf buf, FastBufDataRange dataRange, HttpRequest request) {
+    public HttpVersion decode(FastBuf buf, HttpFastBufDataRange dataRange, HttpRequest request) {
         long pos = buf.rpos();
         int  len = buf.remain();
         if (len < 10) return null;

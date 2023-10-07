@@ -30,8 +30,6 @@ public class FastBufDataRange implements DataRange<Long, FastBuf> {
 
     FastBuf buf;
 
-    boolean urlEncoded;
-
     boolean strict;
 
     long start;
@@ -47,15 +45,13 @@ public class FastBufDataRange implements DataRange<Long, FastBuf> {
     public FastBufDataRange() {}
 
     public FastBufDataRange(FastBuf buf, long start, int length, int hash) {
-        this.buf  = buf;
-        this.hash = hash;
-        first = buf.get(start);
-        last  = buf.get(start+length-1);
+        this(buf, start, length, buf.get(start), buf.get(start+length-1) , hash);
     }
 
-    public FastBufDataRange(FastBuf buf, int length, byte first, byte last, int hash) {
+    public FastBufDataRange(FastBuf buf, long start, int length, byte first, byte last, int hash) {
         this.buf    = buf;
         this.hash   = hash;
+        this.start  = start;
         this.first  = first;
         this.last   = last;
         this.length = length;
@@ -81,17 +77,6 @@ public class FastBufDataRange implements DataRange<Long, FastBuf> {
         dr.length = bytes.length;
         dr.hash = (int)hashCode;
         return dr;
-    }
-
-    @Override
-    public boolean urlEncoded() {
-        return urlEncoded;
-    }
-
-    @Override
-    public DataRange<Long, FastBuf> urlEncoded(boolean urlEncoded) {
-        this.urlEncoded = urlEncoded;
-        return this;
     }
 
     @Override
@@ -207,9 +192,9 @@ public class FastBufDataRange implements DataRange<Long, FastBuf> {
             return false;
         }
         if (length > 2) {
+            FastBuf o = dataRange.buf;
+            long pos = dataRange.start;
             for (int i=1;i<=length-2;i++) {
-                FastBuf o = dataRange.buf;
-                long pos = dataRange.start;
                 if (buf.get(start+i) != o.get(pos+i)) {
                     return false;
                 }

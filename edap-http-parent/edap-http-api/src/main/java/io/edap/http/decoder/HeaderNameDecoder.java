@@ -1,10 +1,10 @@
 package io.edap.http.decoder;
 
 import io.edap.buffer.FastBuf;
-import io.edap.codec.FastBufDataRange;
 import io.edap.http.HeaderName;
 import io.edap.http.HttpRequest;
 import io.edap.http.cache.HeaderNameCache;
+import io.edap.http.codec.HttpFastBufDataRange;
 
 import static io.edap.http.AbstractHttpDecoder.FINISH_HEADERNAME;
 import static io.edap.util.Constants.FNV_1a_FACTOR_VAL;
@@ -19,7 +19,7 @@ public class HeaderNameDecoder implements TokenDecoder<HeaderName> {
     static HeaderNameCache CACHE = HeaderNameCache.instance();
 
     @Override
-    public HeaderName decode(FastBuf buf, FastBufDataRange dataRange, HttpRequest request) {
+    public HeaderName decode(FastBuf buf, HttpFastBufDataRange dataRange, HttpRequest request) {
         FastBuf _buf = buf;
         int remain = _buf.remain();
         if (remain <= 0) {

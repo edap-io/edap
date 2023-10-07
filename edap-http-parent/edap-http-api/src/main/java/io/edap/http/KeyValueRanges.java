@@ -23,8 +23,7 @@
  */
 package io.edap.http;
 
-import io.edap.codec.DataRange;
-import io.edap.codec.FastBufDataRange;
+import io.edap.http.codec.HttpFastBufDataRange;
 
 /**
  *
@@ -32,19 +31,19 @@ import io.edap.codec.FastBufDataRange;
  */
 public class KeyValueRanges {
     
-    public final FastBufDataRange[] keys;
-    public final FastBufDataRange[] values;
+    public final HttpFastBufDataRange[] keys;
+    public final HttpFastBufDataRange[] values;
     public int length = 0;
     
     public KeyValueRanges(int capacity) {
         if (capacity < 1) {
             capacity = 1;
         }
-        keys   = new FastBufDataRange[capacity];
-        values = new FastBufDataRange[capacity];
+        keys   = new HttpFastBufDataRange[capacity];
+        values = new HttpFastBufDataRange[capacity];
         for (int i=0;i<capacity;i++) {
-            keys[i]   = new FastBufDataRange();
-            values[i] = new FastBufDataRange();
+            keys[i]   = new HttpFastBufDataRange();
+            values[i] = new HttpFastBufDataRange();
         }
     }
     

@@ -20,6 +20,7 @@ import io.edap.buffer.FastBuf;
 import io.edap.codec.FastBufDataRange;
 import io.edap.http.HeaderValue;
 import io.edap.http.HttpRequest;
+import io.edap.http.codec.HttpFastBufDataRange;
 import io.edap.http.headervalue.ContentTypeValue;
 
 /**
@@ -29,7 +30,7 @@ import io.edap.http.headervalue.ContentTypeValue;
 public class ContentTypeValueDecoder extends HeaderValueCacheDecoder {
 
     @Override
-    public HeaderValue decode(FastBuf buf, FastBufDataRange dataRange, HttpRequest request) {
+    public HeaderValue decode(FastBuf buf, HttpFastBufDataRange dataRange, HttpRequest request) {
 
         HeaderValue hv = super.decode(buf, dataRange, request);
         if (hv != null) {

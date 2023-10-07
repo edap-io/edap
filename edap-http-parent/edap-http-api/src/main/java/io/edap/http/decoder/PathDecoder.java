@@ -1,10 +1,10 @@
 package io.edap.http.decoder;
 
 import io.edap.buffer.FastBuf;
-import io.edap.codec.FastBufDataRange;
 import io.edap.http.HttpRequest;
 import io.edap.http.PathInfo;
 import io.edap.http.cache.PathCache;
+import io.edap.http.codec.HttpFastBufDataRange;
 
 import static io.edap.http.HttpConsts.BYTE_VALUES;
 import static io.edap.util.Constants.FNV_1a_FACTOR_VAL;
@@ -15,7 +15,7 @@ public class PathDecoder implements TokenDecoder<PathInfo> {
     static PathCache CACHE = PathCache.instance();
 
     @Override
-    public PathInfo decode(FastBuf buf, FastBufDataRange dataRange, HttpRequest request) {
+    public PathInfo decode(FastBuf buf, HttpFastBufDataRange dataRange, HttpRequest request) {
         FastBuf _buf = buf;
         int remain = _buf.remain();
         if (remain <= 0) {
@@ -43,7 +43,7 @@ public class PathDecoder implements TokenDecoder<PathInfo> {
                     hashCode ^= ' ';
                     hashCode *= FNV_1a_FACTOR_VAL;
                     len++;
-                    dataRange.urlEncoded(true);
+                    //dataRange.urlEncoded(true);
                     break;
                 case '%':
                     if (i < remain - 2) {
@@ -55,7 +55,7 @@ public class PathDecoder implements TokenDecoder<PathInfo> {
                         hashCode ^= (byte) v;
                         hashCode *= FNV_1a_FACTOR_VAL;
                         len++;
-                        dataRange.urlEncoded(true);
+                        //dataRange.urlEncoded(true);
                         break;
                     } else {
                         return null;

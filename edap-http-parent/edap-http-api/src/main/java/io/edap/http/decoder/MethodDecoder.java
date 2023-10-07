@@ -6,6 +6,7 @@ import io.edap.codec.FastBufDataRange;
 import io.edap.http.HttpRequest;
 import io.edap.http.MethodInfo;
 import io.edap.http.cache.MethodCache;
+import io.edap.http.codec.HttpFastBufDataRange;
 
 import static io.edap.util.Constants.FNV_1a_FACTOR_VAL;
 import static io.edap.util.Constants.FNV_1a_INIT_VAL;
@@ -24,7 +25,7 @@ public class MethodDecoder implements TokenDecoder<MethodInfo> {
     static MethodInfo OPTIONS = METHOD_CACHE.getMethodInfo("OPTIONS");
 
     @Override
-    public MethodInfo decode(FastBuf buf, FastBufDataRange dataRange, HttpRequest request) {
+    public MethodInfo decode(FastBuf buf, HttpFastBufDataRange dataRange, HttpRequest request) {
         FastBuf _buf = buf;
         int remain = _buf.remain();
 

@@ -1,9 +1,9 @@
 package io.edap.http.decoder;
 
 import io.edap.buffer.FastBuf;
-import io.edap.codec.FastBufDataRange;
 import io.edap.http.HeaderValue;
 import io.edap.http.HttpRequest;
+import io.edap.http.codec.HttpFastBufDataRange;
 
 /**
  * HeaderValue的解析器
@@ -12,7 +12,7 @@ public class HeaderValueDecoder implements TokenDecoder<HeaderValue> {
 
 
     @Override
-    public HeaderValue decode(FastBuf buf, FastBufDataRange dataRange, HttpRequest request) {
+    public HeaderValue decode(FastBuf buf, HttpFastBufDataRange dataRange, HttpRequest request) {
         FastBuf _buf = buf;
         int remain = _buf.remain();
         if (remain <= 0) {

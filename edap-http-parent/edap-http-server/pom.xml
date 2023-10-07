@@ -17,4 +17,11 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
 
+    <dependencies>
+        <dependency>
+            <groupId>io.edap</groupId>
+            <artifactId>edap-http-api</artifactId>
+        </dependency>
+    </dependencies>
+
 </project>

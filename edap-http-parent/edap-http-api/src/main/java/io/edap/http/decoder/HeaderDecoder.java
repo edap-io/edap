@@ -19,15 +19,15 @@ package io.edap.http.decoder;
 import io.edap.buffer.FastBuf;
 import io.edap.codec.FastBufDataRange;
 import io.edap.http.HttpRequest;
+import io.edap.http.codec.HttpFastBufDataRange;
 
 /**
- * @author : luysh@yonyou.com
- * @date : 2021/3/8
+ *
  */
 public class HeaderDecoder implements TokenDecoder<byte[]> {
 
     @Override
-    public byte[] decode(FastBuf buf, FastBufDataRange dataRange, HttpRequest request) {
+    public byte[] decode(FastBuf buf, HttpFastBufDataRange dataRange, HttpRequest request) {
         FastBuf _buf = buf;
         int remain = _buf.remain();
         if (remain <= 0) {
