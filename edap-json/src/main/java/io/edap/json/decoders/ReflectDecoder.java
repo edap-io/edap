@@ -32,6 +32,9 @@ import java.util.Map;
 import static io.edap.json.util.JsonUtil.getCodecFieldInfos;
 import static io.edap.json.util.JsonUtil.getJsonFieldName;
 
+/**
+ * 反射方式实现的Json解码器
+ */
 public class ReflectDecoder implements JsonDecoder<Object> {
 
     private final Class valueType;

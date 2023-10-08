@@ -16,6 +16,9 @@
 
 package io.edap.json.consts;
 
+/**
+ * Json使用的常用常数
+ */
 public class JsonConsts {
 
     private JsonConsts() {}
