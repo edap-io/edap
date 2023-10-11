@@ -16,6 +16,9 @@
 
 package io.edap.json.enums;
 
+/**
+ * 注释类型枚举
+ */
 public enum CommentItemType {
     SINGLE_COMMENT, // 单行注释
     EMPTY_ROW,      // 空行

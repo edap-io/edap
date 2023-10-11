@@ -16,7 +16,16 @@
 
 package io.edap.json.enums;
 
+/**
+ * 编码后的数据类型
+ */
 public enum DataType {
+    /**
+     * 字符串
+     */
     STRING,
+    /**
+     * byte数组
+     */
     BYTE_ARRAY
 }
