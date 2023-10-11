@@ -368,6 +368,7 @@ public class ByteArrayJsonWriter extends AbstractJsonWriter implements JsonWrite
             if (c > 31 && c != '"' && c != '\\' && c < 126) {
                 _buf[index++] = (byte) c;
             } else {
+                pos = index;
                 writeString(s, i, slen);
                 return;
             }
