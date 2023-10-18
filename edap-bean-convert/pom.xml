@@ -21,7 +21,8 @@
     <parent>
         <artifactId>edap</artifactId>
         <groupId>io.edap</groupId>
-        <version>0.1.2-SNAPSHOT</version>
+        <version>${edap.version}</version>
+        <relativePath>../pom.xml</relativePath>
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
