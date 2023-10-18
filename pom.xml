@@ -39,6 +39,7 @@
         <HikariCP.version>4.0.3</HikariCP.version>
         <spring.version>5.3.20</spring.version>
         <disruptor.version>4.0.0</disruptor.version>
+        <h2.version>2.2.224</h2.version>
     </properties>
 
     <modules>
@@ -166,7 +167,7 @@
             <dependency>
                 <groupId>com.h2database</groupId>
                 <artifactId>h2</artifactId>
-                <version>2.1.214</version>
+                <version>${h2.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.zaxxer</groupId>
