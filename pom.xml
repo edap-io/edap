@@ -38,7 +38,7 @@
         <jmh.version>1.36</jmh.version>
         <HikariCP.version>4.0.3</HikariCP.version>
         <spring.version>5.3.20</spring.version>
-        <disruptor.version>4.0.0</disruptor.version>
+        <disruptor.version>3.4.4</disruptor.version>
         <h2.version>2.2.224</h2.version>
     </properties>
 
