@@ -7,7 +7,7 @@
     <groupId>io.edap</groupId>
     <artifactId>edap</artifactId>
     <packaging>pom</packaging>
-    <version>0.1-RELEASE</version>
+    <version>0.1.2-RELEASE</version>
 
     <developers>
         <developer>
@@ -92,11 +92,6 @@
                 <artifactId>protobuf-java</artifactId>
                 <version>${protobuf.java.verson}</version>
                 <scope>test</scope>
-            </dependency>
-            <dependency>
-                <groupId>com.alibaba</groupId>
-                <artifactId>fastjson</artifactId>
-                <version>${fastjson.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.github.stefanbirkner</groupId>

@@ -21,7 +21,7 @@
     <parent>
         <artifactId>edap</artifactId>
         <groupId>io.edap</groupId>
-        <version>0.1-RELEASE</version>
+        <version>0.1.2-RELEASE</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
@@ -41,6 +41,7 @@
         <dependency>
             <groupId>com.github.stefanbirkner</groupId>
             <artifactId>system-lambda</artifactId>
+            <scope>test</scope>
         </dependency>
     </dependencies>
 </project>
