@@ -54,8 +54,9 @@ public class ConvertorRegister {
     }
 
     public static String getConvertorName(Class orignalCls, Class destCls) {
-        return "ebc." + orignalCls.getPackage().getName() + ".Convertor" + CryptUtil.md5(orignalCls.getName() + "_" + destCls.getName());
-        //return toLangName("ebc/io/edap/x/beanconvert/test/CarToCarDtoConvertor");
+        return "ebc." + orignalCls.getPackage().getName() + ".Convertor" +
+                CryptUtil.md5(orignalCls.getName() + "@" + System.identityHashCode(orignalCls) + "_" +
+                        destCls.getName() + "@" + System.identityHashCode(destCls));
     }
 
     /**
