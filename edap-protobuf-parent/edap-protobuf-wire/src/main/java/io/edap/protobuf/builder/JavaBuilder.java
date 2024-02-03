@@ -696,7 +696,9 @@ public class JavaBuilder {
         if (!buildOps.isIsNested() && javaPackage != null && !javaPackage.isEmpty()) {
             cb.e(PACKNAME_STR).arg(buildOps.getJavaPackage()).ln(2);
         }
+        cb.c("import ").c(io.edap.protobuf.annotation.ProtoEnum.class.getName()).c(";").ln(2);
 
+        cb.t(level-1).c("@").c(io.edap.protobuf.annotation.ProtoEnum.class.getSimpleName()).ln(1);
         cb.t(level-1).e("public enum $name$ {").arg(protoEnum.getName()).ln();
         List<EnumEntry> entries = protoEnum.getEntries();
         if (entries != null && !entries.isEmpty()) {
