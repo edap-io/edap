@@ -23,6 +23,8 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 
 public class DemoFullSetFuncJdbc implements JdbcFieldSetFunc<Demo> {
+
+    private static String COLUMN_NAMES = "id,create_time,local_datetime";
     @Override
     public void set(Demo demo, ResultSet rs) throws SQLException {
         demo.setId(rs.getInt("id"));

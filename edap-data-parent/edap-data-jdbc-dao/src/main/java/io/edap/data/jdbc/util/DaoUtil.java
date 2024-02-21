@@ -404,7 +404,7 @@ public class DaoUtil {
         return "edao." + view.getName() + "JdbcViewDao";
     }
 
-    public static String getFieldSetFuncName(Class entity, List<String> columns) {
+    public static String getFieldSetFuncName(Class entity, List<String> columns, String columnStr) {
         StringBuilder sb = new StringBuilder("::");
         if (!CollectionUtils.isEmpty(columns)) {
             for (int i=0;i<columns.size();i++) {
@@ -414,6 +414,7 @@ public class DaoUtil {
                 sb.append(columns.get(i));
             }
         }
+        sb.append("->").append(columnStr);
         return "edao.setfunc.Func_" + md5(entity.getName() + sb);
     }
 

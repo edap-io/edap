@@ -22,14 +22,14 @@ import io.edap.data.jdbc.util.Convertor;
 import io.edap.util.CollectionUtils;
 import io.edap.util.internal.GeneratorClassInfo;
 import org.objectweb.asm.ClassWriter;
+import org.objectweb.asm.FieldVisitor;
 import org.objectweb.asm.MethodVisitor;
 
 import java.lang.reflect.Field;
 import java.util.List;
 
 import static io.edap.data.jdbc.util.Convertor.getConvertMethodName;
-import static io.edap.util.AsmUtil.toInternalName;
-import static io.edap.util.AsmUtil.visitMethod;
+import static io.edap.util.AsmUtil.*;
 import static io.edap.util.ClazzUtil.getDescriptor;
 import static org.objectweb.asm.ClassWriter.COMPUTE_FRAMES;
 import static org.objectweb.asm.ClassWriter.COMPUTE_MAXS;
@@ -45,13 +45,15 @@ public class JdbcFieldSetFuncGenerator {
     private List<String> columns;
     private String funcName;
     private String entityName;
+    private String columnStr;
     private ClassWriter cw;
 
-    public JdbcFieldSetFuncGenerator(Class<?> entity, List<String> columns) {
+    public JdbcFieldSetFuncGenerator(Class<?> entity, List<String> columns, String columnStr) {
         this.entity = entity;
         this.entityName = toInternalName(entity.getName());
         this.columns = columns;
-        this.funcName = toInternalName(DaoUtil.getFieldSetFuncName(entity, columns));
+        this.columnStr = columnStr;
+        this.funcName = toInternalName(DaoUtil.getFieldSetFuncName(entity, columns, columnStr));
     }
 
     public GeneratorClassInfo getClassInfo() {
@@ -64,6 +66,7 @@ public class JdbcFieldSetFuncGenerator {
                 "java/lang/Object", new String[] { FUNC_IFACT_NAME });
         
         visitInitMethod();
+        visitCinitMethod();
         visitSetBridgeMethod();
         visitSetMethod();
 
@@ -71,6 +74,37 @@ public class JdbcFieldSetFuncGenerator {
 
         gci.clazzBytes = cw.toByteArray();
         return gci;
+    }
+
+    private void visitCinitMethod() {
+        FieldVisitor fv;
+        fv = cw.visitField(ACC_PRIVATE | ACC_STATIC, "COLUMN_NAMES", "Ljava/lang/String;", null, null);
+        fv.visitEnd();
+
+        fv = cw.visitField(ACC_PRIVATE | ACC_STATIC, "COLUMN_STR", "Ljava/lang/String;", null, null);
+        fv.visitEnd();
+
+        MethodVisitor mv;
+        mv = cw.visitMethod(ACC_STATIC, "<clinit>", "()V", null, null);
+        mv.visitCode();
+        StringBuilder sb = new StringBuilder();
+        if (!CollectionUtils.isEmpty(columns)) {
+            for (String name : columns) {
+                if (sb.length() > 0) {
+                    sb.append(',');
+                }
+                sb.append(name);
+            }
+        }
+
+        mv.visitLdcInsn(sb.toString());
+        mv.visitFieldInsn(PUTSTATIC, funcName, "COLUMN_NAMES", "Ljava/lang/String;");
+
+        mv.visitLdcInsn(columnStr);
+        mv.visitFieldInsn(PUTSTATIC, funcName, "COLUMN_STR", "Ljava/lang/String;");
+        mv.visitInsn(RETURN);
+        mv.visitMaxs(1, 0);
+        mv.visitEnd();
     }
 
     private void visitSetMethod() {
@@ -88,6 +122,7 @@ public class JdbcFieldSetFuncGenerator {
                 mv.visitVarInsn(ALOAD, 1);
                 mv.visitVarInsn(ALOAD, 2);
                 mv.visitLdcInsn(jdbcInfo.getColumnName());
+                //visitMethodVisitIntVaue(mv, columns.indexOf(jdbcInfo.getColumnName()) + 1);
                 String jdbcMethod = jdbcInfo.getJdbcMethod();
                 if (jdbcMethod.startsWith("set")) {
                     jdbcMethod = "get" + jdbcMethod.substring(3);

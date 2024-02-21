@@ -49,16 +49,20 @@ public class JdbcDaoRegister {
     }
 
     public <T> JdbcFieldSetFunc<T> getFieldSetFunc(Class<T> entity, List<String> columns) {
+        return getFieldSetFunc(entity, columns, "");
+    }
+
+    public <T> JdbcFieldSetFunc<T> getFieldSetFunc(Class<T> entity, List<String> columns, String columnStr) {
         JdbcFieldSetFunc<T> func = null;
         Collections.sort(columns);
         try {
             lock.lock();
-            String name = DaoUtil.getFieldSetFuncName(entity, columns);
+            String name = DaoUtil.getFieldSetFuncName(entity, columns, columnStr);
             Class funcClazz;
             try {
                 funcClazz = daoLoader.loadClass(name);
             } catch (ClassNotFoundException e) {
-                funcClazz = generateFieldSetFuncClass(entity, columns);
+                funcClazz = generateFieldSetFuncClass(entity, columns, columnStr);
             }
             if (funcClazz != null) {
                 try {
@@ -74,7 +78,7 @@ public class JdbcDaoRegister {
         }
     }
 
-    private Class<?> generateFieldSetFuncClass(Class<?> entity, List<String> orignalColumns) {
+    private Class<?> generateFieldSetFuncClass(Class<?> entity, List<String> orignalColumns, String columnStr) {
         List<String> columns = new ArrayList<>();
         if (!CollectionUtils.isEmpty(orignalColumns)) {
 
@@ -82,8 +86,8 @@ public class JdbcDaoRegister {
                 columns.add(c.toLowerCase(Locale.ENGLISH));
             });
         }
-        JdbcFieldSetFuncGenerator generator = new JdbcFieldSetFuncGenerator(entity, columns);
-        String funcName = toLangName(DaoUtil.getFieldSetFuncName(entity, columns));
+        JdbcFieldSetFuncGenerator generator = new JdbcFieldSetFuncGenerator(entity, columns, columnStr);
+        String funcName = toLangName(DaoUtil.getFieldSetFuncName(entity, columns, columnStr));
         Class<?> funcCls = null;
         try {
             funcCls = daoLoader.loadClass(funcName);

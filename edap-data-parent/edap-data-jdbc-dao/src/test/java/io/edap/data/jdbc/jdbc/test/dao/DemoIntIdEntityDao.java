@@ -132,14 +132,14 @@ public class DemoIntIdEntityDao extends JdbcBaseEntityDao implements JdbcEntityD
     }
 
 
-    private JdbcFieldSetFunc<DemoIntId> getSqlFieldSetFunc(ResultSet rs) throws SQLException {
+    private JdbcFieldSetFunc<DemoIntId> getSqlFieldSetFunc(ResultSet rs, String columnStr) throws SQLException {
         ResultSetMetaData metaData = rs.getMetaData();
         int count = metaData.getColumnCount();
         List<String> columns = new ArrayList<>();
         for (int i = 1; i <= count; i++) {
             columns.add(metaData.getColumnName(i));
         }
-        return JdbcDaoRegister.instance().getFieldSetFunc(DemoIntId.class, columns);
+        return JdbcDaoRegister.instance().getFieldSetFunc(DemoIntId.class, columns, columnStr);
     }
 
     @Override
@@ -152,8 +152,8 @@ public class DemoIntIdEntityDao extends JdbcBaseEntityDao implements JdbcEntityD
             String fieldSql = getFieldsSql(sql);
             JdbcFieldSetFunc<DemoIntId> func = FIELD_SET_FUNCS.get(fieldSql);
             if (func == null) {
-                func = getSqlFieldSetFunc(rs);
-                FIELD_SET_FUNCS.putIfAbsent(fieldSql, getSqlFieldSetFunc(rs));
+                func = getSqlFieldSetFunc(rs, fieldSql);
+                FIELD_SET_FUNCS.putIfAbsent(fieldSql, func);
             }
             List<DemoIntId> demos = new ArrayList<>();
             while (rs.next()) {
@@ -178,8 +178,8 @@ public class DemoIntIdEntityDao extends JdbcBaseEntityDao implements JdbcEntityD
             String fieldSql = getFieldsSql(sql);
             JdbcFieldSetFunc<DemoIntId> func = FIELD_SET_FUNCS.get(fieldSql);
             if (func == null) {
-                func = getSqlFieldSetFunc(rs);
-                FIELD_SET_FUNCS.putIfAbsent(fieldSql, getSqlFieldSetFunc(rs));
+                func = getSqlFieldSetFunc(rs, fieldSql);
+                FIELD_SET_FUNCS.putIfAbsent(fieldSql, func);
             }
             List<DemoIntId> demos = new ArrayList<>();
             while (rs.next()) {

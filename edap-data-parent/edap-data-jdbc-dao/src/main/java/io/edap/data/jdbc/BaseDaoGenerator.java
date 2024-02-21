@@ -306,15 +306,17 @@ public class BaseDaoGenerator {
         mv.visitJumpInsn(IFNONNULL, label6);
         mv.visitVarInsn(ALOAD, 0);
         mv.visitVarInsn(ALOAD, 3);
+        mv.visitVarInsn(ALOAD, 4);
         mv.visitMethodInsn(INVOKESPECIAL, daoName, "getSqlFieldSetFunc",
-                "(Ljava/sql/ResultSet;)L" + FIELD_SET_FUNC_NAME + ";", false);
+                "(Ljava/sql/ResultSet;Ljava/lang/String;)L" + FIELD_SET_FUNC_NAME + ";", false);
         mv.visitVarInsn(ASTORE, 5);
         mv.visitFieldInsn(GETSTATIC, daoName, "FIELD_SET_FUNCS", "Ljava/util/Map;");
         mv.visitVarInsn(ALOAD, 4);
         mv.visitVarInsn(ALOAD, 0);
         mv.visitVarInsn(ALOAD, 3);
+        mv.visitVarInsn(ALOAD, 4);
         mv.visitMethodInsn(INVOKESPECIAL, daoName, "getSqlFieldSetFunc",
-                "(Ljava/sql/ResultSet;)L" + FIELD_SET_FUNC_NAME + ";", false);
+                "(Ljava/sql/ResultSet;Ljava/lang/String;)L" + FIELD_SET_FUNC_NAME + ";", false);
         mv.visitMethodInsn(INVOKEINTERFACE, "java/util/Map", "putIfAbsent",
                 "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;", true);
         mv.visitInsn(POP);
@@ -419,15 +421,17 @@ public class BaseDaoGenerator {
         mv.visitJumpInsn(IFNONNULL, l6);
         mv.visitVarInsn(ALOAD, 0);
         mv.visitVarInsn(ALOAD, 3);
+        mv.visitVarInsn(ALOAD, 4);
         mv.visitMethodInsn(INVOKESPECIAL, daoName, "getSqlFieldSetFunc",
-                "(Ljava/sql/ResultSet;)L" + FIELD_SET_FUNC_NAME + ";", false);
+                "(Ljava/sql/ResultSet;Ljava/lang/String;)L" + FIELD_SET_FUNC_NAME + ";", false);
         mv.visitVarInsn(ASTORE, 5);
         mv.visitFieldInsn(GETSTATIC, daoName, "FIELD_SET_FUNCS", "Ljava/util/Map;");
         mv.visitVarInsn(ALOAD, 4);
         mv.visitVarInsn(ALOAD, 0);
         mv.visitVarInsn(ALOAD, 3);
+        mv.visitVarInsn(ALOAD, 4);
         mv.visitMethodInsn(INVOKESPECIAL, daoName, "getSqlFieldSetFunc",
-                "(Ljava/sql/ResultSet;)L" + FIELD_SET_FUNC_NAME + ";", false);
+                "(Ljava/sql/ResultSet;Ljava/lang/String;)L" + FIELD_SET_FUNC_NAME + ";", false);
         mv.visitMethodInsn(INVOKEINTERFACE, "java/util/Map", "put",
                 "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;", true);
         mv.visitInsn(POP);
@@ -483,45 +487,45 @@ public class BaseDaoGenerator {
     protected void visitGetSqlFieldSetFuncMethod() {
 
         MethodVisitor mv;
-        mv = cw.visitMethod(ACC_PRIVATE, "getSqlFieldSetFunc", "(Ljava/sql/ResultSet;)L" + FIELD_SET_FUNC_NAME + ";",
+        mv = cw.visitMethod(ACC_PRIVATE, "getSqlFieldSetFunc", "(Ljava/sql/ResultSet;Ljava/lang/String;)L" + FIELD_SET_FUNC_NAME + ";",
                 "(Ljava/sql/ResultSet;)L" + FIELD_SET_FUNC_NAME +"<L" + entityName + ";>;",
                 new String[] { "java/sql/SQLException" });
         mv.visitCode();
         mv.visitVarInsn(ALOAD, 1);
         mv.visitMethodInsn(INVOKEINTERFACE, "java/sql/ResultSet", "getMetaData", "()Ljava/sql/ResultSetMetaData;", true);
-        mv.visitVarInsn(ASTORE, 2);
-        mv.visitVarInsn(ALOAD, 2);
+        mv.visitVarInsn(ASTORE, 3);
+        mv.visitVarInsn(ALOAD, 3);
         mv.visitMethodInsn(INVOKEINTERFACE, "java/sql/ResultSetMetaData", "getColumnCount", "()I", true);
-        mv.visitVarInsn(ISTORE, 3);
+        mv.visitVarInsn(ISTORE, 4);
         mv.visitTypeInsn(NEW, "java/util/ArrayList");
         mv.visitInsn(DUP);
         mv.visitMethodInsn(INVOKESPECIAL, "java/util/ArrayList", "<init>", "()V", false);
-        mv.visitVarInsn(ASTORE, 4);
+        mv.visitVarInsn(ASTORE, 5);
         mv.visitInsn(ICONST_1);
-        mv.visitVarInsn(ISTORE, 5);
+        mv.visitVarInsn(ISTORE, 6);
         Label l0 = new Label();
         mv.visitLabel(l0);
-        mv.visitFrame(Opcodes.F_FULL, 6, new Object[] {daoName, "java/sql/ResultSet", "java/sql/ResultSetMetaData",
-                Opcodes.INTEGER, "java/util/List", Opcodes.INTEGER}, 0, new Object[] {});
-        mv.visitVarInsn(ILOAD, 5);
-        mv.visitVarInsn(ILOAD, 3);
+
+        mv.visitVarInsn(ILOAD, 6);
+        mv.visitVarInsn(ILOAD, 4);
         Label l1 = new Label();
         mv.visitJumpInsn(IF_ICMPGT, l1);
-        mv.visitVarInsn(ALOAD, 4);
-        mv.visitVarInsn(ALOAD, 2);
-        mv.visitVarInsn(ILOAD, 5);
+        mv.visitVarInsn(ALOAD, 5);
+        mv.visitVarInsn(ALOAD, 3);
+        mv.visitVarInsn(ILOAD, 6);
         mv.visitMethodInsn(INVOKEINTERFACE, "java/sql/ResultSetMetaData", "getColumnName", "(I)Ljava/lang/String;", true);
         mv.visitMethodInsn(INVOKEINTERFACE, "java/util/List", "add", "(Ljava/lang/Object;)Z", true);
         mv.visitInsn(POP);
-        mv.visitIincInsn(5, 1);
+        mv.visitIincInsn(6, 1);
         mv.visitJumpInsn(GOTO, l0);
         mv.visitLabel(l1);
-        mv.visitFrame(Opcodes.F_CHOP,1, null, 0, null);
+
         mv.visitMethodInsn(INVOKESTATIC, REGISTER_NAME, "instance", "()L" + REGISTER_NAME + ";", false);
         mv.visitLdcInsn(Type.getType("L" + entityName + ";"));
-        mv.visitVarInsn(ALOAD, 4);
+        mv.visitVarInsn(ALOAD, 5);
+        mv.visitVarInsn(ALOAD, 2);
         mv.visitMethodInsn(INVOKEVIRTUAL, REGISTER_NAME, "getFieldSetFunc",
-                "(Ljava/lang/Class;Ljava/util/List;)L" + FIELD_SET_FUNC_NAME + ";", false);
+                "(Ljava/lang/Class;Ljava/util/List;Ljava/lang/String;)L" + FIELD_SET_FUNC_NAME + ";", false);
         mv.visitInsn(ARETURN);
         mv.visitMaxs(3, 6);
         mv.visitEnd();
