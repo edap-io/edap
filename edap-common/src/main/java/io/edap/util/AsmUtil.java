@@ -65,21 +65,7 @@ public class AsmUtil {
     }
 
     public static void visitIntInsn(int value, MethodVisitor mv) {
-        if (value == 0) {
-            mv.visitInsn(ICONST_0);
-        }else if (value == 1) {
-            mv.visitInsn(ICONST_1);
-        } else if (value == 2) {
-            mv.visitInsn(ICONST_2);
-        } else if (value == 3) {
-            mv.visitInsn(ICONST_3);
-        } else if (value == 4) {
-            mv.visitInsn(ICONST_4);
-        } else if (value == 5) {
-            mv.visitInsn(ICONST_5);
-        } else if (value < Byte.MAX_VALUE) {
-            mv.visitIntInsn(BIPUSH, value);
-        }
+        visitMethodVisitIntVaue(mv, value);
     }
 
     public static boolean isPojo(Type type) {
