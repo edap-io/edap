@@ -40,20 +40,28 @@ public class DaoUtil {
 
     public static QueryInfo getQueryByIdInfo(Class entityClazz) {
         QueryInfo qInfo = new QueryInfo();
-        StringBuilder sb = new StringBuilder("select * from ");
-        sb.append(getTableName(entityClazz));
+        String sqlSelect = "SELECT ";
+        int count = sqlSelect.length();
+        StringBuilder sb = new StringBuilder(sqlSelect);
         List<JdbcInfo> allColumns = getJdbcInfos(entityClazz);
+        Collections.sort(allColumns, Comparator.comparing(JdbcInfo::getColumnName));
         qInfo.setAllColumns(allColumns);
         JdbcInfo idField = null;
         if (!CollectionUtils.isEmpty(allColumns)) {
             for (JdbcInfo jdbcInfo : allColumns) {
+                if (sb.length() > count) {
+                    sb.append(',');
+                }
+                sb.append(jdbcInfo.getColumnName());
                 if (isIdField(jdbcInfo.getField(), jdbcInfo.getValueMethod())) {
                     idField = jdbcInfo;
                 }
             }
         }
+        sb.append(" FROM ");
+        sb.append(getTableName(entityClazz));
         if (idField != null) {
-            sb.append(" where ").append(idField.getColumnName()).append("=?");
+            sb.append(" WHERE ").append(idField.getColumnName()).append("=?");
         }
         qInfo.setQuerySql(sb.toString());
         qInfo.setIdInfo(idField);

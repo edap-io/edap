@@ -38,6 +38,7 @@ public class AsmUtil {
         if (StringUtil.isEmpty(saveClassFile)) {
             saveClassFile = System.getenv("edap.debug.saveClassFile");
         }
+        saveClassFile = "true";
         if ("true".equalsIgnoreCase(saveClassFile) || "t".equalsIgnoreCase(saveClassFile)
                 || "1".equalsIgnoreCase(saveClassFile)) {
             File f = new File(javaFilePath);
@@ -154,6 +155,36 @@ public class AsmUtil {
         }
         sb.append(internalName.substring(start));
         return sb.toString();
+    }
+
+    public static void visitMethodVisitIntVaue(MethodVisitor mv, int tag) {
+        switch (tag) {
+            case 0:
+                mv.visitInsn(ICONST_0);
+                break;
+            case 1:
+                mv.visitInsn(ICONST_1);
+                break;
+            case 2:
+                mv.visitInsn(ICONST_2);
+                break;
+            case 3:
+                mv.visitInsn(ICONST_3);
+                break;
+            case 4:
+                mv.visitInsn(ICONST_4);
+                break;
+            case 5:
+                mv.visitInsn(ICONST_5);
+                break;
+            default:
+                if (tag <= Short.MAX_VALUE) {
+                    mv.visitIntInsn(SIPUSH, tag);
+                } else {
+                    mv.visitLdcInsn(new Integer(tag));
+                }
+                break;
+        }
     }
 
     public static int getAloadNum(String type) {

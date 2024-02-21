@@ -29,8 +29,7 @@ import org.objectweb.asm.*;
 import java.lang.reflect.Field;
 import java.util.Locale;
 
-import static io.edap.util.AsmUtil.toInternalName;
-import static io.edap.util.AsmUtil.visitMethod;
+import static io.edap.util.AsmUtil.*;
 import static io.edap.util.ClazzUtil.getDescriptor;
 import static org.objectweb.asm.Opcodes.*;
 import static org.objectweb.asm.Opcodes.ARETURN;
@@ -649,13 +648,14 @@ public class BaseDaoGenerator {
         mv.visitMethodInsn(INVOKESPECIAL, entityName, "<init>", "()V", false);
         mv.visitVarInsn(ASTORE, 5);
 
-        for (JdbcInfo jdbcInfo : queryInfo.getAllColumns()) {
+        for (int i=0;i<queryInfo.getAllColumns().size();i++) {
+            JdbcInfo jdbcInfo = queryInfo.getAllColumns().get(i);
             mv.visitVarInsn(ALOAD, 5);
             mv.visitVarInsn(ALOAD, 4);
-            mv.visitLdcInsn(jdbcInfo.getColumnName());
+            visitMethodVisitIntVaue(mv, i+1);
             String getMethod = "get" + jdbcInfo.getJdbcMethod().substring(3);
             mv.visitMethodInsn(INVOKEINTERFACE, "java/sql/ResultSet", getMethod,
-                    "(Ljava/lang/String;)" + jdbcInfo.getJdbcType(), true);
+                    "(I)" + jdbcInfo.getJdbcType(), true);
             String fieldName = jdbcInfo.getField().getName();
             String setMethod = "set" + fieldName.substring(0,1).toUpperCase(Locale.ENGLISH)
                     + fieldName.substring(1);
