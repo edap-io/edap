@@ -93,7 +93,7 @@ public class DaoUtilTest {
         columns.add("age");
         columns.add("create_time");
         columns.add("local_date_time");
-        JdbcDaoRegister.instance().getFieldSetFunc(Demo.class, columns);
+        JdbcDaoRegister.instance().getFieldSetFunc(Demo.class, columns, "select id,age,create_time,local_date_time");
     }
 
     @Test

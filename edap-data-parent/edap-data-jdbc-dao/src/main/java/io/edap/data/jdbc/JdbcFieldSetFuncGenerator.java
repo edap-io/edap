@@ -121,14 +121,14 @@ public class JdbcFieldSetFuncGenerator {
                 }
                 mv.visitVarInsn(ALOAD, 1);
                 mv.visitVarInsn(ALOAD, 2);
-                mv.visitLdcInsn(jdbcInfo.getColumnName());
-                //visitMethodVisitIntVaue(mv, columns.indexOf(jdbcInfo.getColumnName()) + 1);
+                // mv.visitLdcInsn(jdbcInfo.getColumnName());
+                visitMethodVisitIntVaue(mv, columns.indexOf(jdbcInfo.getColumnName()) + 1);
                 String jdbcMethod = jdbcInfo.getJdbcMethod();
                 if (jdbcMethod.startsWith("set")) {
                     jdbcMethod = "get" + jdbcMethod.substring(3);
                 }
                 mv.visitMethodInsn(INVOKEINTERFACE, "java/sql/ResultSet", jdbcMethod,
-                        "(Ljava/lang/String;)" + jdbcInfo.getJdbcType(), true);
+                        "(I)" + jdbcInfo.getJdbcType(), true);
                 String valueMethod = jdbcInfo.getValueMethod().getName();
                 if (valueMethod.startsWith("is")) {
                     valueMethod = "set" + valueMethod.substring(2);

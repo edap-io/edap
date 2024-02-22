@@ -54,7 +54,6 @@ public class JdbcDaoRegister {
 
     public <T> JdbcFieldSetFunc<T> getFieldSetFunc(Class<T> entity, List<String> columns, String columnStr) {
         JdbcFieldSetFunc<T> func = null;
-        Collections.sort(columns);
         try {
             lock.lock();
             String name = DaoUtil.getFieldSetFuncName(entity, columns, columnStr);
