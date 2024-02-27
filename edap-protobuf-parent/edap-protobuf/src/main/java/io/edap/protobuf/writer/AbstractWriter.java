@@ -428,7 +428,7 @@ public abstract class AbstractWriter implements ProtoBufWriter {
 
     @Override
     public final void writeEnum(final byte[] fieldData, Integer value) {
-        if (value == null || value.intValue() == 0) {
+        if (value == null) {
             return;
         }
         writeUInt32(fieldData, value.intValue());
