@@ -20,12 +20,19 @@ import io.edap.json.Eson;
 import io.edap.json.JsonObject;
 import io.edap.protobuf.ProtoBuf;
 import io.edap.protobuf.test.message.v3.*;
+import io.edap.protobuf.util.ProtoUtil;
 import org.junit.jupiter.api.Test;
 
+import java.io.IOException;
 import java.io.UnsupportedEncodingException;
+import java.lang.reflect.Field;
+import java.lang.reflect.Type;
 import java.util.*;
 
 import static io.edap.protobuf.test.TestUtil.conver2HexStr;
+import static java.lang.Double.doubleToLongBits;
+import static java.lang.Float.floatToIntBits;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class TestSkipField {
 
@@ -51,18 +58,21 @@ public class TestSkipField {
                 "\"field15\":5671506337319861524L," +
                 "\"field16\":\"abcdefgwxyz\"," +
                 "\"field17\":131," +
-                "\"field18\":5671506337319861525L" +
+                "\"field18\":5671506337319861525L," +
+                "\"field19\":\"\"" +
                 "}";
     }
 
     @Test
-    public void testSkipBoolean() throws UnsupportedEncodingException {
-        byte[] epb = ProtoBuf.toByteArray(buildAllType());
+    public void testSkipBoolean() throws IOException, IllegalAccessException {
+        AllType allType = buildAllType();
+        byte[] epb = ProtoBuf.toByteArray(allType);
         System.out.println("+-epb[" + epb.length + "]---------------------");
         System.out.println(conver2HexStr(epb));
         System.out.println("+--------------------+");
 
         SkipBoolean skipBoolean = ProtoBuf.toObject(epb, SkipBoolean.class);
+        assertTrue(isEquals(allType, skipBoolean));
         System.out.println(skipBoolean);
     }
 
@@ -108,7 +118,240 @@ public class TestSkipField {
         allType.field16 = jvalue.getString("field16");
         allType.field17 = jvalue.getIntValue("field17");
         allType.field18 = jvalue.getLongValue("field18");
+        allType.field19 = jvalue.getString("field19");
 
         return allType;
+    }
+
+    private boolean isEquals(Object allType, Object skipObj) throws IOException, IllegalAccessException {
+        List<ProtoBuf.ProtoFieldInfo> srdFields = ProtoUtil.getProtoFields(allType.getClass());
+        List<ProtoBuf.ProtoFieldInfo> descFields = ProtoUtil.getProtoFields(skipObj.getClass());
+        Map<String, Field> fields = new HashMap<>();
+        for (ProtoBuf.ProtoFieldInfo sf : srdFields) {
+            fields.put(sf.field.getName(), sf.field);
+        }
+        for (ProtoBuf.ProtoFieldInfo df : descFields) {
+            Field descField = df.field;
+            descField.setAccessible(true);
+            Field srcField = fields.get(descField.getName());
+            srcField.setAccessible(true);
+            Type type = srcField.getGenericType();
+            if (type instanceof Class) {
+                switch (((Class)type).getName()) {
+                    case "boolean":
+                        if ((boolean)descField.get(skipObj) != (boolean)srcField.get(allType)) {
+                            return false;
+                        }
+                        break;
+                    case "java.lang.Boolean":
+                        if (!isEquals((Boolean)descField.get(skipObj), (Boolean) srcField.get(allType))) {
+                            return false;
+                        }
+                        break;
+                    case "int":
+                        if ((int)descField.get(skipObj) != (int)srcField.get(allType)) {
+                            return false;
+                        }
+                        break;
+                    case "java.lang.Integer":
+                        if (!isEquals((Integer)descField.get(skipObj), (Integer) srcField.get(allType))) {
+                            return false;
+                        }
+                        break;
+                    case "long":
+                        if ((long)descField.get(skipObj) != (long)srcField.get(allType)) {
+                            return false;
+                        }
+                        break;
+                    case "java.lang.Long":
+                        if (!isEquals((Long)descField.get(skipObj), (Long) srcField.get(allType))) {
+                            return false;
+                        }
+                        break;
+                    case "float":
+                        if (floatToIntBits((float)descField.get(skipObj)) != floatToIntBits((float)srcField.get(allType))) {
+                            return false;
+                        }
+                        break;
+                    case "java.lang.Float":
+                        if (!isEquals((Float)descField.get(skipObj), (Float) srcField.get(allType))) {
+                            return false;
+                        }
+                        break;
+                    case "double":
+                        if (doubleToLongBits((double)descField.get(skipObj)) != doubleToLongBits((double)srcField.get(allType))) {
+                            return false;
+                        }
+                        break;
+                    case "java.lang.Double":
+                        if (!isEquals((Double)descField.get(skipObj), (Double) srcField.get(allType))) {
+                            return false;
+                        }
+                        break;
+                    case "short":
+                        if (doubleToLongBits((short)descField.get(skipObj)) != doubleToLongBits((short)srcField.get(allType))) {
+                            return false;
+                        }
+                        break;
+                    case "java.lang.Short":
+                        if (!isEquals((Short)descField.get(skipObj), (Short) srcField.get(allType))) {
+                            return false;
+                        }
+                        break;
+                    case "char":
+                        if ((char)descField.get(skipObj) != (char)srcField.get(allType)) {
+                            return false;
+                        }
+                        break;
+                    case "java.lang.Character":
+                        if (!isEquals((Character)descField.get(skipObj), (Character) srcField.get(allType))) {
+                            return false;
+                        }
+                        break;
+                    case "byte":
+                        if ((byte)descField.get(skipObj) != (byte)srcField.get(allType)) {
+                            return false;
+                        }
+                        break;
+                    case "java.lang.Byte":
+                        if (!isEquals((Byte)descField.get(skipObj), (Byte) srcField.get(allType))) {
+                            return false;
+                        }
+                        break;
+                    case "java.lang.String":
+                        if (!isEquals((String)descField.get(skipObj), (String) srcField.get(allType))) {
+                            return false;
+                        }
+                        break;
+                    case "[B":
+                        if (!isEquals((byte[])descField.get(skipObj), (byte[]) srcField.get(allType))) {
+                            return false;
+                        }
+                        break;
+                    default:
+                        if (((Class)type).isEnum()) {
+                            if (!descField.get(skipObj).getClass().getName().equals(srcField.get(allType).getClass().getName())) {
+                                return false;
+                            } else {
+                                if (descField.get(skipObj) != srcField.get(allType)) {
+                                    return false;
+                                }
+                            }
+                        } else if (descField.get(skipObj) instanceof Map) {
+                            Object srcMap = srcField.get(allType);
+                            Object destMap = descField.get(skipObj);
+                            if (!srcMap.getClass().getName().equals(destMap.getClass().getName())) {
+                                return false;
+                            } else {
+                                Map src = (Map)srcMap;
+                                Map dest = (Map)destMap;
+                                if (!isEquals(src, dest)) {
+                                    return false;
+                                }
+                            }
+                        } else {
+                            if (!isEquals(descField.get(skipObj), srcField.get(allType))) {
+                                return false;
+                            }
+                        }
+                }
+            }
+            System.out.println(descField.getName() + " skipObj's value=" + descField.get(skipObj) +
+                    "    allType's value=" + srcField.get(allType));
+        }
+        return true;
+    }
+
+    private boolean isEquals(Map v1, Map v2) throws IOException, IllegalAccessException {
+        if (v1.size() != v2.size()) {
+            return false;
+        }
+        for (Object key : v1.keySet()) {
+            if (!v1.containsKey(key)) {
+                return false;
+            }
+            if (!isEquals(v1.get(key), v2.get(key))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private boolean isEquals(byte[] v1, byte[] v2) {
+        if (v1 == null) {
+            return v2 == null;
+        }
+        if (v1.length != v2.length) {
+            return false;
+        }
+        for (int i=0;i<v1.length;i++) {
+            if (v1[i] != v2[i]) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private boolean isEquals(String v1, String v2) {
+        if (v1 == null) {
+            return v2 == null;
+        }
+        return v1.equals(v2);
+    }
+
+    private boolean isEquals(Byte v1, Byte v2) {
+        if (v1 == null) {
+            return v2 == null;
+        }
+        return v1.equals(v2);
+    }
+
+    private boolean isEquals(Character v1, Character v2) {
+        if (v1 == null) {
+            return v2 == null;
+        }
+        return v1.equals(v2);
+    }
+
+    private boolean isEquals(Short v1, Short v2) {
+        if (v1 == null) {
+            return v2 == null;
+        }
+        return v1.equals(v2);
+    }
+
+    private boolean isEquals(Double v1, Double v2) {
+        if (v1 == null) {
+            return v2 == null;
+        }
+        return v1.equals(v2);
+    }
+
+    private boolean isEquals(Float v1, Float v2) {
+        if (v1 == null) {
+            return v2 == null;
+        }
+        return v1.equals(v2);
+    }
+
+    private boolean isEquals(Long v1, Long v2) {
+        if (v1 == null) {
+            return v2 == null;
+        }
+        return v1.equals(v2);
+    }
+
+    private boolean isEquals(Integer v1, Integer v2) {
+        if (v1 == null) {
+            return v2 == null;
+        }
+        return v1.equals(v2);
+    }
+
+    private boolean isEquals(Boolean v1, Boolean v2) {
+        if (v1 == null) {
+            return v2 == null;
+        }
+        return v1.equals(v2);
     }
 }
