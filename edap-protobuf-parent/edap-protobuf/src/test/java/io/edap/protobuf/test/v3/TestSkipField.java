@@ -73,6 +73,60 @@ public class TestSkipField {
 
         SkipBoolean skipBoolean = ProtoBuf.toObject(epb, SkipBoolean.class);
         assertTrue(isEquals(allType, skipBoolean));
+
+        SkipByteArray skipByteArray = ProtoBuf.toObject(epb, SkipByteArray.class);
+        assertTrue(isEquals(allType, skipByteArray));
+
+        SkipDouble skipDouble = ProtoBuf.toObject(epb, SkipDouble.class);
+        assertTrue(isEquals(allType, skipDouble));
+
+        SkipEnum skipEnum = ProtoBuf.toObject(epb, SkipEnum.class);
+        assertTrue(isEquals(allType, skipEnum));
+
+        SkipFixed32 skipFixed32 = ProtoBuf.toObject(epb, SkipFixed32.class);
+        assertTrue(isEquals(allType, skipFixed32));
+
+        SkipSfixed64 skipFixed64 = ProtoBuf.toObject(epb, SkipSfixed64.class);
+        assertTrue(isEquals(allType, skipFixed64));
+
+        SkipFloat skipFloat = ProtoBuf.toObject(epb, SkipFloat.class);
+        assertTrue(isEquals(allType, skipFloat));
+
+        SkipInt32 skipInt32 = ProtoBuf.toObject(epb, SkipInt32.class);
+        assertTrue(isEquals(allType, skipInt32));
+
+        SkipInt64 skipInt64 = ProtoBuf.toObject(epb, SkipInt64.class);
+        assertTrue(isEquals(allType, skipInt64));
+
+        SkipMap skipMap = ProtoBuf.toObject(epb, SkipMap.class);
+        assertTrue(isEquals(allType, skipMap));
+
+        SkipMessage skipMessage = ProtoBuf.toObject(epb, SkipMessage.class);
+        assertTrue(isEquals(allType, skipMessage));
+
+        SkipSfixed32 skipSfixed32 = ProtoBuf.toObject(epb, SkipSfixed32.class);
+        assertTrue(isEquals(allType, skipSfixed32));
+
+        SkipSfixed64 skipSfixed64 = ProtoBuf.toObject(epb, SkipSfixed64.class);
+        assertTrue(isEquals(allType, skipSfixed64));
+
+        SkipSint32 skipSint32 = ProtoBuf.toObject(epb, SkipSint32.class);
+        assertTrue(isEquals(allType, skipSint32));
+
+        SkipSint64 skipSint64 = ProtoBuf.toObject(epb, SkipSint64.class);
+        assertTrue(isEquals(allType, skipSint64));
+
+        SkipString skipString = ProtoBuf.toObject(epb, SkipString.class);
+        assertTrue(isEquals(allType, skipString));
+
+        SkipUint32 skipUint32 = ProtoBuf.toObject(epb, SkipUint32.class);
+        assertTrue(isEquals(allType, skipUint32));
+
+        SkipUint64 skipUint64 = ProtoBuf.toObject(epb, SkipUint64.class);
+        assertTrue(isEquals(allType, skipUint64));
+
+
+
         System.out.println(skipBoolean);
     }
 
