@@ -21,7 +21,7 @@ import com.google.protobuf.InvalidProtocolBufferException;
 import io.edap.json.JsonArray;
 import io.edap.protobuf.EncodeException;
 import io.edap.protobuf.ProtoBuf;
-import io.edap.protobuf.ProtoBufException;
+import io.edap.protobuf.ProtoException;
 import io.edap.protobuf.test.message.v3.ListBytes;
 import io.edap.protobuf.test.message.v3.ListBytesNoAccess;
 import io.edap.protobuf.test.message.v3.ListBytesOuterClass;
@@ -71,7 +71,7 @@ public class TestListBytes {
             "[\"abcdefghijklmn\",\"中文内容\"]",
             "[\"中文内容\",\"abcdefghijklmn\"]"
     })
-    void testDecode(String v) throws InvalidProtocolBufferException, ProtoBufException, UnsupportedEncodingException {
+    void testDecode(String v) throws InvalidProtocolBufferException, ProtoException, UnsupportedEncodingException {
 
         List<byte[]> vs = new ArrayList<>();
         List<ByteString> pvs = new ArrayList<>();
@@ -135,7 +135,7 @@ public class TestListBytes {
             "[\"abcdefghijklmn\",\"中文内容\"]",
             "[\"中文内容\",\"abcdefghijklmn\"]"
     })
-    void testDecodeNoAccess(String v) throws InvalidProtocolBufferException, ProtoBufException, UnsupportedEncodingException, NoSuchFieldException, IllegalAccessException {
+    void testDecodeNoAccess(String v) throws InvalidProtocolBufferException, ProtoException, UnsupportedEncodingException, NoSuchFieldException, IllegalAccessException {
 
         List<byte[]> vs = new ArrayList<>();
         List<ByteString> pvs = new ArrayList<>();

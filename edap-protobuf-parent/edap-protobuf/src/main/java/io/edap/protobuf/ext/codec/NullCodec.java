@@ -16,10 +16,8 @@
 
 package io.edap.protobuf.ext.codec;
 
-import io.edap.protobuf.EncodeException;
-import io.edap.protobuf.ProtoBufException;
-import io.edap.protobuf.ProtoBufReader;
-import io.edap.protobuf.ProtoBufWriter;
+import io.edap.protobuf.*;
+import io.edap.protobuf.ProtoException;
 import io.edap.protobuf.ext.ExtCodec;
 
 import static io.edap.protobuf.ext.AnyCodec.RANGE_NULL;
@@ -29,17 +27,17 @@ import static io.edap.protobuf.ext.AnyCodec.RANGE_NULL;
  */
 public class NullCodec implements ExtCodec<Object> {
     @Override
-    public Object decode(ProtoBufReader reader) throws ProtoBufException {
+    public Object decode(ProtoReader reader) throws ProtoException {
         return null;
     }
 
     @Override
-    public boolean skip(ProtoBufReader reader) throws ProtoBufException {
+    public boolean skip(ProtoReader reader) throws ProtoException {
         return true;
     }
 
     @Override
-    public void encode(ProtoBufWriter writer, Object o) throws EncodeException {
+    public void encode(ProtoWriter writer, Object o) throws EncodeException {
         if (o != null) {
             throw new EncodeException("Object is not null", null);
         }

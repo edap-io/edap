@@ -21,6 +21,7 @@
 
     <modules>
         <module>edap-protobuf-wire</module>
+        <module>edap-protobuf-api</module>
         <module>edap-protobuf</module>
         <module>edap-protobuf-idl</module>
         <module>edap-eproto</module>

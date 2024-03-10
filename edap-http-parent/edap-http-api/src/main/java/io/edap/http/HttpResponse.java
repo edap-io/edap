@@ -26,7 +26,7 @@ import io.edap.json.Eson;
 import io.edap.json.JsonWriter;
 import io.edap.protobuf.EncodeException;
 import io.edap.protobuf.ProtoBufEncoder;
-import io.edap.protobuf.ProtoBufWriter;
+import io.edap.protobuf.ProtoWriter;
 import io.edap.util.ByteData;
 
 import java.io.IOException;
@@ -141,7 +141,7 @@ public class HttpResponse {
                 _buf = buf;
                 _buf.wpos(_buf.address());
                 ProtoBufEncoder codec = INSTANCE.getEncoder(obj.getClass());
-                ProtoBufWriter protoWriter = THREAD_WRITER.get();
+                ProtoWriter protoWriter = THREAD_WRITER.get();
                 protoWriter.reset();
                 BufOut out = protoWriter.getBufOut();
                 out.reset();

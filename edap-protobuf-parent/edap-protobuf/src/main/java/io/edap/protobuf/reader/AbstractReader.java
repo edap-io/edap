@@ -16,14 +16,14 @@
 
 package io.edap.protobuf.reader;
 
-import io.edap.protobuf.ProtoBufException;
 import io.edap.protobuf.ProtoBufReader;
+import io.edap.protobuf.ProtoException;
 
 import java.util.ArrayList;
 import java.util.List;
 
-import static io.edap.protobuf.ProtoBufReader.decodeZigZag32;
-import static io.edap.protobuf.ProtoBufReader.decodeZigZag64;
+import static io.edap.protobuf.ProtoReader.decodeZigZag32;
+import static io.edap.protobuf.ProtoReader.decodeZigZag64;
 import static io.edap.protobuf.wire.WireFormat.*;
 
 public abstract class AbstractReader implements ProtoBufReader {
@@ -43,17 +43,17 @@ public abstract class AbstractReader implements ProtoBufReader {
             ThreadLocal.withInitial(() -> new long[100]);
 
     @Override
-    public boolean readBool() throws ProtoBufException {
+    public boolean readBool() throws ProtoException {
         return readRawVarint64() != 0;
     }
 
     /**
      * 读取packed编码后的Boolean列表
      * @return 返回boolean的列表
-     * @throws ProtoBufException
+     * @throws ProtoException
      */
     @Override
-    public List<Boolean> readPackedBool() throws ProtoBufException {
+    public List<Boolean> readPackedBool() throws ProtoException {
         int size = readRawVarint32();
         List<Boolean> list = new ArrayList<>(size);
         for (int i=0;i<size;i++) {
@@ -63,37 +63,37 @@ public abstract class AbstractReader implements ProtoBufReader {
     }
 
     @Override
-    public float readFloat() throws ProtoBufException {
+    public float readFloat() throws ProtoException {
         return Float.intBitsToFloat(readRawLittleEndian32());
     }
 
     @Override
-    public int readInt32() throws ProtoBufException {
+    public int readInt32() throws ProtoException {
         return readRawVarint32();
     }
 
     @Override
-    public int readUInt32() throws ProtoBufException {
+    public int readUInt32() throws ProtoException {
         return readRawVarint32();
     }
 
     @Override
-    public int readSInt32() throws ProtoBufException {
+    public int readSInt32() throws ProtoException {
         return decodeZigZag32(readRawVarint32());
     }
 
     @Override
-    public int readFixed32() throws ProtoBufException {
+    public int readFixed32() throws ProtoException {
         return readRawLittleEndian32();
     }
 
     @Override
-    public int readSFixed32() throws ProtoBufException {
+    public int readSFixed32() throws ProtoException {
         return readRawLittleEndian32();
     }
 
     @Override
-    public List<Float> readPackedFloat() throws ProtoBufException {
+    public List<Float> readPackedFloat() throws ProtoException {
         List<Float> list = new ArrayList<>();
         int size = readRawVarint32();
         for (int i=0;i<size / FIXED_32_SIZE;i++) {
@@ -103,7 +103,7 @@ public abstract class AbstractReader implements ProtoBufReader {
     }
 
     @Override
-    public Float[] readPackedFloatArray() throws ProtoBufException {
+    public Float[] readPackedFloatArray() throws ProtoException {
         int size = readRawVarint32() / FIXED_32_SIZE;
         Float[] array = new Float[size];
         for (int i=0;i<size;i++) {
@@ -113,7 +113,7 @@ public abstract class AbstractReader implements ProtoBufReader {
     }
 
     @Override
-    public float[] readPackedFloatArrayValue() throws ProtoBufException {
+    public float[] readPackedFloatArrayValue() throws ProtoException {
         int size = readRawVarint32() / FIXED_32_SIZE;
         float[] array = new float[size];
         for (int i=0;i<size;i++) {
@@ -123,7 +123,7 @@ public abstract class AbstractReader implements ProtoBufReader {
     }
 
     @Override
-    public List<Double> readPackedDouble() throws ProtoBufException {
+    public List<Double> readPackedDouble() throws ProtoException {
         int size = readRawVarint32() / FIXED_64_SIZE;
         List<Double> ds = new ArrayList<>(size);
         for (int i=0;i<size;i++) {
@@ -133,7 +133,7 @@ public abstract class AbstractReader implements ProtoBufReader {
     }
 
     @Override
-    public Double[] readPackedDoubleArray() throws ProtoBufException {
+    public Double[] readPackedDoubleArray() throws ProtoException {
         int size = readRawVarint32() / FIXED_64_SIZE;
         Double[] array = new Double[size];
         for (int i=0;i<size;i++) {
@@ -143,7 +143,7 @@ public abstract class AbstractReader implements ProtoBufReader {
     }
 
     @Override
-    public double[] readPackedDoubleArrayValue() throws ProtoBufException {
+    public double[] readPackedDoubleArrayValue() throws ProtoException {
         int size = readRawVarint32() / FIXED_64_SIZE;
         double[] array = new double[size];
         for (int i=0;i<size;i++) {
@@ -153,44 +153,44 @@ public abstract class AbstractReader implements ProtoBufReader {
     }
 
     @Override
-    public long readInt64() throws ProtoBufException {
+    public long readInt64() throws ProtoException {
         return readRawVarint64();
     }
 
     @Override
-    public long readUInt64() throws ProtoBufException {
+    public long readUInt64() throws ProtoException {
         return readRawVarint64();
     }
 
     @Override
-    public long readSInt64() throws ProtoBufException {
+    public long readSInt64() throws ProtoException {
         return decodeZigZag64(readRawVarint64());
     }
 
     @Override
-    public long readFixed64() throws ProtoBufException {
+    public long readFixed64() throws ProtoException {
         return readRawLittleEndian64();
     }
 
     @Override
-    public long readSFixed64() throws ProtoBufException {
+    public long readSFixed64() throws ProtoException {
         return readRawLittleEndian64();
     }
 
     @Override
-    public double readDouble() throws ProtoBufException {
+    public double readDouble() throws ProtoException {
         long l = readRawLittleEndian64();
         return Double.longBitsToDouble(l);
     }
 
     @Override
-    public abstract byte[] readBytes() throws ProtoBufException;
+    public abstract byte[] readBytes() throws ProtoException;
 
     @Override
-    public abstract String readString() throws ProtoBufException;
+    public abstract String readString() throws ProtoException;
 
     @Override
-    public boolean skipField(int tag, int wireType) throws ProtoBufException {
+    public boolean skipField(int tag, int wireType) throws ProtoException {
         wireType = getTagWireType(tag);
         switch (wireType) {
             case 0:  //VARINT
@@ -212,21 +212,21 @@ public abstract class AbstractReader implements ProtoBufReader {
         }
     }
 
-    abstract boolean skipRawVarint() throws ProtoBufException;
+    abstract boolean skipRawVarint() throws ProtoException;
 
-    abstract boolean skipString() throws ProtoBufException;
+    abstract boolean skipString() throws ProtoException;
 
-    abstract boolean skipRawBytes(int len) throws ProtoBufException;
+    abstract boolean skipRawBytes(int len) throws ProtoException;
 
-    abstract boolean skipMessage(int tag) throws ProtoBufException;
+    abstract boolean skipMessage(int tag) throws ProtoException;
 
-    abstract int readRawVarint32() throws ProtoBufException;
+    abstract int readRawVarint32() throws ProtoException;
 
-    abstract long readRawVarint64() throws ProtoBufException;
+    abstract long readRawVarint64() throws ProtoException;
 
-    abstract long readRawLittleEndian64() throws ProtoBufException;
+    abstract long readRawLittleEndian64() throws ProtoException;
 
-    abstract int readRawLittleEndian32() throws ProtoBufException;
+    abstract int readRawLittleEndian32() throws ProtoException;
 
-    abstract boolean skipObject() throws ProtoBufException;
+    abstract boolean skipObject() throws ProtoException;
 }

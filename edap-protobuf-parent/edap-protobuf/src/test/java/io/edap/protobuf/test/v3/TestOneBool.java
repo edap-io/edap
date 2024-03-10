@@ -19,7 +19,7 @@ package io.edap.protobuf.test.v3;
 import com.google.protobuf.InvalidProtocolBufferException;
 import io.edap.protobuf.EncodeException;
 import io.edap.protobuf.ProtoBuf;
-import io.edap.protobuf.ProtoBufException;
+import io.edap.protobuf.ProtoException;
 import io.edap.protobuf.test.message.v3.*;
 import io.edap.util.ClazzUtil;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -56,7 +56,7 @@ public class TestOneBool {
             true,
             false
     })
-    void testDecode(boolean value) throws InvalidProtocolBufferException, ProtoBufException {
+    void testDecode(boolean value) throws InvalidProtocolBufferException, ProtoException {
 
         OneBoolOuterClass.OneBool.Builder builder = OneBoolOuterClass.OneBool.newBuilder();
         builder.setValue(value);
@@ -97,7 +97,7 @@ public class TestOneBool {
             true,
             false
     })
-    void testDecodeUnboxed(boolean value) throws InvalidProtocolBufferException, ProtoBufException {
+    void testDecodeUnboxed(boolean value) throws InvalidProtocolBufferException, ProtoException {
 
         OneBoolOuterClass.OneBool.Builder builder = OneBoolOuterClass.OneBool.newBuilder();
         builder.setValue(value);
@@ -163,7 +163,7 @@ public class TestOneBool {
             true,
             false
     })
-    void testDecodeNoAccess(boolean value) throws InvalidProtocolBufferException, ProtoBufException, NoSuchFieldException, IllegalAccessException {
+    void testDecodeNoAccess(boolean value) throws InvalidProtocolBufferException, ProtoException, NoSuchFieldException, IllegalAccessException {
 
         OneBoolOuterClass.OneBool.Builder builder = OneBoolOuterClass.OneBool.newBuilder();
         builder.setValue(value);
@@ -187,7 +187,7 @@ public class TestOneBool {
             true,
             false
     })
-    void testDecodeUnboxedNoAccess(boolean value) throws InvalidProtocolBufferException, ProtoBufException, NoSuchFieldException, IllegalAccessException {
+    void testDecodeUnboxedNoAccess(boolean value) throws InvalidProtocolBufferException, ProtoException, NoSuchFieldException, IllegalAccessException {
 
         OneBoolOuterClass.OneBool.Builder builder = OneBoolOuterClass.OneBool.newBuilder();
         builder.setValue(value);

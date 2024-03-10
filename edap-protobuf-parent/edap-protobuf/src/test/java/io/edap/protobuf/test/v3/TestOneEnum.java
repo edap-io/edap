@@ -19,7 +19,7 @@ package io.edap.protobuf.test.v3;
 import com.google.protobuf.InvalidProtocolBufferException;
 import io.edap.protobuf.EncodeException;
 import io.edap.protobuf.ProtoBuf;
-import io.edap.protobuf.ProtoBufException;
+import io.edap.protobuf.ProtoException;
 import io.edap.protobuf.test.message.v3.Corpus;
 import io.edap.protobuf.test.message.v3.OneEnum;
 import io.edap.protobuf.test.message.v3.OneEnumNoAccess;
@@ -67,7 +67,7 @@ public class TestOneEnum {
             "PRODUCTS",
             "VIDEO"
     })
-    void testDecode(String v) throws InvalidProtocolBufferException, ProtoBufException {
+    void testDecode(String v) throws InvalidProtocolBufferException, ProtoException {
 
         OneEnumOuterClass.OneEnum.Builder builder = OneEnumOuterClass.OneEnum.newBuilder();
         builder.setCorpus(OneEnumOuterClass.Corpus.valueOf(v));
@@ -119,7 +119,7 @@ public class TestOneEnum {
             "PRODUCTS",
             "VIDEO"
     })
-    void testDecodeNoAccess(String v) throws InvalidProtocolBufferException, ProtoBufException, NoSuchFieldException, IllegalAccessException {
+    void testDecodeNoAccess(String v) throws InvalidProtocolBufferException, ProtoException, NoSuchFieldException, IllegalAccessException {
 
         OneEnumOuterClass.OneEnum.Builder builder = OneEnumOuterClass.OneEnum.newBuilder();
         builder.setCorpus(OneEnumOuterClass.Corpus.valueOf(v));

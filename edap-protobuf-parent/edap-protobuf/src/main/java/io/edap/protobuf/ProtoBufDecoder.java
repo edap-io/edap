@@ -20,17 +20,5 @@ package io.edap.protobuf;
  * 定义Protobuf协议的解码器接口
  * @param <T> 解码器的对象类型
  */
-public interface ProtoBufDecoder<T> {
-
-    /**
-     * 从ProtoBufReader中反序列化java的POJO对象
-     * @param reader ProtoBufReader对象
-     * @return 返回反序列化后的POJO对象
-     * @throws ProtoBufException 如果给定的数据不是正确的ProtoBuf编码的数据则抛错
-     */
-    T decode(ProtoBufReader reader) throws ProtoBufException;
-
-    default T decode(ProtoBufReader reader, int endGroupTag) throws ProtoBufException {
-        throw new RuntimeException("Not support method readMessage(ProtoBufDecoder<T> decoder, int endTag)");
-    }
+public interface ProtoBufDecoder<T> extends ProtoDecoder<T> {
 }

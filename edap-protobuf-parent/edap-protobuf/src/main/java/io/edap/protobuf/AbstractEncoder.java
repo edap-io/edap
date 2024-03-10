@@ -43,7 +43,7 @@ public abstract class AbstractEncoder {
         return option;
     }
 
-    protected void writeArrayFloat(ProtoBufWriter writer, byte[] fieldData, float[] values) {
+    protected void writeArrayFloat(ProtoWriter writer, byte[] fieldData, float[] values) {
         if (values == null || values.length == 0) {
             return;
         }
@@ -55,7 +55,7 @@ public abstract class AbstractEncoder {
         }
     }
 
-    protected void writeArrayFloat(ProtoBufWriter writer, byte[] fieldData, Float[] values) {
+    protected void writeArrayFloat(ProtoWriter writer, byte[] fieldData, Float[] values) {
         if (values == null || values.length == 0) {
             return;
         }
@@ -67,7 +67,7 @@ public abstract class AbstractEncoder {
         }
     }
 
-    protected void writeArrayDouble(ProtoBufWriter writer, byte[] fieldData, double[] values) {
+    protected void writeArrayDouble(ProtoWriter writer, byte[] fieldData, double[] values) {
         if (values == null || values.length == 0) {
             return;
         }
@@ -79,7 +79,7 @@ public abstract class AbstractEncoder {
         }
     }
 
-    protected void writeArrayDouble(ProtoBufWriter writer, byte[] fieldData, Double[] values) {
+    protected void writeArrayDouble(ProtoWriter writer, byte[] fieldData, Double[] values) {
         if (isEmpty(values)) {
             return;
         }
@@ -92,11 +92,11 @@ public abstract class AbstractEncoder {
     }
 
 
-    protected void writeArrayBoolean(ProtoBufWriter writer, byte[] fieldData, boolean[] values) {
+    protected void writeArrayBoolean(ProtoWriter writer, byte[] fieldData, boolean[] values) {
         writer.writePackedBooleans(fieldData, values);
     }
 
-    protected void writeArrayBoolean(ProtoBufWriter writer, byte[] fieldData, Boolean[] values) {
+    protected void writeArrayBoolean(ProtoWriter writer, byte[] fieldData, Boolean[] values) {
         if (CollectionUtils.isEmpty(values)) {
             return;
         }
@@ -104,11 +104,11 @@ public abstract class AbstractEncoder {
     }
 
 
-    protected void writeArrayInt(ProtoBufWriter writer, byte[] fieldData, int[] values, Type type) {
+    protected void writeArrayInt(ProtoWriter writer, byte[] fieldData, int[] values, Type type) {
         writer.writePackedInts(fieldData, values, type);
     }
 
-    protected void writeArrayInt(ProtoBufWriter writer, byte[] fieldData, short[] values, Type type) {
+    protected void writeArrayInt(ProtoWriter writer, byte[] fieldData, short[] values, Type type) {
         if (values == null || values.length == 0) {
             return;
         }
@@ -120,7 +120,7 @@ public abstract class AbstractEncoder {
         writer.writePackedInts(fieldData, vals, type);
     }
 
-    protected void writeArrayInt(ProtoBufWriter writer, byte[] fieldData, Short[] values, Type type) {
+    protected void writeArrayInt(ProtoWriter writer, byte[] fieldData, Short[] values, Type type) {
         if (values == null || values.length == 0) {
             return;
         }
@@ -132,7 +132,7 @@ public abstract class AbstractEncoder {
         writer.writePackedInts(fieldData, vals, type);
     }
 
-    protected void writeArrayInt(ProtoBufWriter writer, byte[] fieldData, char[] values, Type type) {
+    protected void writeArrayInt(ProtoWriter writer, byte[] fieldData, char[] values, Type type) {
         if (values == null || values.length == 0) {
             return;
         }
@@ -144,7 +144,7 @@ public abstract class AbstractEncoder {
         writer.writePackedInts(fieldData, vals, type);
     }
 
-    protected void writeArrayInt(ProtoBufWriter writer, byte[] fieldData, Character[] values, Type type) {
+    protected void writeArrayInt(ProtoWriter writer, byte[] fieldData, Character[] values, Type type) {
         if (values == null || values.length == 0) {
             return;
         }
@@ -156,32 +156,32 @@ public abstract class AbstractEncoder {
         writer.writePackedInts(fieldData, vals, type);
     }
 
-    protected void writeArrayInt(ProtoBufWriter writer, byte[] fieldData, Integer[] values, Type type) {
+    protected void writeArrayInt(ProtoWriter writer, byte[] fieldData, Integer[] values, Type type) {
         writer.writePackedInts(fieldData, values, type);
     }
 
-    protected void writeArrayLong(ProtoBufWriter writer, byte[] fieldData, Long[] values, Type type) {
+    protected void writeArrayLong(ProtoWriter writer, byte[] fieldData, Long[] values, Type type) {
         if (values == null || values.length == 0) {
             return;
         }
         writer.writePackedLongs(fieldData, values, type);
     }
 
-    protected void writeArrayLong(ProtoBufWriter writer, byte[] fieldData, long[] values, Field.Type type) {
+    protected void writeArrayLong(ProtoWriter writer, byte[] fieldData, long[] values, Field.Type type) {
         if (values == null || values.length == 0) {
             return;
         }
         writer.writePackedLongs(fieldData, values, type);
     }
 
-    protected void writeString(ProtoBufWriter writer, byte[] fieldData, String value) {
+    protected void writeString(ProtoWriter writer, byte[] fieldData, String value) {
         if (null == value || value.length() == 0) {
             return;
         }
         writer.writeString(fieldData, value);
     }
 
-    protected <E extends Enum<E>> void writeArrayEnum(ProtoBufWriter writer, byte[] fieldData,
+    protected <E extends Enum<E>> void writeArrayEnum(ProtoWriter writer, byte[] fieldData,
                                                       E[] vs) {
         if (vs == null || vs.length == 0) {
             return;

@@ -20,7 +20,7 @@ import com.google.protobuf.InvalidProtocolBufferException;
 import io.edap.json.JsonArray;
 import io.edap.protobuf.EncodeException;
 import io.edap.protobuf.ProtoBuf;
-import io.edap.protobuf.ProtoBufException;
+import io.edap.protobuf.ProtoException;
 import io.edap.protobuf.model.ProtoBufOption;
 import io.edap.protobuf.test.message.v3.*;
 import io.edap.util.ClazzUtil;
@@ -80,7 +80,7 @@ public class TestListProtoEnum {
             "[\"UNIVERSAL\",\"WEB\",\"IMAGES\",\"LOCAL\",\"NEWS\",\"PRODUCTS\",\"VIDEO\"]",
             "[\"UNIVERSAL\",\"VIDEO\",\"NEWS\"]"
     })
-    void testDecode(String v) throws InvalidProtocolBufferException, ProtoBufException {
+    void testDecode(String v) throws InvalidProtocolBufferException, ProtoException {
 
         List<ProtoEnumCorpus> vs = new ArrayList<>();
         List<OneEnumOuterClass.Corpus> pvs = new ArrayList<>();
@@ -164,7 +164,7 @@ public class TestListProtoEnum {
             "[\"UNIVERSAL\",\"WEB\",\"IMAGES\",\"LOCAL\",\"NEWS\",\"PRODUCTS\",\"VIDEO\"]",
             "[\"UNIVERSAL\",\"VIDEO\",\"NEWS\"]"
     })
-    void testDecodeArray(String v) throws InvalidProtocolBufferException, ProtoBufException {
+    void testDecodeArray(String v) throws InvalidProtocolBufferException, ProtoException {
 
         List<ProtoEnumCorpus> vs = new ArrayList<>();
         List<OneEnumOuterClass.Corpus> pvs = new ArrayList<>();
@@ -293,7 +293,7 @@ public class TestListProtoEnum {
             "[\"UNIVERSAL\",\"WEB\",\"IMAGES\",\"LOCAL\",\"NEWS\",\"PRODUCTS\",\"VIDEO\"]",
             "[\"UNIVERSAL\",\"VIDEO\",\"NEWS\"]"
     })
-    void testDecodeNoAccess(String v) throws InvalidProtocolBufferException, ProtoBufException, NoSuchFieldException, IllegalAccessException {
+    void testDecodeNoAccess(String v) throws InvalidProtocolBufferException, ProtoException, NoSuchFieldException, IllegalAccessException {
 
         List<ProtoEnumCorpus> vs = new ArrayList<>();
         List<OneEnumOuterClass.Corpus> pvs = new ArrayList<>();
@@ -341,7 +341,7 @@ public class TestListProtoEnum {
             "[\"UNIVERSAL\",\"WEB\",\"IMAGES\",\"LOCAL\",\"NEWS\",\"PRODUCTS\",\"VIDEO\"]",
             "[\"UNIVERSAL\",\"VIDEO\",\"NEWS\"]"
     })
-    void testDecodeArrayNoAccess(String v) throws InvalidProtocolBufferException, ProtoBufException, NoSuchFieldException, IllegalAccessException {
+    void testDecodeArrayNoAccess(String v) throws InvalidProtocolBufferException, ProtoException, NoSuchFieldException, IllegalAccessException {
 
         List<ProtoEnumCorpus> vs = new ArrayList<>();
         List<OneEnumOuterClass.Corpus> pvs = new ArrayList<>();

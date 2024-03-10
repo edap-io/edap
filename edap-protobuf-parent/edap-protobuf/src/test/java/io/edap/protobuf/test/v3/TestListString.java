@@ -20,7 +20,7 @@ import com.google.protobuf.InvalidProtocolBufferException;
 import io.edap.json.JsonArray;
 import io.edap.protobuf.EncodeException;
 import io.edap.protobuf.ProtoBuf;
-import io.edap.protobuf.ProtoBufException;
+import io.edap.protobuf.ProtoException;
 import io.edap.protobuf.test.message.v3.*;
 import io.edap.util.ClazzUtil;
 import org.junit.jupiter.api.Test;
@@ -92,7 +92,7 @@ public class TestListString {
     @ValueSource(strings = {
             "[\"a\",\"abcdefgh\",\"中文内容\"]"
     })
-    void testDecode(String value) throws InvalidProtocolBufferException, ProtoBufException {
+    void testDecode(String value) throws InvalidProtocolBufferException, ProtoException {
 
         JsonArray jl = JsonArray.parseArray(value);
         List<String> vs = new ArrayList<>();
@@ -188,7 +188,7 @@ public class TestListString {
     @ValueSource(strings = {
             "[\"a\",\"abcdefgh\",\"中文内容\"]"
     })
-    void testDecodArray(String value) throws InvalidProtocolBufferException, ProtoBufException {
+    void testDecodArray(String value) throws InvalidProtocolBufferException, ProtoException {
 
         JsonArray jl = JsonArray.parseArray(value);
         List<String> vs = new ArrayList<>();
@@ -279,7 +279,7 @@ public class TestListString {
     @ValueSource(strings = {
             "[\"a\",\"abcdefgh\",\"中文内容\"]"
     })
-    void testDecodeNoAccess(String value) throws InvalidProtocolBufferException, ProtoBufException, NoSuchFieldException, IllegalAccessException {
+    void testDecodeNoAccess(String value) throws InvalidProtocolBufferException, ProtoException, NoSuchFieldException, IllegalAccessException {
 
         JsonArray jl = JsonArray.parseArray(value);
         List<String> vs = new ArrayList<>();
@@ -310,7 +310,7 @@ public class TestListString {
     @ValueSource(strings = {
             "[\"a\",\"abcdefgh\",\"中文内容\"]"
     })
-    void testDecodeArrayNoAccess(String value) throws InvalidProtocolBufferException, ProtoBufException, NoSuchFieldException, IllegalAccessException {
+    void testDecodeArrayNoAccess(String value) throws InvalidProtocolBufferException, ProtoException, NoSuchFieldException, IllegalAccessException {
 
         JsonArray jl = JsonArray.parseArray(value);
         List<String> vs = new ArrayList<>();

@@ -31,21 +31,21 @@ public class MessageCodec implements ExtCodec<Object> {
     HashMap<String, ProtoBufDecoder> DECODERS = new HashMap<>();
 
     @Override
-    public Object decode(ProtoBufReader reader) throws ProtoBufException {
+    public Object decode(ProtoReader reader) throws ProtoException {
         String uri = reader.readString();
         ProtoBufDecoder decoder = getDecoder(uri);
         if (null == decoder) {
-            throw new ProtoBufException(uri + "'s Decoder not found!");
+            throw new ProtoException(uri + "'s Decoder not found!");
         }
         return reader.readMessage(decoder);
     }
 
     @Override
-    public boolean skip(ProtoBufReader reader) throws ProtoBufException {
+    public boolean skip(ProtoReader reader) throws ProtoException {
         String uri = reader.readString();
         ProtoBufDecoder decoder = getDecoder(uri);
         if (null == decoder) {
-            throw new ProtoBufException(uri + "'s Decoder not found!");
+            throw new ProtoException(uri + "'s Decoder not found!");
         }
         reader.readMessage(decoder);
         return true;
@@ -66,7 +66,7 @@ public class MessageCodec implements ExtCodec<Object> {
     }
 
     @Override
-    public void encode(ProtoBufWriter writer, Object t) throws EncodeException {
+    public void encode(ProtoWriter writer, Object t) throws EncodeException {
         ProtoBufEncoder<Object> encoder = ProtoBufCodecRegister.INSTANCE.getEncoder(t.getClass());
         writer.writeByte((byte)RANGE_MESSAGE);
         writer.writeString(t.getClass().getName());

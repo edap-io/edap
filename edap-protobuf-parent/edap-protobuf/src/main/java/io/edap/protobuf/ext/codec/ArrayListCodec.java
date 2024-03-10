@@ -17,9 +17,9 @@
 package io.edap.protobuf.ext.codec;
 
 import io.edap.protobuf.EncodeException;
-import io.edap.protobuf.ProtoBufException;
-import io.edap.protobuf.ProtoBufReader;
-import io.edap.protobuf.ProtoBufWriter;
+import io.edap.protobuf.ProtoException;
+import io.edap.protobuf.ProtoReader;
+import io.edap.protobuf.ProtoWriter;
 import io.edap.protobuf.ext.ExtCodec;
 
 import java.util.ArrayList;
@@ -45,7 +45,7 @@ public class ArrayListCodec implements ExtCodec<ArrayList> {
     }
 
     @Override
-    public ArrayList decode(ProtoBufReader reader) throws ProtoBufException {
+    public ArrayList decode(ProtoReader reader) throws ProtoException {
         int len;
         if (null != this.size) {
             len = size.intValue();
@@ -63,7 +63,7 @@ public class ArrayListCodec implements ExtCodec<ArrayList> {
     }
 
     @Override
-    public boolean skip(ProtoBufReader reader) throws ProtoBufException {
+    public boolean skip(ProtoReader reader) throws ProtoException {
         int len;
         if (null != this.size) {
             len = size.intValue();
@@ -77,7 +77,7 @@ public class ArrayListCodec implements ExtCodec<ArrayList> {
     }
 
     @Override
-    public void encode(ProtoBufWriter writer, ArrayList arrayList) throws EncodeException {
+    public void encode(ProtoWriter writer, ArrayList arrayList) throws EncodeException {
         int len = arrayList.size();
         if (len > RANGE_ARRAYLIST_END - RANGE_ARRAYLIST_START) {
             writer.writeByte((byte)RANGE_ARRAYLIST_END);

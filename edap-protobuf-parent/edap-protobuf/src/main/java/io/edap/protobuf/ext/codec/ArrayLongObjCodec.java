@@ -17,12 +17,12 @@
 package io.edap.protobuf.ext.codec;
 
 import io.edap.protobuf.EncodeException;
-import io.edap.protobuf.ProtoBufException;
-import io.edap.protobuf.ProtoBufReader;
-import io.edap.protobuf.ProtoBufWriter;
+import io.edap.protobuf.ProtoException;
+import io.edap.protobuf.ProtoReader;
+import io.edap.protobuf.ProtoWriter;
 import io.edap.protobuf.ext.ExtCodec;
 
-import static io.edap.protobuf.ProtoBufWriter.encodeZigZag64;
+import static io.edap.protobuf.ProtoWriter.encodeZigZag64;
 import static io.edap.protobuf.ext.AnyCodec.RANGE_ARRAY_LONG_OBJ;
 
 public class ArrayLongObjCodec implements ExtCodec<Long[]> {
@@ -30,7 +30,7 @@ public class ArrayLongObjCodec implements ExtCodec<Long[]> {
     byte[] NULL_BS = new byte[]{(byte)0xff,(byte)0xff,(byte)0xff,(byte)0xff,(byte)0xff,(byte)0xff,(byte)0xff,(byte)0xff,(byte)0xff,3};
 
     @Override
-    public Long[] decode(ProtoBufReader reader) throws ProtoBufException {
+    public Long[] decode(ProtoReader reader) throws ProtoException {
         int len = reader.readInt32();
         Long[] is = new Long[len];
         for (int i=0;i<len;i++) {
@@ -45,7 +45,7 @@ public class ArrayLongObjCodec implements ExtCodec<Long[]> {
     }
 
     @Override
-    public boolean skip(ProtoBufReader reader) throws ProtoBufException {
+    public boolean skip(ProtoReader reader) throws ProtoException {
         int len = reader.readInt32();
         for (int i=0;i<len;i++) {
             reader.readInt64();
@@ -54,7 +54,7 @@ public class ArrayLongObjCodec implements ExtCodec<Long[]> {
     }
 
     @Override
-    public void encode(ProtoBufWriter writer, Long[] longs) throws EncodeException {
+    public void encode(ProtoWriter writer, Long[] longs) throws EncodeException {
 
         int len = longs.length;
         if (len == 0) {

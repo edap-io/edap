@@ -21,7 +21,7 @@ import io.edap.json.Eson;
 import io.edap.json.JsonObject;
 import io.edap.protobuf.EncodeException;
 import io.edap.protobuf.ProtoBuf;
-import io.edap.protobuf.ProtoBufException;
+import io.edap.protobuf.ProtoException;
 import io.edap.protobuf.model.ProtoBufOption;
 import io.edap.protobuf.test.message.v3.OneMap;
 import io.edap.protobuf.test.message.v3.OneMapNoAccess;
@@ -97,7 +97,7 @@ public class TestOneMap {
             "{\"edap\":{\"id\":1,\"name\":\"edap\",\"repoPath\":\"https://www.easyea.com/edap/edap.git\"}," +
                     "\"easyea\":{\"id\":2,\"name\":\"easyea\",\"repoPath\":\"https://www.easyea.com/easyea/easyea.git\"}}"
     })
-    void testDecode(String v) throws InvalidProtocolBufferException, ProtoBufException {
+    void testDecode(String v) throws InvalidProtocolBufferException, ProtoException {
         Map<String, OneMapOuterClass.Project> pbValue = new HashMap<>();
         OneMapOuterClass.OneMap.Builder builder = OneMapOuterClass.OneMap.newBuilder();
         JsonObject jvalue = Eson.parseJsonObject(v);
@@ -200,7 +200,7 @@ public class TestOneMap {
     @ValueSource(strings = {
             "{\"edap\":{\"id\":1,\"name\":\"edap\",\"repoPath\":\"https://www.easyea.com/edap/edap.git\"}}"
     })
-    void testDecodeNoAccess(String v) throws InvalidProtocolBufferException, ProtoBufException, NoSuchFieldException, IllegalAccessException {
+    void testDecodeNoAccess(String v) throws InvalidProtocolBufferException, ProtoException, NoSuchFieldException, IllegalAccessException {
         Map<String, OneMapOuterClass.Project> pbValue = new HashMap<>();
         OneMapOuterClass.OneMap.Builder builder = OneMapOuterClass.OneMap.newBuilder();
         JsonObject jvalue = Eson.parseJsonObject(v);

@@ -1,7 +1,8 @@
 package io.edap.protobuf.reader;
 
 import io.edap.protobuf.ProtoBufDecoder;
-import io.edap.protobuf.ProtoBufException;
+import io.edap.protobuf.ProtoDecoder;
+import io.edap.protobuf.ProtoException;
 import io.edap.protobuf.wire.Field;
 import io.edap.protobuf.wire.WireType;
 
@@ -28,7 +29,7 @@ public class ByteArrayFastReader extends ByteArrayReader {
     }
 
     @Override
-    public String readString() throws ProtoBufException {
+    public String readString() throws ProtoException {
         int len = readRawVarint32();
         if (len < 0) {
             return null;
@@ -81,7 +82,7 @@ public class ByteArrayFastReader extends ByteArrayReader {
     }
 
 //    @Override
-//    public Long[] readPackedInt64Array(Field.Type type) throws ProtoBufException {
+//    public Long[] readPackedInt64Array(Field.Type type) throws ProtoException {
 //        Long[] tmp = LOCAL_TMP_LONG_ARRAY.get();
 //        int len = readRawVarint32();
 //        int i = 0;
@@ -108,7 +109,7 @@ public class ByteArrayFastReader extends ByteArrayReader {
 //                }
 //                break;
 //            default:
-//                throw ProtoBufException.malformedVarint();
+//                throw ProtoException.malformedVarint();
 //        }
 //
 //        Long [] res = new Long[i];
@@ -118,7 +119,7 @@ public class ByteArrayFastReader extends ByteArrayReader {
 //
 //    @Override
 //    public List<Long> readPackedInt64(Field.Type type)
-//            throws ProtoBufException {
+//            throws ProtoException {
 //        List<Long> list = new ArrayList<>();
 //        int len = readRawVarint32();
 //        switch (type) {
@@ -141,13 +142,13 @@ public class ByteArrayFastReader extends ByteArrayReader {
 //                }
 //                break;
 //            default:
-//                throw ProtoBufException.malformedVarint();
+//                throw ProtoException.malformedVarint();
 //        }
 //        return list;
 //    }
 //
 //    @Override
-//    public int[] readPackedInt32ArrayValue(Field.Type type) throws ProtoBufException {
+//    public int[] readPackedInt32ArrayValue(Field.Type type) throws ProtoException {
 //        int[] tmp = LOCAL_TMP_INT_ARRAY.get();
 //        int len = readRawVarint32();
 //        expandLocalIntArray(tmp, len);
@@ -172,7 +173,7 @@ public class ByteArrayFastReader extends ByteArrayReader {
 //                }
 //                break;
 //            default:
-//                throw ProtoBufException.malformedVarint();
+//                throw ProtoException.malformedVarint();
 //        }
 //
 //        int [] res = new int[i];
@@ -181,7 +182,7 @@ public class ByteArrayFastReader extends ByteArrayReader {
 //    }
 //
 //    @Override
-//    public Integer[] readPackedInt32Array(Field.Type type) throws ProtoBufException {
+//    public Integer[] readPackedInt32Array(Field.Type type) throws ProtoException {
 //        Integer[] tmp = LOCAL_TMP_INTEGER_ARRAY.get();
 //        int len = readRawVarint32();
 //        expandLocalIntegerArray(tmp, len);
@@ -206,7 +207,7 @@ public class ByteArrayFastReader extends ByteArrayReader {
 //                }
 //                break;
 //            default:
-//                throw ProtoBufException.malformedVarint();
+//                throw ProtoException.malformedVarint();
 //        }
 //        Integer [] res = new Integer[i];
 //        System.arraycopy(tmp, 0, res, 0, i);
@@ -214,7 +215,7 @@ public class ByteArrayFastReader extends ByteArrayReader {
 //    }
 //
 //    @Override
-//    public List<Integer> readPackedInt32(Field.Type type) throws ProtoBufException {
+//    public List<Integer> readPackedInt32(Field.Type type) throws ProtoException {
 //        List<Integer> list = new ArrayList<>();
 //        int len = readRawVarint32();
 //        switch (type) {
@@ -237,18 +238,18 @@ public class ByteArrayFastReader extends ByteArrayReader {
 //                }
 //                break;
 //            default:
-//                throw ProtoBufException.malformedVarint();
+//                throw ProtoException.malformedVarint();
 //        }
 //        return list;
 //    }
 
-    public <T extends Object> T readMessage(ProtoBufDecoder<T> decoder, int endTag)
-            throws ProtoBufException {
+    public <T extends Object> T readMessage(ProtoDecoder<T> decoder, int endTag)
+            throws ProtoException {
         return decoder.decode(this, endTag);
     }
 
     @Override
-    boolean skipMessage(int tag) throws ProtoBufException {
+    boolean skipMessage(int tag) throws ProtoException {
         int tagNum = getTagFieldNumber(tag);
         int end = makeTag(tagNum, END_GROUP);
         Stack<Integer> msgStack = new Stack<>();
@@ -293,7 +294,7 @@ public class ByteArrayFastReader extends ByteArrayReader {
     }
 
     @Override
-    boolean skipString() throws ProtoBufException {
+    boolean skipString() throws ProtoException {
         int len = readRawVarint32();
         readString(len);
         return true;

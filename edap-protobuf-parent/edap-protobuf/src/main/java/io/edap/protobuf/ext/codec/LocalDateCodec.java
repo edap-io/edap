@@ -17,9 +17,9 @@
 package io.edap.protobuf.ext.codec;
 
 import io.edap.protobuf.EncodeException;
-import io.edap.protobuf.ProtoBufException;
-import io.edap.protobuf.ProtoBufReader;
-import io.edap.protobuf.ProtoBufWriter;
+import io.edap.protobuf.ProtoException;
+import io.edap.protobuf.ProtoReader;
+import io.edap.protobuf.ProtoWriter;
 import io.edap.protobuf.ext.ExtCodec;
 
 import java.time.LocalDate;
@@ -35,18 +35,18 @@ public class LocalDateCodec implements ExtCodec<LocalDate> {
     private static final LocalDate START_DAY = LocalDate.of(2000, 1, 1);
 
     @Override
-    public LocalDate decode(ProtoBufReader reader) throws ProtoBufException {
+    public LocalDate decode(ProtoReader reader) throws ProtoException {
         return START_DAY.plusDays(reader.readInt32());
     }
 
     @Override
-    public boolean skip(ProtoBufReader reader) throws ProtoBufException {
+    public boolean skip(ProtoReader reader) throws ProtoException {
         reader.readInt32();
         return true;
     }
 
     @Override
-    public void encode(ProtoBufWriter writer, LocalDate v) throws EncodeException {
+    public void encode(ProtoWriter writer, LocalDate v) throws EncodeException {
         writer.writeByte((byte)RANGE_LOCALDATE);
         writer.writeInt32((int)START_DAY.until(v, ChronoUnit.DAYS), true);
     }

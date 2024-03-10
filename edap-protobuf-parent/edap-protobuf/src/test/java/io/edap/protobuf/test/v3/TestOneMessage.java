@@ -21,7 +21,7 @@ import io.edap.json.Eson;
 import io.edap.json.JsonObject;
 import io.edap.protobuf.EncodeException;
 import io.edap.protobuf.ProtoBuf;
-import io.edap.protobuf.ProtoBufException;
+import io.edap.protobuf.ProtoException;
 import io.edap.protobuf.model.ProtoBufOption;
 import io.edap.protobuf.test.message.v3.OneMessage;
 import io.edap.protobuf.test.message.v3.OneMessageNoAccess;
@@ -87,7 +87,7 @@ public class TestOneMessage {
     @ValueSource(strings = {
             "{\"id\":1,\"name\":\"edap\",\"repoPath\":\"https://www.easyea.com/edap/edap.git\"}"
     })
-    void testDecode(String v) throws InvalidProtocolBufferException, ProtoBufException {
+    void testDecode(String v) throws InvalidProtocolBufferException, ProtoException {
         JsonObject jvalue = Eson.parseJsonObject(v);
 
         OneMessageOuterClass.Proj.Builder pbuilder = OneMessageOuterClass.Proj.newBuilder();
@@ -162,7 +162,7 @@ public class TestOneMessage {
     @ValueSource(strings = {
             "{\"id\":1,\"name\":\"edap\",\"repoPath\":\"https://www.easyea.com/edap/edap.git\"}"
     })
-    void testDecodeNoAccess(String v) throws InvalidProtocolBufferException, ProtoBufException, NoSuchFieldException, IllegalAccessException {
+    void testDecodeNoAccess(String v) throws InvalidProtocolBufferException, ProtoException, NoSuchFieldException, IllegalAccessException {
         JsonObject jvalue = Eson.parseJsonObject(v);
 
         OneMessageOuterClass.Proj.Builder pbuilder = OneMessageOuterClass.Proj.newBuilder();

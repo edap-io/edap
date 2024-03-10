@@ -20,7 +20,7 @@ import com.google.protobuf.ByteString;
 import com.google.protobuf.InvalidProtocolBufferException;
 import io.edap.protobuf.EncodeException;
 import io.edap.protobuf.ProtoBuf;
-import io.edap.protobuf.ProtoBufException;
+import io.edap.protobuf.ProtoException;
 import io.edap.protobuf.test.message.v3.OneBytes;
 import io.edap.protobuf.test.message.v3.OneBytesNoAccess;
 import io.edap.protobuf.test.message.v3.OneBytesOuterClass;
@@ -60,7 +60,7 @@ public class TestOneBytes {
             "abcdefghijklmn",
             "中文内容"
     })
-    void testDecode(String v) throws InvalidProtocolBufferException, ProtoBufException, UnsupportedEncodingException {
+    void testDecode(String v) throws InvalidProtocolBufferException, ProtoException, UnsupportedEncodingException {
 
         byte[] value = v.getBytes("utf-8");
         OneBytesOuterClass.OneBytes.Builder builder = OneBytesOuterClass.OneBytes.newBuilder();
@@ -105,7 +105,7 @@ public class TestOneBytes {
             "abcdefghijklmn",
             "中文内容"
     })
-    void testDecodeNoAccess(String v) throws InvalidProtocolBufferException, ProtoBufException, UnsupportedEncodingException, NoSuchFieldException, IllegalAccessException {
+    void testDecodeNoAccess(String v) throws InvalidProtocolBufferException, ProtoException, UnsupportedEncodingException, NoSuchFieldException, IllegalAccessException {
 
         byte[] value = v.getBytes("utf-8");
         OneBytesOuterClass.OneBytes.Builder builder = OneBytesOuterClass.OneBytes.newBuilder();

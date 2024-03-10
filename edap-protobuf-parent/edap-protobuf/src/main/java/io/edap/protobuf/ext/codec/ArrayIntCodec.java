@@ -17,9 +17,9 @@
 package io.edap.protobuf.ext.codec;
 
 import io.edap.protobuf.EncodeException;
-import io.edap.protobuf.ProtoBufException;
-import io.edap.protobuf.ProtoBufReader;
-import io.edap.protobuf.ProtoBufWriter;
+import io.edap.protobuf.ProtoException;
+import io.edap.protobuf.ProtoReader;
+import io.edap.protobuf.ProtoWriter;
 import io.edap.protobuf.ext.ExtCodec;
 
 import static io.edap.protobuf.ext.AnyCodec.RANGE_ARRAY_INT;
@@ -27,7 +27,7 @@ import static io.edap.protobuf.ext.AnyCodec.RANGE_ARRAY_INT;
 public class ArrayIntCodec implements ExtCodec<int[]> {
 
     @Override
-    public int[] decode(ProtoBufReader reader) throws ProtoBufException {
+    public int[] decode(ProtoReader reader) throws ProtoException {
         int len = reader.readInt32();
         if (len == 0) {
             return new int[0];
@@ -40,7 +40,7 @@ public class ArrayIntCodec implements ExtCodec<int[]> {
     }
 
     @Override
-    public boolean skip(ProtoBufReader reader) throws ProtoBufException {
+    public boolean skip(ProtoReader reader) throws ProtoException {
         int len = reader.readInt32();
         for (int i=0;i<len;i++) {
             reader.readInt32();
@@ -49,7 +49,7 @@ public class ArrayIntCodec implements ExtCodec<int[]> {
     }
 
     @Override
-    public void encode(ProtoBufWriter writer, int[] ints) throws EncodeException {
+    public void encode(ProtoWriter writer, int[] ints) throws EncodeException {
         int len = ints.length;
         if (len == 0) {
             writer.writeByte((byte)RANGE_ARRAY_INT);

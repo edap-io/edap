@@ -315,7 +315,7 @@ public class AnyCodec {
 
     }
 
-    public static void encode(ProtoBufWriter writer, Object v) throws EncodeException {
+    public static void encode(ProtoWriter writer, Object v) throws EncodeException {
         if (null == v) {
             NULL_CODEC.encode(writer, v);
             return;
@@ -327,7 +327,7 @@ public class AnyCodec {
         encoder.encode(writer, v);
     }
 
-    public static void encode(ProtoBufWriter writer, Object v, ProtoBufOption option) throws EncodeException {
+    public static void encode(ProtoWriter writer, Object v, ProtoBufOption option) throws EncodeException {
         if (option == null || ProtoBuf.CodecType.FAST != option.getCodecType()) {
             encode(writer, v);
             return;
@@ -343,40 +343,40 @@ public class AnyCodec {
         encoder.encode(writer, v);
     }
 
-    public static Object decode(ProtoBufReader reader) throws ProtoBufException {
+    public static Object decode(ProtoReader reader) throws ProtoException {
         int type = reader.getByte() & 0xff;
         try {
             ProtoBufDecoder decoder = DECODERS[type];
             if (decoder != null) {
                 return decoder.decode(reader);
             } else {
-                throw new ProtoBufException("type[" + type + "] hasn't ProtoBufDecoder");
+                throw new ProtoException("type[" + type + "] hasn't ProtoBufDecoder");
             }
         } catch (Exception e) {
-            throw new ProtoBufException(e);
+            throw new ProtoException(e);
         }
     }
 
-    public static boolean skipObject(ProtoBufReader reader) throws ProtoBufException {
+    public static boolean skipObject(ProtoReader reader) throws ProtoException {
         int type = reader.getByte() & 0xff;
         if (reader.isFastCodec()) {
             ExtCodec decoder = FAST_DECODERS[type];
             if (decoder != null) {
                 return decoder.skip(reader);
             } else {
-                throw new ProtoBufException("type[" + type + "] hasn't ProtoBufDecoder");
+                throw new ProtoException("type[" + type + "] hasn't ProtoBufDecoder");
             }
         } else {
             ExtCodec decoder = DECODERS[type];
             if (decoder != null) {
                 return decoder.skip(reader);
             } else {
-                throw new ProtoBufException("type[" + type + "] hasn't ProtoBufDecoder");
+                throw new ProtoException("type[" + type + "] hasn't ProtoBufDecoder");
             }
         }
     }
 
-    public static Object decode(ProtoBufReader reader, ProtoBufOption option) throws ProtoBufException {
+    public static Object decode(ProtoReader reader, ProtoBufOption option) throws ProtoException {
         if (option == null || ProtoBuf.CodecType.FAST != option.getCodecType()) {
             return decode(reader);
         }
@@ -386,10 +386,10 @@ public class AnyCodec {
             if (decoder != null) {
                 return decoder.decode(reader);
             } else {
-                throw new ProtoBufException("type[" + type + "] hasn't ProtoBufDecoder");
+                throw new ProtoException("type[" + type + "] hasn't ProtoBufDecoder");
             }
         } catch (Exception e) {
-            throw new ProtoBufException(e);
+            throw new ProtoException(e);
         }
     }
 }

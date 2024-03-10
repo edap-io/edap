@@ -21,7 +21,7 @@ import io.edap.json.Eson;
 import io.edap.json.JsonArray;
 import io.edap.protobuf.EncodeException;
 import io.edap.protobuf.ProtoBuf;
-import io.edap.protobuf.ProtoBufException;
+import io.edap.protobuf.ProtoException;
 import io.edap.protobuf.model.ProtoBufOption;
 import io.edap.protobuf.test.message.v3.*;
 import io.edap.util.ClazzUtil;
@@ -90,7 +90,7 @@ public class TestListUint32 {
             "[1,128,129,130,131,132,133,134,135,136,137]",
             "[1,128,129,130,131,132,133,134,135,136,137,138]",
     })
-    void testDecode(String v) throws InvalidProtocolBufferException, ProtoBufException {
+    void testDecode(String v) throws InvalidProtocolBufferException, ProtoException {
 
         List<Integer> vs = new ArrayList<>();
         List<Integer> pvs = new ArrayList<>();
@@ -183,7 +183,7 @@ public class TestListUint32 {
             "[1,128,129,130,131,132,133,134,135,136,137]",
             "[1,128,129,130,131,132,133,134,135,136,137,138]",
     })
-    void testDecodeArray(String v) throws InvalidProtocolBufferException, ProtoBufException {
+    void testDecodeArray(String v) throws InvalidProtocolBufferException, ProtoException {
 
         List<Integer> pvs = new ArrayList<>();
         JsonArray jvs = JsonArray.parseArray(v);
@@ -274,7 +274,7 @@ public class TestListUint32 {
             "[1,128,129,130,131,132,133,134,135,136,137]",
             "[1,128,129,130,131,132,133,134,135,136,137,138]",
     })
-    void testDecodeArrayUnboxed(String v) throws InvalidProtocolBufferException, ProtoBufException {
+    void testDecodeArrayUnboxed(String v) throws InvalidProtocolBufferException, ProtoException {
 
         List<Integer> pvs = new ArrayList<>();
         JsonArray jvs = JsonArray.parseArray(v);
@@ -442,7 +442,7 @@ public class TestListUint32 {
             "[1,128,129]",
             "[1,127,256]"
     })
-    void testDecodeNoAccess(String v) throws InvalidProtocolBufferException, ProtoBufException, NoSuchFieldException, IllegalAccessException {
+    void testDecodeNoAccess(String v) throws InvalidProtocolBufferException, ProtoException, NoSuchFieldException, IllegalAccessException {
 
         List<Integer> vs = new ArrayList<>();
         List<Integer> pvs = new ArrayList<>();
@@ -490,7 +490,7 @@ public class TestListUint32 {
             "[1,128,129]",
             "[1,127,256]"
     })
-    void testDecodeArrayNoAccess(String v) throws InvalidProtocolBufferException, ProtoBufException, NoSuchFieldException, IllegalAccessException {
+    void testDecodeArrayNoAccess(String v) throws InvalidProtocolBufferException, ProtoException, NoSuchFieldException, IllegalAccessException {
 
         List<Integer> vs = new ArrayList<>();
         List<Integer> pvs = new ArrayList<>();
@@ -538,7 +538,7 @@ public class TestListUint32 {
             "[1,128,129]",
             "[1,127,256]"
     })
-    void testDecodeArrayUnboxedNoAccess(String v) throws InvalidProtocolBufferException, ProtoBufException, NoSuchFieldException, IllegalAccessException {
+    void testDecodeArrayUnboxedNoAccess(String v) throws InvalidProtocolBufferException, ProtoException, NoSuchFieldException, IllegalAccessException {
 
         List<Integer> vs = new ArrayList<>();
         List<Integer> pvs = new ArrayList<>();

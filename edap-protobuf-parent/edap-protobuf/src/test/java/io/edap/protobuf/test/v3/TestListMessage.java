@@ -21,7 +21,7 @@ import io.edap.json.JsonArray;
 import io.edap.json.JsonObject;
 import io.edap.protobuf.EncodeException;
 import io.edap.protobuf.ProtoBuf;
-import io.edap.protobuf.ProtoBufException;
+import io.edap.protobuf.ProtoException;
 import io.edap.protobuf.model.ProtoBufOption;
 import io.edap.protobuf.test.message.v3.*;
 import io.edap.util.ClazzUtil;
@@ -97,7 +97,7 @@ public class TestListMessage {
                     "{\"id\":2,\"name\":\"edao\",\"repoPath\":\"https://www.easyea.com/easyea/edao.git\"}]",
             "[{\"id\":1,\"name\":\"edap\",\"repoPath\":\"https://www.easyea.com/edap/edap.git\"}]"
     })
-    void testDecode(String v) throws InvalidProtocolBufferException, ProtoBufException {
+    void testDecode(String v) throws InvalidProtocolBufferException, ProtoException {
         JsonArray jvs = JsonArray.parseArray(v);
         ListMessageOuterClass.ListMessage.Builder builder = ListMessageOuterClass.ListMessage.newBuilder();
 
@@ -213,7 +213,7 @@ public class TestListMessage {
             "[{\"id\":1,\"name\":\"edap\",\"repoPath\":\"https://www.easyea.com/edap/edap.git\"}," +
                     "{\"id\":2,\"name\":\"edao\",\"repoPath\":\"https://www.easyea.com/easyea/edao.git\"}]"
     })
-    void testDecodeArray(String v) throws InvalidProtocolBufferException, ProtoBufException {
+    void testDecodeArray(String v) throws InvalidProtocolBufferException, ProtoException {
         JsonArray jvs = JsonArray.parseArray(v);
         ListMessageOuterClass.ListMessage.Builder builder = ListMessageOuterClass.ListMessage.newBuilder();
 
@@ -377,7 +377,7 @@ public class TestListMessage {
             "[{\"id\":1,\"name\":\"edap\",\"repoPath\":\"https://www.easyea.com/edap/edap.git\"}," +
                     "{\"id\":2,\"name\":\"edao\",\"repoPath\":\"https://www.easyea.com/easyea/edao.git\"}]"
     })
-    void testDecodeNoAccess(String v) throws InvalidProtocolBufferException, ProtoBufException, NoSuchFieldException, IllegalAccessException {
+    void testDecodeNoAccess(String v) throws InvalidProtocolBufferException, ProtoException, NoSuchFieldException, IllegalAccessException {
         JsonArray jvs = JsonArray.parseArray(v);
         ListMessageOuterClass.ListMessage.Builder builder = ListMessageOuterClass.ListMessage.newBuilder();
 
@@ -444,7 +444,7 @@ public class TestListMessage {
             "[{\"id\":1,\"name\":\"edap\",\"repoPath\":\"https://www.easyea.com/edap/edap.git\"}," +
                     "{\"id\":2,\"name\":\"edao\",\"repoPath\":\"https://www.easyea.com/easyea/edao.git\"}]"
     })
-    void testDecodeArrayNoAccess(String v) throws InvalidProtocolBufferException, ProtoBufException, NoSuchFieldException, IllegalAccessException {
+    void testDecodeArrayNoAccess(String v) throws InvalidProtocolBufferException, ProtoException, NoSuchFieldException, IllegalAccessException {
         JsonArray jvs = JsonArray.parseArray(v);
         ListMessageOuterClass.ListMessage.Builder builder = ListMessageOuterClass.ListMessage.newBuilder();
 

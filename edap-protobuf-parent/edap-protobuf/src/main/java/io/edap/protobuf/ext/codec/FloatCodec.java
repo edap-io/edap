@@ -17,9 +17,9 @@
 package io.edap.protobuf.ext.codec;
 
 import io.edap.protobuf.EncodeException;
-import io.edap.protobuf.ProtoBufException;
-import io.edap.protobuf.ProtoBufReader;
-import io.edap.protobuf.ProtoBufWriter;
+import io.edap.protobuf.ProtoException;
+import io.edap.protobuf.ProtoReader;
+import io.edap.protobuf.ProtoWriter;
 import io.edap.protobuf.ext.ExtCodec;
 
 import static io.edap.protobuf.ext.AnyCodec.RANGE_FLOAT;
@@ -30,18 +30,18 @@ import static io.edap.protobuf.ext.AnyCodec.RANGE_FLOAT;
 public class FloatCodec implements ExtCodec<Float> {
 
     @Override
-    public Float decode(ProtoBufReader reader) throws ProtoBufException {
+    public Float decode(ProtoReader reader) throws ProtoException {
         return reader.readFloat();
     }
 
     @Override
-    public boolean skip(ProtoBufReader reader) throws ProtoBufException {
+    public boolean skip(ProtoReader reader) throws ProtoException {
         reader.skip(4);
         return true;
     }
 
     @Override
-    public void encode(ProtoBufWriter writer, Float v) throws EncodeException {
+    public void encode(ProtoWriter writer, Float v) throws EncodeException {
         writer.writeByte((byte)RANGE_FLOAT);
         writer.writeFixed32(Float.floatToRawIntBits(v));
     }

@@ -64,20 +64,20 @@ public class ProtoBuf {
     /**
      * 本地线程的ProtoBuf的Writer减少内存分配次数
      */
-    public static final ThreadLocal<ProtoBufWriter> THREAD_WRITER;
+    public static final ThreadLocal<ProtoWriter> THREAD_WRITER;
 
-    private static final ThreadLocal<ProtoBufWriter> THREAD_FAST_WRITER;
+    private static final ThreadLocal<ProtoWriter> THREAD_FAST_WRITER;
 
     static {
         THREAD_WRITER = ThreadLocal.withInitial(() -> {
             BufOut out    = new ProtoBufOut();
-            ProtoBufWriter writer = new StandardProtoBufWriter(out);
+            ProtoWriter writer = new StandardProtoBufWriter(out);
             return writer;
         });
 
         THREAD_FAST_WRITER = ThreadLocal.withInitial(() -> {
             BufOut out    = new ProtoBufOut();
-            ProtoBufWriter writer = new FastProtoBufWriter(out);
+            ProtoWriter writer = new FastProtoBufWriter(out);
             return writer;
         });
     }
@@ -92,7 +92,7 @@ public class ProtoBuf {
             return null;
         }
         ProtoBufEncoder codec = REGISTER.getEncoder(obj.getClass());
-        ProtoBufWriter writer = THREAD_WRITER.get();
+        ProtoWriter writer = THREAD_WRITER.get();
         writer.reset();
         BufOut out = writer.getBufOut();
         out.reset();
@@ -116,7 +116,7 @@ public class ProtoBuf {
             return null;
         }
         ProtoBufEncoder codec = REGISTER.getEncoder(obj.getClass(), option);
-        ProtoBufWriter writer;
+        ProtoWriter writer;
         if (option != null && CodecType.FAST == option.getCodecType()) {
             writer = THREAD_FAST_WRITER.get();
         } else {
@@ -152,7 +152,7 @@ public class ProtoBuf {
     }
 
     public static byte [] ser(Object obj) throws EncodeException {
-        ProtoBufWriter writer = THREAD_WRITER.get();
+        ProtoWriter writer = THREAD_WRITER.get();
         writer.reset();
         BufOut out = writer.getBufOut();
         out.reset();
@@ -172,7 +172,7 @@ public class ProtoBuf {
     }
 
     public static byte [] ser(Object obj, ProtoBufOption option) throws EncodeException {
-        ProtoBufWriter writer;
+        ProtoWriter writer;
         if (option != null && CodecType.FAST == option.getCodecType()) {
             writer = THREAD_FAST_WRITER.get();
         } else {
@@ -196,7 +196,7 @@ public class ProtoBuf {
     }
 
     public static byte [] ser(Object obj, byte[] prefixData) throws EncodeException {
-        ProtoBufWriter writer = THREAD_WRITER.get();
+        ProtoWriter writer = THREAD_WRITER.get();
         writer.reset();
         BufOut out = writer.getBufOut();
         out.reset();
@@ -216,7 +216,7 @@ public class ProtoBuf {
     }
 
     public static void ser(OutputStream output, Object obj) throws EncodeException {
-        ProtoBufWriter writer = THREAD_WRITER.get();
+        ProtoWriter writer = THREAD_WRITER.get();
         writer.reset();
         BufOut out = writer.getBufOut();
         out.reset();
@@ -234,13 +234,13 @@ public class ProtoBuf {
         }
     }
 
-    public static Object der(byte[] data) throws ProtoBufException {
+    public static Object der(byte[] data) throws ProtoException {
         ByteArrayReader reader = new ByteArrayReader(data);
         return AnyCodec.decode(reader);
     }
 
 
-    public static Object der(byte[] data, ProtoBufOption option) throws ProtoBufException {
+    public static Object der(byte[] data, ProtoBufOption option) throws ProtoException {
         ByteArrayReader reader = new ByteArrayReader(data);
         if (option != null && CodecType.FAST == option.getCodecType()) {
             reader = new ByteArrayFastReader(data);
@@ -250,7 +250,7 @@ public class ProtoBuf {
         return AnyCodec.decode(reader, option);
     }
 
-    public static Object der(byte[] data, int offset, int len) throws ProtoBufException {
+    public static Object der(byte[] data, int offset, int len) throws ProtoException {
         ByteArrayReader reader = new ByteArrayReader(data, offset, len);
         return AnyCodec.decode(reader);
     }
@@ -290,10 +290,10 @@ public class ProtoBuf {
      * @param len protobuf数据的长度
      * @param cls 给定的java对象的class
      * @return 返回java对象
-     * @throws ProtoBufException
+     * @throws ProtoException
      */
     public static <T> T toObject(byte [] bs, int offset, int len, Class<T> cls)
-            throws ProtoBufException {
+            throws ProtoException {
         ByteArrayReader reader = new ByteArrayReader(bs, offset, len);
         ProtoBufDecoder codec = REGISTER.getDecoder(cls);
         return (T)codec.decode(reader);
@@ -308,10 +308,10 @@ public class ProtoBuf {
      * @param len protobuf数据的长度
      * @param cls 给定的java对象的class
      * @return 返回java对象
-     * @throws ProtoBufException
+     * @throws ProtoException
      */
     public static <T> T toObject(byte [] bs, int offset, int len, Class<T> cls, ProtoBufOption option)
-            throws ProtoBufException {
+            throws ProtoException {
         ByteArrayReader reader;
         if (option != null && CodecType.FAST == option.getCodecType()) {
             reader = new ByteArrayFastReader(bs, offset, len);

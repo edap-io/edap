@@ -19,7 +19,7 @@ package io.edap.protobuf.test.v3;
 import com.google.protobuf.InvalidProtocolBufferException;
 import io.edap.protobuf.EncodeException;
 import io.edap.protobuf.ProtoBuf;
-import io.edap.protobuf.ProtoBufException;
+import io.edap.protobuf.ProtoException;
 import io.edap.protobuf.test.message.v3.*;
 import io.edap.util.ClazzUtil;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -66,7 +66,7 @@ public class TestOneSfixed64 {
             -1,
             -128
     })
-    void testDecode(long value) throws InvalidProtocolBufferException, ProtoBufException {
+    void testDecode(long value) throws InvalidProtocolBufferException, ProtoException {
 
         OneSfixed64OuterClass.OneSfixed64.Builder builder = OneSfixed64OuterClass.OneSfixed64.newBuilder();
         builder.setValue(value);
@@ -120,7 +120,7 @@ public class TestOneSfixed64 {
             -1,
             -128
     })
-    void testDecodeUnboxed(long value) throws InvalidProtocolBufferException, ProtoBufException {
+    void testDecodeUnboxed(long value) throws InvalidProtocolBufferException, ProtoException {
 
         OneSfixed64OuterClass.OneSfixed64.Builder builder = OneSfixed64OuterClass.OneSfixed64.newBuilder();
         builder.setValue(value);
@@ -204,7 +204,7 @@ public class TestOneSfixed64 {
             -1,
             -128
     })
-    void testDecodeNoAccess(long value) throws InvalidProtocolBufferException, ProtoBufException, NoSuchFieldException, IllegalAccessException {
+    void testDecodeNoAccess(long value) throws InvalidProtocolBufferException, ProtoException, NoSuchFieldException, IllegalAccessException {
 
         OneSfixed64OuterClass.OneSfixed64.Builder builder = OneSfixed64OuterClass.OneSfixed64.newBuilder();
         builder.setValue(value);
@@ -234,7 +234,7 @@ public class TestOneSfixed64 {
             -1,
             -128
     })
-    void testDecodeUnboxedNoAccess(long value) throws InvalidProtocolBufferException, ProtoBufException, NoSuchFieldException, IllegalAccessException {
+    void testDecodeUnboxedNoAccess(long value) throws InvalidProtocolBufferException, ProtoException, NoSuchFieldException, IllegalAccessException {
 
         OneSfixed64OuterClass.OneSfixed64.Builder builder = OneSfixed64OuterClass.OneSfixed64.newBuilder();
         builder.setValue(value);

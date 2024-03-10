@@ -16,10 +16,7 @@
 
 package io.edap.protobuf.ext.codec;
 
-import io.edap.protobuf.EncodeException;
-import io.edap.protobuf.ProtoBufException;
-import io.edap.protobuf.ProtoBufReader;
-import io.edap.protobuf.ProtoBufWriter;
+import io.edap.protobuf.*;
 import io.edap.protobuf.ext.ExtCodec;
 
 import static io.edap.protobuf.ext.AnyCodec.RANGE_BOOL_FALSE;
@@ -41,12 +38,12 @@ public class BoolCodec implements ExtCodec<Boolean> {
     }
 
     @Override
-    public Boolean decode(ProtoBufReader reader) throws ProtoBufException {
+    public Boolean decode(ProtoReader reader) throws ProtoException {
         return val;
     }
 
     @Override
-    public void encode(ProtoBufWriter writer, Boolean v) throws EncodeException {
+    public void encode(ProtoWriter writer, Boolean v) throws EncodeException {
         if (null == v || !v) {
             writer.writeByte((byte)RANGE_BOOL_FALSE);
         } else {
@@ -55,7 +52,7 @@ public class BoolCodec implements ExtCodec<Boolean> {
     }
 
     @Override
-    public boolean skip(ProtoBufReader reader) {
+    public boolean skip(ProtoReader reader) {
         return true;
     }
 }

@@ -3,7 +3,7 @@ package io.edap.protobuf.test;
 import io.edap.json.Eson;
 import io.edap.json.JsonArray;
 import io.edap.protobuf.ProtoBuf;
-import io.edap.protobuf.ProtoBufException;
+import io.edap.protobuf.ProtoException;
 import io.edap.protobuf.model.ProtoBufOption;
 import io.edap.protobuf.test.message.ext.FieldObject;
 import io.edap.protobuf.test.message.v3.Project;
@@ -983,7 +983,7 @@ public class TestSkipObject {
             "java.lang.Integer",
             "java.time.LocalDateTime"
     })
-    public void testSkipClass(String value) throws UnsupportedEncodingException, ProtoBufException {
+    public void testSkipClass(String value) throws UnsupportedEncodingException, ProtoException {
         String str = new Random().nextDouble() + "";
 
         Class cls = null;
@@ -1017,7 +1017,7 @@ public class TestSkipObject {
                     try {
                         cls = Class.forName(value);
                     } catch (ClassNotFoundException e) {
-                        throw new ProtoBufException("Class " + cls  + " not found");
+                        throw new ProtoException("Class " + cls  + " not found");
                     }
             }
         }

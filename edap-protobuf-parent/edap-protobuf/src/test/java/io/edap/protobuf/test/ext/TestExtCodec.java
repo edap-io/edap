@@ -19,8 +19,8 @@ package io.edap.protobuf.test.ext;
 import io.edap.json.Eson;
 import io.edap.protobuf.EncodeException;
 import io.edap.protobuf.ProtoBuf;
-import io.edap.protobuf.ProtoBufException;
-import io.edap.protobuf.ProtoBufWriter;
+import io.edap.protobuf.ProtoException;
+import io.edap.protobuf.ProtoWriter;
 import io.edap.protobuf.ext.AnyCodec;
 import io.edap.protobuf.ext.codec.ClassCodec;
 import io.edap.protobuf.ext.codec.MessageCodec;
@@ -57,7 +57,7 @@ public class TestExtCodec {
                     + "\"name9\":\"louis\",\"name10\":\"louis\",\"name11\":\"louis\",\"name12\":\"louis\","
                     + "\"name13\":\"louis\",\"name14\":\"louis\",\"name15\":\"louis\",\"name16\":\"louis\"}"
     })
-    public void testCodecHashMap(String value) throws EncodeException, ProtoBufException {
+    public void testCodecHashMap(String value) throws EncodeException, ProtoException {
         Map<String, Object> map = Eson.parseJsonObject(value);
         HashMap<String, Object> hashMap = new HashMap<>();
         hashMap.putAll(map);
@@ -84,7 +84,7 @@ public class TestExtCodec {
         EncodeException thrown = assertThrows(EncodeException.class,
                 () -> {
                     NullCodec nullCodec = new NullCodec();
-                    ProtoBufWriter writer = new StandardProtoBufWriter(new ProtoBufOut());
+                    ProtoWriter writer = new StandardProtoBufWriter(new ProtoBufOut());
                     nullCodec.encode(writer, 5);
                 });
         assertTrue(thrown.getMessage().contains("Object is not null"));
@@ -97,7 +97,7 @@ public class TestExtCodec {
         ByteArrayReader reader = new ByteArrayReader(data);
         MessageCodec msgCodec = new MessageCodec();
 
-        ProtoBufException thrown = assertThrows(ProtoBufException.class,
+        ProtoException thrown = assertThrows(ProtoException.class,
                 () -> {
                     msgCodec.decode(reader);
                 });
@@ -106,7 +106,7 @@ public class TestExtCodec {
         ByteArrayReader reader2 = new ByteArrayReader(data);
         MessageFastCodec msgCodec2 = new MessageFastCodec();
 
-        ProtoBufException thrown2 = assertThrows(ProtoBufException.class,
+        ProtoException thrown2 = assertThrows(ProtoException.class,
                 () -> {
                     msgCodec2.decode(reader2);
                 });
@@ -116,7 +116,7 @@ public class TestExtCodec {
         ByteArrayReader reader3 = new ByteArrayReader(data);
         MessageCodec msgCodec3 = new MessageCodec();
 
-        ProtoBufException thrown3 = assertThrows(ProtoBufException.class,
+        ProtoException thrown3 = assertThrows(ProtoException.class,
                 () -> {
                     msgCodec3.skip(reader3);
                 });
@@ -125,7 +125,7 @@ public class TestExtCodec {
         ByteArrayReader reader4 = new ByteArrayReader(data);
         MessageFastCodec msgCodec4 = new MessageFastCodec();
 
-        ProtoBufException thrown4 = assertThrows(ProtoBufException.class,
+        ProtoException thrown4 = assertThrows(ProtoException.class,
                 () -> {
                     msgCodec4.skip(reader4);
                 });
@@ -138,7 +138,7 @@ public class TestExtCodec {
         ByteArrayReader reader = new ByteArrayReader(data);
         ClassCodec codec = new ClassCodec();
 
-        ProtoBufException thrown = assertThrows(ProtoBufException.class,
+        ProtoException thrown = assertThrows(ProtoException.class,
                 () -> {
                     codec.decode(reader);
                 });
@@ -149,7 +149,7 @@ public class TestExtCodec {
     void testDecodecNullClass() {
         Class cls = null;
 
-        ProtoBufWriter writer = new StandardProtoBufWriter(new ProtoBufOut());
+        ProtoWriter writer = new StandardProtoBufWriter(new ProtoBufOut());
         ClassCodec codec = new ClassCodec();
         byte[] clsNullData = new byte[]{RANGE_CLASS,-1,-1,-1,-1,-1,-1,-1,-1,-1,1};
         try {
@@ -186,20 +186,20 @@ public class TestExtCodec {
         byte[] data = new byte[]{(byte)(RANGE_MAX),106,97,118,97,46,117,116,105,108,46,84,114,101,101,77,97,112};
         ByteArrayReader reader = new ByteArrayReader(data);
 
-        ProtoBufException thrown = assertThrows(ProtoBufException.class,
+        ProtoException thrown = assertThrows(ProtoException.class,
                 () -> {
                     AnyCodec.decode(reader);
                 });
         assertTrue(thrown.getMessage().contains("] hasn't ProtoBufDecoder"));
 
-        thrown = assertThrows(ProtoBufException.class,
+        thrown = assertThrows(ProtoException.class,
                 () -> {
                     reader.reset();
                     AnyCodec.decode(reader, new ProtoBufOption());
                 });
         assertTrue(thrown.getMessage().contains("] hasn't ProtoBufDecoder"));
 
-        thrown = assertThrows(ProtoBufException.class,
+        thrown = assertThrows(ProtoException.class,
                 () -> {
                     reader.reset();
                     ProtoBufOption option = new ProtoBufOption();
@@ -208,7 +208,7 @@ public class TestExtCodec {
                 });
         assertTrue(thrown.getMessage().contains("] hasn't ProtoBufDecoder"));
 
-        thrown = assertThrows(ProtoBufException.class,
+        thrown = assertThrows(ProtoException.class,
                 () -> {
                     reader.reset();
                     ProtoBufOption option = new ProtoBufOption();
@@ -218,7 +218,7 @@ public class TestExtCodec {
         assertTrue(thrown.getMessage().contains("] hasn't ProtoBufDecoder"));
 
 
-        thrown = assertThrows(ProtoBufException.class,
+        thrown = assertThrows(ProtoException.class,
                 () -> {
                     ByteArrayFastReader reader2 = new ByteArrayFastReader(data);
                     reader2.reset();
@@ -233,7 +233,7 @@ public class TestExtCodec {
     public void testEncodeWithOption() throws EncodeException {
         Class cls = null;
 
-        ProtoBufWriter writer = new StandardProtoBufWriter(new ProtoBufOut());
+        ProtoWriter writer = new StandardProtoBufWriter(new ProtoBufOut());
         ClassCodec codec = new ClassCodec();
         byte[] clsNullData = new byte[]{-114};
         ProtoBufOption option = new ProtoBufOption();

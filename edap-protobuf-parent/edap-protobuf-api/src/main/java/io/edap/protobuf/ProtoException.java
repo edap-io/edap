@@ -18,21 +18,21 @@ package io.edap.protobuf;
 
 import java.io.IOException;
 
-public class ProtoBufException extends IOException {
+public class ProtoException extends IOException {
 
-    public ProtoBufException(final String description) {
+    public ProtoException(final String description) {
         super(description);
     }
 
-    public ProtoBufException(IOException e) {
+    public ProtoException(IOException e) {
         super(e.getMessage(), e);
     }
 
-    public ProtoBufException(Exception e) {
+    public ProtoException(Exception e) {
         super(e.getMessage(), e);
     }
 
-    public ProtoBufException(final String description, IOException e) {
+    public ProtoException(final String description, IOException e) {
         super(description, e);
     }
 
@@ -44,32 +44,32 @@ public class ProtoBufException extends IOException {
         return getCause() instanceof IOException ? (IOException) getCause() : this;
     }
 
-    public static ProtoBufException truncatedMessage() {
-        return new ProtoBufException(
+    public static ProtoException truncatedMessage() {
+        return new ProtoException(
                 "While parsing a protocol message, the input ended unexpectedly "
                         + "in the middle of a field.  This could mean either that the "
                         + "input has been truncated or that an embedded message "
                         + "misreported its own length.");
     }
 
-    public static ProtoBufException negativeSize() {
-        return new ProtoBufException(
+    public static ProtoException negativeSize() {
+        return new ProtoException(
                 "CodedInputStream encountered an embedded string or message "
                         + "which claimed to have negative size.");
     }
 
-    public static ProtoBufException malformedVarint() {
-        return new ProtoBufException(
+    public static ProtoException malformedVarint() {
+        return new ProtoException(
                 "CodedInputStream encountered a malformed varint.");
     }
 
-    public static ProtoBufException invalidTag() {
-        return new ProtoBufException(
+    public static ProtoException invalidTag() {
+        return new ProtoException(
                 "Protocol message contained an invalid tag (zero).");
     }
 
-    public static ProtoBufException invalidEndTag() {
-        return new ProtoBufException(
+    public static ProtoException invalidEndTag() {
+        return new ProtoException(
                 "Protocol message end-group tag did not match expected tag.");
     }
 
@@ -82,7 +82,7 @@ public class ProtoBufException extends IOException {
      * Exception indicating that and unexpected wire type was encountered for a
      * field.
      */
-    public static class InvalidWireTypeException extends ProtoBufException {
+    public static class InvalidWireTypeException extends ProtoException {
 
         private static final long serialVersionUID = 3283890091615336259L;
 
@@ -91,23 +91,23 @@ public class ProtoBufException extends IOException {
         }
     }
 
-    public static ProtoBufException recursionLimitExceeded() {
-        return new ProtoBufException(
+    public static ProtoException recursionLimitExceeded() {
+        return new ProtoException(
                 "Protocol message had too many levels of nesting.  May be malicious.  "
                         + "Use CodedInputStream.setRecursionLimit() to increase the depth limit.");
     }
 
-    public static ProtoBufException sizeLimitExceeded() {
-        return new ProtoBufException(
+    public static ProtoException sizeLimitExceeded() {
+        return new ProtoException(
                 "Protocol message was too large.  May be malicious.  "
                         + "Use CodedInputStream.setSizeLimit() to increase the size limit.");
     }
 
-    public static ProtoBufException parseFailure() {
-        return new ProtoBufException("Failed to parse the message.");
+    public static ProtoException parseFailure() {
+        return new ProtoException("Failed to parse the message.");
     }
 
-    public static ProtoBufException invalidUtf8() {
-        return new ProtoBufException("Protocol message had invalid UTF-8.");
+    public static ProtoException invalidUtf8() {
+        return new ProtoException("Protocol message had invalid UTF-8.");
     }
 }

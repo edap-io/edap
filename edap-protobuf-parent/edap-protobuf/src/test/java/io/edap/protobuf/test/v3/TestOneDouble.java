@@ -19,7 +19,7 @@ package io.edap.protobuf.test.v3;
 import com.google.protobuf.InvalidProtocolBufferException;
 import io.edap.protobuf.EncodeException;
 import io.edap.protobuf.ProtoBuf;
-import io.edap.protobuf.ProtoBufException;
+import io.edap.protobuf.ProtoException;
 import io.edap.protobuf.test.message.v3.*;
 import io.edap.util.ClazzUtil;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -61,7 +61,7 @@ public class TestOneDouble {
             1,
             31.415926
     })
-    void testDecode(double value) throws InvalidProtocolBufferException, ProtoBufException {
+    void testDecode(double value) throws InvalidProtocolBufferException, ProtoException {
 
         OneDoubleOuterClass.OneDouble.Builder builder = OneDoubleOuterClass.OneDouble.newBuilder();
         builder.setD(value);
@@ -108,7 +108,7 @@ public class TestOneDouble {
             1,
             31.415926
     })
-    void testDecodeUnboxed(double value) throws InvalidProtocolBufferException, ProtoBufException {
+    void testDecodeUnboxed(double value) throws InvalidProtocolBufferException, ProtoException {
 
         OneDoubleOuterClass.OneDouble.Builder builder = OneDoubleOuterClass.OneDouble.newBuilder();
         builder.setD(value);
@@ -179,7 +179,7 @@ public class TestOneDouble {
             1,
             31.415926
     })
-    void testDecodeNoAccess(double value) throws InvalidProtocolBufferException, ProtoBufException, NoSuchFieldException, IllegalAccessException {
+    void testDecodeNoAccess(double value) throws InvalidProtocolBufferException, ProtoException, NoSuchFieldException, IllegalAccessException {
 
         OneDoubleOuterClass.OneDouble.Builder builder = OneDoubleOuterClass.OneDouble.newBuilder();
         builder.setD(value);
@@ -208,7 +208,7 @@ public class TestOneDouble {
             1,
             31.415926
     })
-    void testDecodeUnboxedNoAccess(double value) throws InvalidProtocolBufferException, ProtoBufException, NoSuchFieldException, IllegalAccessException {
+    void testDecodeUnboxedNoAccess(double value) throws InvalidProtocolBufferException, ProtoException, NoSuchFieldException, IllegalAccessException {
 
         OneDoubleOuterClass.OneDouble.Builder builder = OneDoubleOuterClass.OneDouble.newBuilder();
         builder.setD(value);

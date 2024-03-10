@@ -19,7 +19,7 @@ package io.edap.protobuf.test.v3;
 import com.google.protobuf.InvalidProtocolBufferException;
 import io.edap.protobuf.EncodeException;
 import io.edap.protobuf.ProtoBuf;
-import io.edap.protobuf.ProtoBufException;
+import io.edap.protobuf.ProtoException;
 import io.edap.protobuf.test.message.v3.*;
 import io.edap.util.ClazzUtil;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -68,7 +68,7 @@ public class TestOneInt64 {
             -128,
             5671506337319861521L
     })
-    void testDecode(long value) throws InvalidProtocolBufferException, ProtoBufException {
+    void testDecode(long value) throws InvalidProtocolBufferException, ProtoException {
 
         OneInt64OuterClass.OneInt64.Builder builder = OneInt64OuterClass.OneInt64.newBuilder();
         builder.setValue(value);
@@ -124,7 +124,7 @@ public class TestOneInt64 {
             -128,
             5671506337319861521L
     })
-    void testDecodeUnboxed(long value) throws InvalidProtocolBufferException, ProtoBufException {
+    void testDecodeUnboxed(long value) throws InvalidProtocolBufferException, ProtoException {
 
         OneInt64OuterClass.OneInt64.Builder builder = OneInt64OuterClass.OneInt64.newBuilder();
         builder.setValue(value);
@@ -212,7 +212,7 @@ public class TestOneInt64 {
             -128,
             5671506337319861521L
     })
-    void testDecodeNoAccess(long value) throws InvalidProtocolBufferException, ProtoBufException, NoSuchFieldException, IllegalAccessException {
+    void testDecodeNoAccess(long value) throws InvalidProtocolBufferException, ProtoException, NoSuchFieldException, IllegalAccessException {
 
         OneInt64OuterClass.OneInt64.Builder builder = OneInt64OuterClass.OneInt64.newBuilder();
         builder.setValue(value);
@@ -243,7 +243,7 @@ public class TestOneInt64 {
             -128,
             5671506337319861521L
     })
-    void testDecodeUnboxedNoAccess(long value) throws InvalidProtocolBufferException, ProtoBufException, NoSuchFieldException, IllegalAccessException {
+    void testDecodeUnboxedNoAccess(long value) throws InvalidProtocolBufferException, ProtoException, NoSuchFieldException, IllegalAccessException {
 
         OneInt64OuterClass.OneInt64.Builder builder = OneInt64OuterClass.OneInt64.newBuilder();
         builder.setValue(value);

@@ -19,7 +19,7 @@ package io.edap.protobuf.test.v3;
 import com.google.protobuf.InvalidProtocolBufferException;
 import io.edap.protobuf.EncodeException;
 import io.edap.protobuf.ProtoBuf;
-import io.edap.protobuf.ProtoBufException;
+import io.edap.protobuf.ProtoException;
 import io.edap.protobuf.test.message.v3.*;
 import io.edap.protobuf.wire.Proto;
 import io.edap.util.ClazzUtil;
@@ -68,7 +68,7 @@ public class TestOneUint32 {
             1,
             128,
     })
-    void testDecode(int value) throws InvalidProtocolBufferException, ProtoBufException {
+    void testDecode(int value) throws InvalidProtocolBufferException, ProtoException {
 
         OneUint32OuterClass.OneUint32.Builder builder = OneUint32OuterClass.OneUint32.newBuilder();
         builder.setValue(value);
@@ -121,7 +121,7 @@ public class TestOneUint32 {
             1,
             128,
     })
-    void testDecodeUnboxed(int value) throws InvalidProtocolBufferException, ProtoBufException {
+    void testDecodeUnboxed(int value) throws InvalidProtocolBufferException, ProtoException {
 
         OneUint32OuterClass.OneUint32.Builder builder = OneUint32OuterClass.OneUint32.newBuilder();
         builder.setValue(value);
@@ -206,7 +206,7 @@ public class TestOneUint32 {
             1,
             128,
     })
-    void testDecodeNoAccess(int value) throws InvalidProtocolBufferException, ProtoBufException, NoSuchFieldException, IllegalAccessException {
+    void testDecodeNoAccess(int value) throws InvalidProtocolBufferException, ProtoException, NoSuchFieldException, IllegalAccessException {
 
         OneUint32OuterClass.OneUint32.Builder builder = OneUint32OuterClass.OneUint32.newBuilder();
         builder.setValue(value);
@@ -234,7 +234,7 @@ public class TestOneUint32 {
             1,
             128,
     })
-    void testDecodeUnboxedNoAccess(int value) throws InvalidProtocolBufferException, ProtoBufException, NoSuchFieldException, IllegalAccessException {
+    void testDecodeUnboxedNoAccess(int value) throws InvalidProtocolBufferException, ProtoException, NoSuchFieldException, IllegalAccessException {
 
         OneUint32OuterClass.OneUint32.Builder builder = OneUint32OuterClass.OneUint32.newBuilder();
         builder.setValue(value);

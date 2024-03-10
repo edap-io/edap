@@ -18,19 +18,14 @@ package io.edap.protobuf.writer;
 
 import io.edap.io.BufOut;
 import io.edap.protobuf.EncodeException;
-import io.edap.protobuf.ProtoBufEncoder;
-import io.edap.protobuf.ProtoBufWriter;
-import io.edap.protobuf.wire.Field;
+import io.edap.protobuf.ProtoEncoder;
 import io.edap.protobuf.wire.WireFormat;
 import io.edap.protobuf.wire.WireType;
 import io.edap.util.StringUtil;
 
 import java.util.List;
 
-import static io.edap.protobuf.util.ProtoUtil.computeRawVarint64Size;
 import static io.edap.protobuf.wire.WireFormat.MAX_VARINT_SIZE;
-import static io.edap.protobuf.wire.WireFormat.MAX_VARLONG_SIZE;
-import static io.edap.util.CollectionUtils.isEmpty;
 import static io.edap.util.StringUtil.IS_BYTE_ARRAY;
 import static io.edap.util.StringUtil.isLatin1;
 
@@ -45,7 +40,7 @@ public class FastProtoBufWriter extends StandardProtoBufWriter {
     }
 
     @Override
-    public <T> void writeMessage(T v, ProtoBufEncoder<T> codec) throws EncodeException {
+    public <T> void writeMessage(T v, ProtoEncoder<T> codec) throws EncodeException {
         writeInt32(START_TAG);
         codec.encode(this, v);
         writeInt32(END_TAG);
@@ -141,7 +136,7 @@ public class FastProtoBufWriter extends StandardProtoBufWriter {
 //                writeFieldData(fieldData);
 //                writeUInt32_0(size);
 //                for (int i=0;i<size;i++) {
-//                    writeUInt64_0(ProtoBufWriter.encodeZigZag64(values[i]));
+//                    writeUInt64_0(ProtoWriter.encodeZigZag64(values[i]));
 //                }
 //                return;
 //            case FIXED64:
@@ -182,7 +177,7 @@ public class FastProtoBufWriter extends StandardProtoBufWriter {
 //                writeFieldData(fieldData);
 //                writeUInt32_0(size);
 //                for (long l : values) {
-//                    writeUInt64_0(ProtoBufWriter.encodeZigZag64(l));
+//                    writeUInt64_0(ProtoWriter.encodeZigZag64(l));
 //                }
 //                return;
 //            case FIXED64:
@@ -255,7 +250,7 @@ public class FastProtoBufWriter extends StandardProtoBufWriter {
 //                writeFieldData(fieldData);
 //                writeUInt32_0(values.size());
 //                for (Integer v : values) {
-//                    writeUInt32_0(ProtoBufWriter.encodeZigZag32(v));
+//                    writeUInt32_0(ProtoWriter.encodeZigZag32(v));
 //                }
 //                return;
 //            case FIXED32:
@@ -328,7 +323,7 @@ public class FastProtoBufWriter extends StandardProtoBufWriter {
 //                writeFieldData(fieldData);
 //                writeUInt32_0(values.length);
 //                for (i=0;i<size;i++) {
-//                    writeUInt32_0(ProtoBufWriter.encodeZigZag32(values[i]));
+//                    writeUInt32_0(ProtoWriter.encodeZigZag32(values[i]));
 //                }
 //                return;
 //            case FIXED32:
@@ -402,7 +397,7 @@ public class FastProtoBufWriter extends StandardProtoBufWriter {
 //                writeInt32_0(size);
 //                //writeUInt32_0(len);
 //                for (i=0;i<size;i++) {
-//                    writeUInt32_0(ProtoBufWriter.encodeZigZag32(values[i]));
+//                    writeUInt32_0(ProtoWriter.encodeZigZag32(values[i]));
 //                }
 //                return;
 //            case FIXED32:
@@ -419,7 +414,7 @@ public class FastProtoBufWriter extends StandardProtoBufWriter {
 //    }
 
     @Override
-    public <T> void writeMessage(byte[] fieldData, int tag, T v, ProtoBufEncoder<T> codec) throws EncodeException {
+    public <T> void writeMessage(byte[] fieldData, int tag, T v, ProtoEncoder<T> codec) throws EncodeException {
         if (v == null) {
             return;
         }
@@ -429,7 +424,7 @@ public class FastProtoBufWriter extends StandardProtoBufWriter {
     }
 
     @Override
-    public <T> void writeMessages(byte[] fieldData, int tag, List<T> vs, ProtoBufEncoder<T> codec) throws EncodeException {
+    public <T> void writeMessages(byte[] fieldData, int tag, List<T> vs, ProtoEncoder<T> codec) throws EncodeException {
         int size = vs.size();
         expand(MAX_VARINT_SIZE);
         writeFieldData(fieldData);
@@ -449,7 +444,7 @@ public class FastProtoBufWriter extends StandardProtoBufWriter {
     }
 
     @Override
-    public <T> void writeMessages(byte[] fieldData, int tag, T[] vs, ProtoBufEncoder<T> codec) throws EncodeException {
+    public <T> void writeMessages(byte[] fieldData, int tag, T[] vs, ProtoEncoder<T> codec) throws EncodeException {
         if (vs == null) {
             return;
         }
@@ -462,7 +457,7 @@ public class FastProtoBufWriter extends StandardProtoBufWriter {
         }
     }
 
-    public <T> void writeMessage0(byte[] fieldData, int tag, T v, ProtoBufEncoder<T> codec, int end) throws EncodeException {
+    public <T> void writeMessage0(byte[] fieldData, int tag, T v, ProtoEncoder<T> codec, int end) throws EncodeException {
         writeFieldData(fieldData);
         codec.encode(this, v);
         writeUInt32(end);

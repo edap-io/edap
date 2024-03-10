@@ -16,8 +16,8 @@
 
 package io.edap.protobuf.reader;
 
-import io.edap.protobuf.ProtoBufDecoder;
-import io.edap.protobuf.ProtoBufException;
+import io.edap.protobuf.ProtoDecoder;
+import io.edap.protobuf.ProtoException;
 import io.edap.protobuf.ext.AnyCodec;
 import io.edap.protobuf.wire.Field.Type;
 
@@ -64,7 +64,7 @@ public class ByteArrayReader extends AbstractReader {
     }
 
     @Override
-    public List<Integer> readPackedInt32(Type type) throws ProtoBufException {
+    public List<Integer> readPackedInt32(Type type) throws ProtoException {
         List<Integer> list = new ArrayList<>();
         int len = readRawVarint32();
         int old = pos;
@@ -87,7 +87,7 @@ public class ByteArrayReader extends AbstractReader {
                 }
                 break;
             default:
-                throw ProtoBufException.malformedVarint();
+                throw ProtoException.malformedVarint();
         }
         return list;
     }
@@ -111,7 +111,7 @@ public class ByteArrayReader extends AbstractReader {
     }
 
     @Override
-    public Integer[] readPackedInt32Array(Type type) throws ProtoBufException {
+    public Integer[] readPackedInt32Array(Type type) throws ProtoException {
         Integer[] tmp = LOCAL_TMP_INTEGER_ARRAY.get();
         int len = readRawVarint32();
         expandLocalIntegerArray(tmp, len);
@@ -136,7 +136,7 @@ public class ByteArrayReader extends AbstractReader {
                 }
                 break;
             default:
-                throw ProtoBufException.malformedVarint();
+                throw ProtoException.malformedVarint();
         }
 
         Integer [] res = new Integer[i];
@@ -145,7 +145,7 @@ public class ByteArrayReader extends AbstractReader {
     }
 
     @Override
-    public int[] readPackedInt32ArrayValue(Type type) throws ProtoBufException {
+    public int[] readPackedInt32ArrayValue(Type type) throws ProtoException {
         int[] tmp = LOCAL_TMP_INT_ARRAY.get();
         int len = readRawVarint32();
         expandLocalIntArray(tmp, len);
@@ -170,7 +170,7 @@ public class ByteArrayReader extends AbstractReader {
                 }
                 break;
             default:
-                throw ProtoBufException.malformedVarint();
+                throw ProtoException.malformedVarint();
         }
 
         int [] res = new int[i];
@@ -178,7 +178,7 @@ public class ByteArrayReader extends AbstractReader {
         return res;
     }
 
-    public boolean[] readPackedBoolValues() throws ProtoBufException {
+    public boolean[] readPackedBoolValues() throws ProtoException {
         int len = readRawVarint32();
         boolean[] vs = new boolean[len];
         for (int i=0;i<len;i++) {
@@ -187,7 +187,7 @@ public class ByteArrayReader extends AbstractReader {
         return vs;
     }
 
-    public Boolean[] readPackedBools() throws ProtoBufException {
+    public Boolean[] readPackedBools() throws ProtoException {
         int len = readRawVarint32();
         Boolean[] vs = new Boolean[len];
         for (int i=0;i<len;i++) {
@@ -216,7 +216,7 @@ public class ByteArrayReader extends AbstractReader {
     }
 
     @Override
-    public Long[] readPackedInt64Array(Type type) throws ProtoBufException {
+    public Long[] readPackedInt64Array(Type type) throws ProtoException {
         Long[] tmp = LOCAL_TMP_LONG_ARRAY.get();
         int len = readRawVarint32();
         int old = pos;
@@ -243,7 +243,7 @@ public class ByteArrayReader extends AbstractReader {
                 }
                 break;
             default:
-                throw ProtoBufException.malformedVarint();
+                throw ProtoException.malformedVarint();
         }
 
         Long [] res = new Long[i];
@@ -252,7 +252,7 @@ public class ByteArrayReader extends AbstractReader {
     }
 
     @Override
-    public long[] readPackedInt64ArrayValue(Type type) throws ProtoBufException {
+    public long[] readPackedInt64ArrayValue(Type type) throws ProtoException {
         long[] tmp = LOCAL_TMP_LONG_VALUE_ARRAY.get();
         int len = readRawVarint32();
         int old = pos;
@@ -279,7 +279,7 @@ public class ByteArrayReader extends AbstractReader {
                 }
                 break;
             default:
-                throw ProtoBufException.malformedVarint();
+                throw ProtoException.malformedVarint();
         }
 
         long [] res = new long[i];
@@ -289,7 +289,7 @@ public class ByteArrayReader extends AbstractReader {
 
     @Override
     public List<Long> readPackedInt64(Type type)
-            throws ProtoBufException {
+            throws ProtoException {
         List<Long> list = new ArrayList<>();
         int len = readRawVarint32();
         int old = pos;
@@ -312,13 +312,13 @@ public class ByteArrayReader extends AbstractReader {
                 }
                 break;
             default:
-                throw ProtoBufException.malformedVarint();
+                throw ProtoException.malformedVarint();
         }
         return list;
     }
 
     @Override
-    public byte[] readBytes() throws ProtoBufException {
+    public byte[] readBytes() throws ProtoException {
         int len = readRawVarint32();
         byte[] bs = new byte[len];
         System.arraycopy(buf, pos, bs, 0, len);
@@ -327,7 +327,7 @@ public class ByteArrayReader extends AbstractReader {
     }
 
     @Override
-    public String readString() throws ProtoBufException {
+    public String readString() throws ProtoException {
         int len = readRawVarint32();
         if (len < 0) {
             return null;
@@ -383,7 +383,7 @@ public class ByteArrayReader extends AbstractReader {
     }
 
     @Override
-    public String readString(int charLen) throws ProtoBufException {
+    public String readString(int charLen) throws ProtoException {
         if (charLen < 0) {
             return null;
         } else if (charLen == 0) {
@@ -437,44 +437,44 @@ public class ByteArrayReader extends AbstractReader {
     }
 
     @Override
-    public Object readObject() throws ProtoBufException {
+    public Object readObject() throws ProtoException {
         return AnyCodec.decode(this);
     }
 
     @Override
-    boolean skipRawVarint() throws ProtoBufException {
+    boolean skipRawVarint() throws ProtoException {
         int len = limit - pos;
         for (int i = 0; i < len; i++) {
             if (buf[pos++] >= 0) {
                 return true;
             }
         }
-        throw ProtoBufException.malformedVarint();
+        throw ProtoException.malformedVarint();
     }
 
     @Override
-    boolean skipString() throws ProtoBufException {
+    boolean skipString() throws ProtoException {
         return true;
     }
 
     @Override
-    boolean skipRawBytes(int len) throws ProtoBufException {
+    boolean skipRawBytes(int len) throws ProtoException {
         if (limit - pos >= len) {
             pos += len;
             return true;
         }
-        throw ProtoBufException.malformedVarint();
+        throw ProtoException.malformedVarint();
     }
 
     @Override
-    boolean skipMessage(int tag) throws ProtoBufException {
+    boolean skipMessage(int tag) throws ProtoException {
         int len = readRawVarint32();
         return skipRawBytes(len);
     }
 
 
     @Override
-    int readRawVarint32() throws ProtoBufException {
+    int readRawVarint32() throws ProtoException {
         fastpath: {
             int tmpPos = pos;
             if (tmpPos == limit) {
@@ -512,7 +512,7 @@ public class ByteArrayReader extends AbstractReader {
     }
 
     @Override
-    long readRawVarint64() throws ProtoBufException {
+    long readRawVarint64() throws ProtoException {
         fastpath: {
             int tmpPos = pos;
             if (tmpPos == limit) {
@@ -576,7 +576,7 @@ public class ByteArrayReader extends AbstractReader {
         return readRawVarint64SlowPath();
     }
 
-    private long readRawVarint64SlowPath() throws ProtoBufException {
+    private long readRawVarint64SlowPath() throws ProtoException {
         long result = 0;
         for (int shift = 0; shift < 64 && pos < limit; shift += 7) {
             final byte b = buf[pos++];
@@ -585,13 +585,13 @@ public class ByteArrayReader extends AbstractReader {
                 return result;
             }
         }
-        throw ProtoBufException.malformedVarint();
+        throw ProtoException.malformedVarint();
     }
 
     @Override
-    long readRawLittleEndian64() throws ProtoBufException {
+    long readRawLittleEndian64() throws ProtoException {
         if (limit - pos < FIXED_64_SIZE) {
-            throw ProtoBufException.truncatedMessage();
+            throw ProtoException.truncatedMessage();
         }
         byte[] _buf = buf;
         int p = pos;
@@ -607,9 +607,9 @@ public class ByteArrayReader extends AbstractReader {
     }
 
     @Override
-    int readRawLittleEndian32() throws ProtoBufException {
+    int readRawLittleEndian32() throws ProtoException {
         if (limit - pos < FIXED_32_SIZE) {
-            throw ProtoBufException.truncatedMessage();
+            throw ProtoException.truncatedMessage();
         }
         return   (((buf[pos++] & 0xFF))
                 | ((buf[pos++] & 0xFF) << 8)
@@ -618,13 +618,13 @@ public class ByteArrayReader extends AbstractReader {
     }
 
     @Override
-    boolean skipObject() throws ProtoBufException {
+    boolean skipObject() throws ProtoException {
         return AnyCodec.skipObject(this);
     }
 
 
     @Override
-    public int readTag() throws ProtoBufException {
+    public int readTag() throws ProtoException {
         if (pos >= limit) {
             return 0;
         }
@@ -632,13 +632,13 @@ public class ByteArrayReader extends AbstractReader {
     }
 
     @Override
-    public <T> T readMessage(ProtoBufDecoder<T> codec) throws ProtoBufException {
+    public <T> T readMessage(ProtoDecoder<T> codec) throws ProtoException {
         int len = readUInt32();
         int oldLimit = limit;
 
         limit = pos + len;
         if (limit > originalLimit) {
-            throw ProtoBufException.truncatedMessage();
+            throw ProtoException.truncatedMessage();
         }
         T t = codec.decode(this);
         limit = oldLimit;

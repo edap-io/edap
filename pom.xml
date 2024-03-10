@@ -87,6 +87,11 @@
             </dependency>
             <dependency>
                 <groupId>io.edap</groupId>
+                <artifactId>edap-protobuf-api</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.edap</groupId>
                 <artifactId>edap-protobuf</artifactId>
                 <version>${project.version}</version>
             </dependency>

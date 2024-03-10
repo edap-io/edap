@@ -17,9 +17,9 @@
 package io.edap.protobuf.ext.codec;
 
 import io.edap.protobuf.EncodeException;
-import io.edap.protobuf.ProtoBufException;
-import io.edap.protobuf.ProtoBufReader;
-import io.edap.protobuf.ProtoBufWriter;
+import io.edap.protobuf.ProtoException;
+import io.edap.protobuf.ProtoReader;
+import io.edap.protobuf.ProtoWriter;
 import io.edap.protobuf.ext.ExtCodec;
 
 import static io.edap.protobuf.ext.AnyCodec.RANGE_STRING_END;
@@ -41,7 +41,7 @@ public class StringCodec implements ExtCodec<String> {
     }
 
     @Override
-    public String decode(ProtoBufReader reader) throws ProtoBufException {
+    public String decode(ProtoReader reader) throws ProtoException {
         if (null != len) {
             return reader.readString(len);
         }
@@ -50,7 +50,7 @@ public class StringCodec implements ExtCodec<String> {
     }
 
     @Override
-    public boolean skip(ProtoBufReader reader) throws ProtoBufException {
+    public boolean skip(ProtoReader reader) throws ProtoException {
         if (null != len) {
             reader.readString(len);
             return true;
@@ -61,7 +61,7 @@ public class StringCodec implements ExtCodec<String> {
     }
 
     @Override
-    public void encode(ProtoBufWriter writer, String s) throws EncodeException {
+    public void encode(ProtoWriter writer, String s) throws EncodeException {
         int len = s.length();
         if (len < RANGE_STRING_END - RANGE_STRING_START) {
             writer.writeInt32(RANGE_STRING_START + len);

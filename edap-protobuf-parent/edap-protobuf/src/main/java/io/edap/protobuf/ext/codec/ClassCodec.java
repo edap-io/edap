@@ -17,9 +17,9 @@
 package io.edap.protobuf.ext.codec;
 
 import io.edap.protobuf.EncodeException;
-import io.edap.protobuf.ProtoBufException;
-import io.edap.protobuf.ProtoBufReader;
-import io.edap.protobuf.ProtoBufWriter;
+import io.edap.protobuf.ProtoException;
+import io.edap.protobuf.ProtoReader;
+import io.edap.protobuf.ProtoWriter;
 import io.edap.protobuf.ext.ExtCodec;
 
 import static io.edap.protobuf.ext.AnyCodec.RANGE_CLASS;
@@ -30,7 +30,7 @@ import static io.edap.protobuf.ext.AnyCodec.RANGE_CLASS;
 public class ClassCodec implements ExtCodec<Class> {
 
     @Override
-    public Class decode(ProtoBufReader reader) throws ProtoBufException {
+    public Class decode(ProtoReader reader) throws ProtoException {
         String s = reader.readString();
         if (s == null) {
             return null;
@@ -56,19 +56,19 @@ public class ClassCodec implements ExtCodec<Class> {
                 try {
                     return Class.forName(s);
                 } catch (ClassNotFoundException e) {
-                    throw new ProtoBufException("Class " + s + " not found");
+                    throw new ProtoException("Class " + s + " not found");
                 }
         }
     }
 
     @Override
-    public boolean skip(ProtoBufReader reader) throws ProtoBufException {
+    public boolean skip(ProtoReader reader) throws ProtoException {
         reader.readString();
         return true;
     }
 
     @Override
-    public void encode(ProtoBufWriter writer, Class aClass) throws EncodeException {
+    public void encode(ProtoWriter writer, Class aClass) throws EncodeException {
         String s = null;
         if (aClass != null) {
             s = aClass.getName();

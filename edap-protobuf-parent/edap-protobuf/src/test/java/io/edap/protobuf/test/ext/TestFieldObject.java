@@ -20,8 +20,8 @@ import io.edap.json.Eson;
 import io.edap.json.JsonArray;
 import io.edap.protobuf.EncodeException;
 import io.edap.protobuf.ProtoBuf;
-import io.edap.protobuf.ProtoBufException;
-import io.edap.protobuf.ProtoBufWriter;
+import io.edap.protobuf.ProtoException;
+import io.edap.protobuf.ProtoWriter;
 import io.edap.protobuf.model.ProtoBufOption;
 import io.edap.protobuf.test.message.ext.FieldObject;
 import io.edap.protobuf.test.message.v3.Project;
@@ -61,7 +61,7 @@ public class TestFieldObject {
             "abcdefgh，中文内容，a😁文c，a文c😁，abcdefgh，中文内容，a😁文c，a文c😁:" +
                     "::abcdefgh，中文内容，a😁文c，a文c😁，abcdefgh，中文内容，a😁文c，a文c😁"
     })
-    void testStringCodec(String value) throws EncodeException, ProtoBufException {
+    void testStringCodec(String value) throws EncodeException, ProtoException {
         FieldObject fo = new FieldObject();
         fo.setObj(value);
         byte[] epb = ProtoBuf.toByteArray(fo);
@@ -91,7 +91,7 @@ public class TestFieldObject {
             -1,
             -129
     })
-    void testIntegerCodec(int value) throws EncodeException, ProtoBufException {
+    void testIntegerCodec(int value) throws EncodeException, ProtoException {
         FieldObject fo = new FieldObject();
         fo.setObj(value);
         byte[] epb = ProtoBuf.toByteArray(fo);
@@ -111,7 +111,7 @@ public class TestFieldObject {
             -129,
             5671506337319861521L
     })
-    void testLongCodec(long value) throws EncodeException, ProtoBufException {
+    void testLongCodec(long value) throws EncodeException, ProtoException {
         FieldObject fo = new FieldObject();
         fo.setObj(value);
         byte[] epb = ProtoBuf.toByteArray(fo);
@@ -128,7 +128,7 @@ public class TestFieldObject {
             true,
             false
     })
-    void testBooleanCodec(boolean value) throws EncodeException, ProtoBufException {
+    void testBooleanCodec(boolean value) throws EncodeException, ProtoException {
         FieldObject fo = new FieldObject();
         fo.setObj(value);
         byte[] epb = ProtoBuf.toByteArray(fo);
@@ -146,7 +146,7 @@ public class TestFieldObject {
             1,
             31.415926
     })
-    void testDoubleCodec(double value) throws EncodeException, ProtoBufException {
+    void testDoubleCodec(double value) throws EncodeException, ProtoException {
         FieldObject fo = new FieldObject();
         fo.setObj(value);
         byte[] epb = ProtoBuf.toByteArray(fo);
@@ -164,7 +164,7 @@ public class TestFieldObject {
             1f,
             31.415926f
     })
-    void testFloatCodec(float value) throws EncodeException, ProtoBufException {
+    void testFloatCodec(float value) throws EncodeException, ProtoException {
         FieldObject fo = new FieldObject();
         fo.setObj(value);
         byte[] epb = ProtoBuf.toByteArray(fo);
@@ -180,7 +180,7 @@ public class TestFieldObject {
     @ValueSource(strings = {
             "2020-03-04 13:24:35.678"
     })
-    void testDateCodec(String value) throws EncodeException, ProtoBufException, ParseException {
+    void testDateCodec(String value) throws EncodeException, ProtoException, ParseException {
         SimpleDateFormat timeF = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS");
         Date date = timeF.parse(value);
         FieldObject fo = new FieldObject();
@@ -199,7 +199,7 @@ public class TestFieldObject {
             "2020-03-04",
             "2000-12-23"
     })
-    void testLocalDateCodec(String value) throws EncodeException, ProtoBufException, ParseException {
+    void testLocalDateCodec(String value) throws EncodeException, ProtoException, ParseException {
         LocalDate date = LocalDate.parse(value);
         FieldObject fo = new FieldObject();
         fo.setObj(date);
@@ -216,7 +216,7 @@ public class TestFieldObject {
     @ValueSource(strings = {
             "2020-03-04T13:24:35.678"
     })
-    void testLocalDateTimeCodec(String value) throws EncodeException, ProtoBufException, ParseException {
+    void testLocalDateTimeCodec(String value) throws EncodeException, ProtoException, ParseException {
         LocalDateTime date = LocalDateTime.parse(value);
         FieldObject fo = new FieldObject();
         fo.setObj(date);
@@ -233,7 +233,7 @@ public class TestFieldObject {
     @ValueSource(strings = {
             "13:24:35.678"
     })
-    void testLocalTimeCodec(String value) throws EncodeException, ProtoBufException, ParseException {
+    void testLocalTimeCodec(String value) throws EncodeException, ProtoException, ParseException {
         LocalTime date = LocalTime.parse(value);
         FieldObject fo = new FieldObject();
         fo.setObj(date);
@@ -250,7 +250,7 @@ public class TestFieldObject {
     @ValueSource(strings = {
             "2020-03-04 13:24:35.678"
     })
-    void testCalendarCodec(String value) throws EncodeException, ProtoBufException, ParseException {
+    void testCalendarCodec(String value) throws EncodeException, ProtoException, ParseException {
         SimpleDateFormat timeF = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS");
         Calendar date = Calendar.getInstance();
         date.setTime(timeF.parse(value));
@@ -275,7 +275,7 @@ public class TestFieldObject {
             -129,
             5671506337319861521L
     })
-    void testBigInteger(long value) throws EncodeException, ProtoBufException {
+    void testBigInteger(long value) throws EncodeException, ProtoException {
         BigInteger bv = BigInteger.valueOf(value);
         if (value == 0) {
             bv = BigInteger.ZERO;
@@ -299,7 +299,7 @@ public class TestFieldObject {
             0.1,
             31.415926
     })
-    void testBigDecimalCodec(double v) throws EncodeException, ProtoBufException {
+    void testBigDecimalCodec(double v) throws EncodeException, ProtoException {
         BigDecimal bv = new BigDecimal(v);
         System.out.println("v=" + v + ",v == 0[" + (v == 0) + "]");
         if (v == 0) {
@@ -334,7 +334,7 @@ public class TestFieldObject {
             "a文c😁",
             "a😿文c😁"
     })
-    void testArrayByteCodec(String value) throws EncodeException, ProtoBufException, UnsupportedEncodingException {
+    void testArrayByteCodec(String value) throws EncodeException, ProtoException, UnsupportedEncodingException {
         FieldObject fo = new FieldObject();
         fo.setObj(value.getBytes("utf-8"));
         byte[] epb = ProtoBuf.toByteArray(fo);
@@ -357,7 +357,7 @@ public class TestFieldObject {
             "a文c😁",
             "a😿文c😁"
     })
-    void testArrayCharCodec(String value) throws EncodeException, ProtoBufException {
+    void testArrayCharCodec(String value) throws EncodeException, ProtoException {
         FieldObject fo = new FieldObject();
         fo.setObj(value.toCharArray());
         byte[] epb = ProtoBuf.toByteArray(fo);
@@ -379,7 +379,7 @@ public class TestFieldObject {
             "[1,128,129]",
             "[-1,1,128,-256]"
     })
-    void testArrayIntCodec(String v) throws EncodeException, ProtoBufException {
+    void testArrayIntCodec(String v) throws EncodeException, ProtoException {
 
         JsonArray jvs = JsonArray.parseArray(v);
         int[] vs = new int[jvs.size()];
@@ -405,7 +405,7 @@ public class TestFieldObject {
             "[1,128,129,null]",
             "[-1,1,null,128,-256]"
     })
-    void testArrayIntegerCodec(String v) throws EncodeException, ProtoBufException {
+    void testArrayIntegerCodec(String v) throws EncodeException, ProtoException {
 
         JsonArray jvs = JsonArray.parseArray(v);
         Integer[] vs = null;
@@ -437,7 +437,7 @@ public class TestFieldObject {
             "[0,1,128,2147483648L]",
             "[-1,1,128,2147483648L,0]"
     })
-    void testArrayLongCodec(String v) throws EncodeException, ProtoBufException {
+    void testArrayLongCodec(String v) throws EncodeException, ProtoException {
         JsonArray jvs = JsonArray.parseArray(v);
         long[] vs = null;
         if (null != jvs) {
@@ -462,7 +462,7 @@ public class TestFieldObject {
             "[1,null,128,2147483648L]",
             "[null,-1,1,128,2147483648L,null]"
     })
-    void testArrayLongObjCodec(String v) throws EncodeException, ProtoBufException {
+    void testArrayLongObjCodec(String v) throws EncodeException, ProtoException {
         JsonArray jvs = JsonArray.parseArray(v);
         Long[] vs = new Long[jvs.size()];
         for (int i=0;i<jvs.size();i++) {
@@ -492,7 +492,7 @@ public class TestFieldObject {
             "[1,31.415926]",
             "[31.415926,1]"
     })
-    void testArrayFloatCodec(String v) throws EncodeException, ProtoBufException {
+    void testArrayFloatCodec(String v) throws EncodeException, ProtoException {
         JsonArray jvs = JsonArray.parseArray(v);
         float[] vs = new float[jvs.size()];
         for (int i=0;i<jvs.size();i++) {
@@ -516,7 +516,7 @@ public class TestFieldObject {
             "[null,1,31.415926]",
             "[31.415926,null,1,null]"
     })
-    void testArrayFloatObjCodec(String v) throws EncodeException, ProtoBufException {
+    void testArrayFloatObjCodec(String v) throws EncodeException, ProtoException {
         JsonArray jvs = JsonArray.parseArray(v);
         Float[] vs = new Float[jvs.size()];
         for (int i=0;i<jvs.size();i++) {
@@ -545,7 +545,7 @@ public class TestFieldObject {
             "[0,1,31.415926]",
             "[31.415926,1,0]"
     })
-    void testArrayDoubleCodec(String v) throws EncodeException, ProtoBufException {
+    void testArrayDoubleCodec(String v) throws EncodeException, ProtoException {
 
         JsonArray jvs = JsonArray.parseArray(v);
         double[] vs = new double[jvs.size()];
@@ -571,7 +571,7 @@ public class TestFieldObject {
             "[0,null,1,31.415926]",
             "[null,31.415926,1,null,0,null]"
     })
-    void testArrayDoubleObjCodec(String v) throws EncodeException, ProtoBufException {
+    void testArrayDoubleObjCodec(String v) throws EncodeException, ProtoException {
 
         JsonArray jvs = JsonArray.parseArray(v);
         Double[] vs = new Double[jvs.size()];
@@ -601,7 +601,7 @@ public class TestFieldObject {
             "[\"a\",\"\",null,\"abcdefgh\",\"中文内容\"]",
             "[]"
     })
-    void testArrayStringCodec(String value) throws EncodeException, ProtoBufException {
+    void testArrayStringCodec(String value) throws EncodeException, ProtoException {
         String[] vs = null;
         JsonArray jl = JsonArray.parseArray(value);
         vs = new String[jl.size()];
@@ -628,7 +628,7 @@ public class TestFieldObject {
             "[true,true,false,true,false]",
             "[]"
     })
-    void testArrayBoolCodec(String jlist) throws EncodeException, ProtoBufException {
+    void testArrayBoolCodec(String jlist) throws EncodeException, ProtoException {
 
         JsonArray jl = JsonArray.parseArray(jlist);
         boolean[] vs = new boolean[jl.size()];
@@ -650,7 +650,7 @@ public class TestFieldObject {
             "[true,null,true,false,true,false,null]",
             "[]"
     })
-    void testArrayBoolObjCodec(String jlist) throws EncodeException, ProtoBufException {
+    void testArrayBoolObjCodec(String jlist) throws EncodeException, ProtoException {
 
         JsonArray jl = JsonArray.parseArray(jlist);
         Boolean[] vs = new Boolean[jl.size()];
@@ -686,7 +686,7 @@ public class TestFieldObject {
             "java.lang.Integer",
             "java.time.LocalDateTime"
     })
-    void testClassCodec(String value) throws EncodeException, ClassNotFoundException, ProtoBufException {
+    void testClassCodec(String value) throws EncodeException, ClassNotFoundException, ProtoException {
         Class cls = null;
         if (null != value && !"null".equals(value)) {
             switch (value) {
@@ -718,7 +718,7 @@ public class TestFieldObject {
                     try {
                         cls = Class.forName(value);
                     } catch (ClassNotFoundException e) {
-                        throw new ProtoBufException("Class " + cls  + " not found");
+                        throw new ProtoException("Class " + cls  + " not found");
                     }
             }
         }
@@ -742,7 +742,7 @@ public class TestFieldObject {
                     + "\"name9\":\"louis\",\"name10\":\"louis\",\"name11\":\"louis\",\"name12\":\"louis\","
                     + "\"name13\":\"louis\",\"name14\":\"louis\",\"name15\":\"louis\",\"name16\":\"louis\"}"
     })
-    void testMapCodec(String value) throws EncodeException, ProtoBufException {
+    void testMapCodec(String value) throws EncodeException, ProtoException {
 
         Map<String, Object> map = new HashMap<>();
         Map<String, Object> omap = Eson.parseJsonObject(value);
@@ -779,7 +779,7 @@ public class TestFieldObject {
                     + "\"name9\":\"louis\",\"name10\":\"louis\",\"name11\":\"louis\",\"name12\":\"louis\","
                     + "\"name13\":\"louis\",\"name14\":\"louis\",\"name15\":\"louis\",\"name16\":\"louis\"}"
     })
-    void testLinkedHashMapCodec(String value) throws EncodeException, ProtoBufException {
+    void testLinkedHashMapCodec(String value) throws EncodeException, ProtoException {
 
         Map<String, Object> map = new LinkedHashMap<>();
         Map<String, Object> omap = Eson.parseJsonObject(value);
@@ -880,7 +880,7 @@ public class TestFieldObject {
     }
 
     @Test
-    void testEncodecNull() throws EncodeException, ProtoBufException {
+    void testEncodecNull() throws EncodeException, ProtoException {
         byte[] data = new byte[]{(byte)RANGE_NULL};
         byte[] edata = ProtoBuf.ser(null);
         System.out.println("data");
@@ -895,7 +895,7 @@ public class TestFieldObject {
     }
 
     @Test
-    public void testEncodecMessage() throws ProtoBufException, EncodeException {
+    public void testEncodecMessage() throws ProtoException, EncodeException {
         Project project = new Project();
         project.setId(1L);
         project.setName("edap");
