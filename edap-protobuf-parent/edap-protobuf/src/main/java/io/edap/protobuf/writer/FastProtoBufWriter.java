@@ -18,7 +18,7 @@ package io.edap.protobuf.writer;
 
 import io.edap.io.BufOut;
 import io.edap.protobuf.EncodeException;
-import io.edap.protobuf.ProtoEncoder;
+import io.edap.protobuf.ProtoBufEncoder;
 import io.edap.protobuf.wire.WireFormat;
 import io.edap.protobuf.wire.WireType;
 import io.edap.util.StringUtil;
@@ -40,7 +40,7 @@ public class FastProtoBufWriter extends StandardProtoBufWriter {
     }
 
     @Override
-    public <T> void writeMessage(T v, ProtoEncoder<T> codec) throws EncodeException {
+    public <T> void writeMessage(T v, ProtoBufEncoder<T> codec) throws EncodeException {
         writeInt32(START_TAG);
         codec.encode(this, v);
         writeInt32(END_TAG);
@@ -414,7 +414,7 @@ public class FastProtoBufWriter extends StandardProtoBufWriter {
 //    }
 
     @Override
-    public <T> void writeMessage(byte[] fieldData, int tag, T v, ProtoEncoder<T> codec) throws EncodeException {
+    public <T> void writeMessage(byte[] fieldData, int tag, T v, ProtoBufEncoder<T> codec) throws EncodeException {
         if (v == null) {
             return;
         }
@@ -424,7 +424,7 @@ public class FastProtoBufWriter extends StandardProtoBufWriter {
     }
 
     @Override
-    public <T> void writeMessages(byte[] fieldData, int tag, List<T> vs, ProtoEncoder<T> codec) throws EncodeException {
+    public <T> void writeMessages(byte[] fieldData, int tag, List<T> vs, ProtoBufEncoder<T> codec) throws EncodeException {
         int size = vs.size();
         expand(MAX_VARINT_SIZE);
         writeFieldData(fieldData);
@@ -444,7 +444,7 @@ public class FastProtoBufWriter extends StandardProtoBufWriter {
     }
 
     @Override
-    public <T> void writeMessages(byte[] fieldData, int tag, T[] vs, ProtoEncoder<T> codec) throws EncodeException {
+    public <T> void writeMessages(byte[] fieldData, int tag, T[] vs, ProtoBufEncoder<T> codec) throws EncodeException {
         if (vs == null) {
             return;
         }
@@ -457,7 +457,7 @@ public class FastProtoBufWriter extends StandardProtoBufWriter {
         }
     }
 
-    public <T> void writeMessage0(byte[] fieldData, int tag, T v, ProtoEncoder<T> codec, int end) throws EncodeException {
+    public <T> void writeMessage0(byte[] fieldData, int tag, T v, ProtoBufEncoder<T> codec, int end) throws EncodeException {
         writeFieldData(fieldData);
         codec.encode(this, v);
         writeUInt32(end);

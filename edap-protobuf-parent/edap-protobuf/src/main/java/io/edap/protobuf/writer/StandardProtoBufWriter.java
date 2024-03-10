@@ -19,15 +19,14 @@ package io.edap.protobuf.writer;
 import io.edap.io.BufOut;
 import io.edap.protobuf.EncodeException;
 import io.edap.protobuf.ProtoBufEncoder;
-import io.edap.protobuf.ProtoEncoder;
 import io.edap.protobuf.ext.AnyCodec;
 import io.edap.protobuf.wire.Field;
 import io.edap.util.CollectionUtils;
 
 import java.util.*;
 
-import static io.edap.protobuf.ProtoWriter.encodeZigZag32;
-import static io.edap.protobuf.ProtoWriter.encodeZigZag64;
+import static io.edap.protobuf.ProtoBufWriter.encodeZigZag32;
+import static io.edap.protobuf.ProtoBufWriter.encodeZigZag64;
 import static io.edap.protobuf.util.ProtoUtil.*;
 import static io.edap.protobuf.wire.WireFormat.MAX_VARINT_SIZE;
 import static io.edap.protobuf.wire.WireFormat.MAX_VARLONG_SIZE;
@@ -830,7 +829,7 @@ public class StandardProtoBufWriter extends AbstractWriter {
     }
 
     @Override
-    public <T> void writeMessage(T v, ProtoEncoder<T> codec) throws EncodeException {
+    public <T> void writeMessage(T v, ProtoBufEncoder<T> codec) throws EncodeException {
         int oldPos = pos;
         pos += 1;
         codec.encode(this, v);
@@ -839,14 +838,14 @@ public class StandardProtoBufWriter extends AbstractWriter {
     }
 
     @Override
-    public <T> void writeMessage(byte[] fieldData, int tag, T v, ProtoEncoder<T> codec) throws EncodeException {
+    public <T> void writeMessage(byte[] fieldData, int tag, T v, ProtoBufEncoder<T> codec) throws EncodeException {
         if (v == null) {
             return;
         }
         writeMessage0(fieldData, tag, v, codec);
     }
 
-    public <T> void writeMessage0(byte[] fieldData, int tag, T v, ProtoEncoder<T> codec) throws EncodeException {
+    public <T> void writeMessage0(byte[] fieldData, int tag, T v, ProtoBufEncoder<T> codec) throws EncodeException {
         int len;
         expand(MAX_VARINT_SIZE);
         writeFieldData(fieldData);
@@ -858,7 +857,7 @@ public class StandardProtoBufWriter extends AbstractWriter {
     }
 
     @Override
-    public <T> void writeMessages(byte[] fieldData, int tag, T[] vs, ProtoEncoder<T> codec) throws EncodeException {
+    public <T> void writeMessages(byte[] fieldData, int tag, T[] vs, ProtoBufEncoder<T> codec) throws EncodeException {
         if (vs == null) {
             return;
         }
@@ -871,7 +870,7 @@ public class StandardProtoBufWriter extends AbstractWriter {
     }
 
     @Override
-    public <T> void writeMessages(byte[] fieldData, int tag, List<T> vs, ProtoEncoder<T> codec) throws EncodeException {
+    public <T> void writeMessages(byte[] fieldData, int tag, List<T> vs, ProtoBufEncoder<T> codec) throws EncodeException {
         if (CollectionUtils.isEmpty(vs)) {
             return;
         }
@@ -885,7 +884,7 @@ public class StandardProtoBufWriter extends AbstractWriter {
     }
 
     @Override
-    public <T> void writeMessages(byte[] fieldData, int tag, Iterable<T> vs, ProtoEncoder<T> codec) throws EncodeException {
+    public <T> void writeMessages(byte[] fieldData, int tag, Iterable<T> vs, ProtoBufEncoder<T> codec) throws EncodeException {
         if (vs == null || !vs.iterator().hasNext()) {
             return;
         }

@@ -20,7 +20,7 @@ package io.edap.protobuf.writer;
 import io.edap.buffer.FastBuf;
 import io.edap.io.BufOut;
 import io.edap.protobuf.ProtoBufEnum;
-import io.edap.protobuf.ProtoWriter;
+import io.edap.protobuf.ProtoBufWriter;
 import io.edap.protobuf.wire.Field;
 import io.edap.util.CollectionUtils;
 import io.edap.util.StringUtil;
@@ -30,15 +30,15 @@ import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.List;
 
-import static io.edap.protobuf.ProtoWriter.encodeZigZag32;
-import static io.edap.protobuf.ProtoWriter.encodeZigZag64;
+import static io.edap.protobuf.ProtoBufWriter.encodeZigZag32;
+import static io.edap.protobuf.ProtoBufWriter.encodeZigZag64;
 import static io.edap.protobuf.wire.WireFormat.*;
 import static io.edap.util.CollectionUtils.isEmpty;
 import static io.edap.util.StringUtil.IS_BYTE_ARRAY;
 import static io.edap.util.StringUtil.isLatin1;
 
 
-public abstract class AbstractWriter implements ProtoWriter {
+public abstract class AbstractWriter implements ProtoBufWriter {
     static final ThreadLocal<byte[]> LOCAL_TMP_BYTE_ARRAY =
             new ThreadLocal<byte[]>() {
                 @Override
