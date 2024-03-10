@@ -18,8 +18,8 @@ package io.edap.protobuf.ext.codec;
 
 import io.edap.protobuf.EncodeException;
 import io.edap.protobuf.ProtoException;
-import io.edap.protobuf.ProtoReader;
-import io.edap.protobuf.ProtoWriter;
+import io.edap.protobuf.ProtoBufReader;
+import io.edap.protobuf.ProtoBufWriter;
 import io.edap.protobuf.ext.ExtCodec;
 
 import java.time.Instant;
@@ -37,18 +37,18 @@ public class LocalTimeCodec implements ExtCodec<LocalTime> {
     private static final LocalDate START_DAY = LocalDate.of(1970, 1, 1);
 
     @Override
-    public LocalTime decode(ProtoReader reader) throws ProtoException {
+    public LocalTime decode(ProtoBufReader reader) throws ProtoException {
         return Instant.ofEpochMilli(reader.readInt64()).atZone(ZoneOffset.UTC).toLocalTime();
     }
 
     @Override
-    public boolean skip(ProtoReader reader) throws ProtoException {
+    public boolean skip(ProtoBufReader reader) throws ProtoException {
         reader.readInt64();
         return true;
     }
 
     @Override
-    public void encode(ProtoWriter writer, LocalTime v) throws EncodeException {
+    public void encode(ProtoBufWriter writer, LocalTime v) throws EncodeException {
         writer.writeByte((byte)RANGE_LOCALTIME);
         writer.writeUInt64(v.atDate(START_DAY).toInstant(ZoneOffset.UTC).toEpochMilli());
     }

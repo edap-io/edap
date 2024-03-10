@@ -18,8 +18,8 @@ package io.edap.protobuf.ext.codec;
 
 import io.edap.protobuf.EncodeException;
 import io.edap.protobuf.ProtoException;
-import io.edap.protobuf.ProtoReader;
-import io.edap.protobuf.ProtoWriter;
+import io.edap.protobuf.ProtoBufReader;
+import io.edap.protobuf.ProtoBufWriter;
 import io.edap.protobuf.ext.ExtCodec;
 
 import static io.edap.protobuf.ext.AnyCodec.RANGE_ARRAY_FLOAT;
@@ -30,7 +30,7 @@ import static io.edap.protobuf.ext.AnyCodec.RANGE_ARRAY_FLOAT;
 public class ArrayFloatCodec implements ExtCodec<float[]> {
 
     @Override
-    public float[] decode(ProtoReader reader) throws ProtoException {
+    public float[] decode(ProtoBufReader reader) throws ProtoException {
         int len = reader.readInt32();
         if (len == 0) {
             return new float[0];
@@ -43,14 +43,14 @@ public class ArrayFloatCodec implements ExtCodec<float[]> {
     }
 
     @Override
-    public boolean skip(ProtoReader reader) throws ProtoException {
+    public boolean skip(ProtoBufReader reader) throws ProtoException {
         int len = reader.readInt32();
         reader.skip(len<<2);
         return true;
     }
 
     @Override
-    public void encode(ProtoWriter writer, float[] floats) throws EncodeException {
+    public void encode(ProtoBufWriter writer, float[] floats) throws EncodeException {
         int len = floats.length;
         if (len == 0) {
             writer.writeByte((byte)RANGE_ARRAY_FLOAT);

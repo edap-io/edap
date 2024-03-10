@@ -18,8 +18,8 @@ package io.edap.protobuf.ext.codec;
 
 import io.edap.protobuf.EncodeException;
 import io.edap.protobuf.ProtoException;
-import io.edap.protobuf.ProtoReader;
-import io.edap.protobuf.ProtoWriter;
+import io.edap.protobuf.ProtoBufReader;
+import io.edap.protobuf.ProtoBufWriter;
 import io.edap.protobuf.ext.ExtCodec;
 
 import static io.edap.protobuf.ext.AnyCodec.RANGE_DOUBLE;
@@ -30,18 +30,18 @@ import static io.edap.protobuf.ext.AnyCodec.RANGE_DOUBLE;
 public class DoubleCodec implements ExtCodec<Double> {
 
     @Override
-    public Double decode(ProtoReader reader) throws ProtoException {
+    public Double decode(ProtoBufReader reader) throws ProtoException {
         return reader.readDouble();
     }
 
     @Override
-    public boolean skip(ProtoReader reader) throws ProtoException {
+    public boolean skip(ProtoBufReader reader) throws ProtoException {
         reader.skip(8);
         return true;
     }
 
     @Override
-    public void encode(ProtoWriter writer, Double v) throws EncodeException {
+    public void encode(ProtoBufWriter writer, Double v) throws EncodeException {
         writer.writeByte((byte)RANGE_DOUBLE);
         writer.writeFixed64(Double.doubleToRawLongBits(v));
     }

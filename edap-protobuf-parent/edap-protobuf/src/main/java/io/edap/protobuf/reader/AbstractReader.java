@@ -16,14 +16,14 @@
 
 package io.edap.protobuf.reader;
 
-import io.edap.protobuf.ProtoBufReader;
 import io.edap.protobuf.ProtoException;
+import io.edap.protobuf.ProtoBufReader;
 
 import java.util.ArrayList;
 import java.util.List;
 
-import static io.edap.protobuf.ProtoReader.decodeZigZag32;
-import static io.edap.protobuf.ProtoReader.decodeZigZag64;
+import static io.edap.protobuf.ProtoBufReader.decodeZigZag32;
+import static io.edap.protobuf.ProtoBufReader.decodeZigZag64;
 import static io.edap.protobuf.wire.WireFormat.*;
 
 public abstract class AbstractReader implements ProtoBufReader {

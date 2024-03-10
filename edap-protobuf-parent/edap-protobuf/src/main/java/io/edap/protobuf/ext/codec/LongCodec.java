@@ -18,8 +18,8 @@ package io.edap.protobuf.ext.codec;
 
 import io.edap.protobuf.EncodeException;
 import io.edap.protobuf.ProtoException;
-import io.edap.protobuf.ProtoReader;
-import io.edap.protobuf.ProtoWriter;
+import io.edap.protobuf.ProtoBufReader;
+import io.edap.protobuf.ProtoBufWriter;
 import io.edap.protobuf.ext.ExtCodec;
 
 import static io.edap.protobuf.ext.AnyCodec.RANGE_LONG;
@@ -30,18 +30,18 @@ import static io.edap.protobuf.ext.AnyCodec.RANGE_LONG;
 public class LongCodec implements ExtCodec<Long> {
 
     @Override
-    public Long decode(ProtoReader reader) throws ProtoException {
+    public Long decode(ProtoBufReader reader) throws ProtoException {
         return reader.readInt64();
     }
 
     @Override
-    public boolean skip(ProtoReader reader) throws ProtoException {
+    public boolean skip(ProtoBufReader reader) throws ProtoException {
         reader.readInt64();
         return true;
     }
 
     @Override
-    public void encode(ProtoWriter writer, Long v) throws EncodeException {
+    public void encode(ProtoBufWriter writer, Long v) throws EncodeException {
         writer.writeByte((byte)RANGE_LONG);
         writer.writeUInt64(v);
     }

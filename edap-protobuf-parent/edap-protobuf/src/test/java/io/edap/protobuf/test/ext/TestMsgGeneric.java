@@ -20,7 +20,6 @@ import io.edap.json.Eson;
 import io.edap.protobuf.EncodeException;
 import io.edap.protobuf.ProtoBuf;
 import io.edap.protobuf.ProtoException;
-import io.edap.protobuf.ProtoWriter;
 import io.edap.protobuf.test.message.ext.ComplexModel;
 import io.edap.protobuf.test.message.ext.Person;
 import io.edap.protobuf.test.message.ext.Point;

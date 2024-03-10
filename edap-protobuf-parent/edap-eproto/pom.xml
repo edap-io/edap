@@ -18,4 +18,15 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
 
+    <dependencies>
+        <dependency>
+            <groupId>io.edap</groupId>
+            <artifactId>edap-protobuf-wire</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.edap</groupId>
+            <artifactId>edap-protobuf-api</artifactId>
+        </dependency>
+    </dependencies>
+
 </project>

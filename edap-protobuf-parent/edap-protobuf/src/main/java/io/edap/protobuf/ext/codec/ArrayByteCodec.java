@@ -18,8 +18,8 @@ package io.edap.protobuf.ext.codec;
 
 import io.edap.protobuf.EncodeException;
 import io.edap.protobuf.ProtoException;
-import io.edap.protobuf.ProtoReader;
-import io.edap.protobuf.ProtoWriter;
+import io.edap.protobuf.ProtoBufReader;
+import io.edap.protobuf.ProtoBufWriter;
 import io.edap.protobuf.ext.ExtCodec;
 
 import static io.edap.protobuf.ext.AnyCodec.RANGE_ARRAY_BYTE;
@@ -30,19 +30,19 @@ import static io.edap.protobuf.ext.AnyCodec.RANGE_ARRAY_BYTE;
 public class ArrayByteCodec implements ExtCodec<byte[]> {
 
     @Override
-    public byte[] decode(ProtoReader reader) throws ProtoException {
+    public byte[] decode(ProtoBufReader reader) throws ProtoException {
         return reader.readBytes();
     }
 
     @Override
-    public boolean skip(ProtoReader reader) throws ProtoException {
+    public boolean skip(ProtoBufReader reader) throws ProtoException {
         int len = reader.readInt32();
         reader.skip(len);
         return true;
     }
 
     @Override
-    public void encode(ProtoWriter writer, byte[] bytes) throws EncodeException {
+    public void encode(ProtoBufWriter writer, byte[] bytes) throws EncodeException {
         if (bytes.length == 0) {
             writer.writeByte((byte)RANGE_ARRAY_BYTE);
             writer.writeInt32(0, true);

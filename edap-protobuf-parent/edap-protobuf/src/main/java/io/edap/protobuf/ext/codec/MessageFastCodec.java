@@ -42,9 +42,9 @@ public class MessageFastCodec implements ExtCodec<Object> {
     }
 
     @Override
-    public Object decode(ProtoReader reader) throws ProtoException {
+    public Object decode(ProtoBufReader reader) throws ProtoException {
         String uri = reader.readString();
-        ProtoDecoder decoder = getDecoder(uri);
+        ProtoBufDecoder decoder = getDecoder(uri);
         if (null == decoder) {
             throw new ProtoException(uri + "'s Decoder not found!");
         }
@@ -53,7 +53,7 @@ public class MessageFastCodec implements ExtCodec<Object> {
     }
 
     @Override
-    public boolean skip(ProtoReader reader) throws ProtoException {
+    public boolean skip(ProtoBufReader reader) throws ProtoException {
         String uri = reader.readString();
         ProtoBufDecoder decoder = getDecoder(uri);
         if (null == decoder) {
@@ -81,7 +81,7 @@ public class MessageFastCodec implements ExtCodec<Object> {
     }
 
     @Override
-    public void encode(ProtoWriter writer, Object t) throws EncodeException {
+    public void encode(ProtoBufWriter writer, Object t) throws EncodeException {
         ProtoBufEncoder<Object> encoder = ENCODERS.get(t.getClass());
         if (encoder == null) {
             encoder = ProtoBufCodecRegister.INSTANCE.getEncoder(t.getClass(), OPTION);

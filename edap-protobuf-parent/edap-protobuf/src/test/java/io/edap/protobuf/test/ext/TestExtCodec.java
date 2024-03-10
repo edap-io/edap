@@ -20,7 +20,7 @@ import io.edap.json.Eson;
 import io.edap.protobuf.EncodeException;
 import io.edap.protobuf.ProtoBuf;
 import io.edap.protobuf.ProtoException;
-import io.edap.protobuf.ProtoWriter;
+import io.edap.protobuf.ProtoBufWriter;
 import io.edap.protobuf.ext.AnyCodec;
 import io.edap.protobuf.ext.codec.ClassCodec;
 import io.edap.protobuf.ext.codec.MessageCodec;
@@ -84,7 +84,7 @@ public class TestExtCodec {
         EncodeException thrown = assertThrows(EncodeException.class,
                 () -> {
                     NullCodec nullCodec = new NullCodec();
-                    ProtoWriter writer = new StandardProtoBufWriter(new ProtoBufOut());
+                    ProtoBufWriter writer = new StandardProtoBufWriter(new ProtoBufOut());
                     nullCodec.encode(writer, 5);
                 });
         assertTrue(thrown.getMessage().contains("Object is not null"));
@@ -149,7 +149,7 @@ public class TestExtCodec {
     void testDecodecNullClass() {
         Class cls = null;
 
-        ProtoWriter writer = new StandardProtoBufWriter(new ProtoBufOut());
+        ProtoBufWriter writer = new StandardProtoBufWriter(new ProtoBufOut());
         ClassCodec codec = new ClassCodec();
         byte[] clsNullData = new byte[]{RANGE_CLASS,-1,-1,-1,-1,-1,-1,-1,-1,-1,1};
         try {
@@ -233,7 +233,7 @@ public class TestExtCodec {
     public void testEncodeWithOption() throws EncodeException {
         Class cls = null;
 
-        ProtoWriter writer = new StandardProtoBufWriter(new ProtoBufOut());
+        ProtoBufWriter writer = new StandardProtoBufWriter(new ProtoBufOut());
         ClassCodec codec = new ClassCodec();
         byte[] clsNullData = new byte[]{-114};
         ProtoBufOption option = new ProtoBufOption();

@@ -18,8 +18,8 @@ package io.edap.protobuf.ext.codec;
 
 import io.edap.protobuf.EncodeException;
 import io.edap.protobuf.ProtoException;
-import io.edap.protobuf.ProtoReader;
-import io.edap.protobuf.ProtoWriter;
+import io.edap.protobuf.ProtoBufReader;
+import io.edap.protobuf.ProtoBufWriter;
 import io.edap.protobuf.ext.ExtCodec;
 
 import static io.edap.protobuf.ext.AnyCodec.RANGE_ARRAY_OBJECT;
@@ -29,7 +29,7 @@ public class ArrayObjectCodec implements ExtCodec<Object[]> {
     private final Object[] EMPTY_OBJECT_ARRAY = new Object[0];
 
     @Override
-    public Object[] decode(ProtoReader reader) throws ProtoException {
+    public Object[] decode(ProtoBufReader reader) throws ProtoException {
         int len = reader.readInt32();
         if (len == 0) {
             return EMPTY_OBJECT_ARRAY;
@@ -42,7 +42,7 @@ public class ArrayObjectCodec implements ExtCodec<Object[]> {
     }
 
     @Override
-    public boolean skip(ProtoReader reader) throws ProtoException {
+    public boolean skip(ProtoBufReader reader) throws ProtoException {
         int len = reader.readInt32();
         for (int i=0;i<len;i++) {
             reader.readObject();
@@ -51,7 +51,7 @@ public class ArrayObjectCodec implements ExtCodec<Object[]> {
     }
 
     @Override
-    public void encode(ProtoWriter writer, Object[] vs) throws EncodeException {
+    public void encode(ProtoBufWriter writer, Object[] vs) throws EncodeException {
         int len = vs.length;
         if (len == 0) {
             writer.writeByte((byte)RANGE_ARRAY_OBJECT);

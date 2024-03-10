@@ -315,7 +315,7 @@ public class AnyCodec {
 
     }
 
-    public static void encode(ProtoWriter writer, Object v) throws EncodeException {
+    public static void encode(ProtoBufWriter writer, Object v) throws EncodeException {
         if (null == v) {
             NULL_CODEC.encode(writer, v);
             return;
@@ -327,7 +327,7 @@ public class AnyCodec {
         encoder.encode(writer, v);
     }
 
-    public static void encode(ProtoWriter writer, Object v, ProtoBufOption option) throws EncodeException {
+    public static void encode(ProtoBufWriter writer, Object v, ProtoBufOption option) throws EncodeException {
         if (option == null || ProtoBuf.CodecType.FAST != option.getCodecType()) {
             encode(writer, v);
             return;
@@ -343,7 +343,7 @@ public class AnyCodec {
         encoder.encode(writer, v);
     }
 
-    public static Object decode(ProtoReader reader) throws ProtoException {
+    public static Object decode(ProtoBufReader reader) throws ProtoException {
         int type = reader.getByte() & 0xff;
         try {
             ProtoBufDecoder decoder = DECODERS[type];
@@ -357,7 +357,7 @@ public class AnyCodec {
         }
     }
 
-    public static boolean skipObject(ProtoReader reader) throws ProtoException {
+    public static boolean skipObject(ProtoBufReader reader) throws ProtoException {
         int type = reader.getByte() & 0xff;
         if (reader.isFastCodec()) {
             ExtCodec decoder = FAST_DECODERS[type];
@@ -376,7 +376,7 @@ public class AnyCodec {
         }
     }
 
-    public static Object decode(ProtoReader reader, ProtoBufOption option) throws ProtoException {
+    public static Object decode(ProtoBufReader reader, ProtoBufOption option) throws ProtoException {
         if (option == null || ProtoBuf.CodecType.FAST != option.getCodecType()) {
             return decode(reader);
         }

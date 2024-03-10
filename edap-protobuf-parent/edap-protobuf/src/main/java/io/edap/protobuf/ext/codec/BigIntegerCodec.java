@@ -16,7 +16,10 @@
 
 package io.edap.protobuf.ext.codec;
 
-import io.edap.protobuf.*;
+import io.edap.protobuf.EncodeException;
+import io.edap.protobuf.ProtoException;
+import io.edap.protobuf.ProtoBufReader;
+import io.edap.protobuf.ProtoBufWriter;
 import io.edap.protobuf.ext.ExtCodec;
 
 import java.math.BigInteger;
@@ -29,7 +32,7 @@ import static io.edap.protobuf.ext.AnyCodec.RANGE_BIGINTEGER;
 public class BigIntegerCodec implements ExtCodec<BigInteger> {
 
     @Override
-    public BigInteger decode(ProtoReader reader) throws ProtoException {
+    public BigInteger decode(ProtoBufReader reader) throws ProtoException {
         byte[] bs = reader.readBytes();
         if (bs.length == 1) {
             switch (bs[0]) {
@@ -45,14 +48,14 @@ public class BigIntegerCodec implements ExtCodec<BigInteger> {
     }
 
     @Override
-    public boolean skip(ProtoReader reader) throws ProtoException {
+    public boolean skip(ProtoBufReader reader) throws ProtoException {
         int len = reader.readInt32();
         reader.skip(len);
         return true;
     }
 
     @Override
-    public void encode(ProtoWriter writer, BigInteger v) throws EncodeException {
+    public void encode(ProtoBufWriter writer, BigInteger v) throws EncodeException {
         if (v == BigInteger.ZERO) {
             writer.writeByte((byte)RANGE_BIGINTEGER);
             writer.writeByteArray(new byte[]{0}, 0, 1);

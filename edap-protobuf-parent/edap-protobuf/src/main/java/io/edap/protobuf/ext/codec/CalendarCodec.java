@@ -16,8 +16,10 @@
 
 package io.edap.protobuf.ext.codec;
 
-
-import io.edap.protobuf.*;
+import io.edap.protobuf.EncodeException;
+import io.edap.protobuf.ProtoException;
+import io.edap.protobuf.ProtoBufReader;
+import io.edap.protobuf.ProtoBufWriter;
 import io.edap.protobuf.ext.ExtCodec;
 
 import java.util.Calendar;
@@ -30,20 +32,20 @@ import static io.edap.protobuf.ext.AnyCodec.RANGE_CALENDAR;
 public class CalendarCodec implements ExtCodec<Calendar> {
 
     @Override
-    public Calendar decode(ProtoReader reader) throws ProtoException {
+    public Calendar decode(ProtoBufReader reader) throws ProtoException {
         Calendar c = Calendar.getInstance();
         c.setTimeInMillis(reader.readInt64());
         return c;
     }
 
     @Override
-    public boolean skip(ProtoReader reader) throws ProtoException {
+    public boolean skip(ProtoBufReader reader) throws ProtoException {
         reader.readInt64();
         return true;
     }
 
     @Override
-    public void encode(ProtoWriter writer, Calendar v) throws EncodeException {
+    public void encode(ProtoBufWriter writer, Calendar v) throws EncodeException {
         writer.writeByte((byte)RANGE_CALENDAR);
         writer.writeUInt64(v.getTimeInMillis());
     }

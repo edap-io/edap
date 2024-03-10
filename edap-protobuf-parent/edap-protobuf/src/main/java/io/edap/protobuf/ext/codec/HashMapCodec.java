@@ -18,8 +18,8 @@ package io.edap.protobuf.ext.codec;
 
 import io.edap.protobuf.EncodeException;
 import io.edap.protobuf.ProtoException;
-import io.edap.protobuf.ProtoReader;
-import io.edap.protobuf.ProtoWriter;
+import io.edap.protobuf.ProtoBufReader;
+import io.edap.protobuf.ProtoBufWriter;
 import io.edap.protobuf.ext.ExtCodec;
 
 import java.util.HashMap;
@@ -44,7 +44,7 @@ public class HashMapCodec implements ExtCodec<HashMap<Object, Object>> {
     }
 
     @Override
-    public HashMap decode(ProtoReader reader) throws ProtoException {
+    public HashMap decode(ProtoBufReader reader) throws ProtoException {
         //String mapName = reader.readString();
         HashMap map = null;
         int len;
@@ -65,7 +65,7 @@ public class HashMapCodec implements ExtCodec<HashMap<Object, Object>> {
     }
 
     @Override
-    public boolean skip(ProtoReader reader) throws ProtoException {
+    public boolean skip(ProtoBufReader reader) throws ProtoException {
         int len;
         if (null == size) {
             len =reader.readInt32();
@@ -80,7 +80,7 @@ public class HashMapCodec implements ExtCodec<HashMap<Object, Object>> {
     }
 
     @Override
-    public void encode(ProtoWriter writer, HashMap<Object, Object> map) throws EncodeException {
+    public void encode(ProtoBufWriter writer, HashMap<Object, Object> map) throws EncodeException {
         if (map.size() > RANGE_HASHMAP_END - RANGE_HASHMAP_START) {
             writer.writeByte((byte)RANGE_HASHMAP_END);
             writer.writeInt32(map.size(), true);
@@ -92,7 +92,7 @@ public class HashMapCodec implements ExtCodec<HashMap<Object, Object>> {
         }
     }
 
-    private void writeMapEntry(ProtoWriter writer, Map.Entry entry) throws EncodeException {
+    private void writeMapEntry(ProtoBufWriter writer, Map.Entry entry) throws EncodeException {
         writer.writeObject(entry.getKey());
         writer.writeObject(entry.getValue());
     }

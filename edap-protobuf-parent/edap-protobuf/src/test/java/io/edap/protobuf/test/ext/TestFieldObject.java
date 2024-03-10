@@ -21,7 +21,6 @@ import io.edap.json.JsonArray;
 import io.edap.protobuf.EncodeException;
 import io.edap.protobuf.ProtoBuf;
 import io.edap.protobuf.ProtoException;
-import io.edap.protobuf.ProtoWriter;
 import io.edap.protobuf.model.ProtoBufOption;
 import io.edap.protobuf.test.message.ext.FieldObject;
 import io.edap.protobuf.test.message.v3.Project;

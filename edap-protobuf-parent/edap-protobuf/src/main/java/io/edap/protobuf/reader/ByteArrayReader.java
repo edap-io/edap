@@ -16,7 +16,7 @@
 
 package io.edap.protobuf.reader;
 
-import io.edap.protobuf.ProtoDecoder;
+import io.edap.protobuf.ProtoBufDecoder;
 import io.edap.protobuf.ProtoException;
 import io.edap.protobuf.ext.AnyCodec;
 import io.edap.protobuf.wire.Field.Type;
@@ -632,7 +632,7 @@ public class ByteArrayReader extends AbstractReader {
     }
 
     @Override
-    public <T> T readMessage(ProtoDecoder<T> codec) throws ProtoException {
+    public <T> T readMessage(ProtoBufDecoder<T> codec) throws ProtoException {
         int len = readUInt32();
         int oldLimit = limit;
 

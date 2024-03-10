@@ -18,8 +18,8 @@ package io.edap.protobuf.ext.codec;
 
 import io.edap.protobuf.EncodeException;
 import io.edap.protobuf.ProtoException;
-import io.edap.protobuf.ProtoReader;
-import io.edap.protobuf.ProtoWriter;
+import io.edap.protobuf.ProtoBufReader;
+import io.edap.protobuf.ProtoBufWriter;
 import io.edap.protobuf.ext.ExtCodec;
 
 import static io.edap.protobuf.ext.AnyCodec.RANGE_CLASS;
@@ -30,7 +30,7 @@ import static io.edap.protobuf.ext.AnyCodec.RANGE_CLASS;
 public class ClassCodec implements ExtCodec<Class> {
 
     @Override
-    public Class decode(ProtoReader reader) throws ProtoException {
+    public Class decode(ProtoBufReader reader) throws ProtoException {
         String s = reader.readString();
         if (s == null) {
             return null;
@@ -62,13 +62,13 @@ public class ClassCodec implements ExtCodec<Class> {
     }
 
     @Override
-    public boolean skip(ProtoReader reader) throws ProtoException {
+    public boolean skip(ProtoBufReader reader) throws ProtoException {
         reader.readString();
         return true;
     }
 
     @Override
-    public void encode(ProtoWriter writer, Class aClass) throws EncodeException {
+    public void encode(ProtoBufWriter writer, Class aClass) throws EncodeException {
         String s = null;
         if (aClass != null) {
             s = aClass.getName();

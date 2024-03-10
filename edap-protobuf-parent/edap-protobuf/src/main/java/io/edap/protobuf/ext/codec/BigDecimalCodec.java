@@ -18,8 +18,8 @@ package io.edap.protobuf.ext.codec;
 
 import io.edap.protobuf.EncodeException;
 import io.edap.protobuf.ProtoException;
-import io.edap.protobuf.ProtoReader;
-import io.edap.protobuf.ProtoWriter;
+import io.edap.protobuf.ProtoBufReader;
+import io.edap.protobuf.ProtoBufWriter;
 import io.edap.protobuf.ext.ExtCodec;
 
 import java.math.BigDecimal;
@@ -33,7 +33,7 @@ import static io.edap.protobuf.ext.AnyCodec.RANGE_BIGDDECIMAL;
 public class BigDecimalCodec implements ExtCodec<BigDecimal> {
 
     @Override
-    public BigDecimal decode(ProtoReader reader) throws ProtoException {
+    public BigDecimal decode(ProtoBufReader reader) throws ProtoException {
         BigInteger unscale = new BigInteger(reader.readBytes());
         int scale = reader.readInt32();
         if (BigInteger.ZERO.equals(unscale) && scale == 0) {
@@ -43,7 +43,7 @@ public class BigDecimalCodec implements ExtCodec<BigDecimal> {
     }
 
     @Override
-    public boolean skip(ProtoReader reader) throws ProtoException {
+    public boolean skip(ProtoBufReader reader) throws ProtoException {
         int len = reader.readInt32();
         reader.skip(len);
         reader.readInt32();
@@ -51,7 +51,7 @@ public class BigDecimalCodec implements ExtCodec<BigDecimal> {
     }
 
     @Override
-    public void encode(ProtoWriter writer, BigDecimal bigDecimal) throws EncodeException {
+    public void encode(ProtoBufWriter writer, BigDecimal bigDecimal) throws EncodeException {
         if (bigDecimal == BigDecimal.ZERO) {
             writer.writeByte((byte)RANGE_BIGDDECIMAL);
             writer.writeBytes(new byte[]{1,0,0});
