@@ -21,6 +21,10 @@
     <dependencies>
         <dependency>
             <groupId>io.edap</groupId>
+            <artifactId>edap-common</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.edap</groupId>
             <artifactId>edap-protobuf-wire</artifactId>
         </dependency>
         <dependency>
