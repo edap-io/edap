@@ -93,4 +93,14 @@ public interface EprotoWriter {
     <T> void writeMessages(T[] msg, EprotoEncoder<T> encoder) throws EncodeException;
     <T> void writeMessages(List<T> msg, EprotoEncoder<T> encoder) throws EncodeException;
     <T> void writeMessages(Iterable<T> msg, EprotoEncoder<T> encoder) throws EncodeException;
+
+    static int encodeZigZag32(int n) {
+        // Note:  the right-shift must be arithmetic
+        return (n << 1) ^ (n >> 31);
+    }
+
+    static long encodeZigZag64(long n) {
+        // Note:  the right-shift must be arithmetic
+        return (n << 1) ^ (n >> 63);
+    }
 }
