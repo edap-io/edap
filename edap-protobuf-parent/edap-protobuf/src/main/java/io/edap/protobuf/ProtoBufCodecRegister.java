@@ -47,7 +47,7 @@ public enum ProtoBufCodecRegister {
     private final Map<Type, Class> mapEncoders     = new HashMap<>();
 
     private final Map<Type, Class> fmapEncoders     = new HashMap<>();
-    private final ProtoCodecLoader encoderLoader   = new ProtoCodecLoader(this.getClass().getClassLoader());
+    private final Map<ClassLoader, ProtoCodecLoader> encoderLoaders   = new HashMap<>();
     private final ReentrantLock    lock            = new ReentrantLock();
 
     private ProtoPersister protoPersister;
@@ -175,6 +175,7 @@ public enum ProtoBufCodecRegister {
             return mapEntryCls;
         }
         String mapEntryName = "";
+        ProtoCodecLoader encoderLoader = getCodecLoader((Class)mapType);
         try {
             lock.lock();
             mapEntryName = buildMapEncodeName(mapType, null);
@@ -214,6 +215,7 @@ public enum ProtoBufCodecRegister {
             return mapEntryCls;
         }
         String mapEntryName = "";
+        ProtoCodecLoader encoderLoader = getCodecLoader((Class)mapType);
         try {
             lock.lock();
             mapEntryName = buildMapEncodeName(mapType, option);
@@ -249,6 +251,7 @@ public enum ProtoBufCodecRegister {
         ProtoBufEncoder codec = null;
         Class encoderCls = null;
         try {
+            ProtoCodecLoader encoderLoader = getCodecLoader(cls);
             encoderCls = encoderLoader.loadClass(getEncoderName(cls, option));
         } catch (Throwable t) {
             encoderCls = generateEncoderClass(cls, option);
@@ -268,6 +271,7 @@ public enum ProtoBufCodecRegister {
         ProtoBufDecoder codec = null;
         Class decoderCls = null;
         try {
+            ProtoCodecLoader encoderLoader = getCodecLoader(cls);
             decoderCls = encoderLoader.loadClass(getDecoderName(cls, option));
         } catch (Throwable t) {
             decoderCls = generateDecoderClass(cls, option);
@@ -286,6 +290,7 @@ public enum ProtoBufCodecRegister {
     private Class generateEncoderClass(Class cls, ProtoBufOption otpion) {
         Class encoderCls;
         String encoderName = getEncoderName(cls, otpion);
+        ProtoCodecLoader encoderLoader = getCodecLoader(cls);
         try {
             ProtoBufEncoderGenerator generator = new ProtoBufEncoderGenerator(cls, otpion);
             GeneratorClassInfo gci = generator.getClassInfo();
@@ -317,6 +322,7 @@ public enum ProtoBufCodecRegister {
     private Class generateDecoderClass(Class cls, ProtoBufOption option) {
         Class decoderCls;
         String decoderName = getDecoderName(cls, option);
+        ProtoCodecLoader encoderLoader = getCodecLoader(cls);
         try {
             ProtoBufDecoderGenerator generator = new ProtoBufDecoderGenerator(cls, option);
             GeneratorClassInfo gci = generator.getClassInfo();
@@ -344,6 +350,16 @@ public enum ProtoBufCodecRegister {
                     + cls.getName() + " error", e);
         }
         return decoderCls;
+    }
+
+    private ProtoCodecLoader getCodecLoader(Class cls) {
+        ClassLoader cl = cls.getClassLoader();
+        ProtoCodecLoader loader = encoderLoaders.get(cl);
+        if (loader == null) {
+            loader = new ProtoCodecLoader(cl);
+            encoderLoaders.put(cl, loader);
+        }
+        return loader;
     }
 
     class ProtoCodecLoader extends ClassLoader {
