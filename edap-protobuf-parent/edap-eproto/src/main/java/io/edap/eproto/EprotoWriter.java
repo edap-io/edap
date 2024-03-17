@@ -76,12 +76,11 @@ public interface EprotoWriter {
     void writePackedDoubles(List<Double> values);
     void writePackedDoubles(Iterable<Double> values);
 
-    void writeEnum(byte[] fieldData, Integer value);
-    <E extends Enum<E>> void writeArrayEnum(byte[] fieldData, E[] vs);
-    <E extends Enum<E>> void writeListEnum(byte[] fieldData, List<E> vs);
-    <E extends Enum<E>> void writeListEnum(byte[] fieldData, Iterable<E> vs);
-    <E extends ProtoBufEnum> void writeListProtoEnum(byte[] fieldData, List<E> vs);
-    <E extends ProtoBufEnum> void writeListProtoEnum(byte[] fieldData, Iterable<E> vs);
+    <E extends Enum<E>> void writeArrayEnum(E[] vs);
+    <E extends Enum<E>> void writeListEnum(List<E> vs);
+    <E extends Enum<E>> void writeListEnum(Iterable<E> vs);
+    <E extends ProtoBufEnum> void writeListProtoEnum(List<E> vs);
+    <E extends ProtoBufEnum> void writeListProtoEnum(Iterable<E> vs);
 
     void writeBytes(Byte[] value);
     void writeByteArray(byte[] value, int offset, int length);
