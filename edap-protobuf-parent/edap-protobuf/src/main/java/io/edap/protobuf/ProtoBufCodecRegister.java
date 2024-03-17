@@ -20,6 +20,7 @@ import io.edap.protobuf.model.ProtoBufOption;
 import io.edap.util.CollectionUtils;
 import io.edap.util.internal.GeneratorClassInfo;
 
+import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.util.HashMap;
 import java.util.Map;
@@ -169,13 +170,13 @@ public enum ProtoBufCodecRegister {
         return decoder;
     }
 
-    public Class generateMapEntryClass(Type mapType) {
-        Class mapEntryCls = mapEncoders.get(mapType);
+    public Class generateMapEntryClass(Type mapType, Class ownerCls) {
+        Class mapEntryCls = mapEncoders.get(ownerCls);
         if (mapEntryCls != null) {
             return mapEntryCls;
         }
         String mapEntryName = "";
-        ProtoCodecLoader encoderLoader = getCodecLoader((Class)mapType);
+        ProtoCodecLoader encoderLoader = getCodecLoader(ownerCls);
         try {
             lock.lock();
             mapEntryName = buildMapEncodeName(mapType, null);
@@ -185,13 +186,13 @@ public enum ProtoBufCodecRegister {
             saveJavaFile("./" + toInternalName(mapEntryName) + ".class", bs);
             mapEntryCls = encoderLoader.define(mapEntryName, bs, 0, bs.length);
             if (mapEntryCls != null) {
-                mapEncoders.put(mapType, mapEntryCls);
+                mapEncoders.put(ownerCls, mapEntryCls);
             }
         } catch (Throwable e) {
             try {
                 mapEntryCls = encoderLoader.loadClass(mapEntryName);
                 if (mapEntryCls != null) {
-                    mapEncoders.put(mapType, mapEntryCls);
+                    mapEncoders.put(ownerCls, mapEntryCls);
                     return mapEntryCls;
                 }
             } catch (ClassNotFoundException ex) {
@@ -206,16 +207,16 @@ public enum ProtoBufCodecRegister {
         return mapEntryCls;
     }
 
-    public Class generateMapEntryClass(Type mapType, ProtoBufOption option) {
+    public Class generateMapEntryClass(Type mapType, ProtoBufOption option, Class ownerCls) {
         if (option == null || ProtoBuf.CodecType.FAST != option.getCodecType()) {
-            return generateMapEntryClass(mapType);
+            return generateMapEntryClass(mapType, ownerCls);
         }
         Class mapEntryCls = fmapEncoders.get(mapType);
         if (mapEntryCls != null) {
             return mapEntryCls;
         }
         String mapEntryName = "";
-        ProtoCodecLoader encoderLoader = getCodecLoader((Class)mapType);
+        ProtoCodecLoader encoderLoader = getCodecLoader(ownerCls);
         try {
             lock.lock();
             mapEntryName = buildMapEncodeName(mapType, option);
@@ -352,7 +353,14 @@ public enum ProtoBufCodecRegister {
         return decoderCls;
     }
 
-    private ProtoCodecLoader getCodecLoader(Class cls) {
+    private ProtoCodecLoader getCodecLoader(Type type) {
+        Class cls;
+        if (type instanceof ParameterizedType) {
+            ParameterizedType ptype = (ParameterizedType) type;
+            cls = (Class) ptype.getRawType();
+        } else {
+            cls = (Class)type;
+        }
         ClassLoader cl = cls.getClassLoader();
         ProtoCodecLoader loader = encoderLoaders.get(cl);
         if (loader == null) {

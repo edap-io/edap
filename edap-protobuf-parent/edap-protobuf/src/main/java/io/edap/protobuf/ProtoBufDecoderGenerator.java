@@ -494,7 +494,7 @@ public class ProtoBufDecoderGenerator {
                     valTypeDesc = getDescriptor(ptype.getActualTypeArguments()[1]);
                 }
                 Class mapEntryCls = ProtoBufCodecRegister.INSTANCE
-                        .generateMapEntryClass(pfi.field.getGenericType());
+                        .generateMapEntryClass(pfi.field.getGenericType(), null, pojoCls);
                 String codecName = getMapCodecName(mapEntryCls);
                 String mapTypeName = toInternalName(mapEntryCls.getName());
 
@@ -675,7 +675,7 @@ public class ProtoBufDecoderGenerator {
                 valTypeDesc = getDescriptor(ptype.getActualTypeArguments()[1]);
             }
             Class mapEntryCls = ProtoBufCodecRegister.INSTANCE
-                    .generateMapEntryClass(parentMapType);
+                    .generateMapEntryClass(parentMapType, null, pojoCls);
             String codecName = getMapCodecName(mapEntryCls);
             String mapTypeName = toInternalName(mapEntryCls.getName());
 
@@ -807,6 +807,10 @@ public class ProtoBufDecoderGenerator {
             mv.visitVarInsn(ALOAD, varPojo);
             mv.visitLdcInsn("");
             visitSetValueOpcode(mv, pfi);
+            if (pfi.setMethod != null
+                    && !"V".equals(getDescriptor(pfi.setMethod.getGenericReturnType()))) {
+                mv.visitInsn(POP);
+            }
 //            mv.visitMethodInsn(INVOKEVIRTUAL, "io/edap/x/protobuf/tutorial/OneString", "setField1", "(Ljava/lang/String;)V", false);
 //            mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/reflect/Field", "set", "(Ljava/lang/Object;Ljava/lang/Object;)V", false);
             mv.visitLabel(l6);
@@ -1427,7 +1431,7 @@ public class ProtoBufDecoderGenerator {
         Map<String, String> mapNames = new HashMap<>();
         for (ProtoFieldInfo pfi : mapFields) {
             Class mapCls = ProtoBufCodecRegister.INSTANCE
-                    .generateMapEntryClass(pfi.field.getGenericType());
+                    .generateMapEntryClass(pfi.field.getGenericType(), null, pojoCls);
             String codecName = getMapCodecName(mapCls);
             if (!mapNames.containsKey(codecName)) {
                 String itemType = toInternalName(mapCls.getName());
@@ -1439,7 +1443,7 @@ public class ProtoBufDecoderGenerator {
         }
         if (parentMapType != null) {
             Class mapCls = ProtoBufCodecRegister.INSTANCE
-                    .generateMapEntryClass(parentMapType);
+                    .generateMapEntryClass(parentMapType, null, pojoCls);
             String codecName = getMapCodecName(mapCls);
             if (!mapNames.containsKey(codecName)) {
                 String itemType = toInternalName(mapCls.getName());
@@ -1529,7 +1533,7 @@ public class ProtoBufDecoderGenerator {
         }
         if (parentMapType != null) {
             Class mapCls = ProtoBufCodecRegister.INSTANCE
-                    .generateMapEntryClass(parentMapType);
+                    .generateMapEntryClass(parentMapType, null, pojoCls);
             String codecName = getMapCodecName(mapCls);
             String itemType = toInternalName(mapCls.getName());
             if (!mapNames.containsKey(codecName)) {
