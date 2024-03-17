@@ -689,6 +689,10 @@ public class ProtoBufDecoderGenerator {
             mv.visitVarInsn(ALOAD, varPojo);
             mv.visitLdcInsn("");
             visitSetValueOpcode(mv, pfi);
+            if (pfi.setMethod != null
+                    && !"V".equals(getDescriptor(pfi.setMethod.getGenericReturnType()))) {
+                mv.visitInsn(POP);
+            }
 //            mv.visitMethodInsn(INVOKEVIRTUAL, "io/edap/x/protobuf/tutorial/OneString", "setField1", "(Ljava/lang/String;)V", false);
 //            mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/reflect/Field", "set", "(Ljava/lang/Object;Ljava/lang/Object;)V", false);
             mv.visitLabel(l6);
