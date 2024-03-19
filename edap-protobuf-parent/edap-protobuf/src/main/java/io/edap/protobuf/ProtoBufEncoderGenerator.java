@@ -16,7 +16,6 @@
 
 package io.edap.protobuf;
 
-import io.edap.protobuf.ProtoBuf.ProtoFieldInfo;
 import io.edap.protobuf.model.ProtoBufOption;
 import io.edap.protobuf.util.ProtoTagComparator;
 import io.edap.protobuf.util.ProtoUtil;
@@ -1448,7 +1447,7 @@ public class ProtoBufEncoderGenerator {
     private void initFieldData(MethodVisitor mv, List<ProtoFieldInfo> fields) {
         FieldVisitor fv;
         boolean isFast = false;
-        if (option != null && ProtoBuf.CodecType.FAST == option.getCodecType()) {
+        if (option != null && CodecType.FAST == option.getCodecType()) {
             isFast = true;
         }
         for (ProtoFieldInfo pfi : fields) {
@@ -1462,10 +1461,10 @@ public class ProtoBufEncoderGenerator {
                         "()V", false);
                 mv.visitVarInsn(ASTORE, 0);
                 mv.visitVarInsn(ALOAD, 0);
-                mv.visitFieldInsn(GETSTATIC, "io/edap/protobuf/ProtoBuf$CodecType",
-                        "FAST", "Lio/edap/protobuf/ProtoBuf$CodecType;");
+                mv.visitFieldInsn(GETSTATIC, "io/edap/protobuf/CodecType",
+                        "FAST", "Lio/edap/protobuf/CodecType;");
                 mv.visitMethodInsn(INVOKEVIRTUAL, PROTOBUF_OPTIION_NAME, "setCodecType",
-                        "(Lio/edap/protobuf/ProtoBuf$CodecType;)V", false);
+                        "(Lio/edap/protobuf/CodecType;)V", false);
             }
             //mv.visitInsn(ICONST_1);
             visitTagOpcode(mv, pfi.protoField.tag());

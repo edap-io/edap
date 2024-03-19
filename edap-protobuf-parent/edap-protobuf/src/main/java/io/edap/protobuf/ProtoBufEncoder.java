@@ -16,8 +16,6 @@
 
 package io.edap.protobuf;
 
-import io.edap.protobuf.model.ProtoBufOption;
-
 /**
  * 定义Protobuf协议的编码器接口
  * @param <T> java的POJO的对象类型

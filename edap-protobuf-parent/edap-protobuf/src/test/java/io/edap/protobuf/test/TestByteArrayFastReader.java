@@ -1,18 +1,14 @@
 package io.edap.protobuf.test;
 
+import io.edap.protobuf.CodecType;
 import io.edap.protobuf.ProtoBuf;
 import io.edap.protobuf.ProtoBufCodecRegister;
 import io.edap.protobuf.ProtoBufDecoder;
-import io.edap.protobuf.ProtoException;
 import io.edap.protobuf.internal.ProtoBufOut;
 import io.edap.protobuf.model.ProtoBufOption;
 import io.edap.protobuf.reader.ByteArrayFastReader;
 import io.edap.protobuf.test.message.v3.Project;
 import io.edap.protobuf.wire.Field;
-import io.edap.protobuf.wire.Message;
-import io.edap.protobuf.wire.Proto;
-import io.edap.protobuf.wire.exceptions.ProtoParseException;
-import io.edap.protobuf.wire.parser.ProtoParser;
 import io.edap.protobuf.writer.StandardProtoBufWriter;
 import org.junit.jupiter.api.Test;
 
@@ -27,7 +23,7 @@ public class TestByteArrayFastReader {
     public void testByteArrayFastReader() throws io.edap.protobuf.ProtoException {
 
         ProtoBufOption option = new ProtoBufOption();
-        option.setCodecType(ProtoBuf.CodecType.FAST);
+        option.setCodecType(CodecType.FAST);
 
         Project project = new Project();
         project.setId(1L);
@@ -51,7 +47,7 @@ public class TestByteArrayFastReader {
     @Test
     public void testReadPackedInt64Array() {
         ProtoBufOption option = new ProtoBufOption();
-        option.setCodecType(ProtoBuf.CodecType.FAST);
+        option.setCodecType(CodecType.FAST);
 
         Project project = new Project();
         project.setId(1L);
@@ -72,7 +68,7 @@ public class TestByteArrayFastReader {
     @Test
     public void testReadPackedInt64() {
         ProtoBufOption option = new ProtoBufOption();
-        option.setCodecType(ProtoBuf.CodecType.FAST);
+        option.setCodecType(CodecType.FAST);
 
         Project project = new Project();
         project.setId(1L);
@@ -93,7 +89,7 @@ public class TestByteArrayFastReader {
     @Test
     public void testReadPackedInt32() {
         ProtoBufOption option = new ProtoBufOption();
-        option.setCodecType(ProtoBuf.CodecType.FAST);
+        option.setCodecType(CodecType.FAST);
 
         Project project = new Project();
         project.setId(1L);
@@ -113,7 +109,7 @@ public class TestByteArrayFastReader {
     @Test
     public void testReadPackedInt32Array() {
         ProtoBufOption option = new ProtoBufOption();
-        option.setCodecType(ProtoBuf.CodecType.FAST);
+        option.setCodecType(CodecType.FAST);
 
         Project project = new Project();
         project.setId(1L);
@@ -133,7 +129,7 @@ public class TestByteArrayFastReader {
     @Test
     public void testReadPackedInt32ArrayValue() {
         ProtoBufOption option = new ProtoBufOption();
-        option.setCodecType(ProtoBuf.CodecType.FAST);
+        option.setCodecType(CodecType.FAST);
 
         Project project = new Project();
         project.setId(1L);

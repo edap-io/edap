@@ -18,6 +18,7 @@ package io.edap.protobuf.test.v3;
 
 import com.google.protobuf.InvalidProtocolBufferException;
 import io.edap.json.JsonArray;
+import io.edap.protobuf.CodecType;
 import io.edap.protobuf.EncodeException;
 import io.edap.protobuf.ProtoBuf;
 import io.edap.protobuf.ProtoException;
@@ -69,7 +70,7 @@ public class TestListEnum {
 
 
         ProtoBufOption option = new ProtoBufOption();
-        option.setCodecType(ProtoBuf.CodecType.FAST);
+        option.setCodecType(CodecType.FAST);
         epb = ProtoBuf.toByteArray(listEnum, option);
         System.out.println("+-epbf[" + epb.length + "]-------------------+");
         System.out.println(conver2HexStr(epb));
@@ -109,7 +110,7 @@ public class TestListEnum {
 
 
         ProtoBufOption option = new ProtoBufOption();
-        option.setCodecType(ProtoBuf.CodecType.FAST);
+        option.setCodecType(CodecType.FAST);
         byte[] epb = ProtoBuf.toByteArray(listEnum, option);
         System.out.println("+-epbf[" + epb.length + "]-------------------+");
         System.out.println(conver2HexStr(epb));
@@ -153,7 +154,7 @@ public class TestListEnum {
 
 
         ProtoBufOption option = new ProtoBufOption();
-        option.setCodecType(ProtoBuf.CodecType.FAST);
+        option.setCodecType(CodecType.FAST);
         epb = ProtoBuf.toByteArray(arrayEnum, option);
         System.out.println("+-epbf[" + epb.length + "]-------------------+");
         System.out.println(conver2HexStr(epb));
@@ -216,7 +217,7 @@ public class TestListEnum {
 
 
         ProtoBufOption option = new ProtoBufOption();
-        option.setCodecType(ProtoBuf.CodecType.FAST);
+        option.setCodecType(CodecType.FAST);
         byte[] epb = ProtoBuf.toByteArray(listEnum, option);
         System.out.println("+-epbf[" + epb.length + "]-------------------+");
         System.out.println(conver2HexStr(epb));
@@ -262,7 +263,7 @@ public class TestListEnum {
 
 
         ProtoBufOption option = new ProtoBufOption();
-        option.setCodecType(ProtoBuf.CodecType.FAST);
+        option.setCodecType(CodecType.FAST);
         epb = ProtoBuf.toByteArray(listEnum, option);
         System.out.println("+-epbf[" + epb.length + "]-------------------+");
         System.out.println(conver2HexStr(epb));
@@ -304,7 +305,7 @@ public class TestListEnum {
 
 
         ProtoBufOption option = new ProtoBufOption();
-        option.setCodecType(ProtoBuf.CodecType.FAST);
+        option.setCodecType(CodecType.FAST);
         epb = ProtoBuf.toByteArray(arrayEnum, option);
         System.out.println("+-epbf[" + epb.length + "]-------------------+");
         System.out.println(conver2HexStr(epb));
@@ -352,7 +353,7 @@ public class TestListEnum {
 
 
         ProtoBufOption option = new ProtoBufOption();
-        option.setCodecType(ProtoBuf.CodecType.FAST);
+        option.setCodecType(CodecType.FAST);
         byte[] epb = ProtoBuf.toByteArray(listEnum, option);
         System.out.println("+-epbf[" + epb.length + "]-------------------+");
         System.out.println(conver2HexStr(epb));
@@ -401,7 +402,7 @@ public class TestListEnum {
 
 
         ProtoBufOption option = new ProtoBufOption();
-        option.setCodecType(ProtoBuf.CodecType.FAST);
+        option.setCodecType(CodecType.FAST);
         byte[] epb = ProtoBuf.toByteArray(listEnum, option);
         System.out.println("+-epbf[" + epb.length + "]-------------------+");
         System.out.println(conver2HexStr(epb));

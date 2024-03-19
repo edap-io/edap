@@ -1,6 +1,7 @@
 package io.edap.protobuf.util;
 
 import io.edap.protobuf.ProtoBuf;
+import io.edap.protobuf.ProtoFieldInfo;
 
 import java.util.Comparator;
 
@@ -9,9 +10,9 @@ import java.util.Comparator;
  * @author : luysh@yonyou.com
  * @date : 2020/5/10
  */
-public class ProtoTagComparator implements Comparator<ProtoBuf.ProtoFieldInfo> {
+public class ProtoTagComparator implements Comparator<ProtoFieldInfo> {
     @Override
-    public int compare(ProtoBuf.ProtoFieldInfo f1, ProtoBuf.ProtoFieldInfo f2) {
+    public int compare(ProtoFieldInfo f1, ProtoFieldInfo f2) {
         if (f1.protoField.tag() > f2.protoField.tag()) {
             return 1;
         } else if (f1.protoField.tag() < f2.protoField.tag()) {

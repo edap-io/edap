@@ -1,9 +1,9 @@
 package io.edap.protobuf;
 
+import io.edap.protobuf.annotation.ProtoField;
+
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
-
-import io.edap.protobuf.annotation.ProtoField;
 
 public class ProtoFieldInfo {
         public Field field;
@@ -18,4 +18,4 @@ public class ProtoFieldInfo {
         public Method getMethod;
         public Method setMethod;
         public ProtoField protoField;
-    }
+}

@@ -33,29 +33,6 @@ import java.lang.reflect.Method;
 
 public class ProtoBuf {
 
-    /**
-     * ProtoBuf的编解码器类型，标准的和google官方的兼容。Fast则才有优化的编解码方式。
-     */
-    public enum CodecType {
-        STANDARD,
-        FAST;
-    }
-
-    public static class ProtoFieldInfo {
-        public Field field;
-        /**
-         * 是否有Get方法或者Field是public，可以直接获取Field的值
-         */
-        public boolean hasGetAccessed;
-        /**
-         * 是否有Set方法或者Field是public，可以直接给Field赋值
-         */
-        public boolean hasSetAccessed;
-        public Method getMethod;
-        public Method setMethod;
-        public ProtoField protoField;
-    }
-
     private ProtoBuf() {}
 
     private static final ProtoBufCodecRegister REGISTER =

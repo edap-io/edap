@@ -19,6 +19,7 @@ package io.edap.protobuf.test.v3;
 import io.edap.json.Eson;
 import io.edap.json.JsonObject;
 import io.edap.protobuf.ProtoBuf;
+import io.edap.protobuf.ProtoFieldInfo;
 import io.edap.protobuf.test.message.v3.*;
 import io.edap.protobuf.util.ProtoUtil;
 import org.junit.jupiter.api.Test;
@@ -178,13 +179,13 @@ public class TestSkipField {
     }
 
     private boolean isEquals(Object allType, Object skipObj) throws IOException, IllegalAccessException {
-        List<ProtoBuf.ProtoFieldInfo> srdFields = ProtoUtil.getProtoFields(allType.getClass());
-        List<ProtoBuf.ProtoFieldInfo> descFields = ProtoUtil.getProtoFields(skipObj.getClass());
+        List<ProtoFieldInfo> srdFields = ProtoUtil.getProtoFields(allType.getClass());
+        List<ProtoFieldInfo> descFields = ProtoUtil.getProtoFields(skipObj.getClass());
         Map<String, Field> fields = new HashMap<>();
-        for (ProtoBuf.ProtoFieldInfo sf : srdFields) {
+        for (ProtoFieldInfo sf : srdFields) {
             fields.put(sf.field.getName(), sf.field);
         }
-        for (ProtoBuf.ProtoFieldInfo df : descFields) {
+        for (ProtoFieldInfo df : descFields) {
             Field descField = df.field;
             descField.setAccessible(true);
             Field srcField = fields.get(descField.getName());

@@ -17,6 +17,7 @@
 package io.edap.protobuf.util;
 
 import io.edap.protobuf.ProtoBuf;
+import io.edap.protobuf.ProtoFieldInfo;
 import io.edap.util.TimeUtil;
 import org.objectweb.asm.MethodVisitor;
 
@@ -28,7 +29,7 @@ public class ProtoAsmUtil {
 
     private ProtoAsmUtil() {}
 
-    public static String visitGetFieldValue(MethodVisitor mv, ProtoBuf.ProtoFieldInfo pfi, String pojoName,
+    public static String visitGetFieldValue(MethodVisitor mv, ProtoFieldInfo pfi, String pojoName,
                                             String pojoCodecName, int pojoSeq, String rType) {
         String type = rType;
         if (pfi.hasGetAccessed) {

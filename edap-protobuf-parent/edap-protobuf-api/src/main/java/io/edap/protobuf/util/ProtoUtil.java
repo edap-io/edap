@@ -16,10 +16,10 @@
 
 package io.edap.protobuf.util;
 
-import io.edap.protobuf.ProtoBuf;
-import io.edap.protobuf.ProtoBuf.ProtoFieldInfo;
-import io.edap.protobuf.ProtoBufCodecRegister;
+import io.edap.protobuf.CodecType;
+import io.edap.protobuf.ProtoFieldInfo;
 import io.edap.protobuf.ProtoPersister;
+import io.edap.protobuf.ProtoPersisterManager;
 import io.edap.protobuf.annotation.ProtoField;
 import io.edap.protobuf.builder.ProtoV2Builder;
 import io.edap.protobuf.builder.ProtoV3Builder;
@@ -34,8 +34,6 @@ import io.edap.protobuf.wire.parser.ProtoParser;
 import io.edap.util.AsmUtil;
 import io.edap.util.CollectionUtils;
 import io.edap.util.StringUtil;
-import org.objectweb.asm.tree.AnnotationNode;
-import org.objectweb.asm.tree.FieldNode;
 
 import java.io.IOException;
 import java.lang.annotation.Annotation;
@@ -223,7 +221,7 @@ public class ProtoUtil {
     public static int buildFieldValue(int tag, Type type, Cardinality cardinality, Syntax syntax,
                                       ProtoBufOption option) {
         boolean isFast = false;
-        if (option != null && ProtoBuf.CodecType.FAST == option.getCodecType()) {
+        if (option != null && CodecType.FAST == option.getCodecType()) {
             isFast = true;
         }
         WireType wireType;
@@ -316,7 +314,7 @@ public class ProtoUtil {
     private static void generateProtoField(Class pojoClass, List<ProtoFieldInfo> profields) throws IOException {
         // 如果有proto文件持久化器，则查询是否有该class的持久化proto文件，如果有则进行相应的兼容处理
         Proto proto = null;
-        ProtoPersister protoPersister = ProtoBufCodecRegister.INSTANCE.getProtoPersister();
+        ProtoPersister protoPersister = ProtoPersisterManager.instance().getProtoPersister();
         if (protoPersister != null) {
             String protoData = protoPersister.getProto(pojoClass.getName());
             if (!StringUtil.isEmpty(protoData)) {
@@ -524,7 +522,7 @@ public class ProtoUtil {
         }
         protoEnum.setEntries(entries);
 
-        ProtoPersister persister = ProtoBufCodecRegister.INSTANCE.getProtoPersister();
+        ProtoPersister persister = ProtoPersisterManager.instance().getProtoPersister();
         if (persister != null) {
             Proto eproto = new Proto();
             eproto.setSyntax(Syntax.PROTO_3);
@@ -772,7 +770,7 @@ public class ProtoUtil {
 
     public static String buildMapEncodeName(java.lang.reflect.Type mapType, ProtoBufOption option) {
         StringBuilder name = new StringBuilder("io.edap.protobuf.");
-        if (option != null && ProtoBuf.CodecType.FAST == option.getCodecType()) {
+        if (option != null && CodecType.FAST == option.getCodecType()) {
             name.append('f');
         }
         name.append("mapencoder.MapEncoder_");
@@ -808,21 +806,21 @@ public class ProtoUtil {
         return !Modifier.isStatic(mod) && !Modifier.isTransient(mod);
     }
 
-    public static boolean needEncode(FieldNode fieldNode) {
-        if ("Lorg/slf4j/Logger;".equals(fieldNode.desc)) {
-            return false;
-        }
-        int mod = fieldNode.access;
-        List<AnnotationNode> fieldAnns = fieldNode.visibleAnnotations;
-        if (fieldAnns != null) {
-            for (AnnotationNode annNode : fieldAnns) {
-                if ("Ljavax/persistence/Transient;".equals(annNode.desc)) {
-                    return false;
-                }
-            }
-        }
-        return !Modifier.isStatic(mod) && !Modifier.isTransient(mod);
-    }
+//    public static boolean needEncode(FieldNode fieldNode) {
+//        if ("Lorg/slf4j/Logger;".equals(fieldNode.desc)) {
+//            return false;
+//        }
+//        int mod = fieldNode.access;
+//        List<AnnotationNode> fieldAnns = fieldNode.visibleAnnotations;
+//        if (fieldAnns != null) {
+//            for (AnnotationNode annNode : fieldAnns) {
+//                if ("Ljavax/persistence/Transient;".equals(annNode.desc)) {
+//                    return false;
+//                }
+//            }
+//        }
+//        return !Modifier.isStatic(mod) && !Modifier.isTransient(mod);
+//    }
 
     private static ProtoField getProtoAnnotation(Field field, Method method) {
         Annotation[] anns = field.getAnnotations();

@@ -91,7 +91,7 @@ public enum ProtoBufCodecRegister {
     }
 
     public ProtoBufEncoder getEncoder(Class msgCls, ProtoBufOption option) {
-        if (option == null || ProtoBuf.CodecType.FAST != option.getCodecType()) {
+        if (option == null || CodecType.FAST != option.getCodecType()) {
             return getEncoder(msgCls);
         }
         ProtoBufEncoder encoder;
@@ -144,7 +144,7 @@ public enum ProtoBufCodecRegister {
     }
 
     public ProtoBufDecoder getDecoder(Class msgCls, ProtoBufOption option) {
-        if (option == null || ProtoBuf.CodecType.FAST != option.getCodecType()) {
+        if (option == null || CodecType.FAST != option.getCodecType()) {
             return getDecoder(msgCls);
         }
         ProtoBufDecoder decoder;
@@ -208,7 +208,7 @@ public enum ProtoBufCodecRegister {
     }
 
     public Class generateMapEntryClass(Type mapType, ProtoBufOption option, Class ownerCls) {
-        if (option == null || ProtoBuf.CodecType.FAST != option.getCodecType()) {
+        if (option == null || CodecType.FAST != option.getCodecType()) {
             return generateMapEntryClass(mapType, ownerCls);
         }
         Class mapEntryCls = fmapEncoders.get(mapType);

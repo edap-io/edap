@@ -17,7 +17,6 @@
 package io.edap.protobuf;
 
 import io.edap.protobuf.annotation.ProtoField;
-import io.edap.protobuf.ProtoBuf.ProtoFieldInfo;
 import io.edap.protobuf.model.ProtoBufOption;
 import io.edap.protobuf.util.ProtoUtil;
 import io.edap.protobuf.wire.Field;
@@ -63,10 +62,10 @@ public class ProtoBufDecoderGenerator {
     private String pojoName;
     private String pojoCodecName;
 
-    private final List<ProtoBuf.ProtoFieldInfo> arrayFields = new ArrayList<>();
-    private final List<ProtoBuf.ProtoFieldInfo> listFields = new ArrayList<>();
-    private final List<ProtoBuf.ProtoFieldInfo> mapFields = new ArrayList<>();
-    private final List<ProtoBuf.ProtoFieldInfo> stringFields = new ArrayList<>();
+    private final List<ProtoFieldInfo> arrayFields = new ArrayList<>();
+    private final List<ProtoFieldInfo> listFields = new ArrayList<>();
+    private final List<ProtoFieldInfo> mapFields = new ArrayList<>();
+    private final List<ProtoFieldInfo> stringFields = new ArrayList<>();
 
     private final List<String> listMethods = new ArrayList<>();
     private final List<String> arrayMethods = new ArrayList<>();
@@ -143,7 +142,7 @@ public class ProtoBufDecoderGenerator {
         visitInitMethod(pojoTypes, fields);
         visitDoDecodeMethod(fields);
         visitDecodeMethod();
-        if (option != null && ProtoBuf.CodecType.FAST == option.getCodecType()) {
+        if (option != null && CodecType.FAST == option.getCodecType()) {
             visitDecodeWithEndTagMethod();
             visitDecodeWithEndTagBridgeMethod();
         }
@@ -204,7 +203,7 @@ public class ProtoBufDecoderGenerator {
                 new String[] { exName });
 
         boolean isFast;
-        if (option != null && ProtoBuf.CodecType.FAST == option.getCodecType()) {
+        if (option != null && CodecType.FAST == option.getCodecType()) {
             isFast = true;
         } else {
             isFast = false;
@@ -1464,7 +1463,7 @@ public class ProtoBufDecoderGenerator {
         getCodecName = "getDecoder";
         boolean hasOption = false;
         boolean isFast = false;
-        if (option != null && ProtoBuf.CodecType.FAST == option.getCodecType()) {
+        if (option != null && CodecType.FAST == option.getCodecType()) {
             isFast = true;
         }
         for (java.lang.reflect.Type type : pojoTypes) {
@@ -1478,10 +1477,10 @@ public class ProtoBufDecoderGenerator {
                             "()V", false);
                     mv.visitVarInsn(ASTORE, 1);
                     mv.visitVarInsn(ALOAD, 1);
-                    mv.visitFieldInsn(GETSTATIC, "io/edap/protobuf/ProtoBuf$CodecType",
-                            "FAST", "Lio/edap/protobuf/ProtoBuf$CodecType;");
+                    mv.visitFieldInsn(GETSTATIC, "io/edap/protobuf/CodecType",
+                            "FAST", "Lio/edap/protobuf/CodecType;");
                     mv.visitMethodInsn(INVOKEVIRTUAL, PROTO_OPTION_NAME, "setCodecType",
-                            "(Lio/edap/protobuf/ProtoBuf$CodecType;)V", false);
+                            "(Lio/edap/protobuf/CodecType;)V", false);
                     hasOption = true;
                 }
                 mv.visitVarInsn(ALOAD, 0);
@@ -1514,10 +1513,10 @@ public class ProtoBufDecoderGenerator {
                         "()V", false);
                 mv.visitVarInsn(ASTORE, 1);
                 mv.visitVarInsn(ALOAD, 1);
-                mv.visitFieldInsn(GETSTATIC, "io/edap/protobuf/ProtoBuf$CodecType",
-                        "FAST", "Lio/edap/protobuf/ProtoBuf$CodecType;");
+                mv.visitFieldInsn(GETSTATIC, "io/edap/protobuf/CodecType",
+                        "FAST", "Lio/edap/protobuf/CodecType;");
                 mv.visitMethodInsn(INVOKEVIRTUAL, PROTO_OPTION_NAME, "setCodecType",
-                        "(Lio/edap/protobuf/ProtoBuf$CodecType;)V", false);
+                        "(Lio/edap/protobuf/CodecType;)V", false);
                 hasOption = true;
             }
             if (isFast) {
@@ -1686,7 +1685,7 @@ public class ProtoBufDecoderGenerator {
             return "";
         }
         StringBuilder sb = new StringBuilder("pbd");
-        if (option != null && ProtoBuf.CodecType.FAST == option.getCodecType()) {
+        if (option != null && CodecType.FAST == option.getCodecType()) {
             sb.append("f");
         }
         sb.append('.');

@@ -328,7 +328,7 @@ public class AnyCodec {
     }
 
     public static void encode(ProtoBufWriter writer, Object v, ProtoBufOption option) throws EncodeException {
-        if (option == null || ProtoBuf.CodecType.FAST != option.getCodecType()) {
+        if (option == null || CodecType.FAST != option.getCodecType()) {
             encode(writer, v);
             return;
         }
@@ -377,7 +377,7 @@ public class AnyCodec {
     }
 
     public static Object decode(ProtoBufReader reader, ProtoBufOption option) throws ProtoException {
-        if (option == null || ProtoBuf.CodecType.FAST != option.getCodecType()) {
+        if (option == null || CodecType.FAST != option.getCodecType()) {
             return decode(reader);
         }
         int type = reader.getByte() & 0xff;

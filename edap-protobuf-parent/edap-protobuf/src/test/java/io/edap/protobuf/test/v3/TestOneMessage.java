@@ -19,6 +19,7 @@ package io.edap.protobuf.test.v3;
 import com.google.protobuf.InvalidProtocolBufferException;
 import io.edap.json.Eson;
 import io.edap.json.JsonObject;
+import io.edap.protobuf.CodecType;
 import io.edap.protobuf.EncodeException;
 import io.edap.protobuf.ProtoBuf;
 import io.edap.protobuf.ProtoException;
@@ -76,7 +77,7 @@ public class TestOneMessage {
         assertArrayEquals(pb, epb);
 
         ProtoBufOption option = new ProtoBufOption();
-        option.setCodecType(ProtoBuf.CodecType.FAST);
+        option.setCodecType(CodecType.FAST);
         epb = ProtoBuf.toByteArray(OneMessage, option);
         System.out.println("+-fepb[" + epb.length + "]-------------------+");
         System.out.println(conver2HexStr(epb));
@@ -110,7 +111,7 @@ public class TestOneMessage {
 
 
         ProtoBufOption option = new ProtoBufOption();
-        option.setCodecType(ProtoBuf.CodecType.FAST);
+        option.setCodecType(CodecType.FAST);
         byte[] epb = ProtoBuf.toByteArray(oneMessage, option);
         System.out.println("+-fepb[" + epb.length + "]-------------------+");
         System.out.println(conver2HexStr(epb));
@@ -188,7 +189,7 @@ public class TestOneMessage {
         assertEquals(pbOf.getValue().getRepoPath(), proj.getRepoPath());
 
         ProtoBufOption option = new ProtoBufOption();
-        option.setCodecType(ProtoBuf.CodecType.FAST);
+        option.setCodecType(CodecType.FAST);
         byte[] epb = ProtoBuf.toByteArray(OneMessage, option);
         System.out.println("+-fepb[" + epb.length + "]-------------------+");
         System.out.println(conver2HexStr(epb));

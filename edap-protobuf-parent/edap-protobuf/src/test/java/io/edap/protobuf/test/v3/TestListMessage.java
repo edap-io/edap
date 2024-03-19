@@ -19,6 +19,7 @@ package io.edap.protobuf.test.v3;
 import com.google.protobuf.InvalidProtocolBufferException;
 import io.edap.json.JsonArray;
 import io.edap.json.JsonObject;
+import io.edap.protobuf.CodecType;
 import io.edap.protobuf.EncodeException;
 import io.edap.protobuf.ProtoBuf;
 import io.edap.protobuf.ProtoException;
@@ -84,7 +85,7 @@ public class TestListMessage {
         assertArrayEquals(pb, epb);
 
         ProtoBufOption option = new ProtoBufOption();
-        option.setCodecType(ProtoBuf.CodecType.FAST);
+        option.setCodecType(CodecType.FAST);
         epb = ProtoBuf.toByteArray(listMessage, option);
         System.out.println("+-fepb[" + epb.length + "]-------------------+");
         System.out.println(conver2HexStr(epb));
@@ -138,7 +139,7 @@ public class TestListMessage {
         }
 
         ProtoBufOption option = new ProtoBufOption();
-        option.setCodecType(ProtoBuf.CodecType.FAST);
+        option.setCodecType(CodecType.FAST);
         byte[] epb = ProtoBuf.toByteArray(listMessage1s, option);
         System.out.println("+-fepb[" + epb.length + "]-------------------+");
         System.out.println(conver2HexStr(epb));
@@ -201,7 +202,7 @@ public class TestListMessage {
         assertArrayEquals(pb, epb);
 
         ProtoBufOption option = new ProtoBufOption();
-        option.setCodecType(ProtoBuf.CodecType.FAST);
+        option.setCodecType(CodecType.FAST);
         epb = ProtoBuf.toByteArray(listMessage, option);
         System.out.println("+-fepb[" + epb.length + "]-------------------+");
         System.out.println(conver2HexStr(epb));
@@ -245,7 +246,7 @@ public class TestListMessage {
         }
 
         ProtoBufOption option = new ProtoBufOption();
-        option.setCodecType(ProtoBuf.CodecType.FAST);
+        option.setCodecType(CodecType.FAST);
         byte[] epb = ProtoBuf.toByteArray(listMessage1s, option);
         System.out.println("+-fepb[" + epb.length + "]-------------------+");
         System.out.println(conver2HexStr(epb));
@@ -310,7 +311,7 @@ public class TestListMessage {
         assertArrayEquals(pb, epb);
 
         ProtoBufOption option = new ProtoBufOption();
-        option.setCodecType(ProtoBuf.CodecType.FAST);
+        option.setCodecType(CodecType.FAST);
         epb = ProtoBuf.toByteArray(listMessage, option);
         System.out.println("+-fepb[" + epb.length + "]-------------------+");
         System.out.println(conver2HexStr(epb));
@@ -365,7 +366,7 @@ public class TestListMessage {
         assertArrayEquals(pb, epb);
 
         ProtoBufOption option = new ProtoBufOption();
-        option.setCodecType(ProtoBuf.CodecType.FAST);
+        option.setCodecType(CodecType.FAST);
         epb = ProtoBuf.toByteArray(listMessage, option);
         System.out.println("+-fepb[" + epb.length + "]-------------------+");
         System.out.println(conver2HexStr(epb));
@@ -421,7 +422,7 @@ public class TestListMessage {
         }
 
         ProtoBufOption option = new ProtoBufOption();
-        option.setCodecType(ProtoBuf.CodecType.FAST);
+        option.setCodecType(CodecType.FAST);
         byte[] epb = ProtoBuf.toByteArray(listMessage1s, option);
         System.out.println("+-fepb[" + epb.length + "]-------------------+");
         System.out.println(conver2HexStr(epb));
@@ -479,7 +480,7 @@ public class TestListMessage {
         }
 
         ProtoBufOption option = new ProtoBufOption();
-        option.setCodecType(ProtoBuf.CodecType.FAST);
+        option.setCodecType(CodecType.FAST);
         byte[] epb = ProtoBuf.toByteArray(listMessage1s, option);
         System.out.println("+-fepb[" + epb.length + "]-------------------+");
         System.out.println(conver2HexStr(epb));

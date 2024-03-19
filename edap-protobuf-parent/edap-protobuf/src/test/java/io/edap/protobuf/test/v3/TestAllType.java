@@ -19,11 +19,10 @@ package io.edap.protobuf.test.v3;
 import com.google.protobuf.ByteString;
 import io.edap.json.Eson;
 import io.edap.json.JsonObject;
-import io.edap.json.JsonObjectImpl;
+import io.edap.protobuf.CodecType;
 import io.edap.protobuf.ProtoBuf;
 import io.edap.protobuf.model.ProtoBufOption;
 import io.edap.protobuf.test.message.v3.*;
-import io.edap.protobuf.wire.Proto;
 import io.edap.util.ClazzUtil;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -148,7 +147,7 @@ public class TestAllType {
 
 
             ProtoBufOption option = new ProtoBufOption();
-            option.setCodecType(ProtoBuf.CodecType.FAST);
+            option.setCodecType(CodecType.FAST);
             epb = ProtoBuf.toByteArray(allType);
             System.out.println("+-[" + epb.length + "]-------------------+");
             System.out.println(conver2HexStr(epb));
@@ -231,7 +230,7 @@ public class TestAllType {
 
 
             ProtoBufOption option = new ProtoBufOption();
-            option.setCodecType(ProtoBuf.CodecType.FAST);
+            option.setCodecType(CodecType.FAST);
             byte[] epb = ProtoBuf.toByteArray(allType, option);
             System.out.println("+-epbf[" + epb.length + "]-------------------+");
             System.out.println(conver2HexStr(epb));
@@ -392,7 +391,7 @@ public class TestAllType {
             assertArrayEquals(pb, epb);
 
             ProtoBufOption option = new ProtoBufOption();
-            option.setCodecType(ProtoBuf.CodecType.FAST);
+            option.setCodecType(CodecType.FAST);
             epb = ProtoBuf.toByteArray(allType, option);
             System.out.println("+-epbf[" + epb.length + "]---------------------");
             System.out.println(conver2HexStr(epb));
@@ -473,7 +472,7 @@ public class TestAllType {
 
 
             ProtoBufOption option = new ProtoBufOption();
-            option.setCodecType(ProtoBuf.CodecType.FAST);
+            option.setCodecType(CodecType.FAST);
             byte[] epb = ProtoBuf.toByteArray(allType, option);
             System.out.println("+-epbf[" + epb.length + "]-------------------+");
             System.out.println(conver2HexStr(epb));
@@ -820,7 +819,7 @@ public class TestAllType {
             assertArrayEquals(pb, epb);
 
             ProtoBufOption option = new ProtoBufOption();
-            option.setCodecType(ProtoBuf.CodecType.FAST);
+            option.setCodecType(CodecType.FAST);
             epb = ProtoBuf.toByteArray(allType, option);
             System.out.println("+-epbf[" + epb.length + "]-------------------+");
             System.out.println(conver2HexStr(epb));
@@ -901,7 +900,7 @@ public class TestAllType {
 
 
             ProtoBufOption option = new ProtoBufOption();
-            option.setCodecType(ProtoBuf.CodecType.FAST);
+            option.setCodecType(CodecType.FAST);
             byte[] epb = ProtoBuf.toByteArray(allType, option);
             System.out.println("+-epbf[" + epb.length + "]-------------------+");
             System.out.println(conver2HexStr(epb));

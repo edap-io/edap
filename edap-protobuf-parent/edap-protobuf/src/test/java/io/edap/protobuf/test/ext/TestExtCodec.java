@@ -17,10 +17,7 @@
 package io.edap.protobuf.test.ext;
 
 import io.edap.json.Eson;
-import io.edap.protobuf.EncodeException;
-import io.edap.protobuf.ProtoBuf;
-import io.edap.protobuf.ProtoException;
-import io.edap.protobuf.ProtoBufWriter;
+import io.edap.protobuf.*;
 import io.edap.protobuf.ext.AnyCodec;
 import io.edap.protobuf.ext.codec.ClassCodec;
 import io.edap.protobuf.ext.codec.MessageCodec;
@@ -203,7 +200,7 @@ public class TestExtCodec {
                 () -> {
                     reader.reset();
                     ProtoBufOption option = new ProtoBufOption();
-                    option.setCodecType(ProtoBuf.CodecType.FAST);
+                    option.setCodecType(CodecType.FAST);
                     AnyCodec.decode(reader, option);
                 });
         assertTrue(thrown.getMessage().contains("] hasn't ProtoBufDecoder"));
@@ -212,7 +209,7 @@ public class TestExtCodec {
                 () -> {
                     reader.reset();
                     ProtoBufOption option = new ProtoBufOption();
-                    option.setCodecType(ProtoBuf.CodecType.FAST);
+                    option.setCodecType(CodecType.FAST);
                     AnyCodec.skipObject(reader);
                 });
         assertTrue(thrown.getMessage().contains("] hasn't ProtoBufDecoder"));
@@ -223,7 +220,7 @@ public class TestExtCodec {
                     ByteArrayFastReader reader2 = new ByteArrayFastReader(data);
                     reader2.reset();
                     ProtoBufOption option = new ProtoBufOption();
-                    option.setCodecType(ProtoBuf.CodecType.FAST);
+                    option.setCodecType(CodecType.FAST);
                     AnyCodec.skipObject(reader2);
                 });
         assertTrue(thrown.getMessage().contains("] hasn't ProtoBufDecoder"));
@@ -242,7 +239,7 @@ public class TestExtCodec {
 
         assertArrayEquals(data, clsNullData);
 
-        option.setCodecType(ProtoBuf.CodecType.FAST);
+        option.setCodecType(CodecType.FAST);
         writer.reset();
         AnyCodec.encode(writer, cls, option);
         data = writer.toByteArray();

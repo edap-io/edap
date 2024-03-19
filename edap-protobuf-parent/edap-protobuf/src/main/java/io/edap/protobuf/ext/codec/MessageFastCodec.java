@@ -38,7 +38,7 @@ public class MessageFastCodec implements ExtCodec<Object> {
     static ProtoBufOption OPTION = new ProtoBufOption();
 
     static {
-        OPTION.setCodecType(ProtoBuf.CodecType.FAST);
+        OPTION.setCodecType(CodecType.FAST);
     }
 
     @Override
@@ -70,7 +70,7 @@ public class MessageFastCodec implements ExtCodec<Object> {
             try {
                 Class cls = Class.forName(uri);
                 ProtoBufOption option = new ProtoBufOption();
-                option.setCodecType(ProtoBuf.CodecType.FAST);
+                option.setCodecType(CodecType.FAST);
                 decoder = ProtoBufCodecRegister.INSTANCE.getDecoder(cls, option);
                 DECODERS.put(uri, decoder);
             } catch (Exception e) {

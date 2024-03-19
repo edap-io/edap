@@ -1,6 +1,7 @@
 package io.edap.protobuf.model;
 
-import io.edap.protobuf.ProtoBuf.CodecType;
+
+import io.edap.protobuf.CodecType;
 
 public class ProtoBufOption {
 
