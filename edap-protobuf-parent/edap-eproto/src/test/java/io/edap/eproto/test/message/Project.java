@@ -14,20 +14,37 @@
  * under the License.
  */
 
-package io.edap.protobuf.util;
+package io.edap.eproto.test.message;
 
-import io.edap.protobuf.ProtoBuf;
-import io.edap.protobuf.ProtoFieldInfo;
-import io.edap.util.TimeUtil;
-import org.objectweb.asm.MethodVisitor;
+/**
+ * @date : 2020/1/6
+ */
+public class Project {
+    private Long id;
+    private String name;
+    private String repoPath;
 
-import static io.edap.util.AsmUtil.toInternalName;
-import static io.edap.util.AsmUtil.visitMethod;
-import static org.objectweb.asm.Opcodes.*;
+    public Long getId() {
+        return id;
+    }
 
-public class ProtoAsmUtil {
+    public void setId(Long id) {
+        this.id = id;
+    }
 
-    private ProtoAsmUtil() {}
+    public String getName() {
+        return name;
+    }
 
+    public void setName(String name) {
+        this.name = name;
+    }
 
+    public String getRepoPath() {
+        return repoPath;
+    }
+
+    public void setRepoPath(String repoPath) {
+        this.repoPath = repoPath;
+    }
 }

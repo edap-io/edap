@@ -33,7 +33,6 @@ import java.lang.reflect.GenericArrayType;
 import java.lang.reflect.ParameterizedType;
 import java.util.*;
 
-import static io.edap.protobuf.util.ProtoAsmUtil.visitGetFieldValue;
 import static io.edap.protobuf.util.ProtoUtil.*;
 import static io.edap.protobuf.wire.WireFormat.makeTag;
 import static io.edap.util.AsmUtil.*;

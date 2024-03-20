@@ -1,5 +1,6 @@
 package io.edap.eproto;
 
+import io.edap.protobuf.CodecType;
 import io.edap.protobuf.ProtoPersister;
 import io.edap.util.CollectionUtils;
 import io.edap.util.internal.GeneratorClassInfo;
@@ -10,8 +11,9 @@ import java.util.Map;
 import java.util.concurrent.locks.ReentrantLock;
 
 import static io.edap.eproto.EprotoEncoderGenerator.getEncoderName;
-import static io.edap.util.AsmUtil.saveJavaFile;
-import static io.edap.util.AsmUtil.toLangName;
+import static io.edap.protobuf.util.ProtoUtil.buildMapEncodeName;
+import static io.edap.util.AsmUtil.*;
+import static io.edap.util.AsmUtil.toInternalName;
 
 public class EprotoCodecRegister {
 
@@ -117,6 +119,43 @@ public class EprotoCodecRegister {
 
     public static final EprotoCodecRegister instance() {
         return EprotoCodecRegister.SingletonHolder.INSTANCE;
+    }
+
+    public Class generateMapEntryClass(Type mapType, Class ownerCls) {
+        Class mapEntryCls = mapEncoders.get(ownerCls);
+        if (mapEntryCls != null) {
+            return mapEntryCls;
+        }
+        String mapEntryName = "";
+        EprotoCodecLoader encoderLoader = getCodecLoader(ownerCls);
+        try {
+            lock.lock();
+            mapEntryName = buildMapEncodeName(mapType, null);
+            MapEntryGenerator meg = new MapEntryGenerator(
+                    toInternalName(mapEntryName), mapType);
+            byte[] bs = meg.getEntryBytes();
+            saveJavaFile("./" + toInternalName(mapEntryName) + ".class", bs);
+            mapEntryCls = encoderLoader.define(mapEntryName, bs, 0, bs.length);
+            if (mapEntryCls != null) {
+                mapEncoders.put(ownerCls, mapEntryCls);
+            }
+        } catch (Throwable e) {
+            try {
+                mapEntryCls = encoderLoader.loadClass(mapEntryName);
+                if (mapEntryCls != null) {
+                    mapEncoders.put(ownerCls, mapEntryCls);
+                    return mapEntryCls;
+                }
+            } catch (ClassNotFoundException ex) {
+                throw new RuntimeException("generateMapEntryClass "
+                        + mapType.getTypeName() + " error", ex);
+            }
+            throw new RuntimeException("generateMapEntryClass "
+                    + mapType.getTypeName()+ " error", e);
+        } finally {
+            lock.unlock();
+        }
+        return mapEntryCls;
     }
 
     private static class SingletonHolder {

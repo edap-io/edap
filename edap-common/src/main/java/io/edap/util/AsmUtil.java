@@ -65,7 +65,7 @@ public class AsmUtil {
     }
 
     public static void visitIntInsn(int value, MethodVisitor mv) {
-        visitMethodVisitIntVaue(mv, value);
+        visitMethodVisitIntValue(mv, value);
     }
 
     public static boolean isPojo(Type type) {
@@ -143,7 +143,7 @@ public class AsmUtil {
         return sb.toString();
     }
 
-    public static void visitMethodVisitIntVaue(MethodVisitor mv, int tag) {
+    public static void visitMethodVisitIntValue(MethodVisitor mv, int tag) {
         switch (tag) {
             case 0:
                 mv.visitInsn(ICONST_0);

@@ -654,7 +654,7 @@ public class BaseDaoGenerator {
             JdbcInfo jdbcInfo = queryInfo.getAllColumns().get(i);
             mv.visitVarInsn(ALOAD, 5);
             mv.visitVarInsn(ALOAD, 4);
-            visitMethodVisitIntVaue(mv, i+1);
+            visitMethodVisitIntValue(mv, i+1);
             String getMethod = "get" + jdbcInfo.getJdbcMethod().substring(3);
             mv.visitMethodInsn(INVOKEINTERFACE, "java/sql/ResultSet", getMethod,
                     "(I)" + jdbcInfo.getJdbcType(), true);

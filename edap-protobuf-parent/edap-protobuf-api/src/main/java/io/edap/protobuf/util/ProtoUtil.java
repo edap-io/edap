@@ -34,6 +34,8 @@ import io.edap.protobuf.wire.parser.ProtoParser;
 import io.edap.util.AsmUtil;
 import io.edap.util.CollectionUtils;
 import io.edap.util.StringUtil;
+import io.edap.util.TimeUtil;
+import org.objectweb.asm.MethodVisitor;
 
 import java.io.IOException;
 import java.lang.annotation.Annotation;
@@ -48,6 +50,8 @@ import static io.edap.util.AsmUtil.*;
 import static io.edap.util.ClazzUtil.*;
 import static io.edap.util.CryptUtil.md5;
 import static java.lang.reflect.Modifier.isPublic;
+import static org.objectweb.asm.Opcodes.*;
+import static org.objectweb.asm.Opcodes.CHECKCAST;
 
 public class ProtoUtil {
 
@@ -986,5 +990,104 @@ public class ProtoUtil {
         if ((value & (0xffffffffffffffffL << 63)) == 0)
             return 9;
         return 10;
+    }
+
+    public static String visitGetFieldValue(MethodVisitor mv, ProtoFieldInfo pfi, String pojoName,
+                                            String pojoCodecName, int pojoSeq, String rType) {
+        String type = rType;
+        if (pfi.hasGetAccessed) {
+            mv.visitVarInsn(ALOAD, pojoSeq);
+            if (pfi.getMethod != null) {
+                visitMethod(mv, INVOKEVIRTUAL, pojoName, pfi.getMethod.getName(),
+                        "()" + rType, false);
+                String timeUtil = toInternalName(TimeUtil.class.getName());
+                if ("Ljava/util/Date;".equals(rType)) {
+                    visitMethod(mv, INVOKESTATIC, timeUtil, "timeMillis", "(Ljava/util/Date;)J", false);
+                    type = "J";
+                } else if ("Ljava/util/Calendar;".equals(rType)) {
+                    visitMethod(mv, INVOKESTATIC, timeUtil, "timeMillis", "(Ljava/util/Calendar;)J", false);
+                    type = "J";
+                } else if ("Ljava/time/LocalDateTime;".equals(rType)) {
+                    visitMethod(mv, INVOKESTATIC, timeUtil, "timeMillis", "(Ljava/time/LocalDateTime;)J", false);
+                    type = "J";
+                }
+            } else {
+                mv.visitFieldInsn(GETFIELD, pojoName, pfi.field.getName(), rType);
+            }
+        } else {
+            mv.visitVarInsn(ALOAD, 0);
+            mv.visitFieldInsn(GETFIELD, pojoCodecName, pfi.field.getName() + "F",
+                    "Ljava/lang/reflect/Field;");
+            mv.visitVarInsn(ALOAD, pojoSeq);
+            mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/reflect/Field",
+                    "get", "(Ljava/lang/Object;)Ljava/lang/Object;", false);
+
+            switch (rType) {
+                case "I":
+                    mv.visitTypeInsn(CHECKCAST, "java/lang/Integer");
+                    type = "Ljava/lang/Integer;";
+                    break;
+                case "Z":
+                    mv.visitTypeInsn(CHECKCAST, "java/lang/Boolean");
+                    type = "Ljava/lang/Boolean;";
+                    break;
+                case "D":
+                    mv.visitTypeInsn(CHECKCAST, "java/lang/Double");
+                    type = "Ljava/lang/Double;";
+                    break;
+                case "F":
+                    mv.visitTypeInsn(CHECKCAST, "java/lang/Float");
+                    type = "Ljava/lang/Float;";
+                    break;
+                case "J":
+                    mv.visitTypeInsn(CHECKCAST, "java/lang/Long");
+                    type = "Ljava/lang/Long;";
+                    break;
+                default:
+                    mv.visitTypeInsn(CHECKCAST, toInternalName(pfi.field.getType().getName()));
+            }
+
+        }
+        return type;
+    }
+
+    public static String getWriteMethod(Type type) {
+        switch (type) {
+            case FLOAT:
+                return "writeFloat";
+            case DOUBLE:
+                return "writeDouble";
+            case INT32:
+                return "writeInt32";
+            case SINT32:
+                return "writeSInt32";
+            case UINT32:
+                return "writeUInt32";
+            case FIXED32:
+                return "writeFixed32";
+            case SFIXED32:
+                return "writeSFixed32";
+            case INT64:
+                return "writeLong";
+            case SINT64:
+                return "writeSInt64";
+            case UINT64:
+                return "writeUInt64";
+            case FIXED64:
+                return "writeFixed64";
+            case SFIXED64:
+                return "writeSFixed64";
+            case BOOL:
+                return "writeBool";
+            case STRING:
+                return "writeString";
+            case ENUM:
+                return "writeEnum";
+            case BYTES:
+                return "writeBytes";
+            case OBJECT:
+                return "writeObject";
+        }
+        return "";
     }
 }

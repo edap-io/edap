@@ -33,7 +33,6 @@ import java.lang.reflect.GenericArrayType;
 import java.lang.reflect.ParameterizedType;
 import java.util.*;
 
-import static io.edap.protobuf.util.ProtoAsmUtil.visitGetFieldValue;
 import static io.edap.protobuf.util.ProtoUtil.*;
 import static io.edap.util.AsmUtil.*;
 import static io.edap.util.ClazzUtil.getDescriptor;
@@ -1176,46 +1175,6 @@ public class ProtoBufEncoderGenerator {
 
 
         arrayMethods.add(typed);
-    }
-
-    private String getWriteMethod(Type type) {
-        switch (type) {
-            case FLOAT:
-                return "writeFloat";
-            case DOUBLE:
-                return "writeDouble";
-            case INT32:
-                return "writeInt32";
-            case SINT32:
-                return "writeSInt32";
-            case UINT32:
-                return "writeUInt32";
-            case FIXED32:
-                return "writeFixed32";
-            case SFIXED32:
-                return "writeSFixed32";
-            case INT64:
-                return "writeLong";
-            case SINT64:
-                return "writeSInt64";
-            case UINT64:
-                return "writeUInt64";
-            case FIXED64:
-                return "writeFixed64";
-            case SFIXED64:
-                return "writeSFixed64";
-            case BOOL:
-                return "writeBool";
-            case STRING:
-                return "writeString";
-            case ENUM:
-                return "writeEnum";
-            case BYTES:
-                return "writeBytes";
-            case OBJECT:
-                return "writeObject";
-        }
-        return "";
     }
 
     /**
