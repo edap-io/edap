@@ -1160,10 +1160,9 @@ public class EprotoEncoderGenerator {
         } else if (pfi.protoField.type() == Field.Type.BOOL) {
             mv.visitVarInsn(ALOAD, 0);
             mv.visitVarInsn(ALOAD, 1);
-            mv.visitFieldInsn(GETSTATIC, pojoCodecName, "tag" + pfi.protoField.tag(), "[B");
             rType = visitGetFieldValue(mv, pfi, pojoName, pojoCodecName, 2, rType);
             visitMethod(mv, INVOKESPECIAL, pojoCodecName, "writeArrayBoolean",
-                    "(L" + WRITER_NAME + ";[B" + rType + ")V", false);
+                    "(L" + WRITER_NAME + ";" + rType + ")V", false);
             return;
         } else if (pfi.protoField.type() == Field.Type.INT32
                 || pfi.protoField.type() == Field.Type.SINT32
@@ -1172,19 +1171,17 @@ public class EprotoEncoderGenerator {
                 || pfi.protoField.type() == Field.Type.SFIXED32) {
             mv.visitVarInsn(ALOAD, 0);
             mv.visitVarInsn(ALOAD, 1);
-            mv.visitFieldInsn(GETSTATIC, pojoCodecName, "tag" + pfi.protoField.tag(), "[B");
             rType = visitGetFieldValue(mv, pfi, pojoName, pojoCodecName, 2, rType);
             mv.visitFieldInsn(GETSTATIC, FIELD_TYPE_NAME, pfi.protoField.type().name(), "L" + FIELD_TYPE_NAME + ";");
             visitMethod(mv, INVOKESPECIAL, pojoCodecName, "writeArrayInt",
-                    "(L" + WRITER_NAME + ";[B" + rType + "L" + FIELD_TYPE_NAME + ";)V", false);
+                    "(L" + WRITER_NAME + ";" + rType + "L" + FIELD_TYPE_NAME + ";)V", false);
             return;
         } else if (pfi.protoField.type() == Field.Type.ENUM) {
             mv.visitVarInsn(ALOAD, 0);
             mv.visitVarInsn(ALOAD, 1);
-            mv.visitFieldInsn(GETSTATIC, pojoCodecName, "tag" + pfi.protoField.tag(), "[B");
             rType = visitGetFieldValue(mv, pfi, pojoName, pojoCodecName, 2, rType);
             visitMethod(mv, INVOKESPECIAL, pojoCodecName, "writeArrayEnum",
-                    "(L" + WRITER_NAME + ";[B[Ljava/lang/Enum;)V", false);
+                    "(L" + WRITER_NAME + ";[Ljava/lang/Enum;)V", false);
             return;
         } else if (pfi.protoField.type() == Field.Type.INT64
                 || pfi.protoField.type() == Field.Type.SINT64
@@ -1193,35 +1190,31 @@ public class EprotoEncoderGenerator {
                 || pfi.protoField.type() == Field.Type.SFIXED64) {
             mv.visitVarInsn(ALOAD, 0);
             mv.visitVarInsn(ALOAD, 1);
-            mv.visitFieldInsn(GETSTATIC, pojoCodecName, "tag" + pfi.protoField.tag(), "[B");
             rType = visitGetFieldValue(mv, pfi, pojoName, pojoCodecName, 2, rType);
             mv.visitFieldInsn(GETSTATIC, FIELD_TYPE_NAME, pfi.protoField.type().name(), "L" + FIELD_TYPE_NAME + ";");
             visitMethod(mv, INVOKESPECIAL, pojoCodecName, "writeArrayLong",
-                    "(L" + WRITER_NAME + ";[B" + rType + "L" + FIELD_TYPE_NAME + ";)V", false);
+                    "(L" + WRITER_NAME + ";" + rType + "L" + FIELD_TYPE_NAME + ";)V", false);
             return;
         } else if (pfi.protoField.type() == Field.Type.FLOAT) {
             mv.visitVarInsn(ALOAD, 0);
             mv.visitVarInsn(ALOAD, 1);
-            mv.visitFieldInsn(GETSTATIC, pojoCodecName, "tag" + pfi.protoField.tag(), "[B");
             rType = visitGetFieldValue(mv, pfi, pojoName, pojoCodecName, 2, rType);
             visitMethod(mv, INVOKESPECIAL, pojoCodecName, "writeArrayFloat",
-                    "(L" + WRITER_NAME + ";[B" + rType + ")V", false);
+                    "(L" + WRITER_NAME + ";" + rType + ")V", false);
             return;
         } else if (pfi.protoField.type() == Field.Type.DOUBLE) {
             mv.visitVarInsn(ALOAD, 0);
             mv.visitVarInsn(ALOAD, 1);
-            mv.visitFieldInsn(GETSTATIC, pojoCodecName, "tag" + pfi.protoField.tag(), "[B");
             rType = visitGetFieldValue(mv, pfi, pojoName, pojoCodecName, 2, rType);
             visitMethod(mv, INVOKESPECIAL, pojoCodecName, "writeArrayDouble",
-                    "(L" + WRITER_NAME + ";[B" + rType + ")V", false);
+                    "(L" + WRITER_NAME + ";" + rType + ")V", false);
             return;
         }
         mv.visitVarInsn(ALOAD, 0);
         mv.visitVarInsn(ALOAD, 1);
-        mv.visitFieldInsn(GETSTATIC, pojoCodecName, "tag" + pfi.protoField.tag(), "[B");
         rType = visitGetFieldValue(mv, pfi, pojoName, pojoCodecName, 2, rType);
         visitMethod(mv, INVOKESPECIAL, pojoCodecName, arrayMethod,
-                "(L" + WRITER_NAME + ";[B" + rType + ")V", false);
+                "(L" + WRITER_NAME + ";" + rType + ")V", false);
         visitInnerArrayMethod(pfi.field.getGenericType(), pfi);
     }
 
