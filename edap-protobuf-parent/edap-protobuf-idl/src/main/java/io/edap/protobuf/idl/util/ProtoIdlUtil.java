@@ -17,6 +17,7 @@
 package io.edap.protobuf.idl.util;
 
 import io.edap.protobuf.ProtoBuf;
+import io.edap.protobuf.ProtoFieldInfo;
 import io.edap.protobuf.builder.ProtoBuilder;
 import io.edap.protobuf.builder.ProtoV3Builder;
 import io.edap.protobuf.idl.ProtoIdl;
@@ -32,11 +33,14 @@ import io.edap.protobuf.util.ProtoUtil;
 import io.edap.protobuf.wire.*;
 import io.edap.util.CollectionUtils;
 import io.edap.util.StringUtil;
+import org.objectweb.asm.tree.AnnotationNode;
+import org.objectweb.asm.tree.FieldNode;
 
 import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.nio.charset.StandardCharsets;
@@ -52,6 +56,22 @@ import static io.edap.util.CryptUtil.md5;
 public class ProtoIdlUtil {
 
     private ProtoIdlUtil() {}
+
+    public static boolean needEncode(FieldNode fieldNode) {
+        if ("Lorg/slf4j/Logger;".equals(fieldNode.desc)) {
+            return false;
+        }
+        int mod = fieldNode.access;
+        List<AnnotationNode> fieldAnns = fieldNode.visibleAnnotations;
+        if (fieldAnns != null) {
+            for (AnnotationNode annNode : fieldAnns) {
+                if ("Ljavax/persistence/Transient;".equals(annNode.desc)) {
+                    return false;
+                }
+            }
+        }
+        return !Modifier.isStatic(mod) && !Modifier.isTransient(mod);
+    }
 
     /**
      * 根据给定的服务接口的类生成该接口对应的微服的proto描述对象列表
@@ -231,13 +251,13 @@ public class ProtoIdlUtil {
         }
         curProto.addMsg(msg);
         msg.setName(msgCls.getSimpleName());
-        List<ProtoBuf.ProtoFieldInfo> protoFieldInfos = ProtoUtil.getProtoFields(msgCls);
+        List<ProtoFieldInfo> protoFieldInfos = ProtoUtil.getProtoFields(msgCls);
         if (CollectionUtils.isEmpty(protoFieldInfos)) {
             return;
         }
         ProtoTagComparator ptc = new ProtoTagComparator();
         Collections.sort(protoFieldInfos, ptc);
-        for (ProtoBuf.ProtoFieldInfo fieldInfo : protoFieldInfos) {
+        for (ProtoFieldInfo fieldInfo : protoFieldInfos) {
             Field field = new Field();
             field.setName(fieldInfo.field.getName());
             field.setTag(fieldInfo.protoField.tag());

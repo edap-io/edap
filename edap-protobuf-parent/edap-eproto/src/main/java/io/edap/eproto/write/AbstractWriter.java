@@ -1,13 +1,17 @@
 package io.edap.eproto.write;
 
+import io.edap.buffer.FastBuf;
 import io.edap.eproto.EprotoEncoder;
 import io.edap.eproto.EprotoWriter;
 import io.edap.io.BufOut;
+import io.edap.io.BufWriter;
 import io.edap.protobuf.EncodeException;
 import io.edap.protobuf.ProtoBufEnum;
 import io.edap.protobuf.wire.Field;
 import io.edap.util.StringUtil;
 
+import java.io.IOException;
+import java.io.OutputStream;
 import java.util.Iterator;
 import java.util.List;
 
@@ -36,9 +40,11 @@ public abstract class AbstractWriter implements EprotoWriter {
 
 
     public BufOut.WriteBuf wbuf;
+
     protected BufOut out;
     protected byte[] bs;
     protected int pos;
+    private int wpos = 0;
 
     public AbstractWriter(BufOut out) {
         this.out = out;
@@ -664,15 +670,19 @@ public abstract class AbstractWriter implements EprotoWriter {
         byte[] _bs = bs;
         for (int i=0;i<len;i++) {
             Integer v = values.get(i);
-            if (v == null) {
-                _bs[p++] = ZIGZAG32_NEGATIVE_ONE;
-                continue;
-            }
-            if (v == 0) {
+//            if (v == null) {
+//                _bs[p++] = ZIGZAG32_NEGATIVE_ONE;
+//                continue;
+//            }
+//            if (v == 0) {
+//                _bs[p++] = ZIGZAG32_ZERO;
+//                continue;
+//            }
+//            _bs[p++] = ZIGZAG32_ONE;
+            if (v == null || v == 0) {
                 _bs[p++] = ZIGZAG32_ZERO;
                 continue;
             }
-            _bs[p++] = ZIGZAG32_ONE;
             int value = v;
             if ((value & ~0x7F) == 0) {
                 _bs[p++] = (byte) value;
@@ -2402,5 +2412,42 @@ public abstract class AbstractWriter implements EprotoWriter {
                 bs = res;
             }
         }
+    }
+
+    public void reset() {
+        pos = 0;
+    }
+
+    public int size() {
+        return pos;
+    }
+
+    @Override
+    public int toFastBuf(FastBuf buf) {
+        int len = buf.write(bs, wpos, pos);
+        wpos += len;
+        return len;
+    }
+
+    @Override
+    public void setWPos(int wPos) {
+
+    }
+
+    @Override
+    public void toStream(OutputStream stream) throws IOException {
+        stream.write(bs, 0, pos);
+    }
+
+    @Override
+    public byte[] toByteArray() {
+        byte[] data = new byte[pos];
+        System.arraycopy(bs, 0, data, 0, pos);
+        return data;
+    }
+
+    @Override
+    public BufOut getBufOut() {
+        return out;
     }
 }

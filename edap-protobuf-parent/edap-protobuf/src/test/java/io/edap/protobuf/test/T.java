@@ -12,5 +12,8 @@ public class T {
         System.out.println(makeTag(10, WireType.START_GROUP));
         System.out.println(makeTag(1, WireType.OBJECT));
         System.out.println(Integer.toHexString(makeTag(1, WireType.OBJECT)));
+
+        String s = "{\"gtx_id\":\"20240229134046@6c191449-e030-44a9-9a12-c82210d6496e\",\"message\":\"java.lang.RuntimeException: java.lang.RuntimeException: com.yonyou.cloud.yts.YtsTransactionException: iuap-ymsc-yts->yts-mdd-stock调用后异常\"}";
+
     }
 }

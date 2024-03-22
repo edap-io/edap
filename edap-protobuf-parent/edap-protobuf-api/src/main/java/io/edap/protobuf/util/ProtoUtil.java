@@ -810,22 +810,6 @@ public class ProtoUtil {
         return !Modifier.isStatic(mod) && !Modifier.isTransient(mod);
     }
 
-//    public static boolean needEncode(FieldNode fieldNode) {
-//        if ("Lorg/slf4j/Logger;".equals(fieldNode.desc)) {
-//            return false;
-//        }
-//        int mod = fieldNode.access;
-//        List<AnnotationNode> fieldAnns = fieldNode.visibleAnnotations;
-//        if (fieldAnns != null) {
-//            for (AnnotationNode annNode : fieldAnns) {
-//                if ("Ljavax/persistence/Transient;".equals(annNode.desc)) {
-//                    return false;
-//                }
-//            }
-//        }
-//        return !Modifier.isStatic(mod) && !Modifier.isTransient(mod);
-//    }
-
     private static ProtoField getProtoAnnotation(Field field, Method method) {
         Annotation[] anns = field.getAnnotations();
         ProtoField pf = getProtoAnnotation(anns);

@@ -40,7 +40,6 @@ import java.util.jar.JarFile;
 
 import static io.edap.protobuf.idl.util.ClassVisitorUtil.parseMethodDesc;
 import static io.edap.protobuf.idl.util.ProtoIdlUtil.*;
-import static io.edap.protobuf.util.ProtoUtil.needEncode;
 import static io.edap.protobuf.util.ProtoUtil.parentMapType;
 import static io.edap.util.AsmUtil.toInternalName;
 import static io.edap.util.AsmUtil.toLangName;

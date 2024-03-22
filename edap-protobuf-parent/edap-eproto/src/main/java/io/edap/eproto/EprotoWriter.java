@@ -1,12 +1,20 @@
 package io.edap.eproto;
 
+import io.edap.io.BufOut;
+import io.edap.io.BufWriter;
 import io.edap.protobuf.EncodeException;
 import io.edap.protobuf.ProtoBufEnum;
 import io.edap.protobuf.wire.Field.Type;
 
 import java.util.List;
 
-public interface EprotoWriter {
+public interface EprotoWriter extends BufWriter {
+
+    BufOut getBufOut();
+
+    void reset();
+
+    int size();
 
     /**
      * 编码字符串，编码字符串的编码方法为如果为null则使用'\0'表示，如果字符串长度为0则使用'0',

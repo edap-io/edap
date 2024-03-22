@@ -10,7 +10,6 @@
         <relativePath>../pom.xml</relativePath>
     </parent>
 
-    <groupId>com.yonyou.cloud</groupId>
     <artifactId>edap-eproto</artifactId>
 
     <properties>
@@ -31,6 +30,16 @@
         <dependency>
             <groupId>io.edap</groupId>
             <artifactId>edap-protobuf-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.ow2.asm</groupId>
+            <artifactId>asm-tree</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.ow2.asm</groupId>
+            <artifactId>asm-util</artifactId>
+            <scope>test</scope>
         </dependency>
     </dependencies>
 
