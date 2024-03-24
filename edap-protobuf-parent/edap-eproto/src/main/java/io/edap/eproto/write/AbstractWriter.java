@@ -679,37 +679,37 @@ public abstract class AbstractWriter implements EprotoWriter {
 //                continue;
 //            }
 //            _bs[p++] = ZIGZAG32_ONE;
-            if (v == null || v == 0) {
-                _bs[p++] = ZIGZAG32_ZERO;
-                continue;
-            }
+//            if (v == null || v == 0) {
+//                _bs[p++] = ZIGZAG32_ZERO;
+//                continue;
+//            }
             int value = v;
             if ((value & ~0x7F) == 0) {
                 _bs[p++] = (byte) value;
-                continue;
-            }
-            _bs[p++] = (byte) ((value & 0x7F) | 0x80);
-            value >>>= 7;
-            if ((value & ~0x7F) == 0) {
-                _bs[p++] = (byte) value;
-                continue;
-            }
-            _bs[p++] = (byte) ((value & 0x7F) | 0x80);
-            value >>>= 7;
-            if ((value & ~0x7F) == 0) {
-                _bs[p++] = (byte) value;
-                continue;
-            }
-            _bs[p++] = (byte) ((value & 0x7F) | 0x80);
-            value >>>= 7;
-            if ((value & ~0x7F) == 0) {
-                _bs[p++] = (byte) value;
-                continue;
-            }
-            _bs[p++] = (byte) ((value & 0x7F) | 0x80);
-            value >>>= 7;
-            if ((value & ~0x7F) == 0) {
-                _bs[p++] = (byte) value;
+            } else {
+                _bs[p++] = (byte) ((value & 0x7F) | 0x80);
+                value >>>= 7;
+                if ((value & ~0x7F) == 0) {
+                    _bs[p++] = (byte) value;
+                } else {
+                    _bs[p++] = (byte) ((value & 0x7F) | 0x80);
+                    value >>>= 7;
+                    if ((value & ~0x7F) == 0) {
+                        _bs[p++] = (byte) value;
+                    } else {
+                        _bs[p++] = (byte) ((value & 0x7F) | 0x80);
+                        value >>>= 7;
+                        if ((value & ~0x7F) == 0) {
+                            _bs[p++] = (byte) value;
+                        } else {
+                            _bs[p++] = (byte) ((value & 0x7F) | 0x80);
+                            value >>>= 7;
+                            if ((value & ~0x7F) == 0) {
+                                _bs[p++] = (byte) value;
+                            }
+                        }
+                    }
+                }
             }
         }
         pos = p;
