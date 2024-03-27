@@ -1,5 +1,6 @@
 package io.edap.protobuf.test;
 
+import io.edap.protobuf.writer.AbstractWriter;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.util.ASMifier;
@@ -23,7 +24,7 @@ public class Asm {
 
 //        String clsPath = "/Users/louis/NetBeansProjects/edap/edap-json/target/test-classes/" +
 //                "io/edap/json/test/DemoPojoDecoder.class";
-        String clsPath = TestUtil.class.getName();
+        String clsPath = AbstractWriter.class.getName();
         ClassReader cr;
         if (clsPath.endsWith(".class") || clsPath.indexOf('\\') > -1
                 || clsPath.indexOf('/') > -1) {

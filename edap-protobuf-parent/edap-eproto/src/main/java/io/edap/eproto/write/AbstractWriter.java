@@ -228,18 +228,12 @@ public abstract class AbstractWriter implements EprotoWriter {
 
     @Override
     public void writeInt32(Integer value) {
-        if (value == null) {
+        if (value == null || value == 0) {
             expand(1);
-            bs[pos++] = ZIGZAG32_NEGATIVE_ONE;
+            bs[pos++] = ZIGZAG32_ZERO;
         } else {
-            if (value == 0) {
-                expand(1);
-                bs[pos++] = ZIGZAG32_ZERO;
-            } else {
-                expand(MAX_VARINT_SIZE + 1);
-                bs[pos++] = ZIGZAG32_ONE;
-                writeUInt32_0(value);
-            }
+            expand(MAX_VARINT_SIZE + 1);
+            writeUInt32_0(value);
         }
     }
 
@@ -257,35 +251,23 @@ public abstract class AbstractWriter implements EprotoWriter {
 
     @Override
     public void writeUInt32(Integer value) {
-        if (value == null) {
-            expand(1);
-            bs[pos++] = ZIGZAG32_NEGATIVE_ONE;
+        if (value == null || value == 0) {
+            expand( 1);
+            bs[pos++] = ZIGZAG32_ZERO;
         } else {
-            if (value == 0) {
-                expand( 1);
-                bs[pos++] = ZIGZAG32_ZERO;
-            } else {
-                expand(MAX_VARINT_SIZE + 1);
-                bs[pos++] = ZIGZAG32_ONE;
-                writeUInt32_0(value);
-            }
+            expand(MAX_VARINT_SIZE);
+            writeUInt32_0(value);
         }
     }
 
     @Override
     public void writeSInt32(Integer value) {
-        if (value == null) {
+        if (value == null || value == 0) {
             expand(1);
-            bs[pos++] = ZIGZAG32_NEGATIVE_ONE;
+            bs[pos++] = ZIGZAG32_ZERO;
         } else {
-            if (value == 0) {
-                expand(1);
-                bs[pos++] = ZIGZAG32_ZERO;
-            } else {
-                expand(MAX_VARINT_SIZE + 1);
-                bs[pos++] = ZIGZAG32_ONE;
-                writeUInt32_0(encodeZigZag32(value));
-            }
+            expand(MAX_VARINT_SIZE);
+            writeUInt32_0(encodeZigZag32(value));
         }
     }
 
@@ -297,18 +279,12 @@ public abstract class AbstractWriter implements EprotoWriter {
 
     @Override
     public void writeFixed32(Integer value) {
-        if (value == null) {
+        if (value == null || value == 0) {
             expand(1);
-            bs[pos++] = ZIGZAG32_NEGATIVE_ONE;
+            bs[pos++] = ZIGZAG32_ZERO;
         } else {
-            if (value == 0) {
-                expand(1);
-                bs[pos++] = ZIGZAG32_ZERO;
-            } else {
-                expand(FIXED_32_SIZE + 1);
-                bs[pos++] = ZIGZAG32_ONE;
-                writeFixed32_0(value);
-            }
+            expand(FIXED_32_SIZE);
+            writeFixed32_0(value);
         }
     }
 
@@ -330,18 +306,12 @@ public abstract class AbstractWriter implements EprotoWriter {
 
     @Override
     public void writeSFixed32(Integer value) {
-        if (value == null) {
+        if (value == null || value == 0) {
             expand(1);
-            bs[pos++] = ZIGZAG32_NEGATIVE_ONE;
+            bs[pos++] = ZIGZAG32_ZERO;
         } else {
-            if (value == 0) {
-                expand(1);
-                bs[pos++] = ZIGZAG32_ZERO;
-            } else {
-                expand(FIXED_32_SIZE + 1);
-                bs[pos++] = ZIGZAG32_ONE;
-                writeFixed32_0(value);
-            }
+            expand(FIXED_32_SIZE);
+            writeFixed32_0(value);
         }
     }
 
@@ -353,18 +323,12 @@ public abstract class AbstractWriter implements EprotoWriter {
 
     @Override
     public void writeFloat(Float value) {
-        if (value == null) {
+        if (value == null || value == 0) {
             expand(1);
-            bs[pos++] = ZIGZAG32_NEGATIVE_ONE;
+            bs[pos++] = ZIGZAG32_ZERO;
         } else {
-            if (value == 0) {
-                expand(1);
-                bs[pos++] = ZIGZAG32_ZERO;
-            } else {
-                expand(FIXED_32_SIZE + 1);
-                bs[pos++] = ZIGZAG32_ONE;
-                writeFixed32_0(Float.floatToRawIntBits(value));
-            }
+            expand(FIXED_32_SIZE);
+            writeFixed32_0(Float.floatToRawIntBits(value));
         }
     }
 
@@ -528,17 +492,16 @@ public abstract class AbstractWriter implements EprotoWriter {
 
     private void writeUInt32ObjArray(Integer[] values) {
         int len = values.length;
-        expand(MAX_VARINT_SIZE + len * (MAX_VARINT_SIZE + 1));
+        expand(MAX_VARINT_SIZE + len * MAX_VARINT_SIZE);
         writeUInt32_0(encodeZigZag32(len));
         int p = pos;
         byte[] _bs = bs;
         for (int i=0;i<len;i++) {
             Integer v = values[i];
-            if (v == null) {
+            if (v == null || v == 0) {
                 _bs[p++] = ZIGZAG32_ZERO;
                 continue;
             }
-            _bs[p++] = ZIGZAG32_ONE;
             int value = v;
             if ((value & ~0x7F) == 0) {
                 _bs[p++] = (byte) value;
@@ -618,9 +581,7 @@ public abstract class AbstractWriter implements EprotoWriter {
         byte[] _bs = bs;
         for (int i=0;i<len;i++) {
             Integer value = values[i];
-            if (value == null) {
-                _bs[_pos++] = ZIGZAG32_NEGATIVE_ONE;
-            } else if (value == 0) {
+            if (value == null || value == 0) {
                 _bs[_pos++] = ZIGZAG32_ZERO;
             } else {
                 _bs[_pos++] = ZIGZAG32_ONE;
@@ -670,15 +631,6 @@ public abstract class AbstractWriter implements EprotoWriter {
         byte[] _bs = bs;
         for (int i=0;i<len;i++) {
             Integer v = values.get(i);
-//            if (v == null) {
-//                _bs[p++] = ZIGZAG32_NEGATIVE_ONE;
-//                continue;
-//            }
-//            if (v == 0) {
-//                _bs[p++] = ZIGZAG32_ZERO;
-//                continue;
-//            }
-//            _bs[p++] = ZIGZAG32_ONE;
             if (v == null || v == 0) {
                 _bs[p++] = ZIGZAG32_ZERO;
                 continue;
@@ -723,11 +675,7 @@ public abstract class AbstractWriter implements EprotoWriter {
         byte[] _bs = bs;
         for (int i=0;i<len;i++) {
             Integer v = values.get(i);
-            if (v == null) {
-                _bs[p++] = ZIGZAG32_NEGATIVE_ONE;
-                continue;
-            }
-            if (v == 0) {
+            if (v == null || v == 0) {
                 _bs[p++] = ZIGZAG32_ZERO;
                 continue;
             }
@@ -771,11 +719,7 @@ public abstract class AbstractWriter implements EprotoWriter {
         byte[] _bs = bs;
         for (int i=0;i<len;i++) {
             Integer value = values.get(i);
-            if (value == null) {
-                _bs[_pos++] = ZIGZAG32_NEGATIVE_ONE;
-                continue;
-            }
-            if (value == 0) {
+            if (value == null || value == 0) {
                 _bs[_pos++] = ZIGZAG32_ZERO;
                 continue;
             }
@@ -805,7 +749,7 @@ public abstract class AbstractWriter implements EprotoWriter {
             expand(1);
             bs[pos++] = ZIGZAG32_ZERO;
         } else {
-            expand(MAX_VARINT_SIZE + len * (MAX_VARINT_SIZE + 1));
+            expand(MAX_VARINT_SIZE + len * MAX_VARINT_SIZE);
             writeUInt32_0(encodeZigZag32(len));
             switch (type) {
                 case INT32:
@@ -829,15 +773,10 @@ public abstract class AbstractWriter implements EprotoWriter {
         byte[] _bs = bs;
         while (values.hasNext()) {
             Integer v = values.next();
-            if (v == null) {
-                _bs[p++] = ZIGZAG32_NEGATIVE_ONE;
-                continue;
-            }
-            if (v == 0) {
+            if (v == null || v == 0) {
                 _bs[p++] = ZIGZAG32_ZERO;
                 continue;
             }
-            _bs[p++] = ZIGZAG32_ONE;
             int value = v;
             if ((value & ~0x7F) == 0) {
                 _bs[p++] = (byte) value;
@@ -875,11 +814,7 @@ public abstract class AbstractWriter implements EprotoWriter {
         byte[] _bs = bs;
         while (values.hasNext()) {
             Integer v = values.next();
-            if (v == null) {
-                _bs[p++] = ZIGZAG32_NEGATIVE_ONE;
-                continue;
-            }
-            if (v == 0) {
+            if (v == null || v == 0) {
                 _bs[p++] = ZIGZAG32_ZERO;
                 continue;
             }
@@ -920,15 +855,10 @@ public abstract class AbstractWriter implements EprotoWriter {
         byte[] _bs = bs;
         while (values.hasNext()) {
             Integer value = values.next();
-            if (value == null) {
-                _bs[_pos++] = ZIGZAG32_NEGATIVE_ONE;
-                continue;
-            }
-            if (value == 0) {
+            if (value == null || value == 0) {
                 _bs[_pos++] = ZIGZAG32_ZERO;
                 continue;
             }
-            _bs[_pos++] = ZIGZAG32_ONE;
             _bs[_pos++] = ((byte) ((value      ) & 0xFF));
             _bs[_pos++] = ((byte) ((value >>  8) & 0xFF));
             _bs[_pos++] = ((byte) ((value >> 16) & 0xFF));
@@ -985,9 +915,7 @@ public abstract class AbstractWriter implements EprotoWriter {
         int _pos = pos;
         for (int i=0;i<len;i++) {
             Float f = values[i];
-            if (f == null) {
-                _bs[_pos++] = ZIGZAG32_NEGATIVE_ONE;
-            } else if (f == null) {
+            if (f == null || f == null) {
                 _bs[_pos++] = ZIGZAG32_ZERO;
             } else {
                 int value = Float.floatToRawIntBits(f);
@@ -1020,9 +948,7 @@ public abstract class AbstractWriter implements EprotoWriter {
         int _pos = pos;
         for (int i=0;i<len;i++) {
             Float f = values.get(i);
-            if (f == null) {
-                _bs[_pos++] = ZIGZAG32_NEGATIVE_ONE;
-            } else if (f == 0) {
+            if (f == null || f == 0) {
                 _bs[_pos++] = ZIGZAG32_ZERO;
             } else {
                 int value = Float.floatToRawIntBits(f);
@@ -1052,14 +978,12 @@ public abstract class AbstractWriter implements EprotoWriter {
             return;
         }
 
-        expand(MAX_VARINT_SIZE + (len << 2) + len);
+        expand(MAX_VARINT_SIZE + (len << 2));
         writeUInt32_0(len);
         byte[] _bs = bs;
         int _pos = pos;
         for (Float f : values) {
-            if (f == null) {
-                _bs[_pos++] = ZIGZAG32_NEGATIVE_ONE;
-            } else if (f == 0) {
+            if (f == null || f == 0) {
                 _bs[_pos++] = ZIGZAG32_ZERO;
             } else {
                 int value = Float.floatToRawIntBits(f);
@@ -1212,18 +1136,12 @@ public abstract class AbstractWriter implements EprotoWriter {
 
     @Override
     public void writeUInt64(Long value) {
-        if (value == null) {
+        if (value == null || value == 0) {
             expand(1);
-            bs[pos++] = ZIGZAG32_NEGATIVE_ONE;
+            bs[pos++] = ZIGZAG32_ZERO;
         } else {
-            if (value == 0) {
-                expand(1);
-                bs[pos++] = ZIGZAG32_ZERO;
-            } else {
-                expand(FIXED_64_SIZE + 1);
-                bs[pos++] = ZIGZAG32_ONE;
-                writeUInt64_0(value);
-            }
+            expand(FIXED_64_SIZE);
+            writeUInt64_0(value);
         }
     }
 
@@ -1250,18 +1168,12 @@ public abstract class AbstractWriter implements EprotoWriter {
 
     @Override
     public void writeSInt64(Long value) {
-        if (value == null) {
+        if (value == null || value == 0) {
             expand(1);
-            bs[pos++] = ZIGZAG32_NEGATIVE_ONE;
+            bs[pos++] = ZIGZAG32_ZERO;
         } else {
-            if (value == 0) {
-                expand(1);
-                bs[pos++] = ZIGZAG32_ZERO;
-            } else {
-                expand(MAX_VARLONG_SIZE + 1);
-                bs[pos++] = ZIGZAG32_ONE;
-                writeUInt64_0(encodeZigZag64(value));
-            }
+            expand(MAX_VARLONG_SIZE + 1);
+            writeUInt64_0(encodeZigZag64(value));
         }
     }
 
@@ -1273,18 +1185,12 @@ public abstract class AbstractWriter implements EprotoWriter {
 
     @Override
     public void writeFixed64(Long value) {
-        if (value == null) {
+        if (value == null || value == 0) {
             expand(1);
-            bs[pos++] = ZIGZAG32_NEGATIVE_ONE;
+            bs[pos++] = ZIGZAG32_ZERO;
         } else {
-            if (value == 0) {
-                expand(1);
-                bs[pos++] = ZIGZAG32_ZERO;
-            } else {
-                expand(FIXED_64_SIZE + 1);
-                bs[pos++] = ZIGZAG32_ONE;
-                writeFixed64_0(value);
-            }
+            expand(FIXED_64_SIZE + 1);
+            writeFixed64_0(value);
         }
     }
 
@@ -1296,18 +1202,12 @@ public abstract class AbstractWriter implements EprotoWriter {
 
     @Override
     public void writeSFixed64(Long value) {
-        if (value == null) {
+        if (value == null || value == 0) {
             expand(1);
-            bs[pos++] = ZIGZAG32_NEGATIVE_ONE;
+            bs[pos++] = ZIGZAG32_ZERO;
         } else {
-            if (value == 0) {
-                expand(1);
-                bs[pos++] = ZIGZAG32_ZERO;
-            } else {
-                expand(FIXED_64_SIZE + 1);
-                bs[pos++] = ZIGZAG32_ONE;
-                writeFixed64_0(value);
-            }
+            expand(FIXED_64_SIZE + 1);
+            writeFixed64_0(value);
         }
     }
 
@@ -1319,18 +1219,12 @@ public abstract class AbstractWriter implements EprotoWriter {
 
     @Override
     public void writeDouble(Double value) {
-        if (value == null) {
-            expand(1);
-            bs[pos++] = ZIGZAG32_NEGATIVE_ONE;
+        if (value == null || value == 0) {
+            expand( 1);
+            bs[pos++] = ZIGZAG32_ZERO;
         } else {
-            if (value == 0) {
-                expand( 1);
-                bs[pos++] = ZIGZAG32_ZERO;
-            } else {
-                expand(FIXED_64_SIZE + 1);
-                bs[pos++] = ZIGZAG32_ONE;
-                writeFixed64_0(Double.doubleToRawLongBits(value));
-            }
+            expand(FIXED_64_SIZE);
+            writeFixed64_0(Double.doubleToRawLongBits(value));
         }
     }
 
@@ -1391,15 +1285,12 @@ public abstract class AbstractWriter implements EprotoWriter {
         byte[] _bs = bs;
         for (int i=0;i<len;i++) {
             Long v = values[i];
-            if (v == null) {
-                _bs[_pos++] = ZIGZAG32_NEGATIVE_ONE;
-            } else if (v == 0) {
+            if (v == null || v == 0) {
                 _bs[_pos++] = ZIGZAG32_ZERO;
             } else {
                 long lv = v;
-                _bs[_pos++] = ZIGZAG32_ONE;
                 while (true) {
-                    if ((v & ~0x7FL) == 0) {
+                    if ((lv & ~0x7FL) == 0) {
                         _bs[_pos++] = (byte)lv;
                         break;
                     } else {
@@ -1418,13 +1309,10 @@ public abstract class AbstractWriter implements EprotoWriter {
         byte[] _bs = bs;
         for (int i=0;i<len;i++) {
             Long v = values[i];
-            if (v == null) {
-                _bs[_pos++] = ZIGZAG32_NEGATIVE_ONE;
-            } else if (v == 0) {
+            if (v == null || v == 0) {
                 _bs[_pos++] = ZIGZAG32_ZERO;
             } else {
-                _bs[_pos++] = ZIGZAG32_ONE;
-                long lv = encodeZigZag64(v);
+                long lv = v;
                 while (true) {
                     if ((lv & ~0x7FL) == 0) {
                         _bs[_pos++] = (byte)lv;
@@ -1445,12 +1333,9 @@ public abstract class AbstractWriter implements EprotoWriter {
         byte[] _bs = bs;
         for (int i=0;i<len;i++) {
             Long v = values[i];
-            if (v == null) {
-                _bs[_pos++] = ZIGZAG32_NEGATIVE_ONE;
-            } else if (v == 0) {
+            if (v == null || v == 0) {
                 _bs[_pos++] = ZIGZAG32_ZERO;
             } else {
-                _bs[_pos++] = ZIGZAG32_ONE;
                 long value = v;
                 _bs[_pos++] = ((byte) ((int) (value      ) & 0xFF));
                 _bs[_pos++] = ((byte) ((int) (value >>  8) & 0xFF));
@@ -1589,18 +1474,13 @@ public abstract class AbstractWriter implements EprotoWriter {
         byte[] _bs = bs;
         for (int i=0;i<len;i++) {
             Long v = values.get(i);
-            if (v == null) {
-                _bs[_pos++] = ZIGZAG32_NEGATIVE_ONE;
-                continue;
-            }
-            if (v == 0) {
+            if (v == null || v == 0) {
                 _bs[_pos++] = ZIGZAG32_ZERO;
                 continue;
             }
-            _bs[_pos++] = ZIGZAG32_ONE;
             long lv = v;
             while (true) {
-                if ((v & ~0x7FL) == 0) {
+                if ((lv & ~0x7FL) == 0) {
                     _bs[_pos++] = (byte)lv;
                     break;
                 } else {
@@ -1618,16 +1498,11 @@ public abstract class AbstractWriter implements EprotoWriter {
         byte[] _bs = bs;
         for (int i=0;i<len;i++) {
             Long v = values.get(i);
-            if (v == null) {
-                _bs[_pos++] = ZIGZAG32_NEGATIVE_ONE;
-                continue;
-            }
-            if (v == 0) {
+            if (v == null || v == 0) {
                 _bs[_pos++] = ZIGZAG32_ZERO;
                 continue;
             }
-            _bs[_pos++] = ZIGZAG32_ONE;
-            long lv = encodeZigZag64(values.get(i));
+            long lv = values.get(i);
             while (true) {
                 if ((lv & ~0x7FL) == 0) {
                     _bs[_pos++] = (byte)lv;
@@ -1647,16 +1522,11 @@ public abstract class AbstractWriter implements EprotoWriter {
         byte[] _bs = bs;
         for (int i=0;i<len;i++) {
             Long v = values.get(i);
-            if (v == null) {
-                _bs[_pos++] = ZIGZAG32_NEGATIVE_ONE;
-                continue;
-            }
-            if (v == 0) {
+            if (v == null || v == 0) {
                 _bs[_pos++] = ZIGZAG32_ZERO;
                 continue;
             }
             long value = v;
-            _bs[_pos++] = ZIGZAG32_ONE;
             _bs[_pos++] = ((byte) ((int) (value      ) & 0xFF));
             _bs[_pos++] = ((byte) ((int) (value >>  8) & 0xFF));
             _bs[_pos++] = ((byte) ((int) (value >> 16) & 0xFF));
@@ -1685,7 +1555,7 @@ public abstract class AbstractWriter implements EprotoWriter {
             bs[pos++] = ZIGZAG32_ZERO;
             return;
         }
-        expand(MAX_VARINT_SIZE + len * MAX_VARLONG_SIZE + len);
+        expand(MAX_VARINT_SIZE + len * MAX_VARLONG_SIZE);
         writeUInt32_0(len);
         switch (type) {
             case INT64:
@@ -1707,18 +1577,13 @@ public abstract class AbstractWriter implements EprotoWriter {
         int _pos = pos;
         byte[] _bs = bs;
         for (Long v : values) {
-            if (v == null) {
-                _bs[_pos++] = ZIGZAG32_NEGATIVE_ONE;
-                continue;
-            }
-            if (v == 0) {
+            if (v == null || v == 0) {
                 _bs[_pos++] = ZIGZAG32_ZERO;
                 continue;
             }
-            _bs[_pos++] = ZIGZAG32_ONE;
             long lv = v;
             while (true) {
-                if ((v & ~0x7FL) == 0) {
+                if ((lv & ~0x7FL) == 0) {
                     _bs[_pos++] = (byte)lv;
                     break;
                 } else {
@@ -1734,15 +1599,10 @@ public abstract class AbstractWriter implements EprotoWriter {
         int _pos = pos;
         byte[] _bs = bs;
         for (Long v : values) {
-            if (v == null) {
-                _bs[_pos++] = ZIGZAG32_NEGATIVE_ONE;
-                continue;
-            }
-            if (v == 0) {
+            if (v == null || v == 0) {
                 _bs[_pos++] = ZIGZAG32_ZERO;
                 continue;
             }
-            _bs[_pos++] = ZIGZAG32_ONE;
             long lv = encodeZigZag64(v);
             while (true) {
                 if ((lv & ~0x7FL) == 0) {
@@ -1761,16 +1621,11 @@ public abstract class AbstractWriter implements EprotoWriter {
         int _pos = pos;
         byte[] _bs = bs;
         for (Long v : values) {
-            if (v == null) {
-                _bs[_pos++] = ZIGZAG32_NEGATIVE_ONE;
-                continue;
-            }
-            if (v == 0) {
+            if (v == null || v == 0) {
                 _bs[_pos++] = ZIGZAG32_ZERO;
                 continue;
             }
             long value = v;
-            _bs[_pos++] = ZIGZAG32_ONE;
             _bs[_pos++] = ((byte) ((int) (value      ) & 0xFF));
             _bs[_pos++] = ((byte) ((int) (value >>  8) & 0xFF));
             _bs[_pos++] = ((byte) ((int) (value >> 16) & 0xFF));
@@ -1827,18 +1682,15 @@ public abstract class AbstractWriter implements EprotoWriter {
             bs[pos++] = ZIGZAG32_ZERO;
             return;
         }
-        expand(MAX_VARINT_SIZE + len * MAX_VARLONG_SIZE + len);
+        expand(MAX_VARINT_SIZE + len * MAX_VARLONG_SIZE);
         writeUInt32_0(len);
         byte[] _bs  = bs;
         int    _pos = pos;
         for (int i=0;i<len;i++) {
             Double l = values[i];
-            if (l == null) {
-                _bs[_pos++] = ZIGZAG32_NEGATIVE_ONE;
-            } else if (l == 0) {
+            if (l == null || l == 0) {
                 _bs[_pos++] = ZIGZAG32_ZERO;
             } else {
-                _bs[_pos++] = ZIGZAG32_ONE;
                 long value = Double.doubleToRawLongBits(l);
                 _bs[_pos++] = ((byte) ((int) (value)       & 0xFF));
                 _bs[_pos++] = ((byte) ((int) (value >> 8)  & 0xFF));
@@ -1866,18 +1718,15 @@ public abstract class AbstractWriter implements EprotoWriter {
             bs[pos++] = ZIGZAG32_ZERO;
             return;
         }
-        expand(MAX_VARINT_SIZE + len * MAX_VARLONG_SIZE + len);
+        expand(MAX_VARINT_SIZE + len * MAX_VARLONG_SIZE);
         writeUInt32_0(len);
         byte[] _bs  = bs;
         int    _pos = pos;
         for (int i=0;i<len;i++) {
             Double l = values.get(i);
-            if (l == null) {
-                _bs[_pos++] = ZIGZAG32_NEGATIVE_ONE;
-            } else if (l == 0) {
+            if (l == null || l == 0) {
                 _bs[_pos++] = ZIGZAG32_ZERO;
             } else {
-                _bs[_pos++] = ZIGZAG32_ONE;
                 long value = Double.doubleToRawLongBits(l);
                 _bs[_pos++] = ((byte) ((int) (value)       & 0xFF));
                 _bs[_pos++] = ((byte) ((int) (value >> 8)  & 0xFF));
@@ -1908,17 +1757,14 @@ public abstract class AbstractWriter implements EprotoWriter {
             bs[pos++] = ZIGZAG32_ZERO;
             return;
         }
-        expand(MAX_VARINT_SIZE + len * MAX_VARLONG_SIZE + len);
+        expand(MAX_VARINT_SIZE + len * MAX_VARLONG_SIZE);
         writeUInt32_0(len);
         byte[] _bs  = bs;
         int    _pos = pos;
         for (Double l : values) {
-            if (l == null) {
-                _bs[_pos++] = ZIGZAG32_NEGATIVE_ONE;
-            } else if (l == 0) {
+            if (l == null || l == 0) {
                 _bs[_pos++] = ZIGZAG32_ZERO;
             } else {
-                _bs[_pos++] = ZIGZAG32_ONE;
                 long value = Double.doubleToRawLongBits(l);
                 _bs[_pos++] = ((byte) ((int) (value)       & 0xFF));
                 _bs[_pos++] = ((byte) ((int) (value >> 8)  & 0xFF));
@@ -1946,7 +1792,7 @@ public abstract class AbstractWriter implements EprotoWriter {
             bs[pos++] = ZIGZAG32_ZERO;
             return;
         }
-        expand(MAX_VARINT_SIZE + len * MAX_VARLONG_SIZE + len);
+        expand(MAX_VARINT_SIZE + len * MAX_VARLONG_SIZE);
         writeUInt32_0(len);
         byte[] _bs  = bs;
         int    _pos = pos;
@@ -2116,7 +1962,7 @@ public abstract class AbstractWriter implements EprotoWriter {
             bs[pos++] = ZIGZAG32_ZERO;
             return;
         }
-        expand(MAX_VARINT_SIZE + len * MAX_VARLONG_SIZE + len);
+        expand(MAX_VARINT_SIZE + len * MAX_VARINT_SIZE);
         writeUInt32_0(len);
         byte[] _bs  = bs;
         int    _pos = pos;
@@ -2175,7 +2021,7 @@ public abstract class AbstractWriter implements EprotoWriter {
             bs[pos++] = ZIGZAG32_ZERO;
             return;
         }
-        expand(MAX_VARINT_SIZE + len * MAX_VARLONG_SIZE + len);
+        expand(MAX_VARINT_SIZE + len * MAX_VARLONG_SIZE);
         writeUInt32_0(len);
         byte[] _bs  = bs;
         int    _pos = pos;
@@ -2279,10 +2125,11 @@ public abstract class AbstractWriter implements EprotoWriter {
             pos += FIXED_32_SIZE;
             encoder.encode(this, msg);
             int len = pos - oldPos - 4;
-            bs[oldPos++] = (byte) ((len) & 0xFF);
-            bs[oldPos++] = (byte) ((len >> 8) & 0xFF);
-            bs[oldPos++] = (byte) ((len >> 16) & 0xFF);
-            bs[oldPos] = (byte) ((len >> 24) & 0xFF);
+            byte[] _bs = bs;
+            _bs[oldPos++] = (byte) ((len) & 0xFF);
+            _bs[oldPos++] = (byte) ((len >> 8) & 0xFF);
+            _bs[oldPos++] = (byte) ((len >> 16) & 0xFF);
+            _bs[oldPos] = (byte) ((len >> 24) & 0xFF);
         }
     }
 

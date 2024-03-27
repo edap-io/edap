@@ -407,12 +407,14 @@ public class EprotoEncoderGenerator {
                         if (writeMethod.equals("writeObject")) {
                             rType = "Ljava/lang/Object;";
                         }
-                        if (pfi.field.getType().getName().equals("byte") ||
-                                pfi.field.getType().getName().equals("short") ||
+                        if (pfi.field.getType().getName().equals("byte")) {
+                            rType = "B";
+                            writeMethod = "writeByte";
+                        } else if (pfi.field.getType().getName().equals("short") ||
                                 pfi.field.getType().getName().equals("char")) {
                             rType = "I";
                         } else if (pfi.field.getType().getName().equals("java.lang.Byte")) {
-                            rType = "I";
+                            rType = "B";
                             mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/Byte", "byteValue", "()B", false);
                         } else if (pfi.field.getType().getName().equals("java.lang.Short")) {
                             rType = "I";
@@ -585,7 +587,6 @@ public class EprotoEncoderGenerator {
         if (isPojo(itemType)) {
             String codecName = getPojoEncoderName(itemType);
             mv.visitVarInsn(ALOAD, 1);
-            mv.visitFieldInsn(GETSTATIC, pojoCodecName, "tag" + pfi.protoField.tag(), "[B");
             visitMethodVisitIntValue(mv, pfi.protoField.tag());
             rType = visitGetFieldValue(mv, pfi, pojoName, pojoCodecName, 2, rType);
             mv.visitVarInsn(ALOAD, 0);
@@ -599,16 +600,15 @@ public class EprotoEncoderGenerator {
                 mv.visitMethodInsn(INVOKESPECIAL, pojoCodecName, getEncoderName, "()L" + IFACE_NAME + ";", false);
             }
             visitMethod(mv, INVOKEINTERFACE, WRITER_NAME, "writeMessages",
-                    "([BI" + listDescriptor
+                    "(I" + listDescriptor
                             + "L" + IFACE_NAME + ";)V",
                     true);
             return;
         } else if (pfi.protoField.type() == Field.Type.BOOL) {
             mv.visitVarInsn(ALOAD, 1);
-            mv.visitFieldInsn(GETSTATIC, pojoCodecName, "tag" + pfi.protoField.tag(), "[B");
             rType = visitGetFieldValue(mv, pfi, pojoName, pojoCodecName, 2, rType);
             visitMethod(mv, INVOKEINTERFACE, WRITER_NAME, "writePackedBools",
-                    "([B" + rType + ")V",
+                    "(" + rType + ")V",
                     true);
             return;
         } else if (pfi.protoField.type() == Field.Type.INT32
@@ -617,7 +617,6 @@ public class EprotoEncoderGenerator {
                 || pfi.protoField.type() == Field.Type.FIXED32
                 || pfi.protoField.type() == Field.Type.SFIXED32) {
             mv.visitVarInsn(ALOAD, 1);
-            mv.visitFieldInsn(GETSTATIC, pojoCodecName, "tag" + pfi.protoField.tag(), "[B");
             rType = visitGetFieldValue(mv, pfi, pojoName, pojoCodecName, 2, rType);
 //            visitMethod(mv, INVOKESPECIAL, pojoCodecName, "writeListInt",
 //                    "(L" + WRITER_NAME + ";[B" + rType + ")V", false);
@@ -625,21 +624,20 @@ public class EprotoEncoderGenerator {
             mv.visitFieldInsn(GETSTATIC, FIELD_TYPE_NAME, pfi.protoField.type().name(), "L" + FIELD_TYPE_NAME + ";");
             rType = "Ljava/lang/Iterable;";
             visitMethod(mv, INVOKEINTERFACE, WRITER_NAME, "writePackedInts",
-                    "([B" + rType
+                    "(" + rType
                             + "L" + FIELD_TYPE_NAME + ";)V",
                     true);
             return;
         } else if (pfi.protoField.type() == Field.Type.ENUM) {
             mv.visitVarInsn(ALOAD, 1);
-            mv.visitFieldInsn(GETSTATIC, pojoCodecName, "tag" + pfi.protoField.tag(), "[B");
             rType = visitGetFieldValue(mv, pfi, pojoName, pojoCodecName, 2, rType);
             if (!implInterface((Class)itemType, ProtoBufEnum.class)) {
                 visitMethod(mv, INVOKEINTERFACE, WRITER_NAME, "writeListEnum",
-                        "([B" + rType + ")V",
+                        "(" + rType + ")V",
                         true);
             } else {
                 visitMethod(mv, INVOKEINTERFACE, WRITER_NAME, "writeListProtoEnum",
-                        "([B" + rType + ")V",
+                        "(" + rType + ")V",
                         true);
             }
             return;
@@ -649,28 +647,25 @@ public class EprotoEncoderGenerator {
                 || pfi.protoField.type() == Field.Type.FIXED64
                 || pfi.protoField.type() == Field.Type.SFIXED64) {
             mv.visitVarInsn(ALOAD, 1);
-            mv.visitFieldInsn(GETSTATIC, pojoCodecName, "tag" + pfi.protoField.tag(), "[B");
             rType = visitGetFieldValue(mv, pfi, pojoName, pojoCodecName, 2, rType);
             mv.visitFieldInsn(GETSTATIC, FIELD_TYPE_NAME, pfi.protoField.type().name(), "L" + FIELD_TYPE_NAME + ";");
             visitMethod(mv, INVOKEINTERFACE, WRITER_NAME, "writePackedLongs",
-                    "([B" + rType
+                    "(" + rType
                             + "L" + FIELD_TYPE_NAME + ";)V",
                     true);
             return;
         } else if (pfi.protoField.type() == Field.Type.DOUBLE) {
             mv.visitVarInsn(ALOAD, 1);
-            mv.visitFieldInsn(GETSTATIC, pojoCodecName, "tag" + pfi.protoField.tag(), "[B");
             rType = visitGetFieldValue(mv, pfi, pojoName, pojoCodecName, 2, rType);
             visitMethod(mv, INVOKEINTERFACE, WRITER_NAME, "writePackedDoubles",
-                    "([B" + rType + ")V",
+                    "(" + rType + ")V",
                     true);
             return;
         } else if (pfi.protoField.type() == Field.Type.FLOAT) {
             mv.visitVarInsn(ALOAD, 1);
-            mv.visitFieldInsn(GETSTATIC, pojoCodecName, "tag" + pfi.protoField.tag(), "[B");
             rType = visitGetFieldValue(mv, pfi, pojoName, pojoCodecName, 2, rType);
             visitMethod(mv, INVOKEINTERFACE, WRITER_NAME, "writePackedFloats",
-                    "([B" + rType + ")V",
+                    "(" + rType + ")V",
                     true);
             return;
         }
@@ -737,7 +732,6 @@ public class EprotoEncoderGenerator {
         Label l1 = new Label();
         mv.visitJumpInsn(IFEQ, l1);
         mv.visitVarInsn(ALOAD, 1);
-        mv.visitFieldInsn(GETSTATIC, pojoCodecName, "tag" + pfi.protoField.tag(), "[B");
         mv.visitVarInsn(ALOAD, 3);
         mv.visitMethodInsn(INVOKEINTERFACE, "java/util/Iterator", "next", "()Ljava/lang/Object;", true);
         mv.visitTypeInsn(CHECKCAST, itemName);
@@ -745,7 +739,7 @@ public class EprotoEncoderGenerator {
         if ("writeObject".equals(writeMethod)) {
             itemDesc = "Ljava/lang/Object;";
         }
-        mv.visitMethodInsn(INVOKEINTERFACE, WRITER_NAME, writeMethod, "([B" + itemDesc + ")V", true);
+        mv.visitMethodInsn(INVOKEINTERFACE, WRITER_NAME, writeMethod, "(" + itemDesc + ")V", true);
         mv.visitJumpInsn(GOTO, l0);
         mv.visitLabel(l1);
         mv.visitFrame(Opcodes.F_SAME, 0, null, 0, null);
@@ -829,36 +823,32 @@ public class EprotoEncoderGenerator {
                 || pfi.protoField.type() == Field.Type.FIXED64
                 || pfi.protoField.type() == Field.Type.SFIXED64) {
             mv.visitVarInsn(ALOAD, 1);
-            mv.visitFieldInsn(GETSTATIC, pojoCodecName, "tag" + pfi.protoField.tag(), "[B");
             rType = visitGetFieldValue(mv, pfi, pojoName, pojoCodecName, 2, rType);
             mv.visitFieldInsn(GETSTATIC, FIELD_TYPE_NAME, pfi.protoField.type().name(), "L" + FIELD_TYPE_NAME + ";");
             visitMethod(mv, INVOKEINTERFACE, WRITER_NAME, "writePackedLongs",
-                    "([B" + rType
+                    "(" + rType
                             + "L" + FIELD_TYPE_NAME + ";)V",
                     true);
             return;
         } else if (pfi.protoField.type() == Field.Type.DOUBLE) {
             mv.visitVarInsn(ALOAD, 1);
-            mv.visitFieldInsn(GETSTATIC, pojoCodecName, "tag" + pfi.protoField.tag(), "[B");
             rType = visitGetFieldValue(mv, pfi, pojoName, pojoCodecName, 2, rType);
             visitMethod(mv, INVOKEINTERFACE, WRITER_NAME, "writePackedDoubles",
-                    "([B" + rType + ")V",
+                    "(" + rType + ")V",
                     true);
             return;
         } else if (pfi.protoField.type() == Field.Type.FLOAT) {
             mv.visitVarInsn(ALOAD, 1);
-            mv.visitFieldInsn(GETSTATIC, pojoCodecName, "tag" + pfi.protoField.tag(), "[B");
             rType = visitGetFieldValue(mv, pfi, pojoName, pojoCodecName, 2, rType);
             visitMethod(mv, INVOKEINTERFACE, WRITER_NAME, "writePackedFloats",
-                    "([B" + rType + ")V",
+                    "(" + rType + ")V",
                     true);
             return;
         } else if (itemType instanceof ParameterizedType) {
             mv.visitVarInsn(ALOAD, 1);
-            mv.visitFieldInsn(GETSTATIC, pojoCodecName, "tag" + pfi.protoField.tag(), "[B");
             rType = visitGetFieldValue(mv, pfi, pojoName, pojoCodecName, 2, rType);
             visitMethod(mv, INVOKEINTERFACE, WRITER_NAME, "writeObject",
-                    "([BLjava/lang/Object;)V",
+                    "(Ljava/lang/Object;)V",
                     true);
             return;
         }
@@ -934,7 +924,6 @@ public class EprotoEncoderGenerator {
         l2 = new Label();
         mv.visitJumpInsn(IF_ICMPGE, l2);
         mv.visitVarInsn(ALOAD, 1);
-        mv.visitFieldInsn(GETSTATIC, pojoCodecName, "tag" + pfi.protoField.tag(), "[B");
         mv.visitVarInsn(ALOAD, 2);
         mv.visitVarInsn(ILOAD, 4);
         visitMethod(mv, INVOKEINTERFACE, "java/util/List", "get",
@@ -944,7 +933,7 @@ public class EprotoEncoderGenerator {
         String writeMethod = getWriteMethod(pfi.protoField.type());
 
         visitMethod(mv, INVOKEINTERFACE, WRITER_NAME, writeMethod,
-                "([B" + itemDesc + ")V",
+                "(" + itemDesc + ")V",
                 true);
 
         mv.visitIincInsn(4, 1);

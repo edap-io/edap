@@ -875,7 +875,7 @@ public abstract class AbstractWriter implements ProtoBufWriter {
 
     @Override
     public void expand(int minLength) {
-        if (bs.length - pos < minLength) {
+        if (bs.length - pos <= minLength) {
             if (wbuf.out.hasBuf()) {
                 wbuf.out.write(wbuf.bs, 0, wbuf.start);
                 wbuf.writeLen += wbuf.start;

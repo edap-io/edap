@@ -122,7 +122,7 @@ public class EprotoCodecRegister {
     }
 
     public Class generateMapEntryClass(Type mapType, Class ownerCls) {
-        Class mapEntryCls = mapEncoders.get(ownerCls);
+        Class mapEntryCls = mapEncoders.get(mapType);
         if (mapEntryCls != null) {
             return mapEntryCls;
         }
