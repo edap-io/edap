@@ -26,10 +26,11 @@
     </scm>
 
     <properties>
+        <java.version>17</java.version>
         <edap.version>0.1.3-SNAPSHOT</edap.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <maven.compiler.source>1.8</maven.compiler.source>
-        <maven.compiler.target>1.8</maven.compiler.target>
+        <maven.compiler.source>17</maven.compiler.source>
+        <maven.compiler.target>17</maven.compiler.target>
         <junit.jupiter.version>5.5.2</junit.jupiter.version>
         <asm.version>9.4</asm.version>
         <protobuf.java.verson>3.16.1</protobuf.java.verson>
@@ -193,6 +194,19 @@
     </dependencyManagement>
     <build>
         <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.8.1</version>
+                <configuration>
+                    <source>${java.version}</source>
+                    <target>${java.version}</target>
+                    <encoding>utf-8</encoding>
+                    <compilerArgs>
+                        <arg>--add-exports=java.base/sun.nio.ch=ALL-UNNAMED</arg>
+                    </compilerArgs>
+                </configuration>
+            </plugin>
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>flatten-maven-plugin</artifactId>

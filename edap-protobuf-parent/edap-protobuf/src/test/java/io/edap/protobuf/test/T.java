@@ -13,7 +13,13 @@ public class T {
         System.out.println(makeTag(1, WireType.OBJECT));
         System.out.println(Integer.toHexString(makeTag(1, WireType.OBJECT)));
 
-        String s = "{\"gtx_id\":\"20240229134046@6c191449-e030-44a9-9a12-c82210d6496e\",\"message\":\"java.lang.RuntimeException: java.lang.RuntimeException: com.yonyou.cloud.yts.YtsTransactionException: iuap-ymsc-yts->yts-mdd-stock调用后异常\"}";
+        System.out.println(Integer.parseInt("800", 16));
+        System.out.println(Integer.toHexString(2047));
+
+        for (int i=0;i<256;i++) {
+            System.out.println((i < 0x80) + "\t" + ((i & ~0x7F) == 0));
+        }
+
 
     }
 }

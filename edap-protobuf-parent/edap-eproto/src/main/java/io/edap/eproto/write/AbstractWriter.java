@@ -73,19 +73,91 @@ public abstract class AbstractWriter implements EprotoWriter {
 
     /**
      * 将不为空的字符串写入到缓存中
-     * @param value
+     * @param v
      */
-    private void writeString0(final String value) {
-        String v = value;
-        int charLen = v.length();
+    private void writeString0(final String v) {
+        //String v = value;
         // 如果jvm是9以上版本，并且字符串为Latin1的编码，长度大于5时直接copy字符串对象额value字节数组
-        if (IS_BYTE_ARRAY && isLatin1(v) && charLen > 5) {
+        if (IS_BYTE_ARRAY) {
+            writeByteArrayString(v);
+        } else {
+            writeCharArrayString(v);
+        }
+    }
+
+    private void writeByteArrayString(String v) {
+        int charLen = v.length();
+        if (isLatin1(v)) {
             byte[] data = StringUtil.getValue(v);
             expand(MAX_VARINT_SIZE + charLen);
             writeUInt32_0(encodeZigZag32(charLen));
             writeByteArray(data, 0, charLen);
-            return;
+        } else {
+            int _pos = pos;
+            byte[] _bs = bs;
+            byte[] data = StringUtil.getValue(v);
+            int len = data.length;
+            expand(MAX_VARINT_SIZE + charLen * 3);
+            writeUInt32_0(encodeZigZag32(charLen));
+            int offset = 0;
+            byte b0, b1;
+            while (offset < len) {
+                char c = (char)(((data[offset++] & 0xff) << 0) | ((data[offset++] & 0xff) << 8));
+                if (c < 128) {
+                    _bs[_pos++] = (byte)c;
+                } else {
+                    if (c < 0x800) {
+                        // 2 bytes, 11 bits
+                        _bs[_pos++] = (byte) (0xc0 | (c >> 6));
+                        _bs[_pos++] = (byte) (0x80 | (c & 0x3f));
+                    } else if (c >= '\uD800' && c < ('\uDFFF' + 1)) { //Character.isSurrogate(c) but 1.7
+                        final int uc;
+                        int ip = offset - 1;
+                        if (c >= '\uD800' && c < ('\uDBFF' + 1)) { // Character.isHighSurrogate(c)
+                            if (len - ip < 2) {
+                                uc = -1;
+                            } else {
+                                b0 = data[ip + 1];
+                                b1 = data[ip + 2];
+                                char d = (char) (((b0 & 0xff) << 0) | ((b1 & 0xff) << 8));
+                                // d >= '\uDC00' && d < ('\uDFFF' + 1)
+                                if (d >= '\uDC00' && d < ('\uDFFF' + 1)) { // Character.isLowSurrogate(d)
+                                    uc = ((c << 10) + d) + (0x010000 - ('\uD800' << 10) - '\uDC00'); // Character.toCodePoint(c, d)
+                                } else {
+                                    return;
+                                }
+                            }
+                        } else {
+                            //
+                            if (c >= '\uDC00' && c < ('\uDFFF' + 1)) { // Character.isLowSurrogate(c)
+                                return;
+                            } else {
+                                uc = c;
+                            }
+                        }
+
+                        if (uc < 0) {
+                            _bs[_pos++] = (byte) '?';
+                        } else {
+                            _bs[_pos++] = (byte) (0xf0 | ((uc >> 18)));
+                            _bs[_pos++] = (byte) (0x80 | ((uc >> 12) & 0x3f));
+                            _bs[_pos++] = (byte) (0x80 | ((uc >> 6) & 0x3f));
+                            _bs[_pos++] = (byte) (0x80 | (uc & 0x3f));
+                            offset += 2; // 2 chars
+                        }
+                    } else {
+                        // 3 bytes, 16 bits
+                        _bs[_pos++] = (byte) (0xe0 | ((c >> 12)));
+                        _bs[_pos++] = (byte) (0x80 | ((c >> 6) & 0x3f));
+                        _bs[_pos++] = (byte) (0x80 | (c & 0x3f));
+                    }
+                }
+            }
         }
+    }
+
+    private void writeCharArrayString(String v) {
+        int charLen = v.length();
         // 转为utf8后最大的所需字节数
         int maxBytes = charLen * 3;
         // 如果所需最大字节数小于3k + 编码int最大字节数 则直接扩容所需最大字节数
@@ -114,27 +186,38 @@ public abstract class AbstractWriter implements EprotoWriter {
         String v = value;
         int p = pos;
         byte[] _bs = this.bs;
-        for (int i = start; i < end; i++) {
+        int i = start;
+        for (;i < end; i++) {
             char c = v.charAt(i);
             if (c < 128) {
                 _bs[p++] = (byte) c;
-            } else if (c < 0x800) {
-                _bs[p++] = (byte) ((0xF << 6) | (c >>> 6));
-                _bs[p++] = (byte) (0x80 | (0x3F & c));
-            } else if (Character.isHighSurrogate(c) && i + 1 < end
-                    && Character.isLowSurrogate(value.charAt(i + 1))) {
-                int codePoint = Character.toCodePoint((char) c, (char) value.charAt(i + 1));
-                _bs[p++] = (byte) (0xF0 | ((codePoint >> 18) & 0x07));
-                _bs[p++] = (byte) (0x80 | ((codePoint >> 12) & 0x3F));
-                _bs[p++] = (byte) (0x80 | ((codePoint >> 6) & 0x3F));
-                _bs[p++] = (byte) (0x80 | (codePoint & 0x3F));
-                i++;
             } else {
-                _bs[p++] = (byte) ((0xF << 5) | (c >>> 12));
-                _bs[p++] = (byte) (0x80 | (0x3F & (c >>> 6)));
-                _bs[p++] = (byte) (0x80 | (0x3F & c));
+
             }
         }
+//        for (;i < end; i++) {
+//            char c = v.charAt(i);
+//            if (c < 128) {
+//                _bs[p++] = (byte) c;
+//            }
+//            if (c < 128) {
+//                _bs[p++] = (byte) c;
+//            } else if (c < 0x800) {
+//                _bs[p++] = (byte) ((0xF << 6) | (c >>> 6));
+//                _bs[p++] = (byte) (0x80 | (0x3F & c));
+//            } else if (c >= '\ud800' && c <= '\udfff') {
+//                int codePoint = Character.toCodePoint((char) c, (char) value.charAt(i + 1));
+//                _bs[p++] = (byte) (0xF0 | ((codePoint >> 18) & 0x07));
+//                _bs[p++] = (byte) (0x80 | ((codePoint >> 12) & 0x3F));
+//                _bs[p++] = (byte) (0x80 | ((codePoint >> 6) & 0x3F));
+//                _bs[p++] = (byte) (0x80 | (codePoint & 0x3F));
+//                i++;
+//            } else {
+//                _bs[p++] = (byte) ((0xF << 5) | (c >>> 12));
+//                _bs[p++] = (byte) (0x80 | (0x3F & (c >>> 6)));
+//                _bs[p++] = (byte) (0x80 | (0x3F & c));
+            //}
+        //}
         return p - pos;
     }
 
@@ -1151,7 +1234,7 @@ public abstract class AbstractWriter implements EprotoWriter {
         writeUInt64_0(value);
     }
 
-    protected void writeUInt64_0(long value) {
+    protected void writeUInt64_02(long value) {
         byte[] _bs  = bs;
         int    _pos = pos;
         while (true) {
@@ -1163,6 +1246,159 @@ public abstract class AbstractWriter implements EprotoWriter {
                 _bs[_pos++] = ((byte) (((int) value & 0x7F) | 0x80));
                 value >>>= 7;
             }
+        }
+    }
+
+    protected void writeUInt64_01(long value) {
+        byte[] _bs = bs;
+        int _pos = pos;
+        int a = (int) (value);
+        int b = (int) (value >>> 7);
+        if (b == 0) {
+            _bs[_pos++] = (byte) a;
+            pos = _pos;
+            return;
+        }
+
+        _bs[_pos++] = (byte) (a | 0x80);
+        a = (int) (value >>> 14);
+        if (a == 0) {
+            _bs[_pos++] = (byte) b;
+            pos = _pos;
+            return;
+        }
+
+        _bs[_pos++] = (byte) (b | 0x80);
+        b = (int) (value >>> 21);
+        if (b == 0) {
+            _bs[_pos++] = (byte) a;
+            pos = _pos;
+            return;
+        }
+
+        _bs[_pos++] = (byte) (a | 0x80);
+        a = (int) (value >>> 28);
+        if (a == 0) {
+            _bs[_pos++] = (byte) b;
+            pos = _pos;
+            return;
+        }
+
+        _bs[_pos++] = (byte) (b | 0x80);
+        b = (int) (value >>> 35);
+        if (b == 0) {
+            _bs[_pos++] = (byte) a;
+            pos = _pos;
+            return;
+        }
+
+        _bs[_pos++] = (byte) (a | 0x80);
+        a = (int) (value >>> 42);
+        if (a == 0) {
+            _bs[_pos++] = (byte) b;
+            pos = _pos;
+            return;
+        }
+
+        _bs[_pos++] = (byte) (b | 0x80);
+        b = (int) (value >>> 49);
+        if (b == 0) {
+            _bs[_pos++] = (byte) a;
+            pos = _pos;
+            return;
+        }
+
+        _bs[_pos++] = (byte) (a | 0x80);
+        a = (int) (value >>> 56);
+        if (a == 0) {
+            _bs[_pos++] = (byte) b;
+            pos = _pos;
+            return;
+        }
+
+        _bs[_pos++] = (byte) (b | 0x80);
+        _bs[_pos++] = (byte) a;
+        pos = _pos;
+    }
+
+    protected void writeUInt64_1(long value) {
+        byte[] _bs  = bs;
+        int    _pos = pos;
+        if ((value & ~0x7F) == 0) {
+            _bs[_pos++] = (byte) value;
+        } else {
+            _bs[_pos++] = (byte) ((value & 0x7F) | 0x80);
+            value >>>= 7;
+            if ((value & ~0x7F) == 0) {
+                _bs[_pos++] = (byte) value;
+            } else {
+                _bs[_pos++] = (byte) ((value & 0x7F) | 0x80);
+                value >>>= 7;
+                if ((value & ~0x7F) == 0) {
+                    _bs[_pos++] = (byte) value;
+                } else {
+                    _bs[_pos++] = (byte) ((value & 0x7F) | 0x80);
+                    value >>>= 7;
+                    if ((value & ~0x7F) == 0) {
+                        _bs[_pos++] = (byte) value;
+                    } else {
+                        _bs[_pos++] = (byte) ((value & 0x7F) | 0x80);
+                        value >>>= 7;
+                        if ((value & ~0x7F) == 0) {
+                            _bs[_pos++] = (byte) value;
+                        }
+                    }
+                }
+            }
+        }
+        pos = _pos;
+    }
+
+    protected void writeUInt64_2(long value) {
+        byte[] _bs  = bs;
+        int    _pos = pos;
+        _bs[_pos++] = (byte) (value        | 0x80);
+        _bs[_pos++] = (byte) (value >>> 7  | 0x80);
+        _bs[_pos++] = (byte) (value >>> 14 | 0x80);
+        _bs[_pos++] = (byte) (value >>> 21 | 0x80);
+        _bs[_pos++] = (byte) (value >>> 28 | 0x80);
+
+        value >>>= 35;
+        if ((value & ~0x7F) == 0) {
+            _bs[_pos++] = (byte) value;
+        } else {
+            _bs[_pos++] = (byte) ((value & 0x7F) | 0x80);
+            value >>>= 7;
+            if ((value & ~0x7F) == 0) {
+                _bs[_pos++] = (byte) value;
+            } else {
+                _bs[_pos++] = (byte) ((value & 0x7F) | 0x80);
+                value >>>= 7;
+                if ((value & ~0x7F) == 0) {
+                    _bs[_pos++] = (byte) value;
+                } else {
+                    _bs[_pos++] = (byte) ((value & 0x7F) | 0x80);
+                    value >>>= 7;
+                    if ((value & ~0x7F) == 0) {
+                        _bs[_pos++] = (byte) value;
+                    } else {
+                        _bs[_pos++] = (byte) ((value & 0x7F) | 0x80);
+                        value >>>= 7;
+                        if ((value & ~0x7F) == 0) {
+                            _bs[_pos++] = (byte) value;
+                        }
+                    }
+                }
+            }
+        }
+        pos = _pos;
+    }
+
+    protected void writeUInt64_0(long value) {
+        if (value >>> 35 == 0) {
+            writeUInt64_1(value);
+        } else {
+            writeUInt64_2(value);
         }
     }
 

@@ -47,6 +47,14 @@ public abstract class AbstractWriter implements ProtoBufWriter {
                 }
             };
 
+    static final ThreadLocal<FastBuf> LOCAL_FAST_BUF =
+            new ThreadLocal<FastBuf>() {
+                @Override
+                protected FastBuf initialValue() {
+                    return new FastBuf(4096);
+                }
+            };
+
     public BufOut.WriteBuf wbuf;
     protected BufOut out;
     protected byte[] bs;
@@ -596,28 +604,47 @@ public abstract class AbstractWriter implements ProtoBufWriter {
         String v = value;
         int p = pos;
         byte[] _bs = this.bs;
+        FastBuf buf = LOCAL_FAST_BUF.get();
+        buf.clear();
+        if (buf.remain() < v.length() * 3) {
+            FastBuf bufNew = new FastBuf(v.length() * 3);
+            buf = bufNew;
+            LOCAL_FAST_BUF.set(buf);
+        }
+
         for (int i=start;i<end;i++) {
             char c = v.charAt(i);
-            if (c < 128) {
-                _bs[p++] = (byte) c;
+            if ((c & ~0x7F) == 0) {
+                //_bs[p++] = (byte) c;
+                buf.write((byte) c);
             } else if (c < 0x800) {
-                _bs[p++] = (byte) ((0xF << 6) | (c >>> 6));
-                _bs[p++] = (byte) ( 0x80 | (0x3F & c));
-            } else if (Character.isHighSurrogate(c) && i+1<end
-                    && Character.isLowSurrogate(value.charAt(i+1))) {
+//                _bs[p++] = (byte) ((0xF << 6) | (c >> 6));
+//                _bs[p++] = (byte) ( 0x80 | (0x3F & c));
+                buf.write((byte) ((0xF << 6) | (c >>> 6)));
+                buf.write((byte) ( 0x80 | (0x3F & c)));
+            } else if (Character.isHighSurrogate(c)) {
                 int codePoint = Character.toCodePoint((char) c, (char) value.charAt(i+1));
-                _bs[p++] = (byte) (0xF0 | ((codePoint >> 18) & 0x07));
-                _bs[p++] = (byte) (0x80 | ((codePoint >> 12) & 0x3F));
-                _bs[p++] = (byte) (0x80 | ((codePoint >>  6) & 0x3F));
-                _bs[p++] = (byte) (0x80 | ( codePoint        & 0x3F));
+//                _bs[p++] = (byte) (0xF0 | ((codePoint >> 18) & 0x07));
+//                _bs[p++] = (byte) (0x80 | ((codePoint >> 12) & 0x3F));
+//                _bs[p++] = (byte) (0x80 | ((codePoint >>  6) & 0x3F));
+//                _bs[p++] = (byte) (0x80 | ( codePoint        & 0x3F));
+                buf.write((byte) (0xF0 | ((codePoint >> 18) & 0x07)));
+                buf.write((byte) (0x80 | ((codePoint >> 12) & 0x3F)));
+                buf.write((byte) (0x80 | ((codePoint >>  6) & 0x3F)));
+                buf.write((byte) (0x80 | ( codePoint        & 0x3F)));
                 i++;
             } else {
-                _bs[p++] = (byte) ((0xF << 5) | (c >>> 12));
-                _bs[p++] = (byte) (0x80 | (0x3F & (c >>> 6)));
-                _bs[p++] = (byte) (0x80 | (0x3F & c));
+//                _bs[p++] = (byte) ((0xF << 5) | (c >>> 12));
+//                _bs[p++] = (byte) (0x80 | (0x3F & (c >>> 6)));
+//                _bs[p++] = (byte) (0x80 | (0x3F & c));
+                buf.write((byte) ((0xF << 5) | (c >>> 12)));
+                buf.write((byte) (0x80 | (0x3F & (c >>> 6))));
+                buf.write((byte) (0x80 | (0x3F & c)));
             }
         }
-        return p - pos;
+        int len = (int)(buf.wpos() - buf.address());
+        buf.writeTo(bs, pos, len);
+        return len;
     }
 
     @Override

@@ -18,8 +18,6 @@ package io.edap;
 
 import io.edap.buffer.BytesBuf;
 import io.edap.pool.BasePoolEntry;
-import sun.nio.ch.IOStatus;
-
 import io.edap.buffer.FastBuf;
 
 import java.io.FileDescriptor;
@@ -54,6 +52,10 @@ public abstract class NioSession<T> extends BasePoolEntry {
     private Edap edap;
     private Decoder<T, ? extends NioSession> decoder;
     private BufPool bufPool;
+
+    private static int INTERRUPTED = -3;
+
+    private static int UNAVAILABLE = -2;
 
     /**
      * 最后读取到数据的时间
@@ -325,12 +327,12 @@ public abstract class NioSession<T> extends BasePoolEntry {
 
     int readInternal(FastBuf buf) throws IOException {
         int n = read0(channelFd, buf.address(), buf.writeRemain());
-        if ((n == IOStatus.INTERRUPTED) && socketChannel.isOpen()) {
+        if ((n == INTERRUPTED) && socketChannel.isOpen()) {
             // The system call was interrupted but the channel
             // is still open, so retry
             return 0;
         }
-        int ret = IOStatus.normalize(n);
+        int ret = (n == UNAVAILABLE?0:n);
         if (ret > 0) {
             buf.wpos(buf.wpos() + ret);
         }
@@ -365,12 +367,12 @@ public abstract class NioSession<T> extends BasePoolEntry {
         if (res > 0) {
             buf.rpos(pos + res);
         }
-        if ((res == IOStatus.INTERRUPTED) && socketChannel.isOpen()) {
+        if ((res == INTERRUPTED) && socketChannel.isOpen()) {
             // The system call was interrupted but the channel
             // is still open, so retry
             return 0;
         }
-        res = IOStatus.normalize(res);
+        res = (res == UNAVAILABLE?0:res);;
         if (res < 0) {
 
         }

@@ -16,11 +16,11 @@
 
 package io.edap.nio;
 
-import com.sun.org.apache.bcel.internal.generic.Select;
+import java.nio.channels.Selector;
 
 public class NioUtil {
 
-    public static Select getSelector() {
+    public static Selector getSelector() {
         return null;
     }
 }

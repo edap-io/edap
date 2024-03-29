@@ -139,6 +139,19 @@ public class FastBuf extends BasePoolEntry {
         this.readPos  = address;
     }
 
+    public int write(byte b1) {
+        if (writeRemain() > 0) {
+            UnsafeUtil.writeByte(writePos++, b1);
+            return 1;
+        }
+        return 0;
+    }
+
+    public int writeNotCheck(byte b1) {
+        UnsafeUtil.writeByte(writePos++, b1);
+        return 1;
+    }
+
     public int write(byte[] bs, int offset, int len) {
         int remain = (int)(endAddress - writePos);
         if (len > remain) {
@@ -147,6 +160,15 @@ public class FastBuf extends BasePoolEntry {
         UnsafeUtil.copyMemory(bs, offset, writePos, len);
         writePos += len;
         return len;
+    }
+
+    public int writeTo(byte[] bs, int offseet, int len) {
+        UnsafeUtil.copyMemory(address, bs, offseet, len);
+        return len;
+    }
+
+    public void writeByte(byte b) {
+
     }
 
     public ByteBuffer byteBuffer() {

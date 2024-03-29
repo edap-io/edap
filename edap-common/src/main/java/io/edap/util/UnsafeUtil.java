@@ -111,6 +111,10 @@ public class UnsafeUtil {
         return field;
     }
 
+    public static void writeByte(long address, byte b) {
+        UNSAFE.putAddress(address, b);
+    }
+
     public static Object getValue(Object value, long offset) {
         return UNSAFE.getObject(value, offset);
     }
