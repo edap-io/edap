@@ -33,6 +33,8 @@ public abstract class AbstractWriter implements EprotoWriter {
      */
     public static final byte ZIGZAG32_ONE = 2;
 
+    public static final byte ZIGZAG32_TWO = 4;
+
     /**
      * ZigZag32编码的-11对应的byte
      */
@@ -54,7 +56,8 @@ public abstract class AbstractWriter implements EprotoWriter {
     }
 
     /**
-     * 字符串编码方式为长度 + utf8编码的byte数组，长度使用ZigZag编码的int，如果字符串为null则值为-1
+     * 字符串编码方式为一个字节的byte的编码类型，0为letin1，1为utf16，2为utf8，长度(letin1，utf16的时候为
+     * byte[]数组长度，utf8时为字符的个数) + byte数组，长度使用ZigZag编码的int，如果字符串为null则值为-1
      * @param s 需要编码的字符串
      */
     @Override
@@ -86,83 +89,28 @@ public abstract class AbstractWriter implements EprotoWriter {
     }
 
     private void writeByteArrayString(String v) {
-        int charLen = v.length();
+        byte[] _bs = bs;
+        byte[] data = StringUtil.getValue(v);
+        int len = data.length;
+        expand(MAX_VARINT_SIZE + len + 1);
         if (isLatin1(v)) {
-            byte[] data = StringUtil.getValue(v);
-            expand(MAX_VARINT_SIZE + charLen);
-            writeUInt32_0(encodeZigZag32(charLen));
-            writeByteArray(data, 0, charLen);
+            _bs[pos++] = ZIGZAG32_ZERO;
         } else {
-            int _pos = pos;
-            byte[] _bs = bs;
-            byte[] data = StringUtil.getValue(v);
-            int len = data.length;
-            expand(MAX_VARINT_SIZE + charLen * 3);
-            writeUInt32_0(encodeZigZag32(charLen));
-            int offset = 0;
-            byte b0, b1;
-            while (offset < len) {
-                char c = (char)(((data[offset++] & 0xff) << 0) | ((data[offset++] & 0xff) << 8));
-                if (c < 128) {
-                    _bs[_pos++] = (byte)c;
-                } else {
-                    if (c < 0x800) {
-                        // 2 bytes, 11 bits
-                        _bs[_pos++] = (byte) (0xc0 | (c >> 6));
-                        _bs[_pos++] = (byte) (0x80 | (c & 0x3f));
-                    } else if (c >= '\uD800' && c < ('\uDFFF' + 1)) { //Character.isSurrogate(c) but 1.7
-                        final int uc;
-                        int ip = offset - 1;
-                        if (c >= '\uD800' && c < ('\uDBFF' + 1)) { // Character.isHighSurrogate(c)
-                            if (len - ip < 2) {
-                                uc = -1;
-                            } else {
-                                b0 = data[ip + 1];
-                                b1 = data[ip + 2];
-                                char d = (char) (((b0 & 0xff) << 0) | ((b1 & 0xff) << 8));
-                                // d >= '\uDC00' && d < ('\uDFFF' + 1)
-                                if (d >= '\uDC00' && d < ('\uDFFF' + 1)) { // Character.isLowSurrogate(d)
-                                    uc = ((c << 10) + d) + (0x010000 - ('\uD800' << 10) - '\uDC00'); // Character.toCodePoint(c, d)
-                                } else {
-                                    return;
-                                }
-                            }
-                        } else {
-                            //
-                            if (c >= '\uDC00' && c < ('\uDFFF' + 1)) { // Character.isLowSurrogate(c)
-                                return;
-                            } else {
-                                uc = c;
-                            }
-                        }
-
-                        if (uc < 0) {
-                            _bs[_pos++] = (byte) '?';
-                        } else {
-                            _bs[_pos++] = (byte) (0xf0 | ((uc >> 18)));
-                            _bs[_pos++] = (byte) (0x80 | ((uc >> 12) & 0x3f));
-                            _bs[_pos++] = (byte) (0x80 | ((uc >> 6) & 0x3f));
-                            _bs[_pos++] = (byte) (0x80 | (uc & 0x3f));
-                            offset += 2; // 2 chars
-                        }
-                    } else {
-                        // 3 bytes, 16 bits
-                        _bs[_pos++] = (byte) (0xe0 | ((c >> 12)));
-                        _bs[_pos++] = (byte) (0x80 | ((c >> 6) & 0x3f));
-                        _bs[_pos++] = (byte) (0x80 | (c & 0x3f));
-                    }
-                }
-            }
+            _bs[pos++] = ZIGZAG32_ONE;
         }
+        writeUInt32_0(encodeZigZag32(len));
+        System.arraycopy(data, 0, _bs, pos, len);
+        pos += len;
     }
 
     private void writeCharArrayString(String v) {
         int charLen = v.length();
         // 转为utf8后最大的所需字节数
-        int maxBytes = charLen * 3;
+        int maxBytes = charLen * 3 + 1;
         // 如果所需最大字节数小于3k + 编码int最大字节数 则直接扩容所需最大字节数
         if (maxBytes <= 3072) {
             expand(MAX_VARINT_SIZE + maxBytes);
+            bs[pos++] = ZIGZAG32_TWO;
             writeUInt32_0(encodeZigZag32(charLen));
             pos += writeChars(v, 0, charLen, pos);
             return;
@@ -173,6 +121,7 @@ public abstract class AbstractWriter implements EprotoWriter {
         int end = Math.min((start + 1024), charLen);
 
         expand(maxBytes + MAX_VARINT_SIZE);
+        bs[pos++] = ZIGZAG32_TWO;
         writeUInt32_0(encodeZigZag32(charLen));
         while (start < charLen) {
             expand(3072);
