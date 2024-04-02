@@ -90,7 +90,7 @@ public class FastBuf extends BasePoolEntry {
     }
 
     public int writeRemain() {
-        return 0;
+        return (int)(endAddress - writePos);
     }
 
     /**
@@ -147,9 +147,8 @@ public class FastBuf extends BasePoolEntry {
         return 0;
     }
 
-    public int writeNotCheck(byte b1) {
+    public void writeNotCheck(byte b1) {
         UnsafeUtil.writeByte(writePos++, b1);
-        return 1;
     }
 
     public int write(byte[] bs, int offset, int len) {
