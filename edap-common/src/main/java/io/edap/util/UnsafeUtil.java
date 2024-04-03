@@ -112,7 +112,7 @@ public class UnsafeUtil {
     }
 
     public static void writeByte(long address, byte b) {
-        UNSAFE.putAddress(address, b);
+        UNSAFE.putByte(address, b);
     }
 
     public static Object getValue(Object value, long offset) {
