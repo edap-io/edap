@@ -7,7 +7,6 @@
         <groupId>io.edap</groupId>
         <artifactId>edap-data-parent</artifactId>
         <version>${edap.version}</version>
-        <relativePath>../pom.xml</relativePath>
     </parent>
     <artifactId>edap-data-jdbc-dao-spring</artifactId>
 

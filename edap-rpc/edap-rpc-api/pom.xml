@@ -7,7 +7,6 @@
         <groupId>io.edap</groupId>
         <artifactId>edap-rpc</artifactId>
         <version>${edap.version}</version>
-        <relativePath>../pom.xml</relativePath>
     </parent>
 
     <artifactId>edap-rpc-api</artifactId>

@@ -7,7 +7,6 @@
         <groupId>io.edap</groupId>
         <artifactId>edap</artifactId>
         <version>${edap.version}</version>
-        <relativePath>../pom.xml</relativePath>
     </parent>
 
     <artifactId>edap-protobuf-parent</artifactId>

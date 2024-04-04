@@ -6,7 +6,6 @@
         <artifactId>edap-protobuf-parent</artifactId>
         <groupId>io.edap</groupId>
         <version>${edap.version}</version>
-        <relativePath>../pom.xml</relativePath>
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
