@@ -902,45 +902,66 @@ public class EprotoEncoderGenerator {
                 "(L" + WRITER_NAME + ";" + typeDescriptor + ")V", new String[] { ENCODE_EX_NAME });
         mv.visitCode();
         mv.visitVarInsn(ALOAD, 2);
-        visitMethod(mv, INVOKESTATIC, COLLECTION_UTIL,
-                "isEmpty", "(Ljava/util/Collection;)Z", false);
-        Label l0 = new Label();
-        mv.visitJumpInsn(IFEQ, l0);
-        mv.visitInsn(RETURN);
-        mv.visitLabel(l0);
+
+        // 如果列表为null
+        Label lbNotNull = new Label();
+        mv.visitJumpInsn(IFNONNULL, lbNotNull);
+        mv.visitVarInsn(ALOAD, 1);
+        mv.visitInsn(ICONST_1);
+        mv.visitMethodInsn(INVOKEINTERFACE, WRITER_NAME, "writeByte", "(B)V", true);
+        // 跳转到return的分支
+        Label lbReturn = new Label();
+        mv.visitJumpInsn(GOTO, lbReturn);
+
+        mv.visitLabel(lbNotNull);
         mv.visitFrame(Opcodes.F_SAME, 0, null, 0, null);
         mv.visitVarInsn(ALOAD, 2);
-        Label l1, l2;
+        mv.visitMethodInsn(INVOKEINTERFACE, "java/util/List", "isEmpty", "()Z", true);
 
-        visitMethod(mv, INVOKEINTERFACE, "java/util/List", "size", "()I", true);
-        mv.visitVarInsn(ISTORE, 3);
+        // 如果list为空
+        Label lbNotEmpty = new Label();
+        mv.visitJumpInsn(IFEQ, lbNotEmpty);
+        mv.visitVarInsn(ALOAD, 1);
         mv.visitInsn(ICONST_0);
-        mv.visitVarInsn(ISTORE, 4);
-        l1 = new Label();
-        mv.visitLabel(l1);
-        mv.visitFrame(F_APPEND, 2, new Object[]{INTEGER, INTEGER}, 0, null);
-        mv.visitVarInsn(ILOAD, 4);
-        mv.visitVarInsn(ILOAD, 3);
-        l2 = new Label();
-        mv.visitJumpInsn(IF_ICMPGE, l2);
+        mv.visitMethodInsn(INVOKEINTERFACE, WRITER_NAME, "writeByte", "(B)V", true);
+        mv.visitJumpInsn(GOTO, lbReturn);
+
+        mv.visitLabel(lbNotEmpty);
+        mv.visitFrame(Opcodes.F_SAME, 0, null, 0, null);
+        mv.visitVarInsn(ALOAD, 2);
+        visitMethod(mv, INVOKEINTERFACE, "java/util/List", "size", "()I", true);
+        int varSize = 3;
+        int varI = varSize + 1;
+        mv.visitVarInsn(ISTORE, varSize);
+        mv.visitVarInsn(ALOAD, 1);
+        mv.visitVarInsn(ILOAD, varSize);
+        mv.visitMethodInsn(INVOKEINTERFACE, WRITER_NAME, "writeSInt32", "(I)V", true);
+
+        mv.visitInsn(ICONST_0);
+        mv.visitVarInsn(ISTORE, varI);
+
+        // for循环
+        Label lbFor = new Label();
+        mv.visitLabel(lbFor);
+        mv.visitFrame(Opcodes.F_APPEND,2, new Object[] {Opcodes.INTEGER, Opcodes.INTEGER}, 0, null);
+        mv.visitVarInsn(ILOAD, varI);
+        mv.visitVarInsn(ILOAD, varSize);
+        // 如果i >= size 则结束循环
+        mv.visitJumpInsn(IF_ICMPGE, lbReturn);
         mv.visitVarInsn(ALOAD, 1);
         mv.visitVarInsn(ALOAD, 2);
-        mv.visitVarInsn(ILOAD, 4);
-        visitMethod(mv, INVOKEINTERFACE, "java/util/List", "get",
+        mv.visitVarInsn(ILOAD, varI);
+        mv.visitMethodInsn(INVOKEINTERFACE, "java/util/List", "get",
                 "(I)Ljava/lang/Object;", true);
         mv.visitTypeInsn(CHECKCAST, itemName);
-
         String writeMethod = getWriteMethod(pfi.protoField.type());
-
         visitMethod(mv, INVOKEINTERFACE, WRITER_NAME, writeMethod,
-                "(" + itemDesc + ")V",
-                true);
+                "(" + itemDesc + ")V", true);
+        mv.visitIincInsn(varI, 1);
+        mv.visitJumpInsn(GOTO, lbFor);
 
-        mv.visitIincInsn(4, 1);
-
-        mv.visitJumpInsn(GOTO, l1);
-        mv.visitLabel(l2);
-        mv.visitFrame(Opcodes.F_CHOP,1, null, 0, null);
+        mv.visitLabel(lbReturn);
+        mv.visitFrame(Opcodes.F_CHOP,2, null, 0, null);
         mv.visitInsn(RETURN);
         mv.visitMaxs(5, 6);
         mv.visitEnd();
