@@ -65,13 +65,12 @@ public abstract class AbstractWriter implements EprotoWriter {
         if (s == null) {
             expand(1);
             bs[pos++] = ZIGZAG32_NEGATIVE_ONE;
-            return;
-        }
-        if (s.isEmpty()) {
+        } else if (s.isEmpty()) {
+            expand(1);
             bs[pos++] = ZIGZAG32_ZERO;
-            return;
+        } else {
+            writeString0(s);
         }
-        writeString0(s);
     }
 
     /**
@@ -89,17 +88,16 @@ public abstract class AbstractWriter implements EprotoWriter {
     }
 
     private void writeByteArrayString(String v) {
-        byte[] _bs = bs;
         byte[] data = StringUtil.getValue(v);
         int len = data.length;
         expand(MAX_VARINT_SIZE + len + 1);
         if (isLatin1(v)) {
-            _bs[pos++] = ZIGZAG32_ZERO;
+            bs[pos++] = ZIGZAG32_ZERO;
         } else {
-            _bs[pos++] = ZIGZAG32_ONE;
+            bs[pos++] = ZIGZAG32_ONE;
         }
         writeUInt32_0(encodeZigZag32(len));
-        System.arraycopy(data, 0, _bs, pos, len);
+        System.arraycopy(data, 0, bs, pos, len);
         pos += len;
     }
 
