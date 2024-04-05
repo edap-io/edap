@@ -563,7 +563,7 @@ public abstract class AbstractWriter implements ProtoBufWriter {
         String v = value;
         int charLen = v.length();
         // 如果jvm是9以上版本，并且字符串为Latin1的编码，长度大于5时直接copy字符串对象额value字节数组
-        if (IS_BYTE_ARRAY && isLatin1(v) && charLen > 5) {
+        if (IS_BYTE_ARRAY && isLatin1(v)) {
             byte[] data = StringUtil.getValue(v);
             writeByteArray(data, 0, charLen);
             return;
