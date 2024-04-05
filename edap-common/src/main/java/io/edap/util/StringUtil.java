@@ -38,6 +38,10 @@ public class StringUtil {
      * String中value的Field用来反射String的Value值
      */
     public static final Field VALUE_FIELD;
+
+    public static final long VALUE_FIELD_OFFSET;
+
+    public static final long CODER_FIELD_OFFSET;
     /**
      * String中coder的Field用来反射String的编码类型
      */
@@ -69,6 +73,8 @@ public class StringUtil {
         VALUE_FIELD   = valueField;
         IS_BYTE_ARRAY = isByteArray;
         LATIN1_FIELD  = coderField;
+        VALUE_FIELD_OFFSET = UnsafeUtil.fieldOffset(VALUE_FIELD);
+        CODER_FIELD_OFFSET = UnsafeUtil.fieldOffset(coderField);
     }
 
     private StringUtil() {}
@@ -84,8 +90,9 @@ public class StringUtil {
         }
         if (IS_BYTE_ARRAY) {
             try {
-                return (byte[])VALUE_FIELD.get(s);
-            } catch (IllegalAccessException e) {
+                //return (byte[])VALUE_FIELD.get(s);
+                return (byte[]) UnsafeUtil.getValue(s, VALUE_FIELD_OFFSET);
+            } catch (Throwable e) {
                 LOG.warn("", e);
             }
         }
@@ -99,8 +106,9 @@ public class StringUtil {
      */
     public static boolean isLatin1(String s) {
         try {
-            return LATIN1_FIELD.getByte(s) == 0;
-        } catch (IllegalAccessException e) {
+            //return LATIN1_FIELD.getByte(s) == 0;
+            return UnsafeUtil.getByte(s, CODER_FIELD_OFFSET) == 0;
+        } catch (Throwable e) {
             e.printStackTrace();
         }
         return false;
