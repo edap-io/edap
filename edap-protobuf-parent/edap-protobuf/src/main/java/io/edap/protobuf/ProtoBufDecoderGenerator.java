@@ -495,7 +495,7 @@ public class ProtoBufDecoderGenerator {
                     valTypeDesc = getDescriptor(ptype.getActualTypeArguments()[1]);
                 }
                 Class mapEntryCls = ProtoBufCodecRegister.INSTANCE
-                        .generateMapEntryClass(pfi.field.getGenericType());
+                        .generateMapEntryClass(pfi.field.getGenericType(), null, pojoCls);
                 String codecName = getMapCodecName(mapEntryCls);
                 String mapTypeName = toInternalName(mapEntryCls.getName());
 
@@ -676,7 +676,7 @@ public class ProtoBufDecoderGenerator {
                 valTypeDesc = getDescriptor(ptype.getActualTypeArguments()[1]);
             }
             Class mapEntryCls = ProtoBufCodecRegister.INSTANCE
-                    .generateMapEntryClass(parentMapType);
+                    .generateMapEntryClass(parentMapType, pojoCls);
             String codecName = getMapCodecName(mapEntryCls);
             String mapTypeName = toInternalName(mapEntryCls.getName());
 
@@ -1428,7 +1428,7 @@ public class ProtoBufDecoderGenerator {
         Map<String, String> mapNames = new HashMap<>();
         for (ProtoFieldInfo pfi : mapFields) {
             Class mapCls = ProtoBufCodecRegister.INSTANCE
-                    .generateMapEntryClass(pfi.field.getGenericType());
+                    .generateMapEntryClass(pfi.field.getGenericType(), pojoCls);
             String codecName = getMapCodecName(mapCls);
             if (!mapNames.containsKey(codecName)) {
                 String itemType = toInternalName(mapCls.getName());
@@ -1440,7 +1440,7 @@ public class ProtoBufDecoderGenerator {
         }
         if (parentMapType != null) {
             Class mapCls = ProtoBufCodecRegister.INSTANCE
-                    .generateMapEntryClass(parentMapType);
+                    .generateMapEntryClass(parentMapType, pojoCls);
             String codecName = getMapCodecName(mapCls);
             if (!mapNames.containsKey(codecName)) {
                 String itemType = toInternalName(mapCls.getName());
@@ -1530,7 +1530,7 @@ public class ProtoBufDecoderGenerator {
         }
         if (parentMapType != null) {
             Class mapCls = ProtoBufCodecRegister.INSTANCE
-                    .generateMapEntryClass(parentMapType);
+                    .generateMapEntryClass(parentMapType, pojoCls);
             String codecName = getMapCodecName(mapCls);
             String itemType = toInternalName(mapCls.getName());
             if (!mapNames.containsKey(codecName)) {
