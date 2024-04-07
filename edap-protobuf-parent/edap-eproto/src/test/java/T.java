@@ -2,12 +2,9 @@ import io.edap.eproto.EprotoCodecRegister;
 import io.edap.eproto.EprotoEncoder;
 import io.edap.eproto.EprotoWriter;
 import io.edap.eproto.test.message.AllType;
-import io.edap.eproto.test.message.Project;
-import io.edap.eproto.write.ByteArrayWriter;
+import io.edap.eproto.writer.ByteArrayWriter;
 import io.edap.io.BufOut;
 import io.edap.protobuf.internal.ProtoBufOut;
-
-import static io.edap.eproto.EprotoWriter.encodeZigZag32;
 
 public class T {
 

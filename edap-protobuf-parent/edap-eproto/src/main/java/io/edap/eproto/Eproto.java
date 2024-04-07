@@ -1,6 +1,6 @@
 package io.edap.eproto;
 
-import io.edap.eproto.write.ByteArrayWriter;
+import io.edap.eproto.writer.ByteArrayWriter;
 import io.edap.io.BufOut;
 import io.edap.protobuf.EncodeException;
 import io.edap.protobuf.internal.ProtoBufOut;

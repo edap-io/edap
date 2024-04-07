@@ -1,10 +1,9 @@
-package io.edap.eproto.write;
+package io.edap.eproto.writer;
 
 import io.edap.buffer.FastBuf;
 import io.edap.eproto.EprotoEncoder;
 import io.edap.eproto.EprotoWriter;
 import io.edap.io.BufOut;
-import io.edap.io.BufWriter;
 import io.edap.protobuf.EncodeException;
 import io.edap.protobuf.ProtoBufEnum;
 import io.edap.protobuf.wire.Field;
