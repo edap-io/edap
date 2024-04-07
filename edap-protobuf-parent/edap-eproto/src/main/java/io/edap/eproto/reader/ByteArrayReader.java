@@ -97,7 +97,7 @@ public class ByteArrayReader extends AbstractReader {
         } else if (size == 0) {
             return EMPTY_LIST;
         } else {
-
+            return null;
         }
     }
 
