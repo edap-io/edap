@@ -204,6 +204,7 @@ public class ByteArrayReader extends AbstractReader {
                 list.add(x);
                 rsize++;
                 if (rsize == size) {
+                    pos = _pos;
                     return list;
                 } else {
                     continue;
@@ -227,6 +228,7 @@ public class ByteArrayReader extends AbstractReader {
             list.add(x);
             rsize++;
             if (rsize == size) {
+                pos = _pos;
                 return list;
             }
         }
@@ -240,6 +242,7 @@ public class ByteArrayReader extends AbstractReader {
                 list.add(result);
                 rsize++;
                 if (rsize == size) {
+                    pos = _pos;
                     return list;
                 }
                 shift = 0;
@@ -249,17 +252,332 @@ public class ByteArrayReader extends AbstractReader {
         if (rsize < size) {
             throw ProtoException.malformedVarint();
         }
+        pos = _pos;
         return list;
     }
 
     @Override
     public Integer[] readPackedInt32Array(Field.Type type) throws ProtoException {
-        return new Integer[0];
+        int size = readSInt32();
+        if (size == -1) {
+            return null;
+        } else if (size == 0) {
+            return new Integer[0];
+        }
+        switch (type) {
+            case INT32:
+            case UINT32:
+                return readUInt32ObjArray(size);
+            case SINT32:
+                return readSInt32ObjArray(size);
+            case FIXED32:
+            case SFIXED32:
+                return readFixed32ObjArray(size);
+            default:
+        }
+        return null;
+    }
+
+    private Integer[] readFixed32ObjArray(int size) throws ProtoException {
+        Integer[] array = new Integer[size];
+        byte[] _buf   = buf;
+        int    _pos   = pos;
+        if (limit - _pos < (size << 2) ) {
+            throw ProtoException.truncatedMessage();
+        }
+        for (int i=0;i<size;i++) {
+            array[i] =
+                    (((_buf[_pos++] & 0xFF)      )
+                            | ((_buf[_pos++] & 0xFF) << 8 )
+                            | ((_buf[_pos++] & 0xFF) << 16)
+                            | ((_buf[_pos++] & 0xFF) << 24));
+        }
+        pos = _pos;
+        return array;
+    }
+
+    private Integer[] readSInt32ObjArray(int size) throws ProtoException {
+        Integer[] array = new Integer[size];
+        byte[] _buf   = buf;
+        int    _pos   = pos;
+        int    _limit = limit;
+        int    rsize  = 0;
+        while (_pos < limit) {
+            int x;
+            if ((x = _buf[_pos++]) >= 0) {
+                array[rsize++] = decodeZigZag32(x);
+                if (rsize == size) {
+                    pos = _pos;
+                    return array;
+                } else {
+                    continue;
+                }
+            } else if (_limit - _pos < 4) {
+                break;
+            } else if ((x ^= (_buf[_pos++] << 7)) < 0) {
+                x ^= (~0 << 7);
+            } else if ((x ^= (_buf[_pos++] << 14)) < 0) {
+                x ^= (~0 << 7) ^ (~0 << 14);
+            } else if ((x ^= (_buf[_pos++] << 21)) < 0) {
+                x ^= (~0 << 7) ^ (~0 << 14) ^ (~0 << 21);
+            } else {
+                int y = _buf[_pos++];
+                x ^= y << 28;
+                x ^= (~0 << 7) ^ (~0 << 14) ^ (~0 << 21) ^ (~0 << 28);
+                if (y < 0) {
+                    throw ProtoException.malformedVarint();
+                }
+            }
+            array[rsize++] = decodeZigZag32(x);
+            if (rsize == size) {
+                pos = _pos;
+                return array;
+            }
+        }
+        _pos--;
+        int result = 0;
+        int shift  = 0;
+        for (; shift < 32 && _pos < _limit; shift += 7) {
+            final byte b = _buf[_pos++];
+            result |= (b & 0x7F) << shift;
+            if ((b & 0x80) == 0) {
+                array[rsize++] = decodeZigZag32(result);
+                if (rsize == size) {
+                    pos = _pos;
+                    return array;
+                }
+                shift = 0;
+                result = 0;
+            }
+        }
+        if (rsize < size) {
+            throw ProtoException.malformedVarint();
+        }
+        pos = _pos;
+        return array;
+    }
+
+    private Integer[] readUInt32ObjArray(int size) throws ProtoException {
+        Integer[] array = new Integer[size];
+        byte[] _buf   = buf;
+        int    _pos   = pos;
+        int    _limit = limit;
+        int    rsize  = 0;
+        while (_pos < limit) {
+            int x;
+            if ((x = _buf[_pos++]) >= 0) {
+                array[rsize++] = x;
+                if (rsize == size) {
+                    pos = _pos;
+                    return array;
+                } else {
+                    continue;
+                }
+            } else if (_limit - _pos < 4) {
+                break;
+            } else if ((x ^= (_buf[_pos++] << 7)) < 0) {
+                x ^= (~0 << 7);
+            } else if ((x ^= (_buf[_pos++] << 14)) < 0) {
+                x ^= (~0 << 7) ^ (~0 << 14);
+            } else if ((x ^= (_buf[_pos++] << 21)) < 0) {
+                x ^= (~0 << 7) ^ (~0 << 14) ^ (~0 << 21);
+            } else {
+                int y = _buf[_pos++];
+                x ^= y << 28;
+                x ^= (~0 << 7) ^ (~0 << 14) ^ (~0 << 21) ^ (~0 << 28);
+                if (y < 0) {
+                    throw ProtoException.malformedVarint();
+                }
+            }
+            array[rsize++] = x;
+            if (rsize == size) {
+                pos = _pos;
+                return array;
+            }
+        }
+        _pos--;
+        int result = 0;
+        int shift  = 0;
+        for (; shift < 32 && _pos < _limit; shift += 7) {
+            final byte b = _buf[_pos++];
+            result |= (b & 0x7F) << shift;
+            if ((b & 0x80) == 0) {
+                array[rsize++] = result;
+                if (rsize == size) {
+                    pos = _pos;
+                    return array;
+                }
+                shift = 0;
+                result = 0;
+            }
+        }
+        if (rsize < size) {
+            throw ProtoException.malformedVarint();
+        }
+        pos = _pos;
+        return array;
     }
 
     @Override
     public int[] readPackedInt32ArrayValue(Field.Type type) throws ProtoException {
-        return new int[0];
+        int size = readSInt32();
+        if (size == -1) {
+            return null;
+        } else if (size == 0) {
+            return new int[0];
+        }
+        switch (type) {
+            case INT32:
+            case UINT32:
+                return readUInt32Array(size);
+            case SINT32:
+                return readSInt32Array(size);
+            case FIXED32:
+            case SFIXED32:
+                return readFixed32Array(size);
+            default:
+        }
+        return null;
+    }
+
+    private int[] readFixed32Array(int size) throws ProtoException {
+        int[] array = new int[size];
+        byte[] _buf   = buf;
+        int    _pos   = pos;
+        if (limit - _pos < (size << 2) ) {
+            throw ProtoException.truncatedMessage();
+        }
+        for (int i=0;i<size;i++) {
+            array[i] =
+                    (((_buf[_pos++] & 0xFF)      )
+                            | ((_buf[_pos++] & 0xFF) << 8 )
+                            | ((_buf[_pos++] & 0xFF) << 16)
+                            | ((_buf[_pos++] & 0xFF) << 24));
+        }
+        pos = _pos;
+        return array;
+    }
+
+    private int[] readSInt32Array(int size) throws ProtoException {
+        int[] array = new int[size];
+        byte[] _buf   = buf;
+        int    _pos   = pos;
+        int    _limit = limit;
+        int    rsize  = 0;
+        while (_pos < limit) {
+            int x;
+            if ((x = _buf[_pos++]) >= 0) {
+                array[rsize++] = decodeZigZag32(x);
+                if (rsize == size) {
+                    pos = _pos;
+                    return array;
+                } else {
+                    continue;
+                }
+            } else if (_limit - _pos < 4) {
+                break;
+            } else if ((x ^= (_buf[_pos++] << 7)) < 0) {
+                x ^= (~0 << 7);
+            } else if ((x ^= (_buf[_pos++] << 14)) < 0) {
+                x ^= (~0 << 7) ^ (~0 << 14);
+            } else if ((x ^= (_buf[_pos++] << 21)) < 0) {
+                x ^= (~0 << 7) ^ (~0 << 14) ^ (~0 << 21);
+            } else {
+                int y = _buf[_pos++];
+                x ^= y << 28;
+                x ^= (~0 << 7) ^ (~0 << 14) ^ (~0 << 21) ^ (~0 << 28);
+                if (y < 0) {
+                    throw ProtoException.malformedVarint();
+                }
+            }
+            array[rsize++] = decodeZigZag32(x);
+            if (rsize == size) {
+                pos = _pos;
+                return array;
+            }
+        }
+        _pos--;
+        int result = 0;
+        int shift  = 0;
+        for (; shift < 32 && _pos < _limit; shift += 7) {
+            final byte b = _buf[_pos++];
+            result |= (b & 0x7F) << shift;
+            if ((b & 0x80) == 0) {
+                array[rsize++] = decodeZigZag32(result);
+                if (rsize == size) {
+                    pos = _pos;
+                    return array;
+                }
+                shift = 0;
+                result = 0;
+            }
+        }
+        if (rsize < size) {
+            throw ProtoException.malformedVarint();
+        }
+        pos = _pos;
+        return array;
+    }
+
+    private int[] readUInt32Array(int size) throws ProtoException {
+        int[] array = new int[size];
+        byte[] _buf   = buf;
+        int    _pos   = pos;
+        int    _limit = limit;
+        int    rsize  = 0;
+        while (_pos < limit) {
+            int x;
+            if ((x = _buf[_pos++]) >= 0) {
+                array[rsize++] = x;
+                if (rsize == size) {
+                    pos = _pos;
+                    return array;
+                } else {
+                    continue;
+                }
+            } else if (_limit - _pos < 4) {
+                break;
+            } else if ((x ^= (_buf[_pos++] << 7)) < 0) {
+                x ^= (~0 << 7);
+            } else if ((x ^= (_buf[_pos++] << 14)) < 0) {
+                x ^= (~0 << 7) ^ (~0 << 14);
+            } else if ((x ^= (_buf[_pos++] << 21)) < 0) {
+                x ^= (~0 << 7) ^ (~0 << 14) ^ (~0 << 21);
+            } else {
+                int y = _buf[_pos++];
+                x ^= y << 28;
+                x ^= (~0 << 7) ^ (~0 << 14) ^ (~0 << 21) ^ (~0 << 28);
+                if (y < 0) {
+                    throw ProtoException.malformedVarint();
+                }
+            }
+            array[rsize++] = x;
+            if (rsize == size) {
+                pos = _pos;
+                return array;
+            }
+        }
+        _pos--;
+        int result = 0;
+        int shift  = 0;
+        for (; shift < 32 && _pos < _limit; shift += 7) {
+            final byte b = _buf[_pos++];
+            result |= (b & 0x7F) << shift;
+            if ((b & 0x80) == 0) {
+                array[rsize++] = result;
+                if (rsize == size) {
+                    pos = _pos;
+                    return array;
+                }
+                shift = 0;
+                result = 0;
+            }
+        }
+        if (rsize < size) {
+            throw ProtoException.malformedVarint();
+        }
+        pos = _pos;
+        return array;
     }
 
     @Override
