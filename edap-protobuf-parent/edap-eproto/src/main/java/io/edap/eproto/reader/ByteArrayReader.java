@@ -6,6 +6,7 @@ import io.edap.protobuf.ProtoException;
 import io.edap.protobuf.wire.Field;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import static java.util.Collections.EMPTY_LIST;
@@ -582,17 +583,80 @@ public class ByteArrayReader extends AbstractReader {
 
     @Override
     public List<Float> readPackedFloat() throws ProtoException {
-        return null;
+        int size = readSInt32();
+        if (size == -1) {
+            return null;
+        } else if (size == 0) {
+            return EMPTY_LIST;
+        }
+
+        if (limit - pos < (size << 2)) {
+            throw ProtoException.sizeLimitExceeded();
+        }
+        List<Float> vs = new ArrayList<>(size);
+        int _pos = pos;
+        byte[] _bs = buf;
+        for (int i=0;i<size;i++) {
+            int v =  (((_bs[_pos++] & 0xFF)      )
+                    | ((_bs[_pos++] & 0xFF) << 8 )
+                    | ((_bs[_pos++] & 0xFF) << 16)
+                    | ((_bs[_pos++] & 0xFF) << 24));
+            vs.add(Float.intBitsToFloat(v));
+        }
+        pos = _pos;
+        return vs;
     }
 
     @Override
     public Float[] readPackedFloatArray() throws ProtoException {
-        return new Float[0];
+        int size = readSInt32();
+        if (size == -1) {
+            return null;
+        } else if (size == 0) {
+            return new Float[0];
+        }
+
+        if (limit - pos < (size << 2)) {
+            throw ProtoException.sizeLimitExceeded();
+        }
+        Float[] vs = new Float[size];
+        int _pos = pos;
+        byte[] _bs = buf;
+        for (int i=0;i<size;i++) {
+            int v =  (((_bs[_pos++] & 0xFF)      )
+                    | ((_bs[_pos++] & 0xFF) << 8 )
+                    | ((_bs[_pos++] & 0xFF) << 16)
+                    | ((_bs[_pos++] & 0xFF) << 24));
+            vs[i] = Float.intBitsToFloat(v);
+        }
+        pos = _pos;
+        return vs;
     }
 
     @Override
     public float[] readPackedFloatArrayValue() throws ProtoException {
-        return new float[0];
+        int size = readSInt32();
+        if (size == -1) {
+            return null;
+        } else if (size == 0) {
+            return new float[0];
+        }
+
+        if (limit - pos < (size << 2)) {
+            throw ProtoException.sizeLimitExceeded();
+        }
+        float[] vs = new float[size];
+        int _pos = pos;
+        byte[] _bs = buf;
+        for (int i=0;i<size;i++) {
+            int v =  (((_bs[_pos++] & 0xFF)      )
+                    | ((_bs[_pos++] & 0xFF) << 8 )
+                    | ((_bs[_pos++] & 0xFF) << 16)
+                    | ((_bs[_pos++] & 0xFF) << 24));
+            vs[i] = Float.intBitsToFloat(v);
+        }
+        pos = _pos;
+        return vs;
     }
 
     @Override
@@ -612,17 +676,92 @@ public class ByteArrayReader extends AbstractReader {
 
     @Override
     public List<Double> readPackedDouble() throws ProtoException {
-        return null;
+        int size = readSInt32();
+        if (size == -1) {
+            return null;
+        } else if (size == 0) {
+            return EMPTY_LIST;
+        }
+
+        if (limit - pos < (size << 3)) {
+            throw ProtoException.sizeLimitExceeded();
+        }
+        List<Double> vs = new ArrayList<>(size);
+        int _pos = pos;
+        byte[] _bs = buf;
+        for (int i=0;i<size;i++) {
+            long v = (((_bs[_pos++] & 0xFFL)      )
+                    | ((_bs[_pos++] & 0xFFL) << 8 )
+                    | ((_bs[_pos++] & 0xFFL) << 16)
+                    | ((_bs[_pos++] & 0xFFL) << 24)
+                    | ((_bs[_pos++] & 0xFFL) << 32 )
+                    | ((_bs[_pos++] & 0xFFL) << 40)
+                    | ((_bs[_pos++] & 0xFFL) << 48)
+                    | ((_bs[_pos++] & 0xFFL) << 56));
+            vs.add(Double.longBitsToDouble(v));
+        }
+        pos = _pos;
+        return vs;
     }
 
     @Override
     public Double[] readPackedDoubleArray() throws ProtoException {
-        return new Double[0];
+        int size = readSInt32();
+        if (size == -1) {
+            return null;
+        } else if (size == 0) {
+            return new Double[0];
+        }
+
+        if (limit - pos < (size << 3)) {
+            throw ProtoException.sizeLimitExceeded();
+        }
+        Double[] vs = new Double[size];
+        int _pos = pos;
+        byte[] _bs = buf;
+        for (int i=0;i<size;i++) {
+            long v = (((_bs[_pos++] & 0xFFL)      )
+                    | ((_bs[_pos++] & 0xFFL) << 8 )
+                    | ((_bs[_pos++] & 0xFFL) << 16)
+                    | ((_bs[_pos++] & 0xFFL) << 24 )
+                    | ((_bs[_pos++] & 0xFFL) << 32)
+                    | ((_bs[_pos++] & 0xFFL) << 40 )
+                    | ((_bs[_pos++] & 0xFFL) << 48)
+                    | ((_bs[_pos++] & 0xFFL) << 56));
+            vs[i] = Double.longBitsToDouble(v);
+        }
+        pos = _pos;
+        return vs;
     }
 
     @Override
     public double[] readPackedDoubleArrayValue() throws ProtoException {
-        return new double[0];
+        int size = readSInt32();
+        if (size == -1) {
+            return null;
+        } else if (size == 0) {
+            return new double[0];
+        }
+
+        if (limit - pos < (size << 3)) {
+            throw ProtoException.sizeLimitExceeded();
+        }
+        double[] vs = new double[size];
+        int _pos = pos;
+        byte[] _bs = buf;
+        for (int i=0;i<size;i++) {
+            long v = (((_bs[_pos++] & 0xFFL)      )
+                    | ((_bs[_pos++] & 0xFFL) << 8 )
+                    | ((_bs[_pos++] & 0xFFL) << 16)
+                    | ((_bs[_pos++] & 0xFFL) << 24)
+                    | ((_bs[_pos++] & 0xFFL) << 32)
+                    | ((_bs[_pos++] & 0xFFL) << 40)
+                    | ((_bs[_pos++] & 0xFFL) << 48)
+                    | ((_bs[_pos++] & 0xFFL) << 56));
+            vs[i] = Double.longBitsToDouble(v);
+        }
+        pos = _pos;
+        return vs;
     }
 
     @Override
