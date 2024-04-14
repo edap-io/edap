@@ -781,26 +781,83 @@ public class ByteArrayReader extends AbstractReader {
 
     @Override
     public long readFixed64() throws ProtoException {
-        return 0;
+        int _pos = pos;
+        if (limit - _pos < 8) {
+            throw ProtoException.malformedVarint();
+        }
+        byte[] _bs = buf;
+        long v =     (((_bs[_pos++] & 0xFFL)      )
+                    | ((_bs[_pos++] & 0xFFL) << 8 )
+                    | ((_bs[_pos++] & 0xFFL) << 16)
+                    | ((_bs[_pos++] & 0xFFL) << 24)
+                    | ((_bs[_pos++] & 0xFFL) << 32)
+                    | ((_bs[_pos++] & 0xFFL) << 40)
+                    | ((_bs[_pos++] & 0xFFL) << 48)
+                    | ((_bs[_pos++] & 0xFFL) << 56));
+        pos = _pos;
+        return v;
     }
 
     @Override
     public long readSFixed64() throws ProtoException {
-        return 0;
+        int _pos = pos;
+        if (limit - _pos < 8) {
+            throw ProtoException.malformedVarint();
+        }
+        byte[] _bs = buf;
+        long v = (((_bs[_pos++] & 0xFFL)      )
+                | ((_bs[_pos++] & 0xFFL) << 8 )
+                | ((_bs[_pos++] & 0xFFL) << 16)
+                | ((_bs[_pos++] & 0xFFL) << 24)
+                | ((_bs[_pos++] & 0xFFL) << 32)
+                | ((_bs[_pos++] & 0xFFL) << 40)
+                | ((_bs[_pos++] & 0xFFL) << 48)
+                | ((_bs[_pos++] & 0xFFL) << 56));
+        pos = _pos;
+        return EprotoReader.decodeZigZag64(v);
     }
 
     @Override
     public double readDouble() throws ProtoException {
-        return 0;
+        int _pos = pos;
+        if (limit - _pos < 8) {
+            throw ProtoException.malformedVarint();
+        }
+        byte[] _bs = buf;
+        long v = (((_bs[_pos++] & 0xFFL)      )
+                | ((_bs[_pos++] & 0xFFL) << 8 )
+                | ((_bs[_pos++] & 0xFFL) << 16)
+                | ((_bs[_pos++] & 0xFFL) << 24)
+                | ((_bs[_pos++] & 0xFFL) << 32)
+                | ((_bs[_pos++] & 0xFFL) << 40)
+                | ((_bs[_pos++] & 0xFFL) << 48)
+                | ((_bs[_pos++] & 0xFFL) << 56));
+        pos = _pos;
+
+        return Double.longBitsToDouble(v);
     }
 
     @Override
     public byte[] readBytes() throws ProtoException {
-        return new byte[0];
+        int size = readSInt32();
+        if (size == -1) {
+            return null;
+        } else if (size == 0) {
+            return new byte[0];
+        }
+        if (limit - pos < size) {
+            throw ProtoException.malformedVarint();
+        }
+        byte[] data = new byte[size];
+        System.arraycopy(buf, pos, data, 0, size);
+        pos += size;
+        return data;
     }
 
     @Override
     public String readString() throws ProtoException {
+        byte b = buf[pos++];
+
         return null;
     }
 

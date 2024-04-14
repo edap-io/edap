@@ -2301,17 +2301,17 @@ public abstract class AbstractWriter implements EprotoWriter {
     private <T> void writeMessage0(T msg, EprotoEncoder<T> encoder) throws EncodeException {
         if (msg == null) {
             expand(FIXED_32_SIZE);
-            writeFixed32_0(0);
+            writeFixed32_0(-1);
         } else {
             int oldPos = pos;
             pos += FIXED_32_SIZE;
             encoder.encode(this, msg);
             int len = pos - oldPos - 4;
             byte[] _bs = bs;
-            _bs[oldPos++] = (byte) ((len) & 0xFF);
-            _bs[oldPos++] = (byte) ((len >> 8) & 0xFF);
+            _bs[oldPos++] = (byte) ((len      ) & 0xFF);
+            _bs[oldPos++] = (byte) ((len >>  8) & 0xFF);
             _bs[oldPos++] = (byte) ((len >> 16) & 0xFF);
-            _bs[oldPos] = (byte) ((len >> 24) & 0xFF);
+            _bs[oldPos]   = (byte) ((len >> 24) & 0xFF);
         }
     }
 
