@@ -648,11 +648,17 @@ public class ConvertorGenerator {
             }
         }
         for (ConvertInfo cinfo : convertInfos) {
-            if (isSameType(cinfo.orignalInfo.field, cinfo.destInfo.field)) {
+            Convertor convertor;
+            if (mcs.containsKey(cinfo.orignalInfo.field.getName())) {
+                convertor = mcs.get(cinfo.orignalInfo.field.getName()).getConvertor();
+            } else {
+                convertor = null;
+            }
+            if (isSameType(cinfo.orignalInfo.field, cinfo.destInfo.field) && convertor == null) {
                 continue;
             } else if ("java.lang.String".equals(cinfo.destInfo.field.getType().getName())
                     && (!mcs.containsKey(cinfo.orignalInfo.field.getName())
-                    || (mcs.containsKey(cinfo.orignalInfo.field.getName()) && mcs.get(cinfo.orignalInfo.field.getName()).getConvertor() == null))) {
+                    || (mcs.containsKey(cinfo.orignalInfo.field.getName()) && convertor == null))) {
                 if (cinfo.orignalInfo.field.getType().isPrimitive() || isPojo(cinfo.orignalInfo.field.getGenericType())
                         || cinfo.orignalInfo.field.getType().isEnum()) {
                     continue;
