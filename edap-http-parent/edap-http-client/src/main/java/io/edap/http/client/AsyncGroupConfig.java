@@ -10,8 +10,8 @@ import java.util.Map;
  */
 public class AsyncGroupConfig {
 
-    private Map<String, Integer> hostQpsLimits = new HashMap<>();
-    private Map<String, Integer> hostConCountLimits = new HashMap<>();
+    private final Map<String, Integer> hostQpsLimits = new HashMap<>();
+    private final Map<String, Integer> hostConCountLimits = new HashMap<>();
 
     /**
      * 超时时间默认30秒
