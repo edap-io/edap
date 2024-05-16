@@ -52,7 +52,7 @@
         <module>edap-data-parent</module>
         <module>edap-rpc</module>
         <module>edap-http-parent</module>
-        <module>edap-protobuf-parent</module>
+        <module>edap-protocol-parent</module>
         <module>edap-log-parent</module>
         <module>edap-container</module>
 

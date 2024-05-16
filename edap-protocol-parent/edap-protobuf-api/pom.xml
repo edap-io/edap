@@ -4,25 +4,27 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
     <parent>
+        <artifactId>edap-protocol-parent</artifactId>
         <groupId>io.edap</groupId>
-        <artifactId>edap</artifactId>
         <version>${edap.version}</version>
     </parent>
 
-    <artifactId>edap-protobuf-parent</artifactId>
-    <packaging>pom</packaging>
+    <artifactId>edap-protobuf-api</artifactId>
 
     <properties>
         <maven.compiler.source>8</maven.compiler.source>
         <maven.compiler.target>8</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
+    <dependencies>
+        <dependency>
+            <groupId>io.edap</groupId>
+            <artifactId>edap-protobuf-wire</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.edap</groupId>
+            <artifactId>edap-common</artifactId>
+        </dependency>
+    </dependencies>
 
-    <modules>
-        <module>edap-protobuf-wire</module>
-        <module>edap-protobuf</module>
-        <module>edap-protobuf-idl</module>
-        <module>edap-eproto</module>
-        <module>edap-protobuf-api</module>
-    </modules>
 </project>
