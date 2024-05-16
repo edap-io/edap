@@ -37,6 +37,12 @@ public class TestAsyncGroupConfig {
         assertEquals(limits.size(), 1);
         assertEquals(limits.containsKey("www.easyea.com"), true);
         assertEquals(limits.get("www.easyea.com"), count);
+
+        limits = config.getHostQpsLimits();
+        assertNotNull(limits);
+        assertEquals(limits.size(), 1);
+        assertEquals(limits.containsKey("www.easyea.com"), true);
+        assertEquals(limits.get("www.easyea.com"), count);
     }
 
     @Test
@@ -53,6 +59,13 @@ public class TestAsyncGroupConfig {
         Field hostQpsLimitsMethod = AsyncGroupConfig.class.getDeclaredField("hostQpsLimits");
         hostQpsLimitsMethod.setAccessible(true);
         Map<String, Integer> hostLimits = (Map<String, Integer>)hostQpsLimitsMethod.get(config);
+        assertNotNull(hostLimits);
+        assertEquals(hostLimits.size(), 3);
+        assertEquals(hostLimits.get("www.easyea.com"), count1);
+        assertEquals(hostLimits.get("www.edap.io"), count2);
+        assertEquals(hostLimits.get("www.erpc.dev:8090"), count3);
+
+        hostLimits = config.getHostQpsLimits();
         assertNotNull(hostLimits);
         assertEquals(hostLimits.size(), 3);
         assertEquals(hostLimits.get("www.easyea.com"), count1);
@@ -82,6 +95,12 @@ public class TestAsyncGroupConfig {
         assertEquals(limits.size(), 1);
         assertEquals(limits.containsKey("www.easyea.com"), true);
         assertEquals(limits.get("www.easyea.com"), count);
+
+        limits = config.getHostConCountLimits();
+        assertNotNull(limits);
+        assertEquals(limits.size(), 1);
+        assertEquals(limits.containsKey("www.easyea.com"), true);
+        assertEquals(limits.get("www.easyea.com"), count);
     }
 
     @Test
@@ -98,6 +117,13 @@ public class TestAsyncGroupConfig {
         Field hostConCountLimitsMethod = AsyncGroupConfig.class.getDeclaredField("hostConCountLimits");
         hostConCountLimitsMethod.setAccessible(true);
         Map<String, Integer> hostLimits = (Map<String, Integer>)hostConCountLimitsMethod.get(config);
+        assertNotNull(hostLimits);
+        assertEquals(hostLimits.size(), 3);
+        assertEquals(hostLimits.get("www.easyea.com"), count1);
+        assertEquals(hostLimits.get("www.edap.io"), count2);
+        assertEquals(hostLimits.get("www.erpc.dev:8090"), count3);
+
+        hostLimits = (Map<String, Integer>)hostConCountLimitsMethod.get(config);
         assertNotNull(hostLimits);
         assertEquals(hostLimits.size(), 3);
         assertEquals(hostLimits.get("www.easyea.com"), count1);
