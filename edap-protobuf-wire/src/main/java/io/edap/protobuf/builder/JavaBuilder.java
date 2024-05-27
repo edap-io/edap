@@ -96,15 +96,15 @@ public class JavaBuilder {
         String type = field.getTypeString();
         if (field instanceof MapField) {
             MapField mf = (MapField)field;
-            type = "Map<" + getJavaType(mf.getKey().value()) + ", "
-                    + getJavaType(mf.getValue()) + ">";
+            type = "Map<" + getJavaType(mf.getKey().value(), true) + ", "
+                    + getJavaType(mf.getValue(), true) + ">";
             return type;
         }
         String jType = getOptionJavaType(field.getOptions());
         if (!BASE_TYPES.contains(type.toLowerCase(Locale.ENGLISH))) {
             return type;
         }
-        JavaType javaType = null;
+        JavaType javaType;
         javaType = Type.valueOf(type.toUpperCase(Locale.ENGLISH)).javaType();
         if (javaType != null && javaType.getTypeString() != null) {
             if (buildOps.isUseBoxed()) {
@@ -154,8 +154,37 @@ public class JavaBuilder {
     }
 
     public String getJavaType(String type) {
+        return getJavaType(type, false);
+    }
+
+    public String getJavaType(String type, boolean needBoxedType) {
         if (BASE_TYPES.contains(type.toLowerCase(Locale.ENGLISH))) {
-            return Type.valueOf(type.toUpperCase(Locale.ENGLISH)).javaType().getTypeString();
+            if (needBoxedType) {
+                switch (type) {
+                    case "int32":
+                    case "unit32":
+                    case "sint32":
+                    case "fixed32":
+                    case "sfixed32":
+                        return "Integer";
+                    case "int64":
+                    case "unit64":
+                    case "sint64":
+                    case "fixed64":
+                    case "sfixed64":
+                        return "Long";
+                    case "bool":
+                        return "Boolean";
+                    case "float":
+                        return "Float";
+                    case "double":
+                        return "Double";
+                    default:
+                        return Type.valueOf(type.toUpperCase(Locale.ENGLISH)).javaType().getTypeString();
+                }
+            } else {
+                return Type.valueOf(type.toUpperCase(Locale.ENGLISH)).javaType().getTypeString();
+            }
         } else {
             return type;
         }
