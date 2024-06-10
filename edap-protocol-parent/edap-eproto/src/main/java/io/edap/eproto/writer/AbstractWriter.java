@@ -90,12 +90,14 @@ public abstract class AbstractWriter implements EprotoWriter {
         byte[] data = StringUtil.getValue(v);
         int len = data.length;
         expand(MAX_VARINT_SIZE + len + 1);
+        // latin1编码的byte[]
         if (isLatin1(v)) {
-            bs[pos++] = ZIGZAG32_ZERO;
-        } else {
             bs[pos++] = ZIGZAG32_ONE;
+        } else {
+            // utf16编码的byte[]
+            bs[pos++] = ZIGZAG32_TWO;
         }
-        writeUInt32_0(encodeZigZag32(len));
+        writeUInt32_0(len);
         System.arraycopy(data, 0, bs, pos, len);
         pos += len;
     }
@@ -189,8 +191,7 @@ public abstract class AbstractWriter implements EprotoWriter {
             expand(1);
             bs[pos++] = ZIGZAG32_NEGATIVE_ONE;
         } else {
-            expand(1);
-            bs[pos++] = value?ZIGZAG32_ONE:ZIGZAG32_ZERO;
+            writeBool(value.booleanValue());
         }
     }
 
@@ -353,8 +354,14 @@ public abstract class AbstractWriter implements EprotoWriter {
     @Override
     public void writeFloat(Float value) {
         if (value == null || value == 0) {
-            expand(1);
-            bs[pos++] = ZIGZAG32_ZERO;
+            expand(4);
+            byte[] _bs  = bs;
+            int    _pos = pos;
+            _bs[_pos++] = 0;
+            _bs[_pos++] = 0;
+            _bs[_pos++] = 0;
+            _bs[_pos++] = 0;
+            pos = _pos;
         } else {
             expand(FIXED_32_SIZE);
             writeFixed32_0(Float.floatToRawIntBits(value));

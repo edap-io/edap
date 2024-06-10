@@ -40,6 +40,13 @@
             <artifactId>asm-util</artifactId>
             <scope>test</scope>
         </dependency>
+
+        <!-- d单元测试相关依赖 -->
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
 </project>

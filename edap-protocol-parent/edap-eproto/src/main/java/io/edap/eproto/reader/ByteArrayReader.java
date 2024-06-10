@@ -4,11 +4,16 @@ import io.edap.eproto.EprotoDecoder;
 import io.edap.eproto.EprotoReader;
 import io.edap.protobuf.ProtoException;
 import io.edap.protobuf.wire.Field;
+import io.edap.util.StringUtil;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
+import static io.edap.eproto.writer.AbstractWriter.*;
+import static io.edap.protobuf.wire.WireFormat.FIXED_32_SIZE;
+import static io.edap.util.Constants.EMPTY_STRING;
 import static java.util.Collections.EMPTY_LIST;
 
 import static io.edap.eproto.EprotoReader.decodeZigZag32;
@@ -857,7 +862,14 @@ public class ByteArrayReader extends AbstractReader {
     @Override
     public String readString() throws ProtoException {
         byte b = buf[pos++];
-
+        if (b == ZIGZAG32_NEGATIVE_ONE) {
+            return null;
+        } else if (b == ZIGZAG32_ZERO) {
+            return EMPTY_STRING;
+        } else if (b == ZIGZAG32_ONE) {
+            int len = readInt32();
+            return new String(buf, pos, len);
+        }
         return null;
     }
 
@@ -888,11 +900,62 @@ public class ByteArrayReader extends AbstractReader {
 
     @Override
     int readRawVarint32() throws ProtoException {
-        return 0;
+        fastpath: {
+            int tmpPos = pos;
+            if (tmpPos == limit) {
+                break fastpath;
+            }
+            int x;
+            if ((x = buf[tmpPos++]) >= 0) {
+                pos = tmpPos;
+                return x;
+            } else if (limit - tmpPos < 9) {
+                break fastpath;
+            } else if ((x ^= (buf[tmpPos++] << 7)) < 0) {
+                x ^= (~0 << 7);
+            } else if ((x ^= (buf[tmpPos++] << 14)) >= 0) {
+                x ^= (~0 << 7) ^ (~0 << 14);
+            } else if ((x ^= (buf[tmpPos++] << 21)) < 0) {
+                x ^= (~0 << 7) ^ (~0 << 14) ^ (~0 << 21);
+            } else {
+                int y = buf[tmpPos++];
+                x ^= y << 28;
+                x ^= (~0 << 7) ^ (~0 << 14) ^ (~0 << 21) ^ (~0 << 28);
+                if (y < 0
+                        && buf[tmpPos++] < 0
+                        && buf[tmpPos++] < 0
+                        && buf[tmpPos++] < 0
+                        && buf[tmpPos++] < 0
+                        && buf[tmpPos++] < 0) {
+                    break fastpath;
+                }
+            }
+            pos = tmpPos;
+            return x;
+        }
+        return (int) readRawVarint64SlowPath();
+    }
+
+    private long readRawVarint64SlowPath() throws ProtoException {
+        long result = 0;
+        for (int shift = 0; shift < 64 && pos < limit; shift += 7) {
+            final byte b = buf[pos++];
+            result |= (long) (b & 0x7F) << shift;
+            if ((b & 0x80) == 0) {
+                return result;
+            }
+        }
+        throw ProtoException.malformedVarint();
     }
 
     @Override
     int readRawLittleEndian32() throws ProtoException {
-        return 0;
+        if (limit - pos < FIXED_32_SIZE) {
+            throw ProtoException.truncatedMessage();
+        }
+        return   (((buf[pos++] & 0xFF))
+                | ((buf[pos++] & 0xFF) << 8)
+                | ((buf[pos++] & 0xFF) << 16)
+                | ((buf[pos++] & 0xFF) << 24));
     }
 }
