@@ -9,16 +9,7 @@ public class TestUtils {
         Random random = new Random();
         StringBuilder sb = new StringBuilder();
         for (int i=0;i<count;i++) {
-            String s;
-            while (true) {
-                try {
-                    s = new String(new byte[]{(byte)random.nextInt(max), (byte)random.nextInt(max)}, "utf-8");
-                    break;
-                } catch (Exception e) {
-
-                }
-            }
-            sb.append(s);
+            sb.append((char)random.nextInt(max));
         }
         return sb.toString();
     }

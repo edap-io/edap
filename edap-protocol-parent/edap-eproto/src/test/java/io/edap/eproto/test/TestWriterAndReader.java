@@ -7,13 +7,15 @@ import io.edap.io.ByteArrayBufOut;
 import io.edap.protobuf.ProtoException;
 import org.junit.jupiter.api.Test;
 
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Random;
 
 import static io.edap.eproto.test.TestUtils.randomLatin1;
-import static io.edap.eproto.writer.AbstractWriter.ZIGZAG32_ONE;
-import static io.edap.eproto.writer.AbstractWriter.ZIGZAG32_ZERO;
+import static io.edap.eproto.test.TestUtils.randomUtf8;
+import static io.edap.eproto.writer.AbstractWriter.*;
 import static io.edap.util.Constants.EMPTY_STRING;
+import static io.edap.util.StringUtil.IS_BYTE_ARRAY;
 import static org.junit.jupiter.api.Assertions.*;
 
 public class TestWriterAndReader {
@@ -174,23 +176,43 @@ public class TestWriterAndReader {
         assertNotNull(s);
         assertEquals(s.length(), 0);
 
+        // 测试latin1编码的字符串编解码逻辑
         s = randomLatin1(100);
         writer.reset();
         writer.writeString(s);
 
         data = writer.toByteArray();
         assertNotNull(data);
-        assertEquals(data.length, 203);
+        assertEquals(data.length, 102);
         assertEquals(data[0], ZIGZAG32_ONE);
-        assertEquals(data[1], -56);
-        assertEquals(data[2], 1);
-        assertArrayEquals(Arrays.copyOfRange(data, 3, 203), s.getBytes());
+        assertEquals(data[1], 100);
+        assertArrayEquals(Arrays.copyOfRange(data, 2, 102), s.getBytes());
 
         reader = new ByteArrayReader(data);
-        s = reader.readString();
-        assertNotNull(s);
-        assertEquals(s.length(), 0);
+        String result = reader.readString();
+        assertNotNull(result);
+        assertEquals(result.length(), 100);
+        assertEquals(s, result);
 
+        // 测试utf8编码字符串的编解码逻辑
+        if (IS_BYTE_ARRAY) {
+            s = randomUtf8(100);
+            writer.reset();
+            writer.writeString(s);
+
+            data = writer.toByteArray();
+            assertNotNull(data);
+            assertEquals(data.length, 203);
+            assertEquals(data[0], ZIGZAG32_TWO);
+            assertEquals(data[1], -56);
+            assertEquals(data[2], 1);
+            assertArrayEquals(Arrays.copyOfRange(data, 3, 203), s.getBytes(StandardCharsets.UTF_16LE));
+
+            reader = new ByteArrayReader(data);
+            s = reader.readString();
+            assertNotNull(s);
+            assertEquals(s.length(), 0);
+        }
     }
 
 
