@@ -126,4 +126,16 @@ public class UnsafeUtil {
     public static int readByte(long address) {
         return UNSAFE.getByte(address);
     }
+
+    public static void putByte(Object obj, long offset, byte b) {
+        UNSAFE.putByte(obj, offset, b);
+    }
+
+    public static void putObject(Object obj, long offset, Object value) {
+        UNSAFE.putObject(obj, offset, value);
+    }
+
+    public static Object allocateInstance(Class<?> clazz) throws InstantiationException {
+        return UNSAFE.allocateInstance(clazz);
+    }
 }

@@ -15,6 +15,7 @@ import static io.edap.eproto.writer.AbstractWriter.*;
 import static io.edap.protobuf.wire.WireFormat.FIXED_32_SIZE;
 import static io.edap.util.Constants.EMPTY_STRING;
 import static io.edap.util.StringUtil.IS_BYTE_ARRAY;
+import static io.edap.util.StringUtil.fastInstance;
 import static java.util.Collections.EMPTY_LIST;
 
 import static io.edap.eproto.EprotoReader.decodeZigZag32;
@@ -869,11 +870,23 @@ public class ByteArrayReader extends AbstractReader {
             return EMPTY_STRING;
         } else if (b == ZIGZAG32_ONE) {
             int len = readInt32();
-            return new String(buf, pos, len);
+            byte[] data = new byte[len];
+            System.arraycopy(buf, pos, data, 0, len);
+            try {
+                return fastInstance(data, (byte)0);
+            } catch (InstantiationException e) {
+                throw new ProtoException(e);
+            }
         } else if (b == ZIGZAG32_TWO) {
             int len = readInt32();
+            byte[] data = new byte[len];
+            System.arraycopy(buf, pos, data, 0, len);
             if (IS_BYTE_ARRAY) {
-
+                try {
+                    return fastInstance(data, (byte)1);
+                } catch (InstantiationException e) {
+                    throw new ProtoException(e);
+                }
             }
         }
         return null;

@@ -109,9 +109,22 @@ public class StringUtil {
             //return LATIN1_FIELD.getByte(s) == 0;
             return UnsafeUtil.getByte(s, CODER_FIELD_OFFSET) == 0;
         } catch (Throwable e) {
-            e.printStackTrace();
+            LOG.error("UnsafeUtil.getByte error", e);
         }
         return false;
+    }
+
+    /**
+     * jdk9以上根据指定的byte数组和coder快速生成String的实例
+     * @param data
+     * @param coder
+     * @return
+     */
+    public static String fastInstance(byte[] data, byte coder) throws InstantiationException {
+        Object s = UnsafeUtil.allocateInstance(String.class);
+        UnsafeUtil.putByte(s, CODER_FIELD_OFFSET, coder);
+        UnsafeUtil.putObject(s, VALUE_FIELD_OFFSET, data);
+        return (String)s;
     }
 
     /**

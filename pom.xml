@@ -31,7 +31,7 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven.compiler.source>17</maven.compiler.source>
         <maven.compiler.target>17</maven.compiler.target>
-        <junit.jupiter.version>5.5.2</junit.jupiter.version>
+        <junit.jupiter.version>5.11.0-M2</junit.jupiter.version>
         <asm.version>9.4</asm.version>
         <protobuf.java.verson>3.16.1</protobuf.java.verson>
         <qdox.verqdoxsion>2.0.3</qdox.verqdoxsion>

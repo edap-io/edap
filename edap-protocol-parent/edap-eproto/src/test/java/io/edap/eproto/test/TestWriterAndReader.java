@@ -6,10 +6,10 @@ import io.edap.io.BufOut;
 import io.edap.io.ByteArrayBufOut;
 import io.edap.protobuf.ProtoException;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledOnJre;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
-import java.util.Random;
 
 import static io.edap.eproto.test.TestUtils.randomLatin1;
 import static io.edap.eproto.test.TestUtils.randomUtf8;
@@ -17,6 +17,7 @@ import static io.edap.eproto.writer.AbstractWriter.*;
 import static io.edap.util.Constants.EMPTY_STRING;
 import static io.edap.util.StringUtil.IS_BYTE_ARRAY;
 import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.condition.JRE.*;
 
 public class TestWriterAndReader {
 
@@ -209,9 +210,9 @@ public class TestWriterAndReader {
             assertArrayEquals(Arrays.copyOfRange(data, 3, 203), s.getBytes(StandardCharsets.UTF_16LE));
 
             reader = new ByteArrayReader(data);
-            s = reader.readString();
-            assertNotNull(s);
-            assertEquals(s.length(), 0);
+            result = reader.readString();
+            assertNotNull(result);
+            assertEquals(result.length(), 100);
         }
     }
 
