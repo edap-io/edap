@@ -23,6 +23,8 @@ import java.lang.reflect.Field;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 
+import static io.edap.util.UnsafeUtil.copyMemory;
+
 /**
  * 字符串常用的操作函数
  */
@@ -99,6 +101,21 @@ public class StringUtil {
         return s.getBytes(UTF8_CHARSET);
     }
 
+    public static char[] getCharValue(String s) {
+        if (s == null) {
+            return null;
+        }
+        if (!IS_BYTE_ARRAY) {
+            try {
+                //return (byte[])VALUE_FIELD.get(s);
+                return (char[]) UnsafeUtil.getValue(s, VALUE_FIELD_OFFSET);
+            } catch (Throwable e) {
+                LOG.warn("", e);
+            }
+        }
+        return s.toCharArray();
+    }
+
     /**
      * jdk版本高于jdk9时判断String是否是Latin1编码
      * @param s
@@ -134,5 +151,16 @@ public class StringUtil {
      */
     public static boolean isEmpty(String str) {
         return str==null || str.isEmpty();
+    }
+
+
+    public static void main(String[] args) {
+        String s = "我们😁";
+        Object v = UnsafeUtil.getValue(s, VALUE_FIELD_OFFSET);
+        System.out.println(v);
+        byte[] bs = new byte[8];
+        copyMemory(s, VALUE_FIELD_OFFSET, bs, 0, 8);
+        String d = new String(bs, StandardCharsets.UTF_16);
+        System.out.println(d);
     }
 }

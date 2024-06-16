@@ -17,8 +17,7 @@ import java.util.List;
 import static io.edap.eproto.EprotoWriter.encodeZigZag32;
 import static io.edap.eproto.EprotoWriter.encodeZigZag64;
 import static io.edap.protobuf.wire.WireFormat.*;
-import static io.edap.util.StringUtil.IS_BYTE_ARRAY;
-import static io.edap.util.StringUtil.isLatin1;
+import static io.edap.util.StringUtil.*;
 
 public abstract class AbstractWriter implements EprotoWriter {
 
@@ -111,26 +110,32 @@ public abstract class AbstractWriter implements EprotoWriter {
             expand(MAX_VARINT_SIZE + maxBytes);
             bs[pos++] = ZIGZAG32_TWO;
             writeUInt32_0(encodeZigZag32(charLen));
-            pos += writeChars(v, 0, charLen, pos);
+            if (charLen < 16) {
+                pos += writeChars(v, 0, charLen, pos);
+            } else {
+                char[] cs = getCharValue(v);
+                pos += writeChars(cs, 0, charLen, pos);
+            }
             return;
         }
 
         // 每次取最大为1024个字符进行写入
         int start = 0;
         int end = Math.min((start + 1024), charLen);
+        char[] cs = getCharValue(v);
 
         expand(maxBytes + MAX_VARINT_SIZE);
         bs[pos++] = ZIGZAG32_TWO;
         writeUInt32_0(encodeZigZag32(charLen));
         while (start < charLen) {
             expand(3072);
-            pos += writeChars(v, start, end, pos);
+            pos += writeChars(cs, 0, end, pos);
             start += 1024;
             end = Math.min((start + 1024), charLen);
         }
     }
 
-    protected final int writeChars( final String value, int start, int end, int pos){
+    protected final int writeChars(final String value, int start, int end, int pos){
         String v = value;
         int p = pos;
         byte[] _bs = this.bs;
@@ -139,33 +144,49 @@ public abstract class AbstractWriter implements EprotoWriter {
             char c = v.charAt(i);
             if (c < 128) {
                 _bs[p++] = (byte) c;
+            } else if (c < 0x800) {
+                _bs[p++] = (byte) ((0xF << 6) | (c >>> 6));
+                _bs[p++] = (byte) (0x80 | (0x3F & c));
+            } else if (c >= '\ud800' && c <= '\udfff') {
+                int codePoint = Character.toCodePoint((char) c, (char) value.charAt(i + 1));
+                _bs[p++] = (byte) (0xF0 | ((codePoint >> 18) & 0x07));
+                _bs[p++] = (byte) (0x80 | ((codePoint >> 12) & 0x3F));
+                _bs[p++] = (byte) (0x80 | ((codePoint >> 6) & 0x3F));
+                _bs[p++] = (byte) (0x80 | (codePoint & 0x3F));
+                i++;
             } else {
-
+                _bs[p++] = (byte) ((0xF << 5) | (c >>> 12));
+                _bs[p++] = (byte) (0x80 | (0x3F & (c >>> 6)));
+                _bs[p++] = (byte) (0x80 | (0x3F & c));
             }
         }
-//        for (;i < end; i++) {
-//            char c = v.charAt(i);
-//            if (c < 128) {
-//                _bs[p++] = (byte) c;
-//            }
-//            if (c < 128) {
-//                _bs[p++] = (byte) c;
-//            } else if (c < 0x800) {
-//                _bs[p++] = (byte) ((0xF << 6) | (c >>> 6));
-//                _bs[p++] = (byte) (0x80 | (0x3F & c));
-//            } else if (c >= '\ud800' && c <= '\udfff') {
-//                int codePoint = Character.toCodePoint((char) c, (char) value.charAt(i + 1));
-//                _bs[p++] = (byte) (0xF0 | ((codePoint >> 18) & 0x07));
-//                _bs[p++] = (byte) (0x80 | ((codePoint >> 12) & 0x3F));
-//                _bs[p++] = (byte) (0x80 | ((codePoint >> 6) & 0x3F));
-//                _bs[p++] = (byte) (0x80 | (codePoint & 0x3F));
-//                i++;
-//            } else {
-//                _bs[p++] = (byte) ((0xF << 5) | (c >>> 12));
-//                _bs[p++] = (byte) (0x80 | (0x3F & (c >>> 6)));
-//                _bs[p++] = (byte) (0x80 | (0x3F & c));
-            //}
-        //}
+        return p - pos;
+    }
+
+    protected final int writeChars( final char[] value, int start, int end, int pos){
+        int p = pos;
+        byte[] _bs = this.bs;
+        int i = start;
+        for (;i < end; i++) {
+            char c = value[i];
+            if (c < 128) {
+                _bs[p++] = (byte) c;
+            } else if (c < 0x800) {
+                _bs[p++] = (byte) ((0xF << 6) | (c >>> 6));
+                _bs[p++] = (byte) (0x80 | (0x3F & c));
+            } else if (c >= '\ud800' && c <= '\udfff') {
+                int codePoint = Character.toCodePoint((char) c, (char) value[i + 1]);
+                _bs[p++] = (byte) (0xF0 | ((codePoint >> 18) & 0x07));
+                _bs[p++] = (byte) (0x80 | ((codePoint >> 12) & 0x3F));
+                _bs[p++] = (byte) (0x80 | ((codePoint >> 6) & 0x3F));
+                _bs[p++] = (byte) (0x80 | (codePoint & 0x3F));
+                i++;
+            } else {
+                _bs[p++] = (byte) ((0xF << 5) | (c >>> 12));
+                _bs[p++] = (byte) (0x80 | (0x3F & (c >>> 6)));
+                _bs[p++] = (byte) (0x80 | (0x3F & c));
+            }
+        }
         return p - pos;
     }
 

@@ -75,6 +75,10 @@ public class UnsafeUtil {
         copyMemory0(null, fromAddress, dst, UNSAFE.ARRAY_BYTE_BASE_OFFSET + toOffset, length);
     }
 
+    public static void copyMemory(Object src, long srcOffset, byte [] dst, int toOffset, int length) {
+        copyMemory0(src, srcOffset, dst, UNSAFE.ARRAY_BYTE_BASE_OFFSET + toOffset, length);
+    }
+
     public static void copyMemory(byte[] bs, int offset, long address, int length) {
         copyMemory0(bs, UNSAFE.ARRAY_BYTE_BASE_OFFSET + offset, null, address, length);
     }
