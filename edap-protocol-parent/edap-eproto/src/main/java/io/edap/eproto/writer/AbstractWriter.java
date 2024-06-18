@@ -227,8 +227,13 @@ public abstract class AbstractWriter implements EprotoWriter {
         if (values == null) {
             expand(1);
             bs[pos++] = ZIGZAG32_NEGATIVE_ONE;
+        } else if (values.isEmpty()) {
+            expand(1);
+            bs[pos++] = ZIGZAG32_ZERO;
         } else {
             int len = values.size();
+            expand(MAX_VARINT_SIZE + len);
+            writeUInt32_0(encodeZigZag32(len));
             byte[] _bs = bs;
             int _pos = pos;
             for (int i=0;i<len;i++) {
@@ -260,9 +265,10 @@ public abstract class AbstractWriter implements EprotoWriter {
             expand(len + MAX_VARINT_SIZE);
             writeUInt32_0(encodeZigZag32(len));
             if (len > 0) {
+                itr = values.iterator();
                 byte[] _bs = bs;
                 int _pos = pos;
-                while (itr.next()) {
+                while (itr.hasNext()) {
                     Boolean v = itr.next();
                     if (v == null) {
                         _bs[_pos++] = ZIGZAG32_NEGATIVE_ONE;
@@ -1065,9 +1071,9 @@ public abstract class AbstractWriter implements EprotoWriter {
                 bs[pos++] = ZIGZAG32_ZERO;
             } else {
                 expand(MAX_VARINT_SIZE + len);
+                writeUInt32_0(encodeZigZag32(len));
                 byte[] _bs = bs;
                 int _pos = pos;
-                writeUInt32_0(len);
                 for (int i=0;i<len;i++) {
                     _bs[_pos++] = values[i]?ZIGZAG32_ONE:ZIGZAG32_ZERO;
                 }
@@ -1089,69 +1095,11 @@ public abstract class AbstractWriter implements EprotoWriter {
             bs[pos++] = ZIGZAG32_ZERO;
         } else {
             expand(MAX_VARINT_SIZE + len);
+            writeUInt32_0(encodeZigZag32(len));
             byte[] _bs = bs;
             int _pos = pos;
-            writeUInt32_0(len);
             for (int i=0;i<len;i++) {
                 Boolean b = values[i];
-                if (b == null) {
-                    _bs[_pos++] = ZIGZAG32_NEGATIVE_ONE;
-                } else {
-                    _bs[_pos++] = b ? ZIGZAG32_ONE : ZIGZAG32_ZERO;
-                }
-            }
-            pos = _pos;
-        }
-    }
-
-    @Override
-    public void writePackedBooleans(List<Boolean> values) {
-        if (values == null) {
-            expand(1);
-            bs[pos++] = ZIGZAG32_NEGATIVE_ONE;
-            return;
-        }
-        int len = values.size();
-        if (len == 0) {
-            expand(1);
-            bs[pos++] = ZIGZAG32_ZERO;
-        } else {
-            expand(MAX_VARINT_SIZE + len);
-            byte[] _bs = bs;
-            int _pos = pos;
-            writeUInt32_0(len);
-            for (int i=0;i<len;i++) {
-                Boolean b = values.get(i);
-                if (b == null) {
-                    _bs[_pos++] = ZIGZAG32_NEGATIVE_ONE;
-                } else {
-                    _bs[_pos++] = b ? ZIGZAG32_ONE : ZIGZAG32_ZERO;
-                }
-            }
-            pos = _pos;
-        }
-    }
-
-    @Override
-    public void writePackedBooleans(Iterable<Boolean> values) {
-        if (values == null) {
-            expand(1);
-            bs[pos++] = ZIGZAG32_NEGATIVE_ONE;
-            return;
-        }
-        int len = 0;
-        for (Boolean b : values) {
-            len++;
-        }
-        if (len == 0) {
-            expand(1);
-            bs[pos++] = ZIGZAG32_ZERO;
-        } else {
-            expand(MAX_VARINT_SIZE + len);
-            byte[] _bs = bs;
-            int _pos = pos;
-            writeUInt32_0(len);
-            for (Boolean b : values) {
                 if (b == null) {
                     _bs[_pos++] = ZIGZAG32_NEGATIVE_ONE;
                 } else {

@@ -55,7 +55,12 @@ public class ByteArrayReader extends AbstractReader {
             byte[] _bs = buf;
             int _pos = pos;
             for (int i = 0; i < size; i++) {
-                list.add(_bs[_pos++] == 2 ? true : false);
+                int v = _bs[_pos++];
+                if (v == 1) {
+                    list.add(null);
+                } else {
+                    list.add(v == 2 ? true : false);
+                }
             }
             pos = _pos;
             return list;
@@ -74,7 +79,7 @@ public class ByteArrayReader extends AbstractReader {
             byte[] _bs = buf;
             int _pos = pos;
             for (int i = 0; i < size; i++) {
-                vs[i] = _bs[_pos++] == 2 ? true : false;
+                vs[i] = _bs[_pos++] == 2;
             }
             pos = _pos;
             return vs;
@@ -93,7 +98,12 @@ public class ByteArrayReader extends AbstractReader {
             byte[] _bs = buf;
             int _pos = pos;
             for (int i = 0; i < size; i++) {
-                vs[i] = _bs[_pos++] == 2 ? true : false;
+                int v = _bs[_pos++];
+                if (v == 1) {
+                    vs[i] = null;
+                } else {
+                    vs[i] = (v == 2);
+                }
             }
             pos = _pos;
             return vs;

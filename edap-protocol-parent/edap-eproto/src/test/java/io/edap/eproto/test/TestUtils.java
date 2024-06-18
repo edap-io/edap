@@ -36,4 +36,17 @@ public class TestUtils {
         }
         return sb.toString();
     }
+
+
+    public static int lenCount(int value) {
+        int len = 1;
+        while (true) {
+            if ((value & ~0x7FL) == 0) {
+                return len;
+            } else {
+                len++;
+                value >>>= 7;
+            }
+        }
+    }
 }

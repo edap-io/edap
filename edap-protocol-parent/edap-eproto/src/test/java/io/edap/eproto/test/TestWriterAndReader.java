@@ -5,14 +5,17 @@ import io.edap.eproto.writer.ByteArrayWriter;
 import io.edap.io.BufOut;
 import io.edap.io.ByteArrayBufOut;
 import io.edap.protobuf.ProtoException;
+import io.edap.protobuf.wire.Proto;
+import io.edap.protobuf.wire.exceptions.ProtoParseException;
+import io.edap.protobuf.wire.parser.ProtoParser;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledOnJre;
 
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
+import java.util.*;
 
-import static io.edap.eproto.test.TestUtils.randomLatin1;
-import static io.edap.eproto.test.TestUtils.randomUtf8;
+import static io.edap.eproto.EprotoWriter.encodeZigZag32;
+import static io.edap.eproto.test.TestUtils.*;
 import static io.edap.eproto.writer.AbstractWriter.*;
 import static io.edap.util.Constants.EMPTY_STRING;
 import static io.edap.util.StringUtil.IS_BYTE_ARRAY;
@@ -216,5 +219,290 @@ public class TestWriterAndReader {
         }
     }
 
+    @Test
+    public void testCodecBytes() throws ProtoException {
+        BufOut out = new ByteArrayBufOut();
+        ByteArrayWriter writer = new ByteArrayWriter(out);
+        byte[] bs = null;
+        writer.writeBytes(bs);
+
+        byte[] data = writer.toByteArray();
+        assertNotNull(data);
+        assertEquals(data.length, 1);
+        assertEquals(data[0], 1);
+
+        ByteArrayReader reader = new ByteArrayReader(data);
+        byte[] result = reader.readBytes();
+        assertNull(result);
+
+
+        writer.reset();
+        bs = new byte[0];
+        writer.writeBytes(bs);
+        data = writer.toByteArray();
+        assertNotNull(data);
+        assertEquals(data.length, 1);
+        assertEquals(data[0], 0);
+
+        reader = new ByteArrayReader(data);
+        result = reader.readBytes();
+        assertNotNull(result);
+        assertEquals(result.length, 0);
+
+
+        writer.reset();
+        bs = randomUtf8(new Random().nextInt(30,200)).getBytes(StandardCharsets.UTF_8);
+        writer.writeBytes(bs);
+        data = writer.toByteArray();
+        assertNotNull(data);
+        int len = lenCount(encodeZigZag32(bs.length));
+        assertEquals(data.length, bs.length + len);
+
+        reader = new ByteArrayReader(data);
+        result = reader.readBytes();
+        assertNotNull(result);
+        assertEquals(result.length, bs.length);
+        assertArrayEquals(result, bs);
+
+        int l = data.length;
+        byte[] ndata = new byte[l-10];
+        System.arraycopy(data, 0, ndata, 0, ndata.length);
+        ProtoException thrown = assertThrows(ProtoException.class,
+                () -> {
+                    ByteArrayReader reader2 = new ByteArrayReader(ndata);
+                    reader2.readBytes();
+                });
+
+        assertTrue(thrown.getMessage().contains("CodedInputStream encountered a malformed varint."));
+
+
+        writer.reset();
+        bs = randomUtf8(new Random().nextInt(20)).getBytes(StandardCharsets.UTF_8);
+        writer.writeBytes(bs);
+        data = writer.toByteArray();
+        assertNotNull(data);
+        len = lenCount(encodeZigZag32(bs.length));
+        assertEquals(data.length, bs.length + len);
+
+        reader = new ByteArrayReader(data);
+        result = reader.readBytes();
+        assertNotNull(result);
+        assertEquals(result.length, bs.length);
+        assertArrayEquals(result, bs);
+
+    }
+
+    @Test
+    public void testCodecPackedBoolList() throws ProtoException {
+        BufOut out = new ByteArrayBufOut();
+        ByteArrayWriter writer = new ByteArrayWriter(out);
+        List<Boolean> bs = null;
+        writer.writePackedBools(bs);
+
+        byte[] data = writer.toByteArray();
+        assertNotNull(data);
+        assertEquals(data.length, 1);
+        assertEquals(data[0], 1);
+
+        ByteArrayReader reader = new ByteArrayReader(data);
+        List<Boolean> result = reader.readPackedBool();
+        assertNull(result);
+
+
+        writer.reset();
+        bs = new ArrayList<>();
+        writer.writePackedBools(bs);
+
+        data = writer.toByteArray();
+        assertNotNull(data);
+        assertEquals(data.length, 1);
+        assertEquals(data[0], 0);
+
+        reader = new ByteArrayReader(data);
+        result = reader.readPackedBool();
+        assertNotNull(result);
+        assertTrue(result.isEmpty());
+
+
+        writer.reset();
+        bs = Arrays.asList(true, null, false, true, true);
+        writer.writePackedBools(bs);
+
+        data = writer.toByteArray();
+        assertNotNull(data);
+        assertEquals(data.length, bs.size() + 1);
+        assertArrayEquals(data, new byte[]{10, 2, 1, 0, 2, 2});
+
+        reader = new ByteArrayReader(data);
+        result = reader.readPackedBool();
+        assertNotNull(result);
+        Iterator<Boolean> itr = result.iterator();
+        for (Boolean b : bs) {
+            Boolean d = itr.next();
+            if (b == null) {
+                assertNull(d);
+            } else {
+                assertEquals(b, d);
+            }
+        }
+    }
+
+    @Test
+    public void testCodecPackedBoolIterator() throws ProtoException {
+        BufOut out = new ByteArrayBufOut();
+        ByteArrayWriter writer = new ByteArrayWriter(out);
+        Iterable<Boolean> bs = null;
+        writer.writePackedBools(bs);
+
+        byte[] data = writer.toByteArray();
+        assertNotNull(data);
+        assertEquals(data.length, 1);
+        assertEquals(data[0], 1);
+
+        ByteArrayReader reader = new ByteArrayReader(data);
+        List<Boolean> result = reader.readPackedBool();
+        assertNull(result);
+
+
+        writer.reset();
+        bs = new ArrayList<>();
+        writer.writePackedBools(bs);
+
+        data = writer.toByteArray();
+        assertNotNull(data);
+        assertEquals(data.length, 1);
+        assertEquals(data[0], 0);
+
+        reader = new ByteArrayReader(data);
+        result = reader.readPackedBool();
+        assertNotNull(result);
+        assertTrue(result.isEmpty());
+
+
+        writer.reset();
+        bs = Arrays.asList(true, null, false, true, true);
+        writer.writePackedBools(bs);
+
+        data = writer.toByteArray();
+        assertNotNull(data);
+        assertEquals(data.length, 6);
+        assertArrayEquals(data, new byte[]{10, 2, 1, 0, 2, 2});
+
+        reader = new ByteArrayReader(data);
+        result = reader.readPackedBool();
+        assertNotNull(result);
+        Iterator<Boolean> itr = result.iterator();
+        for (Boolean b : bs) {
+            Boolean d = itr.next();
+            if (b == null) {
+                assertNull(d);
+            } else {
+                assertEquals(b, d);
+            }
+        }
+    }
+
+    @Test
+    public void testCodecPackedBoolArray() throws ProtoException {
+        BufOut out = new ByteArrayBufOut();
+        ByteArrayWriter writer = new ByteArrayWriter(out);
+        boolean[] bs = null;
+        writer.writePackedBooleans(bs);
+
+        byte[] data = writer.toByteArray();
+        assertNotNull(data);
+        assertEquals(data.length, 1);
+        assertEquals(data[0], 1);
+
+        ByteArrayReader reader = new ByteArrayReader(data);
+        boolean[] result = reader.readPackedBoolValues();
+        assertNull(result);
+
+
+        writer.reset();
+        bs = new boolean[0];
+        writer.writePackedBooleans(bs);
+
+        data = writer.toByteArray();
+        assertNotNull(data);
+        assertEquals(data.length, 1);
+        assertEquals(data[0], 0);
+
+        reader = new ByteArrayReader(data);
+        result = reader.readPackedBoolValues();
+        assertNotNull(result);
+        assertTrue(result.length == 0);
+
+
+        writer.reset();
+        bs = new boolean[]{true, false, false, true, true};
+        writer.writePackedBooleans(bs);
+
+        data = writer.toByteArray();
+        assertNotNull(data);
+        assertEquals(data.length, bs.length + 1);
+        assertArrayEquals(data, new byte[]{10, 2, 0, 0, 2, 2});
+
+        reader = new ByteArrayReader(data);
+        result = reader.readPackedBoolValues();
+        assertNotNull(result);
+        assertArrayEquals(result, bs);
+    }
+
+    @Test
+    public void testCodecPackedBoolObjArray() throws ProtoException {
+        BufOut out = new ByteArrayBufOut();
+        ByteArrayWriter writer = new ByteArrayWriter(out);
+        Boolean[] bs = null;
+        writer.writePackedBooleans(bs);
+
+        byte[] data = writer.toByteArray();
+        assertNotNull(data);
+        assertEquals(data.length, 1);
+        assertEquals(data[0], 1);
+
+        ByteArrayReader reader = new ByteArrayReader(data);
+        Boolean[] result = reader.readPackedBools();
+        assertNull(result);
+
+
+        writer.reset();
+        bs = new Boolean[0];
+        writer.writePackedBooleans(bs);
+
+        data = writer.toByteArray();
+        assertNotNull(data);
+        assertEquals(data.length, 1);
+        assertEquals(data[0], 0);
+
+        reader = new ByteArrayReader(data);
+        result = reader.readPackedBools();
+        assertNotNull(result);
+        assertTrue(result.length == 0);
+
+
+        writer.reset();
+        bs = new Boolean[]{true, null, false, true, true};
+        writer.writePackedBooleans(bs);
+
+        data = writer.toByteArray();
+        assertNotNull(data);
+        assertEquals(data.length, bs.length + 1);
+        assertArrayEquals(data, new byte[]{10, 2, 1, 0, 2, 2});
+
+        reader = new ByteArrayReader(data);
+        result = reader.readPackedBools();
+        assertNotNull(result);
+        int i = 0;
+        for (Boolean b : bs) {
+            Boolean d = result[i];
+            if (b == null) {
+                assertNull(d);
+            } else {
+                assertEquals(b, d);
+            }
+            i++;
+        }
+    }
 
 }

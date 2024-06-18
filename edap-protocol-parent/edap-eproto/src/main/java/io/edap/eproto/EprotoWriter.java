@@ -59,8 +59,6 @@ public interface EprotoWriter extends BufWriter {
     void writePackedFloats(Iterable<Float> values);
     void writePackedBooleans(boolean[] values);
     void writePackedBooleans(Boolean[] values);
-    void writePackedBooleans(List<Boolean> values);
-    void writePackedBooleans(Iterable<Boolean> values);
 
     void writeLong(Long value);
     void writeLong(long value);
