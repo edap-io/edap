@@ -505,4 +505,109 @@ public class TestWriterAndReader {
         }
     }
 
+    @Test
+    public void testCodecInt32Obj() throws ProtoException {
+        BufOut out = new ByteArrayBufOut();
+        ByteArrayWriter writer = new ByteArrayWriter(out);
+        Integer value = null;
+        writer.writeInt32(value);
+
+        byte[] data = writer.toByteArray();
+        assertNotNull(data);
+        assertEquals(data.length, 1);
+        assertEquals(data[0], 0);
+
+        ByteArrayReader reader = new ByteArrayReader(data);
+        int result = reader.readInt32();
+        assertEquals(result, 0);
+
+
+        writer.reset();
+        value = Integer.valueOf(0);
+        writer.writeInt32(value);
+
+        data = writer.toByteArray();
+        assertNotNull(data);
+        assertEquals(data.length, 1);
+        assertEquals(data[0], 0);
+
+        reader = new ByteArrayReader(data);
+        result = reader.readInt32();
+        assertNotNull(result);
+        assertTrue(result == 0);
+
+
+        writer.reset();
+        value = new Random().nextInt(Integer.MIN_VALUE, Integer.MAX_VALUE);
+        int orignalValue = value;
+        writer.writeInt32(value);
+
+        data = writer.toByteArray();
+        assertNotNull(data);
+        assertEquals(data.length, lenCount(value));
+        int i = 0;
+        while (true) {
+            if ((value & ~0x7FL) == 0) {
+                assertEquals(value, data[i]);
+                break;
+            } else {
+                assertEquals((byte)(((int) value & 0x7F) | 0x80), data[i]);
+                value >>>= 7;
+            }
+            i++;
+        }
+
+        reader = new ByteArrayReader(data);
+        result = reader.readInt32();
+        assertNotNull(result);
+        assertTrue(result == orignalValue);
+    }
+
+    @Test
+    public void testCodecInt32() throws ProtoException {
+        BufOut out = new ByteArrayBufOut();
+        ByteArrayWriter writer = new ByteArrayWriter(out);
+        int value;
+
+        writer.reset();
+        value = Integer.valueOf(0);
+        writer.writeInt32(value);
+
+        byte[] data = writer.toByteArray();
+        assertNotNull(data);
+        assertEquals(data.length, 1);
+        assertEquals(data[0], 0);
+
+        ByteArrayReader reader = new ByteArrayReader(data);
+        int result = reader.readInt32();
+        assertNotNull(result);
+        assertTrue(result == 0);
+
+
+        writer.reset();
+        value = new Random().nextInt(Integer.MIN_VALUE, Integer.MAX_VALUE);
+        int orignalValue = value;
+        writer.writeInt32(value);
+
+        data = writer.toByteArray();
+        assertNotNull(data);
+        assertEquals(data.length, lenCount(value));
+        int i = 0;
+        while (true) {
+            if ((value & ~0x7FL) == 0) {
+                assertEquals(value, data[i]);
+                break;
+            } else {
+                assertEquals((byte)(((int) value & 0x7F) | 0x80), data[i]);
+                value >>>= 7;
+            }
+            i++;
+        }
+
+        reader = new ByteArrayReader(data);
+        result = reader.readInt32();
+        assertNotNull(result);
+        assertTrue(result == orignalValue);
+    }
+
 }
