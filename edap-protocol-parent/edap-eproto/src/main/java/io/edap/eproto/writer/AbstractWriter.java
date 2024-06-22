@@ -337,7 +337,10 @@ public abstract class AbstractWriter implements EprotoWriter {
     @Override
     public void writeFixed32(Integer value) {
         if (value == null || value == 0) {
-            expand(1);
+            expand(4);
+            bs[pos++] = ZIGZAG32_ZERO;
+            bs[pos++] = ZIGZAG32_ZERO;
+            bs[pos++] = ZIGZAG32_ZERO;
             bs[pos++] = ZIGZAG32_ZERO;
         } else {
             expand(FIXED_32_SIZE);
@@ -364,7 +367,10 @@ public abstract class AbstractWriter implements EprotoWriter {
     @Override
     public void writeSFixed32(Integer value) {
         if (value == null || value == 0) {
-            expand(1);
+            expand(4);
+            bs[pos++] = ZIGZAG32_ZERO;
+            bs[pos++] = ZIGZAG32_ZERO;
+            bs[pos++] = ZIGZAG32_ZERO;
             bs[pos++] = ZIGZAG32_ZERO;
         } else {
             expand(FIXED_32_SIZE);

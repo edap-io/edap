@@ -5,6 +5,7 @@ import io.edap.eproto.writer.ByteArrayWriter;
 import io.edap.io.BufOut;
 import io.edap.io.ByteArrayBufOut;
 import io.edap.protobuf.ProtoException;
+import io.edap.protobuf.wire.Field;
 import io.edap.protobuf.wire.Proto;
 import io.edap.protobuf.wire.exceptions.ProtoParseException;
 import io.edap.protobuf.wire.parser.ProtoParser;
@@ -610,4 +611,412 @@ public class TestWriterAndReader {
         assertTrue(result == orignalValue);
     }
 
+    @Test
+    public void testCodecUint32Obj() throws ProtoException {
+        BufOut out = new ByteArrayBufOut();
+        ByteArrayWriter writer = new ByteArrayWriter(out);
+        Integer value = null;
+        writer.writeUInt32(value);
+
+        byte[] data = writer.toByteArray();
+        assertNotNull(data);
+        assertEquals(data.length, 1);
+        assertEquals(data[0], 0);
+
+        ByteArrayReader reader = new ByteArrayReader(data);
+        int result = reader.readUInt32();
+        assertEquals(result, 0);
+
+
+        writer.reset();
+        value = Integer.valueOf(0);
+        writer.writeUInt32(value);
+
+        data = writer.toByteArray();
+        assertNotNull(data);
+        assertEquals(data.length, 1);
+        assertEquals(data[0], 0);
+
+        reader = new ByteArrayReader(data);
+        result = reader.readUInt32();
+        assertNotNull(result);
+        assertTrue(result == 0);
+
+
+        writer.reset();
+        value = new Random().nextInt(Integer.MIN_VALUE, Integer.MAX_VALUE);
+        int orignalValue = value;
+        writer.writeUInt32(value);
+
+        data = writer.toByteArray();
+        assertNotNull(data);
+        assertEquals(data.length, lenCount(value));
+        int i = 0;
+        while (true) {
+            if ((value & ~0x7FL) == 0) {
+                assertEquals(value, data[i]);
+                break;
+            } else {
+                assertEquals((byte)(((int) value & 0x7F) | 0x80), data[i]);
+                value >>>= 7;
+            }
+            i++;
+        }
+
+        reader = new ByteArrayReader(data);
+        result = reader.readUInt32();
+        assertNotNull(result);
+        assertTrue(result == orignalValue);
+    }
+
+    @Test
+    public void testCodecUint32() throws ProtoException {
+        BufOut out = new ByteArrayBufOut();
+        ByteArrayWriter writer = new ByteArrayWriter(out);
+
+        writer.reset();
+        int value = 0;
+        writer.writeUInt32(value);
+
+        byte[] data = writer.toByteArray();
+        assertNotNull(data);
+        assertEquals(data.length, 1);
+        assertEquals(data[0], 0);
+
+        ByteArrayReader reader = new ByteArrayReader(data);
+        int result = reader.readUInt32();
+        assertNotNull(result);
+        assertTrue(result == 0);
+
+
+        writer.reset();
+        value = new Random().nextInt(Integer.MIN_VALUE, Integer.MAX_VALUE);
+        int orignalValue = value;
+        writer.writeUInt32(value);
+
+        data = writer.toByteArray();
+        assertNotNull(data);
+        assertEquals(data.length, lenCount(value));
+        int i = 0;
+        while (true) {
+            if ((value & ~0x7FL) == 0) {
+                assertEquals(value, data[i]);
+                break;
+            } else {
+                assertEquals((byte)(((int) value & 0x7F) | 0x80), data[i]);
+                value >>>= 7;
+            }
+            i++;
+        }
+
+        reader = new ByteArrayReader(data);
+        result = reader.readUInt32();
+        assertNotNull(result);
+        assertTrue(result == orignalValue);
+    }
+
+    @Test
+    public void testCodecSint32Obj() throws ProtoException {
+        BufOut out = new ByteArrayBufOut();
+        ByteArrayWriter writer = new ByteArrayWriter(out);
+        Integer value = null;
+        writer.writeSInt32(value);
+
+        byte[] data = writer.toByteArray();
+        assertNotNull(data);
+        assertEquals(data.length, 1);
+        assertEquals(data[0], 0);
+
+        ByteArrayReader reader = new ByteArrayReader(data);
+        int result = reader.readSInt32();
+        assertEquals(result, 0);
+
+
+        writer.reset();
+        value = Integer.valueOf(0);
+        writer.writeSInt32(value);
+
+        data = writer.toByteArray();
+        assertNotNull(data);
+        assertEquals(data.length, 1);
+        assertEquals(data[0], 0);
+
+        reader = new ByteArrayReader(data);
+        result = reader.readSInt32();
+        assertNotNull(result);
+        assertTrue(result == 0);
+
+
+        writer.reset();
+        value = new Random().nextInt(Integer.MIN_VALUE, Integer.MAX_VALUE);
+        int orignalValue = value;
+        writer.writeSInt32(value);
+
+        data = writer.toByteArray();
+        assertNotNull(data);
+        assertEquals(data.length, lenCount(value));
+        int i = 0;
+        value = encodeZigZag32(value);
+        while (true) {
+            if ((value & ~0x7FL) == 0) {
+                assertEquals(value, data[i]);
+                break;
+            } else {
+                assertEquals((byte)(((int) value & 0x7F) | 0x80), data[i]);
+                value >>>= 7;
+            }
+            i++;
+        }
+
+        reader = new ByteArrayReader(data);
+        result = reader.readSInt32();
+        assertNotNull(result);
+        assertTrue(result == orignalValue);
+    }
+
+    @Test
+    public void testCodecSint32() throws ProtoException {
+        BufOut out = new ByteArrayBufOut();
+        ByteArrayWriter writer = new ByteArrayWriter(out);
+
+        writer.reset();
+        int value = 0;
+        writer.writeSInt32(value);
+
+        byte[] data = writer.toByteArray();
+        assertNotNull(data);
+        assertEquals(data.length, 1);
+        assertEquals(data[0], 0);
+
+        ByteArrayReader reader = new ByteArrayReader(data);
+        int result = reader.readSInt32();
+        assertNotNull(result);
+        assertTrue(result == 0);
+
+
+        writer.reset();
+        value = new Random().nextInt(Integer.MIN_VALUE, Integer.MAX_VALUE);
+        int orignalValue = value;
+        writer.writeSInt32(value);
+
+        data = writer.toByteArray();
+        assertNotNull(data);
+        assertEquals(data.length, lenCount(value));
+        int i = 0;
+        value = encodeZigZag32(value);
+        while (true) {
+            if ((value & ~0x7FL) == 0) {
+                assertEquals(value, data[i]);
+                break;
+            } else {
+                assertEquals((byte)(((int) value & 0x7F) | 0x80), data[i]);
+                value >>>= 7;
+            }
+            i++;
+        }
+
+        reader = new ByteArrayReader(data);
+        result = reader.readSInt32();
+        assertNotNull(result);
+        assertTrue(result == orignalValue);
+    }
+
+    @Test
+    public void testCodecFixed32Obj() throws ProtoException {
+        BufOut out = new ByteArrayBufOut();
+        ByteArrayWriter writer = new ByteArrayWriter(out);
+        Integer value = null;
+        writer.writeFixed32(value);
+
+        byte[] data = writer.toByteArray();
+        assertNotNull(data);
+        assertEquals(data.length, 4);
+        assertArrayEquals(data, new byte[]{0, 0, 0, 0});
+
+        ByteArrayReader reader = new ByteArrayReader(data);
+        int result = reader.readFixed32();
+        assertEquals(result, 0);
+
+
+        writer.reset();
+        value = Integer.valueOf(0);
+        writer.writeFixed32(value);
+
+        data = writer.toByteArray();
+        assertNotNull(data);
+        assertEquals(data.length, 4);
+        assertArrayEquals(data, new byte[]{0, 0, 0, 0});
+
+        reader = new ByteArrayReader(data);
+        result = reader.readFixed32();
+        assertNotNull(result);
+        assertTrue(result == 0);
+
+
+        writer.reset();
+        value = new Random().nextInt(Integer.MIN_VALUE, Integer.MAX_VALUE);
+        int orignalValue = value;
+        writer.writeFixed32(value);
+
+        data = writer.toByteArray();
+        assertNotNull(data);
+        assertEquals(data.length, 4);
+        int i = 0;
+        data[i++] = (byte) ((value      ) & 0xFF);
+        data[i++] = (byte) ((value >>  8) & 0xFF);
+        data[i++] = (byte) ((value >> 16) & 0xFF);
+        data[i++] = (byte) ((value >> 24) & 0xFF);
+
+        reader = new ByteArrayReader(data);
+        result = reader.readFixed32();
+        assertNotNull(result);
+        assertTrue(result == orignalValue);
+    }
+
+    @Test
+    public void testCodecFixed32() throws ProtoException {
+        BufOut out = new ByteArrayBufOut();
+        ByteArrayWriter writer = new ByteArrayWriter(out);
+
+
+        writer.reset();
+        int value = 0;
+        writer.writeFixed32(value);
+
+        byte[] data = writer.toByteArray();
+        assertNotNull(data);
+        assertEquals(data.length, 4);
+        assertArrayEquals(data, new byte[]{0, 0, 0, 0});
+
+        ByteArrayReader reader = new ByteArrayReader(data);
+        int result = reader.readFixed32();
+        assertNotNull(result);
+        assertTrue(result == 0);
+
+
+        writer.reset();
+        value = new Random().nextInt(Integer.MIN_VALUE, Integer.MAX_VALUE);
+        int orignalValue = value;
+        writer.writeFixed32(value);
+
+        data = writer.toByteArray();
+        assertNotNull(data);
+        assertEquals(data.length, 4);
+        int i = 0;
+        data[i++] = (byte) ((value      ) & 0xFF);
+        data[i++] = (byte) ((value >>  8) & 0xFF);
+        data[i++] = (byte) ((value >> 16) & 0xFF);
+        data[i++] = (byte) ((value >> 24) & 0xFF);
+
+        reader = new ByteArrayReader(data);
+        result = reader.readFixed32();
+        assertNotNull(result);
+        assertTrue(result == orignalValue);
+    }
+
+    @Test
+    public void testCodecSFixed32Obj() throws ProtoException {
+        BufOut out = new ByteArrayBufOut();
+        ByteArrayWriter writer = new ByteArrayWriter(out);
+        Integer value = null;
+        writer.writeSFixed32(value);
+
+        byte[] data = writer.toByteArray();
+        assertNotNull(data);
+        assertEquals(data.length, 4);
+        assertArrayEquals(data, new byte[]{0, 0, 0, 0});
+
+        ByteArrayReader reader = new ByteArrayReader(data);
+        int result = reader.readSFixed32();
+        assertEquals(result, 0);
+
+
+        writer.reset();
+        value = Integer.valueOf(0);
+        writer.writeSFixed32(value);
+
+        data = writer.toByteArray();
+        assertNotNull(data);
+        assertEquals(data.length, 4);
+        assertArrayEquals(data, new byte[]{0, 0, 0, 0});
+
+        reader = new ByteArrayReader(data);
+        result = reader.readSFixed32();
+        assertNotNull(result);
+        assertTrue(result == 0);
+
+
+        writer.reset();
+        value = new Random().nextInt(Integer.MIN_VALUE, Integer.MAX_VALUE);
+        int orignalValue = value;
+        writer.writeSFixed32(value);
+
+        data = writer.toByteArray();
+        assertNotNull(data);
+        assertEquals(data.length, 4);
+        int i = 0;
+        data[i++] = (byte) ((value      ) & 0xFF);
+        data[i++] = (byte) ((value >>  8) & 0xFF);
+        data[i++] = (byte) ((value >> 16) & 0xFF);
+        data[i++] = (byte) ((value >> 24) & 0xFF);
+
+        reader = new ByteArrayReader(data);
+        result = reader.readSFixed32();
+        assertNotNull(result);
+        assertTrue(result == orignalValue);
+    }
+
+    @Test
+    public void testCodecSFixed32() throws ProtoException {
+        BufOut out = new ByteArrayBufOut();
+        ByteArrayWriter writer = new ByteArrayWriter(out);
+
+
+        writer.reset();
+        int value = 0;
+        writer.writeSFixed32(value);
+
+        byte[] data = writer.toByteArray();
+        assertNotNull(data);
+        assertEquals(data.length, 4);
+        assertArrayEquals(data, new byte[]{0, 0, 0, 0});
+
+        ByteArrayReader reader = new ByteArrayReader(data);
+        int result = reader.readSFixed32();
+        assertNotNull(result);
+        assertTrue(result == 0);
+
+
+        writer.reset();
+        value = new Random().nextInt(Integer.MIN_VALUE, Integer.MAX_VALUE);
+        int orignalValue = value;
+        writer.writeSFixed32(value);
+
+        data = writer.toByteArray();
+        assertNotNull(data);
+        assertEquals(data.length, 4);
+        int i = 0;
+        data[i++] = (byte) ((value      ) & 0xFF);
+        data[i++] = (byte) ((value >>  8) & 0xFF);
+        data[i++] = (byte) ((value >> 16) & 0xFF);
+        data[i++] = (byte) ((value >> 24) & 0xFF);
+
+        reader = new ByteArrayReader(data);
+        result = reader.readSFixed32();
+        assertNotNull(result);
+        assertTrue(result == orignalValue);
+    }
+
+    @Test
+    public void testCodecPackedInts() {
+        BufOut out = new ByteArrayBufOut();
+        ByteArrayWriter writer = new ByteArrayWriter(out);
+        int[] values = null;
+        writer.writePackedInts(values, Field.Type.INT32);
+
+        byte[] data = writer.toByteArray();
+        assertNotNull(data);
+        assertEquals(data.length, 1);
+        assertEquals(data[0], ZIGZAG32_NEGATIVE_ONE);
+    }
 }
