@@ -24,6 +24,9 @@ import java.nio.ByteBuffer;
 import java.security.AccessController;
 import java.security.PrivilegedExceptionAction;
 
+import static sun.misc.Unsafe.ARRAY_BYTE_BASE_OFFSET;
+import static sun.misc.Unsafe.ARRAY_CHAR_BASE_OFFSET;
+
 /**
  * Unsafe操作的常用函数
  */
@@ -81,6 +84,10 @@ public class UnsafeUtil {
 
     public static void copyMemory(byte[] bs, int offset, long address, int length) {
         copyMemory0(bs, UNSAFE.ARRAY_BYTE_BASE_OFFSET + offset, null, address, length);
+    }
+
+    public static void copyUtf16le(char[] cs, int offset, byte[] dest, int destOffset, int len) {
+        copyMemory0(cs, ARRAY_CHAR_BASE_OFFSET + offset * 2, dest, ARRAY_BYTE_BASE_OFFSET + destOffset, len * 2);
     }
 
     static void copyMemory0(Object from, long fromOffset, Object to, long toOffset, long length) {
