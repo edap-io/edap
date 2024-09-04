@@ -93,6 +93,10 @@ public abstract class NioSession<T> extends BasePoolEntry {
      * 最大支持的管线个数，如果不支持pipeline值为0
      */
     private int maxPipeline;
+    /**
+     * 已经在处理该连接的线程标记，如果分配线程可以指定线程则将该连接分配到指定线程进行处理
+     */
+    private String theadTag;
 
     private static final MethodHandle READ0_MH;
     private static final MethodHandle WRITE0_MH;
@@ -428,5 +432,16 @@ public abstract class NioSession<T> extends BasePoolEntry {
 
     public void setMaxPipeline(int maxPipeline) {
         this.maxPipeline = maxPipeline;
+    }
+
+    /**
+     * 已经在处理该连接的线程标记，如果分配线程可以指定线程则将该连接分配到指定线程进行处理
+     */
+    public String getTheadTag() {
+        return theadTag;
+    }
+
+    public void setTheadTag(String theadTag) {
+        this.theadTag = theadTag;
     }
 }
