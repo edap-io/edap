@@ -33,11 +33,11 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * NIO连接的会话类，该类进行池化循环使用
+ * NIO连接的会话类
  * @author louis
  * @date 2019-07-07 22:29
  */
-public abstract class NioSession<T> extends BasePoolEntry {
+public abstract class NioSession<T> {
 
     private final AtomicBoolean readLock = new AtomicBoolean();
     private final AtomicBoolean writeLock = new AtomicBoolean();
