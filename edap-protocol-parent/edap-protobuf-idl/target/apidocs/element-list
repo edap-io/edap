@@ -1,0 +1,7 @@
+io.edap.protobuf.idl
+io.edap.protobuf.idl.consts
+io.edap.protobuf.idl.model
+io.edap.protobuf.idl.model.impl
+io.edap.protobuf.idl.proto
+io.edap.protobuf.idl.serviceparser
+io.edap.protobuf.idl.util

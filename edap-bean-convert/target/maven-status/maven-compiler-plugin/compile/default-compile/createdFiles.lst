@@ -1,0 +1,16 @@
+io/edap/beanconvert/AbstractConvertor$ConvertFieldInfo.class
+io/edap/beanconvert/MapperConfig.class
+io/edap/beanconvert/ConvertorRegister$SingletonHolder.class
+io/edap/beanconvert/ConvertorGenerator.class
+io/edap/beanconvert/ListConvertorGenerator.class
+io/edap/beanconvert/Convertor.class
+io/edap/beanconvert/ConvertorGenerator$ConvertInfo.class
+io/edap/beanconvert/MapperRegister.class
+io/edap/beanconvert/AbstractConvertor.class
+io/edap/beanconvert/util/ConvertUtil.class
+io/edap/beanconvert/ConvertorRegister.class
+io/edap/beanconvert/ConvertorRegister$ConvertorLoader.class
+io/edap/beanconvert/MapperRegister$SingletonHolder.class
+io/edap/beanconvert/ConvertorGenerator$ListConvertInfo.class
+io/edap/beanconvert/ConvertorGenerator$UnboxInfo.class
+io/edap/beanconvert/MapperInfo.class

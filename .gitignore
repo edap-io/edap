@@ -4,3 +4,5 @@
 /edap-json/ejdb5/
 /edap-json/ejds5/
 /edap-log/io/
+/edap-bean-convert/ebc/
+/edap-bean-convert/.flattened-pom.xml
