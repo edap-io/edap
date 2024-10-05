@@ -18,17 +18,11 @@ package io.edap;
 
 import io.edap.log.Logger;
 import io.edap.log.LoggerManager;
-import io.edap.pool.ConcurrentPool;
 import io.edap.pool.SimpleFastBufPool;
-import io.edap.util.ThreadUtil;
-
-import static io.edap.pool.ConcurrentPool.PoolStateListener;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -37,7 +31,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * @author louis
  * @date 2019-07-01 23:41
  */
-public abstract class Server<T, S extends NioSession> implements PoolStateListener {
+public abstract class Server<T, S extends NioSession> {
 
     Logger log = LoggerManager.getLogger(this.getClass());
     /**
@@ -49,10 +43,6 @@ public abstract class Server<T, S extends NioSession> implements PoolStateListen
      */
     protected AtomicInteger curClientCount;
     /**
-     * NioSession的会话池
-     */
-    private ConcurrentPool<NioSession> nioSessionPool;
-    /**
      * 监听的服务器地址列表
      */
     private   List<Addr> addrs;
@@ -60,10 +50,6 @@ public abstract class Server<T, S extends NioSession> implements PoolStateListen
      * 该服务器所属的服务器组的实例
      */
     private ServerGroup serverGroup;
-    /**
-     * 负责向NioSession连接池添加NioSession的线程池
-     */
-    private ThreadPoolExecutor addExecutor;
 
     private BufPool bufPool;
 
@@ -75,20 +61,12 @@ public abstract class Server<T, S extends NioSession> implements PoolStateListen
         curClientCount = new AtomicInteger(0);
         addrs = new ArrayList<>();
         maxClientCount = 256000;
-        nioSessionPool = new ConcurrentPool<>(this);
         backLog = 1024;
-        addExecutor    = ThreadUtil.createThreadPoolExecutor(256,
-                "AioSessionAdder", null,
-                new ThreadPoolExecutor.DiscardPolicy());
         setBufPool(new SimpleFastBufPool());
     }
 
     public int getBackLog() {
         return backLog;
-    }
-
-    public ConcurrentPool<NioSession> getNioSessionPool() {
-        return nioSessionPool;
     }
 
     /**
@@ -98,7 +76,7 @@ public abstract class Server<T, S extends NioSession> implements PoolStateListen
      */
     public Server listen(int port) {
         synchronized (this) {
-            Addr existsAddr = getAddrByPort(port);
+            Addr existsAddr = queryAddrByPort(port);
             //如果该端口号没有被设置为监听
             if (existsAddr == null) {
                 Addr addr = new Addr();
@@ -128,7 +106,7 @@ public abstract class Server<T, S extends NioSession> implements PoolStateListen
      */
     public Server listen(String host, int port) {
         synchronized (this) {
-            Addr existsAddr = getAddrByPort(port);
+            Addr existsAddr = queryAddrByPort(port);
             //如果该端口号没有被设置为监听
             if (existsAddr == null) {
                 Addr addr = new Addr();
@@ -186,13 +164,7 @@ public abstract class Server<T, S extends NioSession> implements PoolStateListen
      */
     public abstract NioSession createNioSession();
 
-    @Override
-    public void addPoolItem(int waiting) {
-        addExecutor.submit(new NioSessionCreator(waiting));
-
-    }
-
-    private Addr getAddrByPort(int port) {
+    private Addr queryAddrByPort(int port) {
         for (int i=0;i<addrs.size();i++) {
             Addr addr = addrs.get(i);
             if (port == addr.port) {
@@ -207,11 +179,6 @@ public abstract class Server<T, S extends NioSession> implements PoolStateListen
      * 启动监听前需要进行的操作
      */
     public void init() {
-        List<NioSession> sessions = new ArrayList<>();
-        for (int i=0;i<256;i++) {
-            sessions.add(createNioSession());
-        }
-        nioSessionPool.add(sessions);
     }
 
     public BufPool getBufPool() {
@@ -243,8 +210,8 @@ public abstract class Server<T, S extends NioSession> implements PoolStateListen
 
     public static class Addr {
         public String host;
-        public int port;
-        public int index;
+        public int    port;
+        public int    index;
         public Server server;
 
         public String toString() {
@@ -254,44 +221,6 @@ public abstract class Server<T, S extends NioSession> implements PoolStateListen
             sb.append(port);
 
             return sb.toString();
-        }
-    }
-
-    /**
-     * NioSession添加器，负责根据对象池所需的对象数以及Server允许最大的对象数来向池中
-     * 添加NioSession对象
-     */
-    private final class NioSessionCreator implements Callable<Boolean> {
-
-        private int waiting;
-
-        NioSessionCreator(int waiting) {
-            this.waiting = waiting;
-        }
-
-        @Override
-        public Boolean call() throws Exception {
-            int count = maxClientCount - nioSessionPool.getCount();
-//            log.warn("client count is max! aioSessionPool.getCount()={} maxClients={}",
-//                        nioSessionPool.getCount(), maxClientCount);
-            if (count <= 0) {
-//                log.warn("client count is max! aioSessionPool.getCount()={} maxClients={}",
-//                        nioSessionPool.getCount(), maxClientCount);
-                return Boolean.FALSE;
-            }
-            if (waiting > count) {
-                waiting = count;
-            }
-            List<NioSession> sessions = new ArrayList<>(waiting);
-            while (sessions.size() < waiting) {
-                NioSession nioSession = createNioSession();
-                if (nioSession != null) {
-                    sessions.add(nioSession);
-                }
-            }
-            //log.info("Add AioSession count [{}]", sessions.size());
-            nioSessionPool.add(sessions);
-            return Boolean.TRUE;
         }
     }
 }

@@ -16,11 +16,15 @@
 
 package io.edap;
 
+import io.edap.config.EdapConfig;
+import io.edap.nio.SelectorProvider;
 import io.edap.util.CollectionUtils;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
+import java.util.concurrent.CopyOnWriteArrayList;
+
+import static io.edap.log.helpers.Util.printError;
 
 /**
  * Edap容器
@@ -31,8 +35,50 @@ public class Edap {
 
     private Map<String, ServerGroup> serverGroups;
 
+    private static final List<SelectorProvider> SELECTOR_PROVIDERS = new CopyOnWriteArrayList<>();
+
     public Edap() {
         serverGroups = new HashMap<>();
+        init();
+    }
+
+    private void init() {
+        ClassLoader providerClassLoader = SelectorProvider.class.getClassLoader();
+        ServiceLoader<SelectorProvider> loader;
+        loader = ServiceLoader.load(SelectorProvider.class, providerClassLoader);
+        Iterator<SelectorProvider> iterator = loader.iterator();
+        while (iterator.hasNext()) {
+            SelectorProvider provider = safelyInstantiate(iterator);
+            if (provider != null && !exits(provider)) {
+                SELECTOR_PROVIDERS.add(provider);
+            }
+        }
+    }
+
+    public List<SelectorProvider> getSelectorProviders() {
+        return Collections.unmodifiableList(SELECTOR_PROVIDERS);
+    }
+
+    private static SelectorProvider safelyInstantiate(Iterator<SelectorProvider> iterator) {
+        try {
+            SelectorProvider provider = iterator.next();
+            return provider;
+        } catch (ServiceConfigurationError e) {
+            printError("A EdapLog service provider failed to instantiate:", e);
+        }
+        return null;
+    }
+
+    private static boolean exits(SelectorProvider provider) {
+        if (SELECTOR_PROVIDERS == null || SELECTOR_PROVIDERS.size() == 0) {
+            return false;
+        }
+        for (SelectorProvider p : SELECTOR_PROVIDERS) {
+            if (p.getClass().getName().equals(provider.getClass().getName())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public Edap addServerGroup(ServerGroup serverGroup) {
@@ -90,6 +136,10 @@ public class Edap {
         });
 
         //int read = System.in.read();
+    }
+
+    public EdapConfig getConfig() {
+        return null;
     }
 
     private Thread shutdownThread(Map<String, ServerGroup> serverGroups) {

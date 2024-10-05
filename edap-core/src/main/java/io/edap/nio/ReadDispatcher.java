@@ -5,7 +5,7 @@
  * version 2.0 (the "License"); you may not use this file except in compliance
  * with the License. You may obtain a copy of the License at:
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *    http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
@@ -16,21 +16,5 @@
 
 package io.edap.nio;
 
-import io.edap.Acceptor;
-import io.edap.nio.impl.FastAcceptor;
-import io.edap.nio.impl.NormalAcceptor;
-import io.edap.nio.impl.NormalSelectorProvider;
-
-import java.io.IOException;
-
-public class AcceptorFactory {
-
-    public Acceptor getAcceptor(String serverGroup) throws IOException {
-        SelectorProvider selectorProvider = new NormalSelectorProvider();
-        FastAcceptor fastAcceptor = new FastAcceptor();
-        if (fastAcceptor.isEnable(selectorProvider)) {
-            return fastAcceptor;
-        }
-        return new NormalAcceptor();
-    }
+public interface ReadDispatcher extends NioEventDispatcher {
 }

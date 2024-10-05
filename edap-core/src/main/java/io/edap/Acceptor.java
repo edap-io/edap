@@ -16,6 +16,7 @@
 
 package io.edap;
 
+import io.edap.nio.AcceptDispatcher;
 import io.edap.nio.SelectorProvider;
 
 import java.nio.channels.Selector;
@@ -31,7 +32,9 @@ public interface Acceptor {
      * @param selectorProvider
      * @return
      */
-    boolean isEnable(SelectorProvider selectorProvider);
+    default boolean isEnable(SelectorProvider selectorProvider) {
+        return selectorProvider.enableFastDispatch();
+    }
 
     /**
      * 开始接受网络连接
@@ -45,6 +48,15 @@ public interface Acceptor {
     void setServer(Server server);
 
     Server getServer();
+
+    void setEventDispatcher(AcceptDispatcher dispatcher);
+    AcceptDispatcher getEventDispatcher();
+
+    void setSelectorProvider(SelectorProvider selectorProvider);
+    SelectorProvider getSelectorProvider();
+
+    void setServerGroup(ServerGroup serverGroup);
+    ServerGroup getServerGroup();
 
     /**
      * 添加监听的列表

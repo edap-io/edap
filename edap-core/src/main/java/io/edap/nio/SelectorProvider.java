@@ -21,7 +21,20 @@ import java.nio.channels.Selector;
 
 public interface SelectorProvider {
 
-    default Selector getSelect() throws IOException {
-        return Selector.open();
+    default boolean enableFastDispatch() {
+        return false;
+    }
+
+    /**
+     * 打开一个Selector的实例，如果该实例能支持在select时使用自定义的调度器直接调度，则使用自定义的调度器调度替换
+     * Selector中的selectedKeys等变量，省去select到数据结构后再由该线程进行调度的延迟。
+     * @return
+     * @throws IOException
+     */
+    default EdapSelectorInfo openSelector(NioEventDispatcher dispatcher) throws IOException {
+        EdapSelectorInfo info = new EdapSelectorInfo();
+        info.setSelector(Selector.open());
+        info.setEventDispatcherSet(null);
+        return info;
     }
 }

@@ -16,22 +16,27 @@
 
 package io.edap;
 
+import io.edap.config.EdapConfig;
 import io.edap.log.Logger;
 import io.edap.log.LoggerManager;
-import io.edap.nio.AcceptorFactory;
-import io.edap.nio.NormalAcceptor;
+import io.edap.nio.AcceptDispatcher;
+import io.edap.nio.impl.DisruptorAcceptDispatcher;
+import io.edap.nio.impl.FastAcceptor;
+import io.edap.nio.impl.NormalAcceptor;
+import io.edap.nio.SelectorProvider;
+import io.edap.nio.enums.EventDispatchType;
+import io.edap.nio.enums.ThreadType;
+import io.edap.nio.impl.ThreadPoolAcceptDispatcher;
 import io.edap.pool.SimpleFastBufPool;
 import io.edap.util.CollectionUtils;
-import io.edap.util.StringUtil;
+import io.edap.util.ConfigUtils;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
-import java.util.Locale;
-import java.util.concurrent.*;
+import java.util.*;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
+
+import static io.edap.consts.EdapConsts.SERVER_GROUP_CONFIG_KEY;
 
 /**
  * 定义服务器组的数据结构
@@ -71,8 +76,10 @@ public class ServerGroup {
      * 线程模型
      */
     private ThreadType threadType = ThreadType.REACTOR;
-
-    private ExecutorService workerService;
+    /**
+     * 运行的线程模型
+     */
+    private ThreadType runningThreadType;
 
     static {
         LOCK = new ReentrantLock();
@@ -84,40 +91,6 @@ public class ServerGroup {
 
     public void setThreadType(ThreadType threadType) {
         this.threadType = threadType;
-    }
-
-    public synchronized ExecutorService getWorkerService() {
-        if (workerService == null) {
-            int corePoolSize = 16;
-            int maxPoolSize = 256;
-            int keepAliveTime = 5;
-            int queueSize = 65536;
-//            BlockingQueue<Runnable> queue = new MPMCBlockingQueue<>(queueSize);
-//            workerService = new ThreadPoolExecutor(corePoolSize, maxPoolSize, keepAliveTime,
-//                    TimeUnit.MINUTES, queue, r -> new EdapThread());
-
-            BlockingQueue<Runnable> queue = new ArrayBlockingQueue<>(queueSize);
-            workerService = new ThreadPoolExecutor(corePoolSize, maxPoolSize, keepAliveTime,
-                    TimeUnit.MINUTES, queue);
-        }
-        return workerService;
-    }
-
-    public void setWorkerService(ExecutorService workerService) {
-        this.workerService = workerService;
-    }
-
-    public enum ThreadType {
-        /**
-         * 标准的reaction的模式
-         */
-        REACTOR,
-        /**
-         * edap的线程模型，selector遍历的线程按协议解码完成后将业务处理的任务直接提交到线程执行
-         * 使用反射的模式替换selectedKeys和publicSelectedKeys在添加到这两个数据结构前直接解码
-         * 根据协议生成业务对象后直接将业务处理的任务添加到线程池，减少遍历selector.selectedKeys()的过程
-         */
-        EDAP
     }
 
     public ServerGroup() {
@@ -203,48 +176,110 @@ public class ServerGroup {
         return this.reactorCount;
     }
 
-    public void run() {
-        String sThreadType = System.getProperty("edap.thread.type");
-        if (!StringUtil.isEmpty(sThreadType)) {
-            try {
-                threadType = ThreadType.valueOf(sThreadType.toUpperCase(Locale.ENGLISH));
-            } catch (Exception e) {
-
-            }
-        }
-        LOG.info("ServerGroup [{}]'s thread type: {}", l -> l.arg(getName()).arg(threadType));
-
-        try {
-            directRun();
-        } catch (Throwable t) {
-            throw new RuntimeException("ServerGroup start error", t);
-        }
-    }
-
     /**
-     * 采用读写线程直接处理业务逻辑的直接处理方式，适用于业务处理响应很快的场景，因为该方式当前线程处理业务时
-     * 会堵塞其他由该线程监听的其他channel的操作
+     * 先将服务组里每个服务初始化后再启动各个服务的监听，以防端口监听后服务还未启动导致服务无法响应的问题。
      */
-    private void directRun() throws IOException {
-        if (CollectionUtils.isEmpty(servers)) {
-            return;
+    public void run() {
+        List<Acceptor> acceptors = new ArrayList<>();
+        EventDispatchType eventDispatchType = parseEventDispatchType(edap.getConfig());
+        ThreadType        threadType        = parseThreadType(edap.getConfig());
+        List<SelectorProvider> providers = edap.getSelectorProviders();
+        if (CollectionUtils.isEmpty(providers)) {
+            LOG.error("SelectorProvider is null");
+            System.exit(1);
         }
-        AcceptorFactory acceptorFactory = new AcceptorFactory();
-        for (Server s : servers) {
-            Acceptor acpt = acceptorFactory.getAcceptor(getName());
-            acpt.addAddrs(s.getListenAddrs());
-            acpt.setServer(s);
-            s.init();
-            acceptors.add(acpt);
+        Acceptor acceptor;
+        SelectorProvider selectorProvider;
+        if (eventDispatchType == EventDispatchType.KEY_SET) {
+            acceptor = new FastAcceptor();
+            selectorProvider = getSelectorProvider(acceptor);
+            if (selectorProvider == null) {
+                LOG.warn("serverGroup {} set eventDispatchType is {} but not SelectorProvider enabled!",
+                        l -> l.arg(getName()).arg(eventDispatchType));
+                acceptor = new NormalAcceptor();
+                selectorProvider = getSelectorProvider(acceptor);
+            }
+        } else {
+            acceptor = new NormalAcceptor();
+            selectorProvider = getSelectorProvider(acceptor);
         }
+        if (selectorProvider == null) {
+            System.err.println("No selectorProvider enabled");
+            System.exit(1);
+        }
+        Acceptor fAcceptor = acceptor;
+        SelectorProvider provider = selectorProvider;
+        LOG.info("serverGroup {} acceptorName {} selectorProvider name {}",
+                l -> l.arg(fAcceptor.getClass().getName()).arg(provider.getClass().getName()));
 
-        if (CollectionUtils.isEmpty(acceptors)) {
-            return;
+        AcceptDispatcher dispatcher;
+        if (threadType == ThreadType.EDAP) {
+            dispatcher = new DisruptorAcceptDispatcher();
+        } else {
+            dispatcher = new ThreadPoolAcceptDispatcher();
         }
-        acceptors.forEach(e -> e.accept());
+        for (Server s : servers) {
+            s.init();
+            List<Server.Addr> addrs = s.getListenAddrs();
+            Acceptor acpt;
+            if (fAcceptor instanceof FastAcceptor) {
+                acpt = new FastAcceptor();
+                acpt.setSelectorProvider(provider);
+            } else {
+                acpt = new NormalAcceptor();
+                acpt.setSelectorProvider(provider);
+            }
+            acpt.setEventDispatcher(dispatcher);
+            acpt.setServer(s);
+            acpt.addAddrs(addrs);
+            acpt.accept();
+        }
+        LOG.info("{}",  l -> l.arg(providers));
     }
+
+
 
     public void stop() {
 
+    }
+
+    private SelectorProvider getSelectorProvider(Acceptor acceptor) {
+        for (SelectorProvider provider : edap.getSelectorProviders()) {
+            if (acceptor.isEnable(provider)) {
+                return provider;
+            }
+        }
+
+        return null;
+    }
+
+    private EventDispatchType parseEventDispatchType(EdapConfig config) {
+        String dispatchTypeKey = SERVER_GROUP_CONFIG_KEY + "." + this.getName() + ".eventDispatchType";
+        Object eventDispatchValue = ConfigUtils.getConfigValue(dispatchTypeKey, edap.getConfig(),
+                "KEY_SET");
+        EventDispatchType eventDispatchType;
+        try {
+            eventDispatchType = EventDispatchType.valueOf(((String)eventDispatchValue).toUpperCase(Locale.ENGLISH));
+        } catch (IllegalArgumentException e) {
+            LOG.warn("EventDispatchType parse error", e);
+            eventDispatchType = EventDispatchType.KEY_SET;
+        }
+
+        return eventDispatchType;
+    }
+
+    private ThreadType parseThreadType(EdapConfig config) {
+        String threadTypeKey   = SERVER_GROUP_CONFIG_KEY + "." + this.getName() + ".threadType";
+        Object threadTypeValue = ConfigUtils.getConfigValue(threadTypeKey, edap.getConfig(),
+                "EDAP");
+        ThreadType threadType;
+        try {
+            threadType = ThreadType.valueOf(((String)threadTypeValue).toUpperCase(Locale.ENGLISH));
+        } catch (IllegalArgumentException e) {
+            LOG.warn("EventDispatchType parse error", e);
+            threadType = ThreadType.EDAP;
+        }
+
+        return threadType;
     }
 }

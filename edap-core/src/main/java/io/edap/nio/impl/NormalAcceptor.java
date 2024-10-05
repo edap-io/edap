@@ -5,7 +5,7 @@
  * version 2.0 (the "License"); you may not use this file except in compliance
  * with the License. You may obtain a copy of the License at:
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *    http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
@@ -14,11 +14,15 @@
  * under the License.
  */
 
-package io.edap.config;
+package io.edap.nio.impl;
 
-import java.util.Map;
+import io.edap.nio.AbstractAcceptor;
 
-public class EdapConfig {
+public class NormalAcceptor extends AbstractAcceptor {
 
-    private Map<String, ServerGroupConfig> serverGroup;
+    @Override
+    public void accept() {
+
+    }
+
 }
