@@ -31,7 +31,6 @@ import io.edap.pool.SimpleFastBufPool;
 import io.edap.util.CollectionUtils;
 import io.edap.util.ConfigUtils;
 
-import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -229,6 +228,7 @@ public class ServerGroup {
                 acpt = new NormalAcceptor();
                 acpt.setSelectorProvider(provider);
             }
+            acpt.setServerGroup(this);
             acpt.setEventDispatcher(dispatcher);
             acpt.setServer(s);
             acpt.addAddrs(addrs);
