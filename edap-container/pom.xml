@@ -38,6 +38,10 @@
             <groupId>io.edap</groupId>
             <artifactId>edap-http-server</artifactId>
         </dependency>
+        <dependency>
+            <groupId>io.edap</groupId>
+            <artifactId>edap-log</artifactId>
+        </dependency>
     </dependencies>
 
     <build>

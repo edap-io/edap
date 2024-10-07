@@ -32,6 +32,7 @@ public class Bootstrap {
         Edap manager = new Edap();
         ServerGroup serverGroup = new ServerGroup();
         HttpServerBuilder builder = new HttpServerBuilder();
+        builder.listen(8080).listen(8081);
         serverGroup.addServer(builder.build());
         serverGroup.setName("edap-manager");
         manager.addServerGroup(serverGroup);
