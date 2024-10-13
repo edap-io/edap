@@ -1,4 +1,4 @@
 package io.edap.nio;
 
-public class NioOpEvent {
+public abstract class NioOpEvent {
 }
