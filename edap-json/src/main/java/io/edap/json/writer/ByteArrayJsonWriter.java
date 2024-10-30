@@ -263,7 +263,7 @@ public class ByteArrayJsonWriter extends AbstractJsonWriter implements JsonWrite
             }
             return;
         }
-        writeSlow(s);
+        writeSlow(StringUtil.getCharValue(s));
     }
 
     private void writeUtf8(byte[] bs) {
@@ -360,8 +360,8 @@ public class ByteArrayJsonWriter extends AbstractJsonWriter implements JsonWrite
     }
 
     //@Override
-    public void writeSlow(String s) {
-        int slen = s.length();
+    public void writeSlow(char[] chars) {
+        int slen = chars.length;
         expand((slen << 2) + (slen << 1) + 2);
         byte[] _buf = buf;
         int index = pos;
@@ -370,7 +370,7 @@ public class ByteArrayJsonWriter extends AbstractJsonWriter implements JsonWrite
         int i = 0;
         //char[] cs = s.toCharArray();
         for (;i<slen;i++) {
-            char c = s.charAt(i);
+            char c = chars[i];
 //            if (c >= 128 || !CAN_DIRECT_WRITE[c]) {
 //                break;
 //            }
@@ -384,7 +384,7 @@ public class ByteArrayJsonWriter extends AbstractJsonWriter implements JsonWrite
                 _buf[index++] = (byte) c;
             } else {
                 pos = index;
-                writeString(s, i, slen);
+                writeString(chars, i, slen);
                 return;
             }
         }
