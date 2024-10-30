@@ -34,8 +34,7 @@ import static io.edap.protobuf.ProtoBufWriter.encodeZigZag32;
 import static io.edap.protobuf.ProtoBufWriter.encodeZigZag64;
 import static io.edap.protobuf.wire.WireFormat.*;
 import static io.edap.util.CollectionUtils.isEmpty;
-import static io.edap.util.StringUtil.IS_BYTE_ARRAY;
-import static io.edap.util.StringUtil.isLatin1;
+import static io.edap.util.StringUtil.*;
 
 
 public abstract class AbstractWriter implements ProtoBufWriter {
@@ -575,7 +574,13 @@ public abstract class AbstractWriter implements ProtoBufWriter {
             expand(maxBytes + 1);
             int _pos = pos;
             pos++;
-            int len = writeChars(v, 0, charLen, _pos+1);
+            int len;
+            if (charLen <= 16) {
+                len = writeChars(v, 0, charLen, _pos + 1);
+            } else {
+                char[] cs = getCharValue(v);
+                len = writeChars(cs, 0, charLen, pos);
+            }
             pos += len;
             pos += writeLenMoveBytes(bs, _pos, len);
             return;
@@ -645,6 +650,33 @@ public abstract class AbstractWriter implements ProtoBufWriter {
         int len = (int)(buf.wpos() - buf.address());
         buf.writeTo(bs, pos, len);
         return len;
+    }
+
+    protected final int writeChars( final char[] value, int start, int end, int pos){
+        int p = pos;
+        byte[] _bs = this.bs;
+        int i = start;
+        for (;i < end; i++) {
+            char c = value[i];
+            if (c < 128) {
+                _bs[p++] = (byte) c;
+            } else if (c < 0x800) {
+                _bs[p++] = (byte) ((0xF << 6) | (c >>> 6));
+                _bs[p++] = (byte) (0x80 | (0x3F & c));
+            } else if (c >= '\ud800' && c <= '\udfff') {
+                int codePoint = Character.toCodePoint((char) c, (char) value[i + 1]);
+                _bs[p++] = (byte) (0xF0 | ((codePoint >> 18) & 0x07));
+                _bs[p++] = (byte) (0x80 | ((codePoint >> 12) & 0x3F));
+                _bs[p++] = (byte) (0x80 | ((codePoint >> 6) & 0x3F));
+                _bs[p++] = (byte) (0x80 | (codePoint & 0x3F));
+                i++;
+            } else {
+                _bs[p++] = (byte) ((0xF << 5) | (c >>> 12));
+                _bs[p++] = (byte) (0x80 | (0x3F & (c >>> 6)));
+                _bs[p++] = (byte) (0x80 | (0x3F & c));
+            }
+        }
+        return p - pos;
     }
 
     @Override
