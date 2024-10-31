@@ -1,12 +1,12 @@
 
 /*
- * Copyright 2020 The edap Project
+ * Copyright 2023 The edap Project
  *
  * The Netty Project licenses this file to you under the Apache License,
  * version 2.0 (the "License"); you may not use this file except in compliance
  * with the License. You may obtain a copy of the License at:
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *    http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
@@ -24,6 +24,7 @@ import io.edap.protobuf.ProtoBufWriter;
 import io.edap.protobuf.wire.Field;
 import io.edap.util.CollectionUtils;
 import io.edap.util.StringUtil;
+import io.edap.util.UnsafeUtil;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -659,21 +660,21 @@ public abstract class AbstractWriter implements ProtoBufWriter {
         for (;i < end; i++) {
             char c = value[i];
             if (c < 128) {
-                _bs[p++] = (byte) c;
+                UnsafeUtil.writeByte(_bs, p++, (byte) c);
             } else if (c < 0x800) {
-                _bs[p++] = (byte) ((0xF << 6) | (c >>> 6));
-                _bs[p++] = (byte) (0x80 | (0x3F & c));
+                UnsafeUtil.writeByte(_bs, p++, (byte) ((0xF << 6) | (c >>> 6)));
+                UnsafeUtil.writeByte(_bs, p++, (byte) (0x80 | (0x3F & c)));
             } else if (c >= '\ud800' && c <= '\udfff') {
                 int codePoint = Character.toCodePoint((char) c, (char) value[i + 1]);
-                _bs[p++] = (byte) (0xF0 | ((codePoint >> 18) & 0x07));
-                _bs[p++] = (byte) (0x80 | ((codePoint >> 12) & 0x3F));
-                _bs[p++] = (byte) (0x80 | ((codePoint >> 6) & 0x3F));
-                _bs[p++] = (byte) (0x80 | (codePoint & 0x3F));
+                UnsafeUtil.writeByte(_bs, p++, (byte) (0xF0 | ((codePoint >> 18) & 0x07)));
+                UnsafeUtil.writeByte(_bs, p++, (byte) (0x80 | ((codePoint >> 12) & 0x3F)));
+                UnsafeUtil.writeByte(_bs, p++, (byte) (0x80 | ((codePoint >> 6) & 0x3F)));
+                UnsafeUtil.writeByte(_bs, p++, (byte) (0x80 | (codePoint & 0x3F)));
                 i++;
             } else {
-                _bs[p++] = (byte) ((0xF << 5) | (c >>> 12));
-                _bs[p++] = (byte) (0x80 | (0x3F & (c >>> 6)));
-                _bs[p++] = (byte) (0x80 | (0x3F & c));
+                UnsafeUtil.writeByte(_bs, p++, (byte) ((0xF << 5) | (c >>> 12)));
+                UnsafeUtil.writeByte(_bs, p++, (byte) (0x80 | (0x3F & (c >>> 6))));
+                UnsafeUtil.writeByte(_bs, p++, (byte) (0x80 | (0x3F & c)));
             }
         }
         return p - pos;
