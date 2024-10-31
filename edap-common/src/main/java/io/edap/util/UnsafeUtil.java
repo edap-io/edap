@@ -149,4 +149,8 @@ public class UnsafeUtil {
     public static Object allocateInstance(Class<?> clazz) throws InstantiationException {
         return UNSAFE.allocateInstance(clazz);
     }
+
+    public static void writeByte(byte[] bs, int offset, byte b) {
+        UNSAFE.putByte(bs, UNSAFE.ARRAY_BYTE_BASE_OFFSET + offset, b);
+    }
 }
