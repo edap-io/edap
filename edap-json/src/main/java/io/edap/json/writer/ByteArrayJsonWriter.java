@@ -37,6 +37,7 @@ import static io.edap.util.FastNum.uncheckWriteInt;
 import static io.edap.util.FastNum.uncheckWriteLong;
 import static io.edap.util.StringUtil.IS_BYTE_ARRAY;
 import static io.edap.util.StringUtil.isLatin1;
+import static io.edap.util.UnsafeUtil.writeByte;
 import static java.lang.Float.NEGATIVE_INFINITY;
 
 /**
@@ -381,14 +382,14 @@ public class ByteArrayJsonWriter extends AbstractJsonWriter implements JsonWrite
 //                break;
 //            }
             if (c > 31 && c != '"' && c != '\\' && c < 126) {
-                _buf[index++] = (byte) c;
+                writeByte(_buf, index++, (byte) c);
             } else {
                 pos = index;
                 writeString(chars, i, slen);
                 return;
             }
         }
-        _buf[index++] = '"';
+        writeByte(_buf, index++, (byte)'"');
         pos = index;
     }
 
@@ -563,6 +564,51 @@ public class ByteArrayJsonWriter extends AbstractJsonWriter implements JsonWrite
     /**
      */
     private void writeString(char[] cs, int start, int end) {
+        byte[] _buf = buf;
+        char c;
+        int cur = pos;
+        for (int i=start;i<end;i++) {
+            c = cs[i];
+            if (c < 128) {
+                if (CAN_DIRECT_WRITE[c]) {
+                    writeByte(_buf, cur++, (byte) c);
+                } else if (c == '"') {
+                    writeByte(_buf, cur++, (byte)92);
+                    writeByte(_buf, cur++, (byte)34);
+                } else if (c == '\\') {
+                    writeByte(_buf, cur++, (byte)92);
+                    writeByte(_buf, cur++, (byte)92);
+                } else {
+                    byte[] tmp = REPLACEMENT_CHARS[c];
+                    for (int j = 0; j < tmp.length; j++) {
+                        writeByte(_buf, cur++, tmp[j]);
+                    }
+                }
+            } else if (c == '\u2028') {
+                System.arraycopy(JS_REPLACEMENT_CHAR, 0, _buf, cur, 6);
+                cur += 6;
+            } else if (c == '\u2029') {
+                System.arraycopy(JS_REPLACEMENT_CHAR, 6, _buf, cur, 6);
+                cur += 6;
+            } else if (c < 0x800) {
+                writeByte(_buf, cur++, (byte) ((0xF << 6) | (c >>> 6)));
+                writeByte(_buf, cur++, (byte) (0x80       | (0x3F & c)));
+            } else if (c < Character.MIN_SURROGATE || Character.MAX_SURROGATE < c) {
+                writeByte(_buf, cur++, (byte) ((0xF << 5) | (        c >>> 12)));
+                writeByte(_buf, cur++, (byte) (0x80       | (0x3F & (c >>> 6 ))));
+                writeByte(_buf, cur++, (byte) (0x80       | (0x3F &  c       )));
+            } else {
+                writeByte(_buf, cur++, (byte) (0xF0 | ((c >> 18) & 0x07)));
+                writeByte(_buf, cur++, (byte) (0x80 | ((c >> 12) & 0x3F)));
+                writeByte(_buf, cur++, (byte) (0x80 | ((c >> 6)  & 0x3F)));
+                writeByte(_buf, cur++, (byte) (0x80 | ( c        & 0x3F)));
+            }
+        }
+        writeByte(_buf, cur++, (byte)'"');
+        pos = cur;
+    }
+
+    private void writeString2(char[] cs, int start, int end) {
         byte[] _buf = buf;
         char c;
         int cur = pos;
