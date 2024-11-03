@@ -577,10 +577,9 @@ public abstract class AbstractWriter implements ProtoBufWriter {
             pos++;
             int len;
             if (charLen <= 16) {
-                len = writeChars(v, 0, charLen, _pos + 1);
+                len = writeChars(getCharValue(v), 0, charLen, pos);
             } else {
-                char[] cs = getCharValue(v);
-                len = writeChars(cs, 0, charLen, pos);
+                len = writeChars(getCharValue(v), 0, charLen, pos);
             }
             pos += len;
             pos += writeLenMoveBytes(bs, _pos, len);

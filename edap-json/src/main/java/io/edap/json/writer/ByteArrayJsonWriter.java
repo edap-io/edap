@@ -25,6 +25,7 @@ import io.edap.json.JsonWriter;
 import io.edap.util.Grisu;
 import io.edap.util.Grisu3;
 import io.edap.util.StringUtil;
+import io.edap.util.UnsafeUtil;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -366,7 +367,7 @@ public class ByteArrayJsonWriter extends AbstractJsonWriter implements JsonWrite
         expand((slen << 2) + (slen << 1) + 2);
         byte[] _buf = buf;
         int index = pos;
-        _buf[index++] = '"';
+        writeByte(_buf, index++, (byte)'"');
         pos= index;
         int i = 0;
         //char[] cs = s.toCharArray();
@@ -397,6 +398,8 @@ public class ByteArrayJsonWriter extends AbstractJsonWriter implements JsonWrite
     public void writeField(byte[] bs, int offset, int end) {
         int len = end - offset;
         expand(len);
+//        UnsafeUtil.copyMemory(bs, offset, this.buf, pos, len);
+//        pos += len;
         int j = pos;
         int n = end;
         int i = offset;
