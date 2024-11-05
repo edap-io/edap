@@ -8,6 +8,7 @@ import io.edap.protobuf.EncodeException;
 import io.edap.protobuf.ProtoBufEnum;
 import io.edap.protobuf.wire.Field;
 import io.edap.util.StringUtil;
+import io.edap.util.UnsafeUtil;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -143,21 +144,21 @@ public abstract class AbstractWriter implements EprotoWriter {
         for (;i < end; i++) {
             char c = v.charAt(i);
             if (c < 128) {
-                _bs[p++] = (byte) c;
+                UnsafeUtil.writeByte(_bs, p++, (byte) c);
             } else if (c < 0x800) {
-                _bs[p++] = (byte) ((0xF << 6) | (c >>> 6));
-                _bs[p++] = (byte) (0x80 | (0x3F & c));
+                UnsafeUtil.writeByte(_bs, p++, (byte) ((0xF << 6) | (c >>> 6)));
+                UnsafeUtil.writeByte(_bs, p++, (byte) (0x80 | (0x3F & c)));
             } else if (c >= '\ud800' && c <= '\udfff') {
                 int codePoint = Character.toCodePoint((char) c, (char) value.charAt(i + 1));
-                _bs[p++] = (byte) (0xF0 | ((codePoint >> 18) & 0x07));
-                _bs[p++] = (byte) (0x80 | ((codePoint >> 12) & 0x3F));
-                _bs[p++] = (byte) (0x80 | ((codePoint >> 6) & 0x3F));
-                _bs[p++] = (byte) (0x80 | (codePoint & 0x3F));
+                UnsafeUtil.writeByte(_bs, p++, (byte) (0xF0 | ((codePoint >> 18) & 0x07)));
+                UnsafeUtil.writeByte(_bs, p++, (byte) (0x80 | ((codePoint >> 12) & 0x3F)));
+                UnsafeUtil.writeByte(_bs, p++, (byte) (0x80 | ((codePoint >> 6) & 0x3F)));
+                UnsafeUtil.writeByte(_bs, p++, (byte) (0x80 | (codePoint & 0x3F)));
                 i++;
             } else {
-                _bs[p++] = (byte) ((0xF << 5) | (c >>> 12));
-                _bs[p++] = (byte) (0x80 | (0x3F & (c >>> 6)));
-                _bs[p++] = (byte) (0x80 | (0x3F & c));
+                UnsafeUtil.writeByte(_bs, p++, (byte) ((0xF << 5) | (c >>> 12)));
+                UnsafeUtil.writeByte(_bs, p++, (byte) (0x80 | (0x3F & (c >>> 6))));
+                UnsafeUtil.writeByte(_bs, p++, (byte) (0x80 | (0x3F & c)));
             }
         }
         return p - pos;
@@ -170,21 +171,21 @@ public abstract class AbstractWriter implements EprotoWriter {
         for (;i < end; i++) {
             char c = value[i];
             if (c < 128) {
-                _bs[p++] = (byte) c;
+                UnsafeUtil.writeByte(_bs, p++, (byte) c);
             } else if (c < 0x800) {
-                _bs[p++] = (byte) ((0xF << 6) | (c >>> 6));
-                _bs[p++] = (byte) (0x80 | (0x3F & c));
+                UnsafeUtil.writeByte(_bs, p++, (byte) ((0xF << 6) | (c >>> 6)));
+                UnsafeUtil.writeByte(_bs, p++, (byte) (0x80 | (0x3F & c)));
             } else if (c >= '\ud800' && c <= '\udfff') {
                 int codePoint = Character.toCodePoint((char) c, (char) value[i + 1]);
-                _bs[p++] = (byte) (0xF0 | ((codePoint >> 18) & 0x07));
-                _bs[p++] = (byte) (0x80 | ((codePoint >> 12) & 0x3F));
-                _bs[p++] = (byte) (0x80 | ((codePoint >> 6) & 0x3F));
-                _bs[p++] = (byte) (0x80 | (codePoint & 0x3F));
+                UnsafeUtil.writeByte(_bs, p++, (byte) (0xF0 | ((codePoint >> 18) & 0x07)));
+                UnsafeUtil.writeByte(_bs, p++, (byte) (0x80 | ((codePoint >> 12) & 0x3F)));
+                UnsafeUtil.writeByte(_bs, p++, (byte) (0x80 | ((codePoint >> 6) & 0x3F)));
+                UnsafeUtil.writeByte(_bs, p++, (byte) (0x80 | (codePoint & 0x3F)));
                 i++;
             } else {
-                _bs[p++] = (byte) ((0xF << 5) | (c >>> 12));
-                _bs[p++] = (byte) (0x80 | (0x3F & (c >>> 6)));
-                _bs[p++] = (byte) (0x80 | (0x3F & c));
+                UnsafeUtil.writeByte(_bs, p++, (byte) ((0xF << 5) | (c >>> 12)));
+                UnsafeUtil.writeByte(_bs, p++, (byte) (0x80 | (0x3F & (c >>> 6))));
+                UnsafeUtil.writeByte(_bs, p++, (byte) (0x80 | (0x3F & c)));
             }
         }
         return p - pos;
