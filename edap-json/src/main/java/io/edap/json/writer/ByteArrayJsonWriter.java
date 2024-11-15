@@ -211,8 +211,8 @@ public class ByteArrayJsonWriter extends AbstractJsonWriter implements JsonWrite
             buf[_pos++] = 'n';
             buf[_pos++] = 'u';
             buf[_pos++] = 'l';
-            buf[_pos++] = 'l';
-            pos += 5;
+            buf[_pos++]   = 'l';
+            pos = _pos;
             return;
         }
         expand(11);
@@ -237,7 +237,7 @@ public class ByteArrayJsonWriter extends AbstractJsonWriter implements JsonWrite
             buf[_pos++] = 'u';
             buf[_pos++] = 'l';
             buf[_pos++] = 'l';
-            pos += 5;
+            pos = _pos;
             return;
         }
         expand(21);
@@ -253,6 +253,7 @@ public class ByteArrayJsonWriter extends AbstractJsonWriter implements JsonWrite
         buf[_pos++] = 'n';
         buf[_pos++] = 'l';
         buf[_pos++] = 'l';
+        pos = _pos;
     }
 
     //@Override
