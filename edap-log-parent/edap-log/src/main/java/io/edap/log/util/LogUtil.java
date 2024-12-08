@@ -113,7 +113,7 @@ public class LogUtil {
                     start = str.length();
                 } else {
                     as.add(str.substring(start, index));
-                    start = index + 1;
+                    start = index + sep.length();
                 }
             }
         }

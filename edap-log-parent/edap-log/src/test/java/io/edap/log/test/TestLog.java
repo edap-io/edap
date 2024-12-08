@@ -18,7 +18,9 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -63,7 +65,8 @@ public class TestLog {
         }
 
         long start = EdapTime.instance().currentTimeMillis();
-        LOG.info("name: {},height: {}", l -> l.arg("edap").arg(90.0));
+        List<String> list = new ArrayList<>();
+        LOG.info("name: {},height: {}", l -> l.arg("edap").arg(90.0).arg(list::size));
         long end = EdapTime.instance().currentTimeMillis();
         System.out.println("start:" + start);
         System.out.println("end:" + end);

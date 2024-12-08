@@ -1,6 +1,8 @@
 package io.edap.log.config;
 
 import io.edap.log.*;
+import io.edap.log.appenders.ConsoleAppender;
+import io.edap.log.appenders.rolling.RollingFileAppender;
 import io.edap.util.CollectionUtils;
 import io.edap.util.StringUtil;
 import org.w3c.dom.*;
@@ -14,7 +16,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.*;
 
-import static io.edap.log.consts.LogConsts.CONFIG_FILE_PROPERTY;
+import static io.edap.log.consts.LogConsts.*;
 import static io.edap.log.helpers.Util.printError;
 import static io.edap.util.StringUtil.isEmpty;
 import static java.util.Collections.EMPTY_LIST;
@@ -61,6 +63,46 @@ public class ConfigManager {
         LogConfig config = new LogConfig();
 
         return config;
+    }
+
+    private AppenderConfig createDefaultConsoleAppenderConfig() {
+        AppenderConfig config = new AppenderConfig();
+        config.setName(DEFAULT_CONSOLE_APPENDER_NAME);
+        config.setClazzName(ConsoleAppender.class.getName());
+
+        return config;
+    }
+
+    private AppenderConfig createDefaultFileAppenderConfig() {
+        AppenderConfig config = new AppenderConfig();
+        config.setName(DEFAULT_FILE_APPENDER_NAME);
+        config.setClazzName(RollingFileAppender.class.getName());
+
+        List<LogConfig.ArgNode> args = new ArrayList();
+        // 添加FileAppender的默认Encoder
+        args.add(createDefaultFileEncoderNode());
+        config.setArgs(args);
+
+        return config;
+    }
+
+    private LogConfig.ArgNode createDefaultFileEncoderNode() {
+        LogConfig.ArgNode node = new LogConfig.ArgNode();
+        node.setName("encoder");
+
+        List<LogConfig.ArgNode> children = new ArrayList<>();
+        children.add(createDefaultFileEncoderPattern());
+        node.setChilds(children);
+
+        return node;
+    }
+
+    private LogConfig.ArgNode createDefaultFileEncoderPattern() {
+        LogConfig.ArgNode node = new LogConfig.ArgNode();
+        node.setName("pattern");
+        node.setValue("%date{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] [%logger{36}] - %msg %ex%n");
+
+        return node;
     }
 
     private LogConfig findAdapterConfig() {
