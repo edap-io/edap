@@ -29,7 +29,7 @@ public class ConfigManager {
         LoggerConfig config = new LoggerConfig();
         config.setLevel("INFO");
         config.setName("ROOT");
-        config.setAppenderRefs(Arrays.asList("console"));
+        config.setAppenderRefs(Arrays.asList(DEFAULT_CONSOLE_APPENDER_NAME, DEFAULT_FILE_APPENDER_NAME));
         DEFAULT_ROOT_LOGGER_CONFIG = config;
     }
 
@@ -62,18 +62,55 @@ public class ConfigManager {
     public static LogConfig createDefaultLogConfig() {
         LogConfig config = new LogConfig();
 
+        AppenderConfigSection appenderSection = new AppenderConfigSection();
+        List<AppenderConfig> appenderConfigs = new ArrayList<>();
+        appenderConfigs.add(createDefaultConsoleAppenderConfig());
+        appenderConfigs.add(createDefaultFileAppenderConfig());
+        appenderSection.setAppenderConfigs(appenderConfigs);
+        config.setAppenderSection(appenderSection);
+
+        // 设置默认的ROOT节点配置
+        LoggerConfigSection loggerConfigSection = new LoggerConfigSection();
+        loggerConfigSection.setRootLoggerConfig(DEFAULT_ROOT_LOGGER_CONFIG);
+
+        config.setLoggerSection(loggerConfigSection);
+
         return config;
     }
 
-    private AppenderConfig createDefaultConsoleAppenderConfig() {
+    private static AppenderConfig createDefaultConsoleAppenderConfig() {
         AppenderConfig config = new AppenderConfig();
         config.setName(DEFAULT_CONSOLE_APPENDER_NAME);
         config.setClazzName(ConsoleAppender.class.getName());
 
+        List<LogConfig.ArgNode> args = new ArrayList();
+        // 添加FileAppender的默认Encoder
+        args.add(createDefaultConsoleEncoderNode());
+        config.setArgs(args);
+
         return config;
     }
 
-    private AppenderConfig createDefaultFileAppenderConfig() {
+    private static LogConfig.ArgNode createDefaultConsoleEncoderNode() {
+        LogConfig.ArgNode node = new LogConfig.ArgNode();
+        node.setName("encoder");
+
+        List<LogConfig.ArgNode> children = new ArrayList<>();
+        children.add(createDefaultConsoleEncoderPattern());
+        node.setChilds(children);
+
+        return node;
+    }
+
+    private static LogConfig.ArgNode createDefaultConsoleEncoderPattern() {
+        LogConfig.ArgNode node = new LogConfig.ArgNode();
+        node.setName("pattern");
+        node.setValue("%date{MM-dd HH:mm:ss.SSS} %-5level [%thread] [%logger{36}] - %msg %ex%n");
+
+        return node;
+    }
+
+    private static AppenderConfig createDefaultFileAppenderConfig() {
         AppenderConfig config = new AppenderConfig();
         config.setName(DEFAULT_FILE_APPENDER_NAME);
         config.setClazzName(RollingFileAppender.class.getName());
@@ -86,7 +123,7 @@ public class ConfigManager {
         return config;
     }
 
-    private LogConfig.ArgNode createDefaultFileEncoderNode() {
+    private static LogConfig.ArgNode createDefaultFileEncoderNode() {
         LogConfig.ArgNode node = new LogConfig.ArgNode();
         node.setName("encoder");
 
@@ -97,7 +134,7 @@ public class ConfigManager {
         return node;
     }
 
-    private LogConfig.ArgNode createDefaultFileEncoderPattern() {
+    private static LogConfig.ArgNode createDefaultFileEncoderPattern() {
         LogConfig.ArgNode node = new LogConfig.ArgNode();
         node.setName("pattern");
         node.setValue("%date{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] [%logger{36}] - %msg %ex%n");
