@@ -117,18 +117,49 @@ public class ConfigManager {
 
         List<LogConfig.ArgNode> args = new ArrayList();
         // 添加FileAppender的默认Encoder
-        args.add(createDefaultFileEncoderNode());
+        String logFileName = "./app.log";
+        args.add(createDefaultFileEncoderNode(logFileName));
+        args.add(createDayRolloverNode(logFileName));
         config.setArgs(args);
 
         return config;
     }
 
-    private static LogConfig.ArgNode createDefaultFileEncoderNode() {
+    private static LogConfig.ArgNode createDayRolloverNode(String file) {
+        LogConfig.ArgNode node = new LogConfig.ArgNode();
+        node.setName("rollingPolicy");
+        Map<String, String> atts = new HashMap<>();
+        atts.put("class", "io.edap.log.appenders.rolling.TimeBasedRollingPolicy");
+        node.setAttributes(atts);
+
+        List<LogConfig.ArgNode> args = new ArrayList();
+        int dotIndex = file.lastIndexOf(".");
+        if (dotIndex == -1) {
+            file += "-%d{yyyy-MM-dd}";
+        } else {
+            file = file.substring(0, dotIndex) + "-%d{yyyy-MM-dd}" + file.substring(dotIndex);
+        }
+        args.add(createSimpleNode("fileNamePattern", file));
+        args.add(createSimpleNode("maxHistory", "14"));
+        node.setChilds(args);
+
+        return node;
+    }
+
+    private static LogConfig.ArgNode createSimpleNode(String name, String value) {
+        LogConfig.ArgNode node = new LogConfig.ArgNode();
+        node.setName(name);
+        node.setValue(value);
+        return node;
+    }
+
+    private static LogConfig.ArgNode createDefaultFileEncoderNode(String logFileName) {
         LogConfig.ArgNode node = new LogConfig.ArgNode();
         node.setName("encoder");
 
         List<LogConfig.ArgNode> children = new ArrayList<>();
         children.add(createDefaultFileEncoderPattern());
+        children.add(createSimpleNode("file", logFileName));
         node.setChilds(children);
 
         return node;

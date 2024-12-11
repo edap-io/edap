@@ -20,6 +20,7 @@ import io.edap.log.*;
 import io.edap.log.config.ConfigManager;
 import io.edap.log.config.LoggerConfig;
 import io.edap.log.config.LoggerConfigSection;
+import io.edap.util.CollectionUtils;
 import io.edap.util.EdapTime;
 
 import java.util.ArrayList;
@@ -127,8 +128,10 @@ public class EdapLogFactory implements LoggerFactory, ConfigReload<LoggerConfigS
         if (logConfigSection != null && logConfigSection.getRootLoggerConfig() != null) {
             loggerConfigs.put(ROOT_LOGGER_NAME, logConfigSection.getRootLoggerConfig());
         }
-        for (LoggerConfig config : logConfigSection.getLoggerConfigs()) {
-            loggerConfigs.put(config.getName(), config);
+        if (!CollectionUtils.isEmpty(logConfigSection.getLoggerConfigs())) {
+            for (LoggerConfig config : logConfigSection.getLoggerConfigs()) {
+                loggerConfigs.put(config.getName(), config);
+            }
         }
 
         for (Map.Entry<String, LoggerImpl> entry : loggerCache.entrySet()) {
