@@ -7,8 +7,10 @@ import io.edap.log.config.ConfigManager;
 import org.xml.sax.SAXException;
 
 import javax.xml.parsers.ParserConfigurationException;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URL;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -69,10 +71,15 @@ public class EdapTestAdapter implements LogAdapter {
 
     public void reloadConfig(String configFile) throws ParserConfigurationException, IOException, SAXException {
         InputStream configInStream = null;
-        try {
-            configInStream = ConfigManager.class.getResourceAsStream(configFile);
-        } catch (Throwable t) {
-            throw t;
+        URL url = ConfigManager.class.getResource(configFile);
+        if (url.getProtocol() == "file") {
+            configInStream = new FileInputStream(url.getFile());
+        } else {
+            try {
+                configInStream = ConfigManager.class.getResourceAsStream(configFile);
+            } catch (Throwable t) {
+                throw t;
+            }
         }
         long now = System.currentTimeMillis();
         LogConfig config = parseXmlConfig(configInStream, now);
