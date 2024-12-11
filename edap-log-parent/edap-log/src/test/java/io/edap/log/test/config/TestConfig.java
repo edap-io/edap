@@ -52,8 +52,9 @@ public class TestConfig {
         assertNotNull(rootLoggerConfig);
         assertEquals(rootLoggerConfig.getName(), "ROOT");
         assertEquals(rootLoggerConfig.getLevel(), "INFO");
-        assertEquals(rootLoggerConfig.getAppenderRefs().size(), 1);
-        assertEquals(rootLoggerConfig.getAppenderRefs().get(0), "console");
+        assertEquals(rootLoggerConfig.getAppenderRefs().size(), 2);
+        assertEquals(rootLoggerConfig.getAppenderRefs().get(0), "CONSOLE");
+        assertEquals(rootLoggerConfig.getAppenderRefs().get(1), "FILE");
 
         AppenderConfigSection appenderSection = config.getAppenderSection();
         assertNotNull(appenderSection);
