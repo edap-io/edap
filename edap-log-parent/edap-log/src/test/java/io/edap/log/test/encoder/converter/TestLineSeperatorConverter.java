@@ -47,9 +47,13 @@ public class TestLineSeperatorConverter {
 
         Field winField = loggerConverter.getClass().getDeclaredField("win");
         winField.setAccessible(true);
-        Field modifiersField = Field.class.getDeclaredField("modifiers");
-        modifiersField.setAccessible(true);
-        modifiersField.setInt(winField, winField.getModifiers() & ~Modifier.FINAL);
+        try {
+            Field modifiersField = Field.class.getDeclaredField("modifiers");
+            modifiersField.setAccessible(true);
+            modifiersField.setInt(winField, winField.getModifiers() & ~Modifier.FINAL);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
         winField.set(loggerConverter, true);
         out.reset();
         logEvent = new LogEvent();
