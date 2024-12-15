@@ -67,7 +67,7 @@ public class LoggerManager {
                     return;
                 }
             }
-            if (useDefault) {
+            if (useDefault && (name == null || name.length() == 0)) {
                 if (LOGGER_FACTORY == null) {
                     LOGGER_FACTORY = SPI_PROVIDERS.get(0).getLoggerFactory();
                 }

@@ -23,8 +23,8 @@ import org.junit.jupiter.api.Test;
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 
-import static io.edap.log.helpers.Util.printError;
-import static io.edap.log.helpers.Util.printMsg;
+import static io.edap.log.LogLevel.*;
+import static io.edap.log.helpers.Util.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 public class TestUtil {
@@ -75,5 +75,101 @@ public class TestUtil {
         printMsg(msg);
         assertEquals("Print info message.\n", outContent.toString());
 
+    }
+
+    @Test
+    public void testParseLevel() {
+        String level = "TRACE";
+        int levelVal = parseLevel(level);
+        assertEquals(levelVal, TRACE);
+
+        level = "TRaCE";
+        levelVal = parseLevel(level);
+        assertEquals(levelVal, TRACE);
+
+        level = "trace";
+        levelVal = parseLevel(level);
+        assertEquals(levelVal, TRACE);
+
+        level = "DEBUG";
+        levelVal = parseLevel(level);
+        assertEquals(levelVal, DEBUG);
+
+        level = "deBug";
+        levelVal = parseLevel(level);
+        assertEquals(levelVal, DEBUG);
+
+        level = "debug";
+        levelVal = parseLevel(level);
+        assertEquals(levelVal, DEBUG);
+
+
+        level = "CONF";
+        levelVal = parseLevel(level);
+        assertEquals(levelVal, CONF);
+
+        level = "COnF";
+        levelVal = parseLevel(level);
+        assertEquals(levelVal, CONF);
+
+        level = "conf";
+        levelVal = parseLevel(level);
+        assertEquals(levelVal, CONF);
+
+        level = "INFO";
+        levelVal = parseLevel(level);
+        assertEquals(levelVal, INFO);
+
+        level = "INFo";
+        levelVal = parseLevel(level);
+        assertEquals(levelVal, INFO);
+
+        level = "info";
+        levelVal = parseLevel(level);
+        assertEquals(levelVal, INFO);
+
+        level = "WARN";
+        levelVal = parseLevel(level);
+        assertEquals(levelVal, WARN);
+
+        level = "wARN";
+        levelVal = parseLevel(level);
+        assertEquals(levelVal, WARN);
+
+        level = "warn";
+        levelVal = parseLevel(level);
+        assertEquals(levelVal, WARN);
+
+        level = "ERROR";
+        levelVal = parseLevel(level);
+        assertEquals(levelVal, ERROR);
+
+        level = "ErROR";
+        levelVal = parseLevel(level);
+        assertEquals(levelVal, ERROR);
+
+        level = "error";
+        levelVal = parseLevel(level);
+        assertEquals(levelVal, ERROR);
+
+        level = "OFF";
+        levelVal = parseLevel(level);
+        assertEquals(levelVal, OFF);
+
+        level = "OfF";
+        levelVal = parseLevel(level);
+        assertEquals(levelVal, OFF);
+
+        level = "off";
+        levelVal = parseLevel(level);
+        assertEquals(levelVal, OFF);
+
+        level = "t";
+        levelVal = parseLevel(level);
+        assertEquals(levelVal, INFO);
+
+        level = "";
+        levelVal = parseLevel(level);
+        assertEquals(levelVal, INFO);
     }
 }

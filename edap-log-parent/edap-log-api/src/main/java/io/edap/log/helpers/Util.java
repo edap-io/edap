@@ -16,8 +16,6 @@
 
 package io.edap.log.helpers;
 
-import java.text.SimpleDateFormat;
-import java.util.Date;
 import java.util.Locale;
 
 import static io.edap.log.LogLevel.*;
@@ -60,9 +58,4 @@ public class Util {
         }
     }
 
-    public static void main(String[] args) {
-        Date now = new Date();
-        SimpleDateFormat simpleDateFormat = new SimpleDateFormat("y'yyyy'");
-        System.out.println(simpleDateFormat.format(now));
-    }
 }

@@ -19,7 +19,7 @@ package io.edap.log.spi;
 import io.edap.log.LoggerFactory;
 
 /**
- * 实现实现的SPI接口定义
+ * 日志提供者的SPI接口定义
  */
 public interface LoggerServiceProvider {
     /**

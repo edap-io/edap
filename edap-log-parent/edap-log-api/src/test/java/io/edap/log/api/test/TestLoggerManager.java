@@ -20,17 +20,18 @@ import io.edap.log.Logger;
 import io.edap.log.LoggerFactory;
 import io.edap.log.LoggerManager;
 import io.edap.log.NopLogger;
+import io.edap.log.spi.LoggerServiceProvider;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.util.List;
 
 import static com.github.stefanbirkner.systemlambda.SystemLambda.*;
 import static io.edap.log.LoggerManager.getSpiProviderName;
 import static io.edap.log.LoggerManager.setSpiProviderName;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class TestLoggerManager {
 
@@ -119,5 +120,28 @@ public class TestLoggerManager {
         assertEquals(name, spiName);
     }
 
+    @Test
+    public void testExists() throws NoSuchFieldException, IllegalAccessException, NoSuchMethodException, InvocationTargetException {
+        Logger log = LoggerManager.getLogger(TestLoggerManager.class);
+        Field field = LoggerManager.class.getDeclaredField("SPI_PROVIDERS");
+        field.setAccessible(true);
+        List<LoggerServiceProvider> providers = (List<LoggerServiceProvider>)field.get(null);
+        assertEquals(providers.size(), 1);
 
+        Method method = LoggerManager.class.getDeclaredMethod("exits", LoggerServiceProvider.class);
+        method.setAccessible(true);
+        boolean exists = (Boolean) method.invoke(null, new LoggerServiceProvider() {
+            @Override
+            public LoggerFactory getLoggerFactory() {
+                return null;
+            }
+        });
+        assertFalse(exists);
+    }
+
+    @Test
+    public void testInit() throws Exception {
+        withEnvironmentVariable("edap_log_spi_provider", "io.edap.log.NopLogger100")
+                .execute(() -> LoggerManager.getLogger(TestLoggerManager.class));
+    }
 }
