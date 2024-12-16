@@ -14,6 +14,8 @@ import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 
+import static io.edap.log.consts.LogConsts.DEFAULT_CONSOLE_APPENDER_NAME;
+import static io.edap.log.consts.LogConsts.DEFAULT_FILE_APPENDER_NAME;
 import static org.junit.jupiter.api.Assertions.*;
 
 public class TestConfig {
@@ -52,8 +54,9 @@ public class TestConfig {
         assertNotNull(rootLoggerConfig);
         assertEquals(rootLoggerConfig.getName(), "ROOT");
         assertEquals(rootLoggerConfig.getLevel(), "INFO");
-        assertEquals(rootLoggerConfig.getAppenderRefs().size(), 1);
-        assertEquals(rootLoggerConfig.getAppenderRefs().get(0), "console");
+        assertEquals(rootLoggerConfig.getAppenderRefs().size(), 2);
+        assertEquals(rootLoggerConfig.getAppenderRefs().get(0), DEFAULT_CONSOLE_APPENDER_NAME);
+        assertEquals(rootLoggerConfig.getAppenderRefs().get(1), DEFAULT_FILE_APPENDER_NAME);
 
         AppenderConfigSection appenderSection = config.getAppenderSection();
         assertNotNull(appenderSection);
