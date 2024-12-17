@@ -179,7 +179,6 @@ public class ServerGroup {
      * 先将服务组里每个服务初始化后再启动各个服务的监听，以防端口监听后服务还未启动导致服务无法响应的问题。
      */
     public void run() {
-        List<Acceptor> acceptors = new ArrayList<>();
         EventDispatchType eventDispatchType = parseEventDispatchType(edap.getConfig());
         ThreadType        threadType        = parseThreadType(edap.getConfig());
         List<SelectorProvider> providers = edap.getSelectorProviders();

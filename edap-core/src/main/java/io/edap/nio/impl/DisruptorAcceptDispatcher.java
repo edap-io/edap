@@ -36,9 +36,9 @@ public class DisruptorAcceptDispatcher implements AcceptDispatcher {
 
     private static final Logger LOG = LoggerManager.getLogger(DisruptorAcceptDispatcher.class);
 
-    private List<RingBuffer<AcceptEvent>> ringBuffers;
+    private RingBuffer<AcceptEvent> ringBuffer;
     public DisruptorAcceptDispatcher() {
-        ringBuffers = new FastList<>();
+        ringBuffer = buildRingBuffer();
     }
 
     @Override
@@ -50,7 +50,9 @@ public class DisruptorAcceptDispatcher implements AcceptDispatcher {
 //            clientChan.configureBlocking(false);
 //            clientChan.socket().setReuseAddress(true);
             acceptKey.attachment();
-            boolean published = getRingBuffer().tryPublishEvent((event, sequence) -> event.setAcceptKey(acceptKey));
+            boolean published = ringBuffer.tryPublishEvent(
+                    (event, sequence) -> event.setAcceptKey(acceptKey));
+            System.out.println("published " + published);
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -66,7 +68,8 @@ public class DisruptorAcceptDispatcher implements AcceptDispatcher {
         int bufferSize = 1024;
         WaitStrategy waitStrategy = new YieldingWaitStrategy();
         EventHandler<AcceptEvent> handler = (event, sequence, endOfBatch) -> {
-
+            System.out.println("event " + event.getAcceptKey().channel() +
+                    ",sequence=" + sequence + ",endOfBatch=" + endOfBatch);
         };
         Disruptor<AcceptEvent> disruptor = new Disruptor<>(
                 eventFactory,
