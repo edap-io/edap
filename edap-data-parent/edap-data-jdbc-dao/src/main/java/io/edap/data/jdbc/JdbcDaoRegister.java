@@ -22,10 +22,7 @@ import io.edap.log.LoggerManager;
 import io.edap.util.CollectionUtils;
 import io.edap.util.internal.GeneratorClassInfo;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Locale;
+import java.util.*;
 import java.util.concurrent.locks.ReentrantLock;
 
 import static io.edap.util.AsmUtil.saveJavaFile;
@@ -38,10 +35,10 @@ public class JdbcDaoRegister {
 
     private final ReentrantLock lock = new ReentrantLock();
 
-    private DaoLoader daoLoader;
+    private Map<ClassLoader, DaoLoader> daoLoaders;
 
     private JdbcDaoRegister() {
-        daoLoader = new DaoLoader(this.getClass().getClassLoader());
+        daoLoaders = new HashMap<>();
     }
 
     public JdbcMapDao getMapDao() {
@@ -59,7 +56,7 @@ public class JdbcDaoRegister {
             String name = DaoUtil.getFieldSetFuncName(entity, columns, columnStr);
             Class funcClazz;
             try {
-                funcClazz = daoLoader.loadClass(name);
+                funcClazz = getDaoLoader(entity).loadClass(name);
             } catch (ClassNotFoundException e) {
                 funcClazz = generateFieldSetFuncClass(entity, columns, columnStr);
             }
@@ -77,6 +74,17 @@ public class JdbcDaoRegister {
         }
     }
 
+    private synchronized <T> DaoLoader getDaoLoader(Class<T> entity) {
+        ClassLoader classLoader = entity.getClassLoader();
+        DaoLoader loader = daoLoaders.get(classLoader);
+        if (loader == null) {
+            loader = new DaoLoader(classLoader);
+            daoLoaders.put(classLoader, loader);
+        }
+
+        return loader;
+    }
+
     private Class<?> generateFieldSetFuncClass(Class<?> entity, List<String> orignalColumns, String columnStr) {
         List<String> columns = new ArrayList<>();
         if (!CollectionUtils.isEmpty(orignalColumns)) {
@@ -88,6 +96,7 @@ public class JdbcDaoRegister {
         JdbcFieldSetFuncGenerator generator = new JdbcFieldSetFuncGenerator(entity, columns, columnStr);
         String funcName = toLangName(DaoUtil.getFieldSetFuncName(entity, columns, columnStr));
         Class<?> funcCls = null;
+        DaoLoader daoLoader = getDaoLoader(entity);
         try {
             funcCls = daoLoader.loadClass(funcName);
             if (funcCls != null) {
@@ -122,7 +131,7 @@ public class JdbcDaoRegister {
             String name = DaoUtil.getEntityDaoName(entity);
             Class<?> daoClazz;
             try {
-                daoClazz = daoLoader.loadClass(name);
+                daoClazz = getDaoLoader(entity).loadClass(name);
             } catch (ClassNotFoundException e) {
                 daoClazz = generateEntityDaoClass(entity, daoOption);
             }
@@ -144,6 +153,7 @@ public class JdbcDaoRegister {
         JdbcEntityDaoGenerator generator = new JdbcEntityDaoGenerator(entity, daoOption);
         String daoName = toLangName(DaoUtil.getEntityDaoName(entity));
         Class<?> daoCls = null;
+        DaoLoader daoLoader = getDaoLoader(entity);
         try {
             GeneratorClassInfo gci = generator.getClassInfo();
             byte[] bs = gci.clazzBytes;
@@ -164,6 +174,7 @@ public class JdbcDaoRegister {
 
     public <T> JdbcViewDao<T> getViewDao(Class<T> entity, DaoOption daoOption) {
         JdbcViewDao<T> dao = null;
+        DaoLoader daoLoader = getDaoLoader(entity);
         try {
             lock.lock();
             String name = DaoUtil.getViewDaoName(entity);
@@ -191,6 +202,7 @@ public class JdbcDaoRegister {
         JdbcViewDaoGenerator generator = new JdbcViewDaoGenerator(entity, daoOption);
         String daoName = toLangName(DaoUtil.getViewDaoName(entity));
         Class<?> daoCls = null;
+        DaoLoader daoLoader = getDaoLoader(entity);
         try {
             GeneratorClassInfo gci = generator.getClassInfo();
             byte[] bs = gci.clazzBytes;
