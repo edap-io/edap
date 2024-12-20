@@ -35,7 +35,7 @@ public class GzCompression implements LogCompression {
     @Override
     public void compress(File file2gz, File gzFile) {
         if (!file2gz.exists()) {
-            throw new RuntimeException(file2gz.getAbsolutePath() + " file not founc");
+            throw new RuntimeException(file2gz.getAbsolutePath() + " file not found");
         }
 
         if (gzFile.exists()) {
