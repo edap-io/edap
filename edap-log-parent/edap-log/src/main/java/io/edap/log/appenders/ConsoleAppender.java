@@ -38,8 +38,17 @@ public class ConsoleAppender extends OutputStremAppender {
 
     @Override
     public void start() {
-        BaseLogOutputStream targetStream = target.getStream();
-        setOutputStream(targetStream);
+        switch (target) {
+            case SystemOut:
+                setOutputStream(new BaseLogOutputStream(System.out));
+                break;
+            case SystemErr:
+                setOutputStream(new BaseLogOutputStream(System.err));
+                break;
+            default:
+                setOutputStream(new BaseLogOutputStream(System.out));
+        }
+
         super.start();
     }
 
