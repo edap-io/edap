@@ -16,14 +16,11 @@
 
 package io.edap.log.io;
 
-import java.io.IOException;
-import java.io.OutputStream;
-
 public enum ConsoleTarget {
 
-    SystemOut("System.out", new BaseLogOutputStream(System.out)),
+    SystemOut("System.out"),
 
-    SystemErr("System.err", new BaseLogOutputStream(System.err));
+    SystemErr("System.err");
 
     public static ConsoleTarget findByName(String name) {
         for (ConsoleTarget target : ConsoleTarget.values()) {
@@ -35,19 +32,13 @@ public enum ConsoleTarget {
     }
 
     private final String name;
-    private final BaseLogOutputStream stream;
 
-    ConsoleTarget(String name, BaseLogOutputStream stream) {
+    ConsoleTarget(String name) {
         this.name = name;
-        this.stream = stream;
     }
 
     public String getName() {
         return name;
-    }
-
-    public BaseLogOutputStream getStream() {
-        return stream;
     }
 
     @Override
