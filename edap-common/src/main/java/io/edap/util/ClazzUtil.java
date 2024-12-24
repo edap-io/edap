@@ -110,6 +110,19 @@ public class ClazzUtil {
         }
     }
 
+    public static Field getField(Class clazz, String name) throws NoSuchFieldException {
+        List<Field> fields = getClassFields(clazz);
+        if (CollectionUtils.isEmpty(fields)) {
+            throw new NoSuchFieldException();
+        }
+        for (Field f : fields) {
+            if (f.getName().equals(name)) {
+                return f;
+            }
+        }
+        throw new NoSuchFieldException();
+    }
+
     public static List<Field> getClassFields(Class msgCls) {
         List<Field> fields = new ArrayList<>();
         Field[] af = msgCls.getDeclaredFields();
