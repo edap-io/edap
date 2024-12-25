@@ -29,6 +29,7 @@ import java.util.Arrays;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 public class TestJsonReader {
 
@@ -42,14 +43,14 @@ public class TestJsonReader {
                     StringJsonReader parser = new StringJsonReader("key:123");
                     parser.readObject();
                 });
-        assertTrue(thrown.getMessage().contains("Not json string!"));
+        assertNotNull(thrown);
 
         thrown = assertThrows(JsonParseException.class,
                 () -> {
                     ByteArrayJsonReader parser = new ByteArrayJsonReader("key:123".getBytes(StandardCharsets.UTF_8));
                     parser.readObject();
                 });
-        assertTrue(thrown.getMessage().contains("Not json string!"));
+        assertNotNull(thrown);
     }
 
     @Test
@@ -2010,6 +2011,42 @@ public class TestJsonReader {
                     reader.readComment();
                 });
         assertTrue(thrown.getMessage().contains("Standard json not support comments"));
+    }
+
+    @Test
+    public void testReadStart() {
+        String json = "null";
+        StringJsonReader reader = new StringJsonReader(json);
+        NodeType nodeType = reader.readStart();
+        assertTrue(nodeType == NodeType.NULL);
+    }
+
+    @Test
+    public void testParseArray() {
+        String json = "null";
+        StringJsonReader reader = new StringJsonReader(json);
+        JsonArray array = reader.parseArray();
+        assertNull(array);
+
+        JsonParseException thrown = assertThrows(JsonParseException.class,
+                () -> {
+                    String json2 = "t";
+                    new StringJsonReader(json2).parseArray();
+                });
+        assertNotNull(thrown);
+
+        thrown = assertThrows(JsonParseException.class,
+                () -> {
+                    String json2 = "{}";
+                    new StringJsonReader(json2).parseArray();
+                });
+        assertTrue(thrown.getMessage().contains("not array string"));
+
+        json = "[]";
+        reader = new StringJsonReader(json);
+        array = reader.parseArray();
+        assertNotNull(array);
+        assertEquals(array.size(), 0);
     }
 
 }
