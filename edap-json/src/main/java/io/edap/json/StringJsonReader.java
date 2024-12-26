@@ -38,7 +38,7 @@ import static io.edap.util.Constants.FNV_1a_INIT_VAL;
  */
 public class StringJsonReader implements JsonReader {
 
-    static final JsonParseException ERROR_JSON_FORMAT = new JsonParseException("Not json string!");
+    static final JsonParseException ERROR_JSON_FORMAT = new JsonParseException("");
 
     protected int pos;
 
@@ -895,7 +895,7 @@ public class StringJsonReader implements JsonReader {
             return null;
         }
         if (nodeType != NodeType.ARRAY) {
-            throw new RuntimeException("not array string");
+            throw new JsonParseException("not array string");
         }
         pos++;
         JsonArray vs = new JsonArray();
