@@ -89,8 +89,7 @@ public class Eson {
                     writer.write((byte)',');
                 }
                 i++;
-                codec = JsonCodecRegister.instance().getEncoder(c.getClass());
-                codec.encode(writer, c);
+                Eson.serialize(c, writer);
             }
             writer.write((byte)']');
         } else if (obj instanceof Map) {
