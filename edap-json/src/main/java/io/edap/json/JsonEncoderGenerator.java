@@ -2,6 +2,7 @@ package io.edap.json;
 
 import io.edap.json.model.JsonFieldInfo;
 import io.edap.json.util.JsonUtil;
+import io.edap.util.ClazzUtil;
 import io.edap.util.CollectionUtils;
 import io.edap.util.internal.GeneratorClassInfo;
 import org.objectweb.asm.*;
@@ -492,7 +493,7 @@ public class JsonEncoderGenerator {
                 mv.visitLabel(l0);
                 mv.visitLdcInsn(org.objectweb.asm.Type.getType("L" + pojoName + ";"));
                 mv.visitLdcInsn("methods");
-                mv.visitMethodInsn(INVOKESTATIC, "io/edap/x/util/ClazzUtil", "getField", "(Ljava/lang/Class;Ljava/lang/String;)Ljava/lang/reflect/Field;", false);
+                mv.visitMethodInsn(INVOKESTATIC, toInternalName(ClazzUtil.class.getName()), "getField", "(Ljava/lang/Class;Ljava/lang/String;)Ljava/lang/reflect/Field;", false);
                 mv.visitVarInsn(ASTORE, 2);
                 mv.visitFieldInsn(GETSTATIC, REGISTER_NAME, "INSTANCE", "L" + REGISTER_NAME + ";");
                 mv.visitVarInsn(ALOAD, 2);
