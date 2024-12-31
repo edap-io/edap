@@ -23,6 +23,10 @@ public class LoggerConfig {
     private String name;
     private String level;
     private String additivity;
+    /**
+     * 是否使用异步Logger
+     */
+    private boolean async;
 
     private List<String> appenderRefs;
 
@@ -56,5 +60,13 @@ public class LoggerConfig {
 
     public void setAdditivity(String additivity) {
         this.additivity = additivity;
+    }
+
+    public boolean isAsync() {
+        return async;
+    }
+
+    public void setAsync(boolean async) {
+        this.async = async;
     }
 }
