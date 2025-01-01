@@ -16,9 +16,7 @@
 
 package io.edap.log;
 
-import io.edap.log.config.AppenderConfigSection;
-import io.edap.log.config.LoggerConfig;
-import io.edap.log.config.LoggerConfigSection;
+import io.edap.log.config.*;
 
 import java.util.List;
 import java.util.Map;
@@ -67,6 +65,8 @@ public class LogConfig {
 
     private LoggerConfigSection loggerSection;
     private AppenderConfigSection appenderSection;
+    private PropertySection propertySection;
+    private QueueConfigSection queueConfigSection;
 
     public AppenderConfigSection getAppenderSection() {
         return appenderSection;
@@ -82,5 +82,21 @@ public class LogConfig {
 
     public void setLoggerSection(LoggerConfigSection loggerSection) {
         this.loggerSection = loggerSection;
+    }
+
+    public PropertySection getPropertySection() {
+        return propertySection;
+    }
+
+    public void setPropertySection(PropertySection propertySection) {
+        this.propertySection = propertySection;
+    }
+
+    public QueueConfigSection getQueueConfigSection() {
+        return queueConfigSection;
+    }
+
+    public void setQueueConfigSection(QueueConfigSection queueConfigSection) {
+        this.queueConfigSection = queueConfigSection;
     }
 }

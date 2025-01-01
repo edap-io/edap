@@ -319,6 +319,7 @@ public class ConfigManager {
         DocumentBuilder builder = dbf.newDocumentBuilder();
         Document doc = builder.parse(configInStream);
         Element root = doc.getDocumentElement();
+        List<Property> props = parsePropertys(root.getElementsByTagName("property"));
         List<AppenderConfig> appenderConfigs = parseAppenders(root.getElementsByTagName("appender"));
         if (CollectionUtils.isEmpty(appenderConfigs)) {
             return null;
@@ -348,6 +349,73 @@ public class ConfigManager {
 
         config.setLoggerSection(loggerConfigSection);
         return config;
+    }
+
+    private static List<Property> parsePropertys(NodeList properties) {
+        if (properties == null || properties.getLength() <= 0) {
+            return EMPTY_LIST;
+        }
+        List<Property> props = new ArrayList<>();
+        Map<String, Property> propertyMap = new HashMap<>();
+        for (int i=0;i<properties.getLength();i++) {
+            Node node = properties.item(i);
+            String name = getAttributeValue(node.getAttributes(), "name");
+            if (isEmpty(name)) {
+                continue;
+            }
+            Property prop = new Property();
+            prop.setName(name);
+            String value = getAttributeValue(node.getAttributes(), "value");
+            if (isEmpty(value)) {
+                value = node.getNodeValue();
+            }
+            if (!isEmpty(value)) {
+                prop.setValue(findAndEvalEnvValue(value, propertyMap));
+            }
+            propertyMap.put(name, prop);
+        }
+
+        return props;
+    }
+
+    private static String findAndEvalEnvValue(String value, Map<String, Property> propertyMap) {
+        int start = notSpaceIndex(value);
+        if (start < value.length()) {
+            int varStart = value.indexOf("${", start);
+            int varEnd   = value.indexOf("}", varStart);
+            if (varStart > 0 && varEnd > varStart + 2) {
+                StringBuilder eval = new StringBuilder();
+                if (varStart > 0) {
+                    eval.append(value.substring(0, varStart));
+                }
+                String key = value.substring(varStart, varEnd);
+                Property prop = propertyMap.get(key);
+                if (prop != null) {
+                    eval.append(prop.getValue());
+                } else {
+                    eval.append(evalEnvValue(key));
+                }
+                eval.append(value.substring(varEnd + 1));
+            }
+        }
+        return value;
+    }
+
+    private static String evalEnvValue(String key) {
+
+    }
+
+    private static int notSpaceIndex(String value) {
+        int i = 0;
+        for (;i<value.length();i++) {
+            char c = value.charAt(i);
+            if (c == ' ' || c == '\t') {
+                i++;
+            } else {
+                return i;
+            }
+        }
+        return i;
     }
 
     private static List<AppenderConfig> parseAppenders(NodeList appenders) {
