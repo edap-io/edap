@@ -78,7 +78,7 @@ public class TestConfig {
         assertEquals(argNode.getChilds().size(), 1);
         LogConfig.ArgNode argNodeChild = argNode.getChilds().get(0);
         assertEquals(argNodeChild.getName(), "pattern");
-        assertEquals(argNodeChild.getValue(), "${COMMON_LOG_PATTERN}");
+        assertEquals(argNodeChild.getValue(), "COMMON_LOG_PATTERN");
 
 
         xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +

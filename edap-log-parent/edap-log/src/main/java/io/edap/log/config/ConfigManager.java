@@ -320,13 +320,14 @@ public class ConfigManager {
         Document doc = builder.parse(configInStream);
         Element root = doc.getDocumentElement();
         Map<String, Property> properties = parseProperty(root.getElementsByTagName("property"));
-        List<AppenderConfig> appenderConfigs = parseAppenders(root.getElementsByTagName("appender"));
+        Map<String, QueueConfig> queueConfigMap = parseQueueConfig(root.getElementsByTagName("queue"), properties);
+        List<AppenderConfig> appenderConfigs = parseAppenders(root.getElementsByTagName("appender"), properties);
         if (CollectionUtils.isEmpty(appenderConfigs)) {
             return null;
         }
-        List<LoggerConfig> loggerConfigs = parseLoggerConfigs(root.getElementsByTagName("logger"));
+        List<LoggerConfig> loggerConfigs = parseLoggerConfigs(root.getElementsByTagName("logger"), properties);
 
-        List<LoggerConfig> rootConfigs = parseLoggerConfigs(root.getElementsByTagName("root"));
+        List<LoggerConfig> rootConfigs = parseLoggerConfigs(root.getElementsByTagName("root"), properties);
         LoggerConfig rootLoggerConfig;
         if (CollectionUtils.isEmpty(rootConfigs)) {
             rootLoggerConfig = createDefaultRootLoggerConfig();
@@ -353,7 +354,35 @@ public class ConfigManager {
         loggerConfigSection.setLoggerConfigs(loggerConfigs);
 
         config.setLoggerSection(loggerConfigSection);
+
+
         return config;
+    }
+
+    private static Map<String, QueueConfig> parseQueueConfig(NodeList queueNodes, Map<String, Property> properties) {
+        Map<String, QueueConfig> queueConfigs = new HashMap<>();
+        if (queueNodes == null || queueNodes.getLength() <= 0) {
+            return queueConfigs;
+        }
+
+        for (int i=0;i<queueNodes.getLength();i++) {
+            Node node = queueNodes.item(i);
+            String name = getAttributeValue(node.getAttributes(), "name");
+            if (isEmpty(name)) {
+                continue;
+            }
+            String clazz = getAttributeValue(node.getAttributes(), "class");
+            if (StringUtil.isEmpty(clazz)) {
+                continue;
+            }
+            clazz = findAndEvalEnvValue(clazz, properties);
+            QueueConfig qc = new QueueConfig();
+            qc.setName(name);
+            qc.setClazzName(clazz);
+
+            qc.setArgs(parseArgNodes(node.getChildNodes(), properties));
+        }
+        return queueConfigs;
     }
 
     private static Map<String, Property> parseProperty(NodeList properties) {
@@ -429,7 +458,7 @@ public class ConfigManager {
         return i;
     }
 
-    private static List<AppenderConfig> parseAppenders(NodeList appenders) {
+    private static List<AppenderConfig> parseAppenders(NodeList appenders, Map<String, Property> properties) {
         if (appenders == null || appenders.getLength() <= 0) {
             return EMPTY_LIST;
         }
@@ -447,13 +476,13 @@ public class ConfigManager {
             AppenderConfig config = new AppenderConfig();
             config.setName(name);
             config.setClazzName(clsName);
-            config.setArgs(parseArgNodes(node.getChildNodes()));
+            config.setArgs(parseArgNodes(node.getChildNodes(), properties));
             configs.add(config);
         }
         return configs;
     }
 
-    private static List<LogConfig.ArgNode> parseArgNodes(NodeList childNodes) {
+    private static List<LogConfig.ArgNode> parseArgNodes(NodeList childNodes, Map<String, Property> properties) {
         if (childNodes == null || childNodes.getLength() <= 0) {
             return EMPTY_LIST;
         }
@@ -461,7 +490,7 @@ public class ConfigManager {
         for (int i=0;i<childNodes.getLength();i++) {
             Node child = childNodes.item(i);
             if (child.getNodeType() == Node.ELEMENT_NODE) {
-                LogConfig.ArgNode node = parseArgNode(child);
+                LogConfig.ArgNode node = parseArgNode(child, properties);
                 if (node != null) {
                     argNodes.add(node);
                 }
@@ -470,22 +499,22 @@ public class ConfigManager {
         return argNodes;
     }
 
-    private static LogConfig.ArgNode parseArgNode(Node child) {
+    private static LogConfig.ArgNode parseArgNode(Node child, Map<String, Property> properties) {
         LogConfig.ArgNode argNode = new LogConfig.ArgNode();
         argNode.setName(child.getNodeName());
         if (child.hasAttributes()) {
             Map<String, String> attrs = new HashMap<>();
             NamedNodeMap attrMap = child.getAttributes();
             for (int i=0;i<attrMap.getLength();i++) {
-                attrs.put(attrMap.item(i).getNodeName(), attrMap.item(i).getNodeValue());
+                attrs.put(attrMap.item(i).getNodeName(), findAndEvalEnvValue(attrMap.item(i).getTextContent(), properties));
             }
             argNode.setAttributes(attrs);
         }
         NodeList childen = child.getChildNodes();
         if (childen.getLength() == 1) {
-            argNode.setValue(childen.item(0).getTextContent());
+            argNode.setValue(findAndEvalEnvValue(childen.item(0).getTextContent(), properties));
         } else {
-            List<LogConfig.ArgNode> childs = parseArgNodes(child.getChildNodes());
+            List<LogConfig.ArgNode> childs = parseArgNodes(child.getChildNodes(), properties);
             if (childs != null) {
                 argNode.setChilds(childs);
             }
@@ -493,7 +522,7 @@ public class ConfigManager {
         return argNode;
     }
 
-    private static List<LoggerConfig> parseLoggerConfigs(NodeList loggers) {
+    private static List<LoggerConfig> parseLoggerConfigs(NodeList loggers, Map<String, Property> properties) {
         if (loggers == null || loggers.getLength() <= 0) {
             return EMPTY_LIST;
         }
@@ -513,14 +542,18 @@ public class ConfigManager {
             String level = getAttributeValue(attrs, "level");
             if (isEmpty(level)) {
                 level = "INFO";
+            } else {
+                level = findAndEvalEnvValue(level, properties);
             }
             loggerConfig.setLevel(level);
             String additivity = getAttributeValue(attrs, "additivity");
             if (isEmpty(additivity)) {
                 additivity = "true";
+            } else {
+                additivity = findAndEvalEnvValue(additivity, properties);
             }
             loggerConfig.setAdditivity(additivity);
-            List<String> refs = parseAppenderRefs(logger.getChildNodes());
+            List<String> refs = parseAppenderRefs(logger.getChildNodes(), properties);
             if (refs != null) {
                 loggerConfig.setAppenderRefs(refs);
             }
@@ -529,7 +562,7 @@ public class ConfigManager {
         return loggerConfigs;
     }
 
-    private static List<String> parseAppenderRefs(NodeList refs) {
+    private static List<String> parseAppenderRefs(NodeList refs, Map<String, Property> properties) {
         if (refs == null || refs.getLength() <= 0) {
             return null;
         }
@@ -541,6 +574,7 @@ public class ConfigManager {
                 if (ref == null) {
                     continue;
                 }
+                ref = findAndEvalEnvValue(ref, properties);
                 if (!reflist.contains(ref)) {
                     reflist.add(ref);
                 }
@@ -557,7 +591,7 @@ public class ConfigManager {
         if (node == null) {
             return null;
         }
-        return node.getNodeValue();
+        return node.getTextContent();
     }
 
     public static LogAdapter getLogAdapter() {
