@@ -15,20 +15,20 @@
 
 package io.edap.log.config;
 
-import java.util.List;
+import java.util.Map;
 
 public class PropertySection {
 
-    private List<Property> propertyList;
+    private Map<String, Property> propertyMap;
     private boolean needReload;
     private long lastReloadTime;
 
-    public List<Property> getPropertyList() {
-        return propertyList;
+    public Map<String, Property> getPropertyMap() {
+        return propertyMap;
     }
 
-    public void setPropertyList(List<Property> propertyList) {
-        this.propertyList = propertyList;
+    public void setPropertyMap(Map<String, Property> propertyMap) {
+        this.propertyMap = propertyMap;
     }
 
     public boolean isNeedReload() {

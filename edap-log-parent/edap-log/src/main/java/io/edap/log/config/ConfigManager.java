@@ -319,7 +319,7 @@ public class ConfigManager {
         DocumentBuilder builder = dbf.newDocumentBuilder();
         Document doc = builder.parse(configInStream);
         Element root = doc.getDocumentElement();
-        List<Property> props = parsePropertys(root.getElementsByTagName("property"));
+        Map<String, Property> properties = parseProperty(root.getElementsByTagName("property"));
         List<AppenderConfig> appenderConfigs = parseAppenders(root.getElementsByTagName("appender"));
         if (CollectionUtils.isEmpty(appenderConfigs)) {
             return null;
@@ -335,6 +335,11 @@ public class ConfigManager {
         }
 
         LogConfig config = new LogConfig();
+
+        PropertySection propertySection = new PropertySection();
+        propertySection.setPropertyMap(properties);
+        config.setPropertySection(propertySection);
+
         AppenderConfigSection appenderSection = new AppenderConfigSection();
         appenderSection.setAppenderConfigs(appenderConfigs);
         appenderSection.setNeedReload(false);
@@ -351,12 +356,12 @@ public class ConfigManager {
         return config;
     }
 
-    private static List<Property> parsePropertys(NodeList properties) {
-        if (properties == null || properties.getLength() <= 0) {
-            return EMPTY_LIST;
-        }
-        List<Property> props = new ArrayList<>();
+    private static Map<String, Property> parseProperty(NodeList properties) {
         Map<String, Property> propertyMap = new HashMap<>();
+        if (properties == null || properties.getLength() <= 0) {
+            return propertyMap;
+        }
+
         for (int i=0;i<properties.getLength();i++) {
             Node node = properties.item(i);
             String name = getAttributeValue(node.getAttributes(), "name");
@@ -367,7 +372,7 @@ public class ConfigManager {
             prop.setName(name);
             String value = getAttributeValue(node.getAttributes(), "value");
             if (isEmpty(value)) {
-                value = node.getNodeValue();
+                value = node.getTextContent();
             }
             if (!isEmpty(value)) {
                 prop.setValue(findAndEvalEnvValue(value, propertyMap));
@@ -375,7 +380,7 @@ public class ConfigManager {
             propertyMap.put(name, prop);
         }
 
-        return props;
+        return propertyMap;
     }
 
     private static String findAndEvalEnvValue(String value, Map<String, Property> propertyMap) {
@@ -383,12 +388,12 @@ public class ConfigManager {
         if (start < value.length()) {
             int varStart = value.indexOf("${", start);
             int varEnd   = value.indexOf("}", varStart);
-            if (varStart > 0 && varEnd > varStart + 2) {
+            if (varStart >= 0 && varEnd > varStart + 2) {
                 StringBuilder eval = new StringBuilder();
                 if (varStart > 0) {
                     eval.append(value.substring(0, varStart));
                 }
-                String key = value.substring(varStart, varEnd);
+                String key = value.substring(varStart+2, varEnd);
                 Property prop = propertyMap.get(key);
                 if (prop != null) {
                     eval.append(prop.getValue());
@@ -396,22 +401,28 @@ public class ConfigManager {
                     eval.append(evalEnvValue(key));
                 }
                 eval.append(value.substring(varEnd + 1));
+                return eval.toString();
             }
         }
         return value;
     }
 
     private static String evalEnvValue(String key) {
-
+        String value = System.getProperty(key);
+        if (StringUtil.isEmpty(value)) {
+            value = System.getenv(key);
+        }
+        if (StringUtil.isEmpty(value)) {
+            return key;
+        }
+        return value;
     }
 
     private static int notSpaceIndex(String value) {
         int i = 0;
         for (;i<value.length();i++) {
             char c = value.charAt(i);
-            if (c == ' ' || c == '\t') {
-                i++;
-            } else {
+            if (c != ' ' && c != '\t') {
                 return i;
             }
         }

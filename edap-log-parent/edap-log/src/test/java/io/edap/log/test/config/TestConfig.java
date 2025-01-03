@@ -6,6 +6,7 @@ import io.edap.log.config.*;
 import io.edap.log.test.spi.LogbackDemoAdapter;
 import io.edap.util.CollectionUtils;
 import org.junit.jupiter.api.Test;
+import org.w3c.dom.NodeList;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
@@ -13,7 +14,9 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Map;
 
+import static com.github.stefanbirkner.systemlambda.SystemLambda.withEnvironmentVariable;
 import static io.edap.log.consts.LogConsts.DEFAULT_CONSOLE_APPENDER_NAME;
 import static io.edap.log.consts.LogConsts.DEFAULT_FILE_APPENDER_NAME;
 import static org.junit.jupiter.api.Assertions.*;
@@ -163,7 +166,51 @@ public class TestConfig {
 
         LoggerConfig loggerConfig = loggerConfigs.get(1);
         assertEquals(loggerConfig.getAdditivity(), "false");
+    }
 
+    @Test
+    public void testParseProperty() throws Exception {
+        Method method = ConfigManager.class.getDeclaredMethod("parseXmlConfig", new Class[]{InputStream.class, long.class});
+        method.setAccessible(true);
+        InputStream inputStream;
+        inputStream = TestConfig.class.getResourceAsStream("/edap-property.xml");
+        ConfigManager manager = new ConfigManager();
+        long now = System.currentTimeMillis();
+        LogConfig config = (LogConfig) method.invoke(manager, inputStream, now);
+        Map<String, Property> propertyMap = config.getPropertySection().getPropertyMap();
+        assertNotNull(propertyMap);
+        assertEquals(propertyMap.size(), 10);
+
+        assertEquals(propertyMap.get("testKey1").getValue(), null);
+        assertEquals(propertyMap.get("testKey2").getValue(), "value2");
+        assertEquals(propertyMap.get("testKey3").getValue(), "value3");
+        assertEquals(propertyMap.get("testKey4").getValue(), "dparam1");
+        assertEquals(propertyMap.get("testKey5").getValue(), "prefix-dparam1-postfix");
+        assertEquals(propertyMap.get("testKey6").getValue(), "prefix-dparam1");
+        assertEquals(propertyMap.get("testKey7").getValue(), "dparam1-postfix");
+        assertEquals(propertyMap.get("testKey8").getValue(), "value2");
+        assertEquals(propertyMap.get("testKey9").getValue(), " value2 ");
+        assertEquals(propertyMap.get("testKey10").getValue(), "  ");
+
+        propertyMap = withEnvironmentVariable("dparam1", "-Dvalue1")
+                .execute(() -> {
+                    InputStream inputStream2;
+                    inputStream2 = TestConfig.class.getResourceAsStream("/edap-property.xml");
+                    LogConfig cfg = (LogConfig) method.invoke(manager, inputStream2, now);
+                    Map<String, Property> map = cfg.getPropertySection().getPropertyMap();
+                    return map;
+                });
+        assertEquals(propertyMap.size(), 10);
+
+        assertEquals(propertyMap.get("testKey1").getValue(), null);
+        assertEquals(propertyMap.get("testKey2").getValue(), "value2");
+        assertEquals(propertyMap.get("testKey3").getValue(), "value3");
+        assertEquals(propertyMap.get("testKey4").getValue(), "-Dvalue1");
+        assertEquals(propertyMap.get("testKey5").getValue(), "prefix--Dvalue1-postfix");
+        assertEquals(propertyMap.get("testKey6").getValue(), "prefix--Dvalue1");
+        assertEquals(propertyMap.get("testKey7").getValue(), "-Dvalue1-postfix");
+        assertEquals(propertyMap.get("testKey8").getValue(), "value2");
+        assertEquals(propertyMap.get("testKey9").getValue(), " value2 ");
     }
 
     @Test
