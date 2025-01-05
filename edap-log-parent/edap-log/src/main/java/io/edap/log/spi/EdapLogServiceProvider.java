@@ -40,13 +40,13 @@ public class EdapLogServiceProvider implements LoggerServiceProvider {
                 if (logConfig != null && logConfig.getAppenderSection() != null) {
                     AppenderConfigSection appenderConfigSection = logConfig.getAppenderSection();
                     appenderConfigSection.setNeedReload(true);
-                    AppenderManager.instance().reloadConfig(appenderConfigSection);
+                    AppenderManager.instance().reloadConfig(logConfig);
                 }
                 edapLogFactory = new EdapLogFactory();
                 if (logConfig != null && logConfig.getLoggerSection() != null) {
                     LoggerConfigSection loggerConfigSection = logConfig.getLoggerSection();
                     loggerConfigSection.setNeedReload(true);
-                    edapLogFactory.reload(loggerConfigSection);
+                    edapLogFactory.reload(logConfig);
                 }
                 EdapLogContext.instance().setEdapLogFactory(edapLogFactory);
                 isSetLogFactory = true;

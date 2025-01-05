@@ -26,6 +26,22 @@ import static io.edap.log.Logger.MAX_ARGS;
  */
 public class LogArgsImpl implements LogArgs {
 
+    public String getLoggerName() {
+        return loggerName;
+    }
+
+    public void setLoggerName(String loggerName) {
+        this.loggerName = loggerName;
+    }
+
+    public Appender[] getAppenders() {
+        return appenders;
+    }
+
+    public void setAppenders(Appender[] appenders) {
+        this.appenders = appenders;
+    }
+
     public static final class TooManyArgsException extends IllegalStateException {
         private static final long serialVersionUID = 1L;
         TooManyArgsException(String m) { super(m); }
@@ -41,6 +57,8 @@ public class LogArgsImpl implements LogArgs {
     private int argc;
     private final Object[] argv = new Object[MAX_ARGS];
     private Throwable throwable;
+    private Appender[] appenders;
+    private String loggerName;
 
     public String getFormat() {
         return format;

@@ -13,7 +13,7 @@
  *  under the License.
  */
 
-package io.edap.log.api.test;
+package io.edap.log.test;
 
 import io.edap.log.LogEvent;
 import org.junit.jupiter.api.Test;

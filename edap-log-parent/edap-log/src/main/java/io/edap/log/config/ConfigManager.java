@@ -553,6 +553,16 @@ public class ConfigManager {
                 additivity = findAndEvalEnvValue(additivity, properties);
             }
             loggerConfig.setAdditivity(additivity);
+
+            String async = getAttributeValue(attrs, "async");
+            if ("true".equalsIgnoreCase(async) || "1".equalsIgnoreCase(async) || "t".equalsIgnoreCase(async)) {
+                loggerConfig.setAsync(true);
+            } else {
+                loggerConfig.setAsync(false);
+            }
+
+            loggerConfig.setQueue(getAttributeValue(attrs, "queue"));
+
             List<String> refs = parseAppenderRefs(logger.getChildNodes(), properties);
             if (refs != null) {
                 loggerConfig.setAppenderRefs(refs);

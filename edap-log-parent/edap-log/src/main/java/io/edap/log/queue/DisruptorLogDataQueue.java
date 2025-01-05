@@ -16,18 +16,29 @@
 
 package io.edap.log.queue;
 
+import com.lmax.disruptor.RingBuffer;
+import com.lmax.disruptor.dsl.Disruptor;
 import io.edap.log.LogConfig;
+import io.edap.log.LogEvent;
+import io.edap.log.config.DisruptorConfig;
+import io.edap.log.helps.ByteArrayBuilder;
+
+import static io.edap.log.util.DisruptorUtil.checkSetConfig;
 
 public class DisruptorLogDataQueue implements LogDataQueue {
 
-    @Override
-    public void publish(byte[] bytes) {
+    private DisruptorConfig      config;
+    private RingBuffer<LogEvent> ringBuffer;
+    private Disruptor<LogEvent>  disruptor;
+    private boolean              started;
 
+    public DisruptorLogDataQueue() {
+        config  = new DisruptorConfig();
+        started = false;
     }
 
     @Override
-    public void setHandler(EventHandler<byte[]> handler) {
-
+    public void publish(LogEvent event) {
     }
 
     @Override
@@ -42,6 +53,6 @@ public class DisruptorLogDataQueue implements LogDataQueue {
 
     @Override
     public void setArg(LogConfig.ArgNode arg) throws Throwable {
-
+        checkSetConfig(config, arg);
     }
 }

@@ -25,13 +25,12 @@ import static io.edap.log.helpers.Util.printError;
 
 /**
  *
- * @param <E> 队列中存储的数据类型
+ * @param <E> 发布的数据类型
+ * @param <D> 队列中存储的数据类型
  */
-public interface LogQueue<E> {
+public interface LogQueue<E, D> {
 
     void publish(E e);
-
-    void setHandler(EventHandler<E> handler);
 
     void start();
 
@@ -44,13 +43,14 @@ public interface LogQueue<E> {
      */
     void setArg(LogConfig.ArgNode arg) throws Throwable;
 
-    static <E> LogQueue<E> instance(Class<LogQueue<E>> queueClass, List<LogConfig.ArgNode> args) throws RuntimeException {
+    static Object instance(Class queueClass, List<LogConfig.ArgNode> args)
+            throws RuntimeException {
         Constructor<?>[] consts = queueClass.getDeclaredConstructors();
-        LogQueue<E> queue = null;
+        LogQueue queue = null;
         for (Constructor c : consts) {
             if (c.getTypeParameters().length == 0) {
                 try {
-                    queue = (LogQueue<E>)c.newInstance();
+                    queue = (LogQueue)c.newInstance();
                 } catch (Throwable t) {
                     throw new RuntimeException(queueClass.getName() + " newInstance error ", t);
                 }
@@ -69,17 +69,5 @@ public interface LogQueue<E> {
             }
         }
         return queue;
-    }
-
-    /**
-     * 日志事件处理接口定义
-     */
-    @FunctionalInterface
-    interface EventHandler<E> {
-        /**
-         * 事件处理器
-         * @param e
-         */
-        void handle(E[] e);
     }
 }

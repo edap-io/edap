@@ -27,6 +27,10 @@ public class LoggerConfig {
      * 是否使用异步Logger
      */
     private boolean async;
+    /**
+     * 队列配置名称
+     */
+    private String queue;
 
     private List<String> appenderRefs;
 
@@ -68,5 +72,16 @@ public class LoggerConfig {
 
     public void setAsync(boolean async) {
         this.async = async;
+    }
+
+    /**
+     * 队列配置名称
+     */
+    public String getQueue() {
+        return queue;
+    }
+
+    public void setQueue(String queue) {
+        this.queue = queue;
     }
 }

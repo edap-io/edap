@@ -16,6 +16,7 @@
 
 package io.edap.log;
 
+import io.edap.log.queue.LogEventQueue;
 import io.edap.util.EdapTime;
 
 import java.io.IOException;
@@ -23,20 +24,23 @@ import java.util.function.Consumer;
 
 import static io.edap.log.LogLevel.*;
 import static io.edap.log.helpers.Util.printError;
+import static io.edap.log.queue.LogEventQueue.translateLogEvent;
 
 public class LoggerImpl implements Logger {
 
-    private int level;
-    private final String name;
+    protected       int           level;
+    protected final String        name;
+    protected       Appender[]    appenders;
+    private         boolean       async;
+    private         LogEventQueue queue;
 
-    private Appender[] appenders;
+    public static final EdapTime LOG_TIME = EdapTime.instance();
 
-    private static final EdapTime LOG_TIME = EdapTime.instance();
-
-    private final ThreadLocal<LogArgsImpl> threadLocalArgs = ThreadLocal.withInitial(LogArgsImpl::new);
+    protected final ThreadLocal<LogArgsImpl> threadLocalArgs = ThreadLocal.withInitial(LogArgsImpl::new);
 
     public LoggerImpl(String name) {
         this.name = name;
+        this.setAsync(false);
     }
 
     public String getName() {
@@ -133,24 +137,24 @@ public class LoggerImpl implements Logger {
         log(ERROR, format, logArgsConsumer);
     }
 
-
-    private void flush(LogArgsImpl logArgs) {
-        LogEvent logEvent = new LogEvent();
-        logEvent.setLogTime(LOG_TIME.currentTimeMillis());
-        logEvent.setFormat(logArgs.getFormat());
-        logEvent.setThrew(logArgs.getThrowable());
-        Object[] argv;
-        if (logArgs.getThrowable() != null) {
-            argv = new Object[logArgs.getArgc() + 1];
-            argv[logArgs.getArgc()]  = logArgs.getThrowable();
+    protected void flush(LogArgsImpl logArgs) {
+        if (isAsync() && getQueue() != null) {
+            logArgs.setAppenders(appenders);
+            logArgs.setLoggerName(name);
+            asyncFlush(logArgs);
         } else {
-            argv = new Object[logArgs.getArgc()];
+            syncFlush(logArgs);
         }
-        System.arraycopy(logArgs.getArgv(), 0, argv, 0, logArgs.getArgc());
-        logEvent.setArgv(argv);
-        logEvent.setLevel(logArgs.level());
-        logEvent.setLoggerName(this.getName());
-        logEvent.setThreadName(Thread.currentThread().getName());
+    }
+    protected void asyncFlush(LogArgsImpl logArgs) {
+        getQueue().publish(logArgs);
+        logArgs.reset();
+    }
+
+    protected void syncFlush(LogArgsImpl logArgs) {
+        LogEvent logEvent = new LogEvent();
+        logArgs.setLoggerName(name);
+        translateLogEvent(logEvent, logArgs);
         if (appenders != null && appenders.length > 0) {
             for (Appender appender : appenders) {
                 try {
@@ -178,9 +182,11 @@ public class LoggerImpl implements Logger {
     }
 
     private void log(int level, Object message) {
-        LogArgsImpl logArgs = threadLocalArgs.get();
-        logArgs.level(level).message(message);
-        flush(logArgs);
+        if (isEnabled(level)) {
+            LogArgsImpl logArgs = threadLocalArgs.get();
+            logArgs.level(level).message(message);
+            flush(logArgs);
+        }
     }
 
     private void log(int level, String msg, Throwable cause) {
@@ -206,5 +212,21 @@ public class LoggerImpl implements Logger {
 
     public void setAppenders(Appender[] appenders) {
         this.appenders = appenders;
+    }
+
+    public boolean isAsync() {
+        return async;
+    }
+
+    public void setAsync(boolean async) {
+        this.async = async;
+    }
+
+    public LogEventQueue getQueue() {
+        return queue;
+    }
+
+    public void setQueue(LogEventQueue queue) {
+        this.queue = queue;
     }
 }

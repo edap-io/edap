@@ -259,13 +259,13 @@ public class AppenderManager {
                         m.invoke(obj, Integer.parseInt(value));
                         break;
                     case "java.lang.Integer":
-                        m.invoke(obj, new Integer(Integer.parseInt(value)));
+                        m.invoke(obj, Integer.valueOf(value));
                         break;
                     case "boolean":
                         m.invoke(obj, Boolean.parseBoolean(value));
                         break;
                     case "java.lang.Boolean":
-                        m.invoke(obj, new Boolean(Boolean.parseBoolean(value)));
+                        m.invoke(obj, Boolean.valueOf(value));
                         break;
                     default:
 
@@ -319,7 +319,8 @@ public class AppenderManager {
         return AppenderManager.SingletonHolder.INSTANCE;
     }
 
-    public void reloadConfig(AppenderConfigSection appenderSection) {
+    public void reloadConfig(LogConfig logConfig) {
+        AppenderConfigSection appenderSection = logConfig.getAppenderSection();
         List<AppenderConfig> appenderConfigList = appenderSection.getAppenderConfigs();
         if (CollectionUtils.isEmpty(appenderConfigList)) {
             return;

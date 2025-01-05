@@ -16,10 +16,18 @@
 
 package io.edap.log.queue;
 
+import io.edap.log.Appender;
+import io.edap.log.LogEvent;
 import io.edap.log.LogQueue;
+import io.edap.log.helps.ByteArrayBuilder;
+
+import java.io.IOException;
+
+import static io.edap.log.helpers.Util.printError;
 
 /**
  * 异步写日志数据的队列
  */
-public interface LogDataQueue extends LogQueue<byte[]> {
+public interface LogDataQueue extends LogQueue<LogEvent, ByteArrayBuilder> {
+
 }

@@ -16,6 +16,7 @@
 
 package io.edap.log.test;
 
+import io.edap.log.LogConfig;
 import io.edap.log.Logger;
 import io.edap.log.LoggerImpl;
 import io.edap.log.config.LoggerConfig;
@@ -62,12 +63,15 @@ public class TestEdapLogFactory {
 
         LoggerConfigSection loggerConfigSection = new LoggerConfigSection();
         loggerConfigSection.setNeedReload(true);
-        logFactory.reload(loggerConfigSection);
+        LogConfig logConfig = new LogConfig();
+        logConfig.setLoggerSection(loggerConfigSection);
+        logFactory.reload(logConfig);
 
         loggerConfigSection = new LoggerConfigSection();
         loggerConfigSection.setNeedReload(true);
         loggerConfigSection.setLoggerConfigs(new ArrayList<>());
-        logFactory.reload(loggerConfigSection);
+        logConfig.setLoggerSection(loggerConfigSection);
+        logFactory.reload(logConfig);
 
         loggerConfigSection = new LoggerConfigSection();
         loggerConfigSection.setNeedReload(true);
@@ -76,7 +80,8 @@ public class TestEdapLogFactory {
         loggerConfig.setLevel("trace");
         loggerConfig.setAppenderRefs(Arrays.asList("console"));
         loggerConfigSection.setLoggerConfigs(Arrays.asList(loggerConfig));
-        logFactory.reload(loggerConfigSection);
+        logConfig.setLoggerSection(loggerConfigSection);
+        logFactory.reload(logConfig);
         System.out.println("logger.level=" + logger.level());
 
 
@@ -94,7 +99,8 @@ public class TestEdapLogFactory {
         testConfig.setAppenderRefs(Arrays.asList("console"));
 
         loggerConfigSection.setLoggerConfigs(Arrays.asList(loggerConfig, testConfig));
-        logFactory.reload(loggerConfigSection);
+        logConfig.setLoggerSection(loggerConfigSection);
+        logFactory.reload(logConfig);
         System.out.println("logger.level=" + logger.level());
     }
 }

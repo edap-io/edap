@@ -24,19 +24,17 @@ public class EdapLogContext {
 
 
     public void reloadConfig(LogConfig logConfig) {
-        appenderManager.reloadConfig(logConfig.getAppenderSection());
+        appenderManager.reloadConfig(logConfig);
         LoggerConfigSection loggerConfigSection = logConfig.getLoggerSection();
         loggerConfigSection.setNeedReload(true);
-        edapLogFactory.reload(loggerConfigSection);
+        edapLogFactory.reload(logConfig);
     }
 
     public void reload() {
         ConfigManager configManager = new ConfigManager();
         LogConfig logConfig = configManager.loadConfig();
         if (logConfig != null && logConfig.getAppenderSection() != null) {
-            AppenderConfigSection appenderConfigSection = logConfig.getAppenderSection();
-            appenderConfigSection.setNeedReload(true);
-            AppenderManager.instance().reloadConfig(appenderConfigSection);
+            AppenderManager.instance().reloadConfig(logConfig);
         }
         if (logConfig != null && logConfig.getLoggerSection() != null) {
             if (edapLogFactory == null) {
@@ -44,7 +42,7 @@ public class EdapLogContext {
             }
             LoggerConfigSection loggerConfigSection = logConfig.getLoggerSection();
             loggerConfigSection.setNeedReload(true);
-            edapLogFactory.reload(loggerConfigSection);
+            edapLogFactory.reload(logConfig);
         }
     }
 

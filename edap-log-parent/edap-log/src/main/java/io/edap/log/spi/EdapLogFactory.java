@@ -17,31 +17,39 @@
 package io.edap.log.spi;
 
 import io.edap.log.*;
-import io.edap.log.config.ConfigManager;
-import io.edap.log.config.LoggerConfig;
-import io.edap.log.config.LoggerConfigSection;
+import io.edap.log.config.*;
+import io.edap.log.queue.DisruptorLogDataQueue;
+import io.edap.log.queue.DisruptorLogEventQueue;
+import io.edap.log.queue.LogEventQueue;
 import io.edap.util.CollectionUtils;
 import io.edap.util.EdapTime;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+import static io.edap.log.LogQueue.instance;
 import static io.edap.log.Logger.ROOT_LOGGER_NAME;
+import static io.edap.log.consts.LogConsts.DEFAULT_EVENT_QUEUE_NAME;
 import static io.edap.log.helpers.Util.parseLevel;
+import static io.edap.log.helpers.Util.printError;
 
-public class EdapLogFactory implements LoggerFactory, ConfigReload<LoggerConfigSection> {
+public class EdapLogFactory implements LoggerFactory, ConfigReload<LogConfig> {
 
     private final Map<String, LoggerImpl> loggerCache;
-    private Map<String, LoggerConfig> loggerConfigs;
+    private Map<String, LoggerConfig>     loggerConfigs;
+    private Map<String, LogEventQueue>    eventQueues;
+    private LogConfig                     logConfig;
 
     final Logger root;
 
     public EdapLogFactory() {
-        loggerCache = new ConcurrentHashMap<>();
+        loggerCache   = new ConcurrentHashMap<>();
         loggerConfigs = new ConcurrentHashMap<>();
-        root = new LoggerImpl(ROOT_LOGGER_NAME);
+        root          = new LoggerImpl(ROOT_LOGGER_NAME);
+        eventQueues   = new HashMap<>();
     }
     @Override
     public Logger getLogger(final String name) {
@@ -54,9 +62,55 @@ public class EdapLogFactory implements LoggerFactory, ConfigReload<LoggerConfigS
         }
         logger = new LoggerImpl(name);
         LoggerConfig loggerConfig = setLoggerLevel(logger);
+        if (loggerConfig.isAsync()) {
+            String queueName = loggerConfig.getQueue();
+            LogEventQueue queue = buildAndStartEventQueue(queueName);
+            logger.setAsync(true);
+            logger.setQueue(queue);
+        }
         setLoggerAppenders(logger, loggerConfig);
         loggerCache.put(name, logger);
         return logger;
+    }
+
+    private LogEventQueue buildAndStartEventQueue(String name) {
+        LogEventQueue queue = eventQueues.get(name);
+        if (queue == null) {
+            QueueConfigSection queueSection = logConfig.getQueueConfigSection();
+            QueueConfig queueConfig = null;
+            if (queueSection != null) {
+                List<QueueConfig> queueCfgs = queueSection.getQueueConfigList();
+                if (!CollectionUtils.isEmpty(queueCfgs)) {
+                    for (QueueConfig qc : queueCfgs) {
+                        if (qc.getName().equalsIgnoreCase(name)) {
+                            queueConfig = qc;
+                            break;
+                        }
+                    }
+                }
+            }
+            if (queueConfig != null) {
+                try {
+                    Class cls = EdapLogFactory.class.getClassLoader().loadClass(queueConfig.getClazzName());
+                    queue = (LogEventQueue)instance(cls, queueConfig.getArgs());
+                    eventQueues.put(name, queue);
+                } catch (Throwable t) {
+                    printError("instance " + queueConfig.getClazzName() + " error!", t);
+                }
+            }
+            if (queue == null) {
+                queue = eventQueues.get(DEFAULT_EVENT_QUEUE_NAME);
+                if (queue != null) {
+                    eventQueues.put(name, queue);
+                    return queue;
+                }
+                queue = (LogEventQueue) instance(DisruptorLogEventQueue.class, null);
+                eventQueues.put(DEFAULT_EVENT_QUEUE_NAME, queue);
+                eventQueues.put(name, queue);
+            }
+        }
+        queue.start();
+        return queue;
     }
 
     private void setLoggerAppenders(LoggerImpl loggerImpl, LoggerConfig loggerConfig) {
@@ -77,7 +131,7 @@ public class EdapLogFactory implements LoggerFactory, ConfigReload<LoggerConfigS
 
     private LoggerConfig setLoggerLevel(LoggerImpl loggerImpl) {
         LoggerConfig matchConfig = null;
-        LoggerConfig rootConfig = null;
+        LoggerConfig rootConfig  = null;
         for (Map.Entry<String, LoggerConfig> entry : loggerConfigs.entrySet()) {
             if (entry.getKey().equalsIgnoreCase(ROOT_LOGGER_NAME)) {
                 rootConfig = entry.getValue();
@@ -105,7 +159,9 @@ public class EdapLogFactory implements LoggerFactory, ConfigReload<LoggerConfigS
     }
 
     @Override
-    public void reload(LoggerConfigSection logConfigSection) {
+    public void reload(LogConfig logConfig) {
+        this.logConfig = logConfig;
+        LoggerConfigSection logConfigSection = logConfig.getLoggerSection();
         if (logConfigSection == null || !logConfigSection.isNeedReload()) {
             return;
         }
