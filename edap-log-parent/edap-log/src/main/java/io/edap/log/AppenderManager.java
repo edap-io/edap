@@ -67,6 +67,11 @@ public class AppenderManager {
             }
 
             @Override
+            public void batchAppend(List<LogEvent> logEvents) throws IOException {
+
+            }
+
+            @Override
             public String getName() {
                 return name;
             }

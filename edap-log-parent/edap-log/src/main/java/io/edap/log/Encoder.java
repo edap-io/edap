@@ -30,4 +30,6 @@ public interface Encoder {
      * @return 返回自己数组
      */
     ByteArrayBuilder encode(LogEvent logEvent);
+
+    void encode(LogEvent logEvent, ByteArrayBuilder byteArrayBuilder);
 }

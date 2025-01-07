@@ -29,6 +29,6 @@ public class TestAsyncLogger {
         Logger logger = LoggerManager.getLogger(TestAsyncLogger.class);
         String    format     = new String("name {}, age: {}");
         logger.info(format, l -> l.arg("louis").arg(28));
-        System.in.read();
+//        System.in.read();
     }
 }

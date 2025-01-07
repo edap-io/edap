@@ -16,13 +16,16 @@
 
 package io.edap.log.appenders;
 
+import io.edap.log.AbstractEncoder;
 import io.edap.log.LogEvent;
 import io.edap.log.helps.ByteArrayBuilder;
 import io.edap.log.io.BaseLogOutputStream;
+import io.edap.util.CollectionUtils;
 
 import java.io.*;
 import java.nio.channels.FileChannel;
 import java.nio.channels.FileLock;
+import java.util.List;
 import java.util.concurrent.locks.ReentrantLock;
 
 import static io.edap.log.helpers.Util.printError;
@@ -120,6 +123,24 @@ public class FileAppender extends OutputStremAppender {
     @Override
     public void append(LogEvent logEvent) throws IOException {
         ByteArrayBuilder builder = encoder.encode(logEvent);
+        if (prudent) {
+            safeWrite(builder);
+        } else {
+            super.writeData(builder);
+        }
+    }
+
+    @Override
+    public void batchAppend(List<LogEvent> logEvents) throws IOException {
+        if (CollectionUtils.isEmpty(logEvents)) {
+            return;
+        }
+        int count = logEvents.size();
+        ByteArrayBuilder builder = AbstractEncoder.LOCAL_BYTE_ARRAY_BUILDER.get();
+        builder.reset();
+        for (int i=0;i<count;i++) {
+            encoder.encode(logEvents.get(i), builder);
+        }
         if (prudent) {
             safeWrite(builder);
         } else {

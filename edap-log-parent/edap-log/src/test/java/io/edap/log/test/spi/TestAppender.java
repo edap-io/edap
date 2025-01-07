@@ -23,6 +23,7 @@ import io.edap.log.converter.CacheDateFormatterConverter;
 import io.edap.log.helps.ByteArrayBuilder;
 
 import java.io.IOException;
+import java.util.List;
 
 import static io.edap.log.LogLevel.*;
 import static io.edap.log.helps.MessageFormatter.formatTo;
@@ -46,6 +47,11 @@ public class TestAppender implements Appender {
         byteArrayBuilder.append(logEvent.getLoggerName()).append((byte)' ', (byte)'-', (byte)' ');
         formatTo(byteArrayBuilder, logEvent.getFormat(), logEvent.getArgv());
         byteArrayBuilder.append((byte)'\n');
+    }
+
+    @Override
+    public void batchAppend(List<LogEvent> logEvents) throws IOException {
+
     }
 
     @Override

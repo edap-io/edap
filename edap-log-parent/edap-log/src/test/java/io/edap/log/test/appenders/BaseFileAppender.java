@@ -2,10 +2,12 @@ package io.edap.log.test.appenders;
 
 import io.edap.log.*;
 import io.edap.log.helps.ByteArrayBuilder;
+import io.edap.util.CollectionUtils;
 
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.util.List;
 
 import static io.edap.log.helpers.Util.printError;
 
@@ -29,6 +31,25 @@ public class BaseFileAppender implements Appender {
         }
         ByteArrayBuilder builder = encoder.encode(logEvent);
         logWriter.rollover(logEvent);
+        try {
+            builder.writeToLogOut(logWriter);
+        } catch (IOException e) {
+            printError("writeToLogOut error", e);
+        }
+    }
+
+    public void batchAppend(List<LogEvent> logEvents) throws IOException {
+        if (encoder == null || logWriter == null) {
+            printError("appender 还没初始化");
+            return;
+        }
+        ByteArrayBuilder builder = AbstractEncoder.LOCAL_BYTE_ARRAY_BUILDER.get();
+        if (CollectionUtils.isEmpty(logEvents)) {
+            return;
+        }
+        for (LogEvent logEvent : logEvents) {
+            logWriter.rollover(logEvent);
+        }
         try {
             builder.writeToLogOut(logWriter);
         } catch (IOException e) {

@@ -462,9 +462,10 @@ public class ByteArrayBuilder {
     public ByteArrayBuilder append(String str, int pos, int len) {
         if (IS_BYTE_ARRAY && len > 5) {
             if (isLatin1(str)) {
-                ensureCapacity(len);
-                byte[] _buf = value;
                 int index = count;
+                ensureCapacity(index + len);
+                byte[] _buf = value;
+
                 for (int i=0;i<len;i++) {
                     _buf[index++] = (byte)str.charAt(pos++);
                 }
@@ -572,9 +573,9 @@ public class ByteArrayBuilder {
 
     private ByteArrayBuilder appendAscii(String s) {
         int slen = s.length();
-        ensureCapacity(slen);
-        byte[] _buf = value;
         int index = count;
+        ensureCapacity(index + slen);
+        byte[] _buf = value;
         for (int i = 0;i<slen;i++) {
             _buf[index++] = (byte)s.charAt(i);
         }

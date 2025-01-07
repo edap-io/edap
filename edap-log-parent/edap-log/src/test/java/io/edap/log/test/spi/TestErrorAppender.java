@@ -21,6 +21,7 @@ import io.edap.log.LogEvent;
 import io.edap.log.LogWriter;
 
 import java.io.IOException;
+import java.util.List;
 
 public class TestErrorAppender implements Appender {
 
@@ -28,6 +29,11 @@ public class TestErrorAppender implements Appender {
 
     @Override
     public void append(LogEvent logEvent) throws IOException {
+        throw  new IOException("file not exists");
+    }
+
+    @Override
+    public void batchAppend(List<LogEvent> logEvent) throws IOException {
         throw  new IOException("file not exists");
     }
 

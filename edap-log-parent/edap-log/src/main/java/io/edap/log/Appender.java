@@ -17,6 +17,7 @@
 package io.edap.log;
 
 import java.io.IOException;
+import java.util.List;
 
 /**
  * 定义记录日志的Appender接口
@@ -28,6 +29,8 @@ public interface Appender extends LifeCycle {
      * @param logEvent 日志事件
      */
     void append(LogEvent logEvent) throws IOException;
+
+    void batchAppend(List<LogEvent> logEvents) throws IOException;
 
     String getName();
 

@@ -100,18 +100,9 @@ public class EncoderGenerator {
 
     private void visitEncodeMethod(MethodVisitor cinitMethod) throws ParseException {
         MethodVisitor mv = cw.visitMethod(ACC_PUBLIC, "encode",
-                "(Lio/edap/log/LogEvent;)L" + BUILDER_NAME + ";",
+                "(Lio/edap/log/LogEvent;L" + BUILDER_NAME + ";)V",
                 null, null);
         mv.visitCode();
-
-        mv.visitFieldInsn(GETSTATIC, encoderName, "LOCAL_BYTE_ARRAY_BUILDER",
-                "Ljava/lang/ThreadLocal;");
-        mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/ThreadLocal", "get",
-                "()Ljava/lang/Object;", false);
-        mv.visitTypeInsn(CHECKCAST, BUILDER_NAME);
-        mv.visitVarInsn(ASTORE, 2);
-        mv.visitVarInsn(ALOAD, 2);
-        mv.visitMethodInsn(INVOKEVIRTUAL, BUILDER_NAME, "reset", "()V", false);
 
         EncoderPatternParser patternParser = new EncoderPatternParser(format);
         List<EncoderPatternToken> tokens = patternParser.parse();
@@ -153,8 +144,7 @@ public class EncoderGenerator {
             visitFuncConvertBlock(mv, converterCls, token.getPattern(), nextText);
         }
 
-        mv.visitVarInsn(ALOAD, 2);
-        mv.visitInsn(ARETURN);
+        mv.visitInsn(RETURN);
         mv.visitMaxs(4, 5);
         mv.visitEnd();
     }

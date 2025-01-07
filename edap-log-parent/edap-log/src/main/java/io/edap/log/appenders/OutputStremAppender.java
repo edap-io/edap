@@ -16,14 +16,13 @@
 
 package io.edap.log.appenders;
 
-import io.edap.log.Appender;
-import io.edap.log.Encoder;
-import io.edap.log.LogEvent;
-import io.edap.log.LogWriter;
+import io.edap.log.*;
 import io.edap.log.helps.ByteArrayBuilder;
 import io.edap.log.io.BaseLogOutputStream;
+import io.edap.util.CollectionUtils;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -58,6 +57,26 @@ public class OutputStremAppender implements Appender {
             return;
         }
         ByteArrayBuilder builder = encoder.encode(logEvent);
+        writeData(builder);
+    }
+
+    @Override
+    public void batchAppend(List<LogEvent> logEvents) throws IOException {
+        if (!started || encoder == null) {
+            if (!started) {
+                printError("Apppender 还没有启动完成");
+            }
+            return;
+        }
+        if (CollectionUtils.isEmpty(logEvents)) {
+            return;
+        }
+        int count = logEvents.size();
+        ByteArrayBuilder builder = AbstractEncoder.LOCAL_BYTE_ARRAY_BUILDER.get();
+        builder.reset();
+        for (int i=0;i<count;i++) {
+            encoder.encode(logEvents.get(i), builder);
+        }
         writeData(builder);
     }
 

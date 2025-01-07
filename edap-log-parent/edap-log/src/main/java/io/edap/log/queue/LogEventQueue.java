@@ -20,8 +20,11 @@ import io.edap.log.Appender;
 import io.edap.log.LogArgsImpl;
 import io.edap.log.LogEvent;
 import io.edap.log.LogQueue;
+import io.edap.util.FastList;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 import static io.edap.log.LoggerImpl.LOG_TIME;
 import static io.edap.log.helpers.Util.printError;
@@ -31,19 +34,54 @@ import static io.edap.log.helpers.Util.printError;
  */
 public interface LogEventQueue extends LogQueue<LogArgsImpl, LogEvent> {
 
+    static List<List<LogEvent>> BATCH_LOG_EVENTS = new FastList<>();
+
     static void handleEvent(LogEvent event, long sequence, boolean endOfBatch) {
         Appender[] appenders = event.getAppenders();
         if (appenders.length <= 0) {
             return;
         }
-        for (Appender appender : appenders) {
-            try {
-                appender.append(event);
-            } catch (IOException e) {
-                printError(e.getMessage(), e);
+        int count = appenders.length;
+        if (count == 0) {
+            List<LogEvent> events;
+            if (BATCH_LOG_EVENTS.size() == 0) {
+                events = new FastList<>();
+                BATCH_LOG_EVENTS.add(events);
+            } else {
+                events = BATCH_LOG_EVENTS.get(0);
+            }
+            events.add(event);
+            if (endOfBatch) {
+                try {
+                    appenders[0].batchAppend(events);
+                    events.clear();
+                } catch (IOException e) {
+                    printError(e.getMessage(), e);
+                }
+            }
+            return;
+        }
+
+        for (int i=0;i<count;i++) {
+            List<LogEvent> events;
+            if (BATCH_LOG_EVENTS.size() <= i) {
+                events = new FastList<>();
+                BATCH_LOG_EVENTS.add(events);
+            } else {
+                events = BATCH_LOG_EVENTS.get(i);
+            }
+            events.add(event);
+            if (endOfBatch) {
+                try {
+                    appenders[i].batchAppend(events);
+                } catch (IOException e) {
+                    printError(e.getMessage(), e);
+                }
             }
         }
     }
+
+
 
     static void translate(LogEvent event, long sequence, LogArgsImpl logArgs) {
         translateLogEvent(event, logArgs);
