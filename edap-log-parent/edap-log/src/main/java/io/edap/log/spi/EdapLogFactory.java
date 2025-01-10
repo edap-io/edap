@@ -18,7 +18,6 @@ package io.edap.log.spi;
 
 import io.edap.log.*;
 import io.edap.log.config.*;
-import io.edap.log.queue.DisruptorLogDataQueue;
 import io.edap.log.queue.DisruptorLogEventQueue;
 import io.edap.log.queue.LogEventQueue;
 import io.edap.util.CollectionUtils;
@@ -30,7 +29,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-import static io.edap.log.LogQueue.instance;
+import static io.edap.log.LogQueue.instanceLogQueue;
 import static io.edap.log.Logger.ROOT_LOGGER_NAME;
 import static io.edap.log.consts.LogConsts.DEFAULT_EVENT_QUEUE_NAME;
 import static io.edap.log.helpers.Util.parseLevel;
@@ -92,7 +91,7 @@ public class EdapLogFactory implements LoggerFactory, ConfigReload<LogConfig> {
             if (queueConfig != null) {
                 try {
                     Class cls = EdapLogFactory.class.getClassLoader().loadClass(queueConfig.getClazzName());
-                    queue = (LogEventQueue)instance(cls, queueConfig.getArgs());
+                    queue = (LogEventQueue) instanceLogQueue(cls, queueConfig.getArgs());
                     eventQueues.put(name, queue);
                 } catch (Throwable t) {
                     printError("instance " + queueConfig.getClazzName() + " error!", t);
@@ -104,7 +103,7 @@ public class EdapLogFactory implements LoggerFactory, ConfigReload<LogConfig> {
                     eventQueues.put(name, queue);
                     return queue;
                 }
-                queue = (LogEventQueue) instance(DisruptorLogEventQueue.class, null);
+                queue = (LogEventQueue) instanceLogQueue(DisruptorLogEventQueue.class, null);
                 eventQueues.put(DEFAULT_EVENT_QUEUE_NAME, queue);
                 eventQueues.put(name, queue);
             }

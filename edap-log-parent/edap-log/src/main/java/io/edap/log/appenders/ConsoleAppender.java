@@ -16,9 +16,11 @@
 
 package io.edap.log.appenders;
 
+import io.edap.log.helps.ByteArrayBuilder;
 import io.edap.log.io.BaseLogOutputStream;
 import io.edap.log.io.ConsoleTarget;
 
+import java.io.IOException;
 import java.util.Arrays;
 
 import static io.edap.log.helpers.Util.printError;
@@ -48,6 +50,10 @@ public class ConsoleAppender extends OutputStremAppender {
             default:
                 setOutputStream(new BaseLogOutputStream(System.out));
         }
+        if (async) {
+            queue.setEventHandler((builder, l, b) -> {});
+            queue.start();
+        }
 
         super.start();
     }
@@ -59,4 +65,5 @@ public class ConsoleAppender extends OutputStremAppender {
     private void targetWarn(String val) {
         printError("[" + val + "] should be one of " + Arrays.toString(ConsoleTarget.values()));
     }
+
 }

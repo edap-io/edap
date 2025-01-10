@@ -41,42 +41,11 @@ public interface LogEventQueue extends LogQueue<LogArgsImpl, LogEvent> {
         if (appenders.length <= 0) {
             return;
         }
-        int count = appenders.length;
-        if (count == 0) {
-            List<LogEvent> events;
-            if (BATCH_LOG_EVENTS.size() == 0) {
-                events = new FastList<>();
-                BATCH_LOG_EVENTS.add(events);
-            } else {
-                events = BATCH_LOG_EVENTS.get(0);
-            }
-            events.add(event);
-            if (endOfBatch) {
-                try {
-                    appenders[0].batchAppend(events);
-                    events.clear();
-                } catch (IOException e) {
-                    printError(e.getMessage(), e);
-                }
-            }
-            return;
-        }
-
-        for (int i=0;i<count;i++) {
-            List<LogEvent> events;
-            if (BATCH_LOG_EVENTS.size() <= i) {
-                events = new FastList<>();
-                BATCH_LOG_EVENTS.add(events);
-            } else {
-                events = BATCH_LOG_EVENTS.get(i);
-            }
-            events.add(event);
-            if (endOfBatch) {
-                try {
-                    appenders[i].batchAppend(events);
-                } catch (IOException e) {
-                    printError(e.getMessage(), e);
-                }
+        for (Appender appender : appenders) {
+            try {
+                appender.append(event);
+            } catch (IOException e) {
+                printError(e.getMessage(), e);
             }
         }
     }

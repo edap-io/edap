@@ -19,16 +19,20 @@ package io.edap.log.appenders;
 import io.edap.log.*;
 import io.edap.log.helps.ByteArrayBuilder;
 import io.edap.log.io.BaseLogOutputStream;
+import io.edap.log.queue.LogDataQueue;
 import io.edap.util.CollectionUtils;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
+import static io.edap.log.AbstractEncoder.LOCAL_BYTE_ARRAY_BUILDER;
 import static io.edap.log.helpers.Util.printError;
 
-public class OutputStremAppender implements Appender {
+public abstract class OutputStremAppender implements Appender {
 
     protected final ReentrantLock lock = new ReentrantLock(false);
 
@@ -44,9 +48,25 @@ public class OutputStremAppender implements Appender {
 
     private boolean started;
 
+    protected boolean async;
+    protected LogDataQueue queue;
+
+    protected static final AppenderManager APPENDER_MANAGER = AppenderManager.instance();
+
+
     public ReentrantLock getCompressLock() {
         return compressLock;
     }
+
+    @Override
+    public void setAsync(boolean async) {
+        this.async = async;
+    }
+
+    public void setAsyncQueue(LogDataQueue queue) {
+        this.queue = queue;
+    }
+
 
     @Override
     public void append(LogEvent logEvent) throws IOException {
@@ -56,6 +76,22 @@ public class OutputStremAppender implements Appender {
             }
             return;
         }
+        if (async) {
+
+        } else {
+            syncAppend(logEvent);
+        }
+    }
+
+    private void asyncAppend(LogEvent logEvent) {
+        ByteArrayBuilder builder = LOCAL_BYTE_ARRAY_BUILDER.get();
+        builder.reset();
+        encoder.encode(logEvent, builder);
+        builder.setOutputStream(getOutputStream());
+        queue.publish(builder);
+    }
+
+    private void syncAppend(LogEvent logEvent) throws IOException {
         ByteArrayBuilder builder = encoder.encode(logEvent);
         writeData(builder);
     }
@@ -89,6 +125,14 @@ public class OutputStremAppender implements Appender {
             }
         } finally {
             lock.unlock();
+        }
+    }
+
+    protected void lockFreeWriteData(ByteArrayBuilder builder) throws IOException {
+        lock.lock();
+        builder.writeToLogOut(outputStream);
+        if (isImmediateFlush()) {
+            this.outputStream.flush();
         }
     }
 

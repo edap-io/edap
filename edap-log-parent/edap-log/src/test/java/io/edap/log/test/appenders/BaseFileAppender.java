@@ -2,6 +2,7 @@ package io.edap.log.test.appenders;
 
 import io.edap.log.*;
 import io.edap.log.helps.ByteArrayBuilder;
+import io.edap.log.queue.LogDataQueue;
 import io.edap.util.CollectionUtils;
 
 import java.io.File;
@@ -60,6 +61,16 @@ public class BaseFileAppender implements Appender {
     @Override
     public String getName() {
         return name;
+    }
+
+    @Override
+    public void setAsync(boolean async) {
+
+    }
+
+    @Override
+    public void setAsyncQueue(LogDataQueue logDataQueue) {
+
     }
 
     @Override

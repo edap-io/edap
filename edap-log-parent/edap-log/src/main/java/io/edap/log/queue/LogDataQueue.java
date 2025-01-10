@@ -16,10 +16,10 @@
 
 package io.edap.log.queue;
 
-import io.edap.log.Appender;
-import io.edap.log.LogEvent;
+import com.lmax.disruptor.EventHandler;
 import io.edap.log.LogQueue;
 import io.edap.log.helps.ByteArrayBuilder;
+import io.edap.log.io.BaseLogOutputStream;
 
 import java.io.IOException;
 
@@ -28,6 +28,29 @@ import static io.edap.log.helpers.Util.printError;
 /**
  * 异步写日志数据的队列
  */
-public interface LogDataQueue extends LogQueue<LogEvent, ByteArrayBuilder> {
+public interface LogDataQueue extends LogQueue<ByteArrayBuilder, LogDataQueue.WriteEvent> {
+
+    void setEventHandler(EventHandler<WriteEvent> handler);
+
+    static void translate(WriteEvent event, long sequence, ByteArrayBuilder builder) {
+        event.setOutputStream(builder.getOutputStream());
+//        try {
+//            builder.writeTo(builder.getOutputStream());
+//        } catch (IOException e) {
+//            printError("write error", e);
+//        }
+    }
+
+    class WriteEvent {
+        private BaseLogOutputStream outputStream;
+
+        public BaseLogOutputStream getOutputStream() {
+            return outputStream;
+        }
+
+        public void setOutputStream(BaseLogOutputStream outputStream) {
+            this.outputStream = outputStream;
+        }
+    }
 
 }

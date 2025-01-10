@@ -48,7 +48,7 @@ public class EdapTestAdapter implements LogAdapter {
                 AppenderConfigSection section = config.getAppenderSection();
                 List<AppenderConfig> appenderConfigList = section.getAppenderConfigs();
                 for (AppenderConfig appenderConfig : appenderConfigList) {
-                    Appender appender = AppenderManager.instance().createAppender(appenderConfig);
+                    Appender appender = AppenderManager.instance().createAppender(appenderConfig, null);
                     if (appender == null) {
                         continue;
                     }

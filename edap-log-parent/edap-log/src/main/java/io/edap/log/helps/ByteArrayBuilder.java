@@ -1,6 +1,7 @@
 package io.edap.log.helps;
 
 import io.edap.log.LogWriter;
+import io.edap.log.io.BaseLogOutputStream;
 import io.edap.util.Grisu3;
 import io.edap.util.StringUtil;
 
@@ -53,6 +54,8 @@ public class ByteArrayBuilder {
 
     private int initCount;
 
+    private BaseLogOutputStream outputStream;
+
     public ByteArrayBuilder() {
         initValue(128);
         this.count = 0;
@@ -82,6 +85,14 @@ public class ByteArrayBuilder {
     private void initValue(int cap) {
         this.value = new byte[cap];
         this.initCount = cap;
+    }
+
+    public ByteArrayBuilder append(ByteArrayBuilder other) {
+        ensureCapacity(count + other.count);
+        System.arraycopy(other.value, 0, value, count, other.count);
+        count += other.count;
+
+        return this;
     }
 
     /**
@@ -644,5 +655,13 @@ public class ByteArrayBuilder {
 
     public void writeToLogOut(LogWriter out) throws IOException {
         out.writeLog(value, 0, count);
+    }
+
+    public BaseLogOutputStream getOutputStream() {
+        return outputStream;
+    }
+
+    public void setOutputStream(BaseLogOutputStream outputStream) {
+        this.outputStream = outputStream;
     }
 }

@@ -43,7 +43,7 @@ public interface LogQueue<E, D> {
      */
     void setArg(LogConfig.ArgNode arg) throws Throwable;
 
-    static Object instance(Class queueClass, List<LogConfig.ArgNode> args)
+    static Object instanceLogQueue(Class queueClass, List<LogConfig.ArgNode> args)
             throws RuntimeException {
         Constructor<?>[] consts = queueClass.getDeclaredConstructors();
         LogQueue queue = null;

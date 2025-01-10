@@ -16,6 +16,9 @@
 
 package io.edap.log;
 
+import io.edap.log.helps.ByteArrayBuilder;
+import io.edap.log.queue.LogDataQueue;
+
 import java.io.IOException;
 import java.util.List;
 
@@ -33,6 +36,10 @@ public interface Appender extends LifeCycle {
     void batchAppend(List<LogEvent> logEvents) throws IOException;
 
     String getName();
+
+    void setAsync(boolean async);
+
+    void setAsyncQueue(LogDataQueue logDataQueue);
 
     void setName(String name);
 

@@ -21,7 +21,13 @@ import io.edap.log.appenders.rolling.RollingPolicy;
 import io.edap.log.appenders.rolling.TriggeringPolicy;
 import io.edap.log.config.AppenderConfig;
 import io.edap.log.config.AppenderConfigSection;
+import io.edap.log.config.QueueConfig;
+import io.edap.log.config.QueueConfigSection;
+import io.edap.log.helps.ByteArrayBuilder;
 import io.edap.log.helps.LogEncoderRegister;
+import io.edap.log.queue.DisruptorLogDataQueue;
+import io.edap.log.queue.LogDataQueue;
+import io.edap.log.spi.EdapLogFactory;
 import io.edap.util.CollectionUtils;
 import io.edap.util.StringUtil;
 
@@ -33,6 +39,9 @@ import java.text.ParseException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
+import static io.edap.log.LogQueue.instanceLogQueue;
+import static io.edap.log.consts.LogConsts.DEFAULT_DATA_LOG_QUEUE_NAME;
+import static io.edap.log.consts.LogConsts.DEFAULT_EVENT_QUEUE_NAME;
 import static io.edap.log.helpers.Util.printError;
 import static io.edap.util.ClazzUtil.getClassMethods;
 
@@ -42,57 +51,18 @@ public class AppenderManager {
 
     private static final Appender DEFAULT_CONSOLE_APPENDER;
 
+    private Map<String, LogDataQueue>    logDataQueues;
+
     static {
-        DEFAULT_CONSOLE_APPENDER = new Appender() {
-
-            @Override
-            public void start() {
-
-            }
-
-            @Override
-            public void stop() {
-
-            }
-
-            @Override
-            public boolean isStarted() {
-                return true;
-            }
-
-            private String name = "console";
-            @Override
-            public void append(LogEvent logEvent) throws IOException {
-
-            }
-
-            @Override
-            public void batchAppend(List<LogEvent> logEvents) throws IOException {
-
-            }
-
-            @Override
-            public String getName() {
-                return name;
-            }
-
-            @Override
-            public void setName(String name) {
-                this.name = name;
-            }
-
-            @Override
-            public LogWriter getLogoutStream() {
-                return null;
-            }
-        };
+        DEFAULT_CONSOLE_APPENDER = buildNopAppender();
     }
 
     private AppenderManager() {
-        appenderMap = new ConcurrentHashMap<>();
+        appenderMap   = new ConcurrentHashMap<>();
+        logDataQueues = new ConcurrentHashMap<>();
     }
 
-    public Appender createAppender(AppenderConfig appenderConfig) {
+    public Appender createAppender(AppenderConfig appenderConfig, QueueConfigSection queueConfigSection) {
         Appender appender = null;
         String clazzName = appenderConfig.getClazzName();
         try {
@@ -104,11 +74,13 @@ public class AppenderManager {
                 throw new RuntimeException("appender's name cann't null");
             }
             appender.setName(name);
-            String file = null;
-            String prudentStr = null;
-            String immediateFlushStr = null;
-            RollingPolicy rollingPolicy = null;
-            TriggeringPolicy triggeringPolicy = null;
+            String           file              = null;
+            String           prudentStr        = null;
+            String           immediateFlushStr = null;
+            RollingPolicy    rollingPolicy     = null;
+            TriggeringPolicy triggeringPolicy  = null;
+            String           queueName         = null;
+            boolean          async             = false;
             String target = null;
             if (!CollectionUtils.isEmpty(args)) {
                 for (LogConfig.ArgNode argNode : args) {
@@ -126,6 +98,13 @@ public class AppenderManager {
                         triggeringPolicy = createTriggeringPolicy(argNode);
                     } else if ("target".equals(argNode.getName())) {
                         target = argNode.getValue();
+                    } else if ("async".equals(argNode.getName())) {
+                        queueName = argNode.getValue();
+                        if (StringUtil.isEmpty(queueName) && !CollectionUtils.isEmpty(argNode.getAttributes())
+                                && argNode.getAttributes().containsKey("queue")) {
+                            queueName = argNode.getAttributes().get("queue");
+                        }
+                        async = true;
                     }
                 }
             }
@@ -187,6 +166,18 @@ public class AppenderManager {
                     method.invoke(appender, target);
                 }
             }
+            appender.setAsync(async);
+            if (async) {
+                if (StringUtil.isEmpty(queueName)) {
+                    queueName = DEFAULT_DATA_LOG_QUEUE_NAME;
+                }
+                if (queueConfigSection == null) {
+                    queueConfigSection = new QueueConfigSection();
+                    queueConfigSection.setQueueConfigList(new ArrayList<>());
+                }
+                LogDataQueue queue = buildEventQueue(queueName, queueConfigSection.getQueueConfigList());
+                appender.setAsyncQueue(queue);
+            }
             appender.start();
         } catch (ClassNotFoundException e) {
             throw new RuntimeException(e);
@@ -200,6 +191,41 @@ public class AppenderManager {
             throw new RuntimeException(e);
         }
         return appender;
+    }
+
+    private LogDataQueue buildEventQueue(String name, List<QueueConfig> queueConfigs) {
+        LogDataQueue queue = logDataQueues.get(name);
+        if (queue == null) {
+            QueueConfig queueConfig = null;
+            if (!CollectionUtils.isEmpty(queueConfigs)) {
+                for (QueueConfig qc : queueConfigs) {
+                    if (qc.getName().equalsIgnoreCase(name)) {
+                        queueConfig = qc;
+                        break;
+                    }
+                }
+            }
+            if (queueConfig != null) {
+                try {
+                    Class cls = EdapLogFactory.class.getClassLoader().loadClass(queueConfig.getClazzName());
+                    queue = (LogDataQueue)instanceLogQueue(cls, queueConfig.getArgs());
+                    logDataQueues.put(name, queue);
+                } catch (Throwable t) {
+                    printError("instance " + queueConfig.getClazzName() + " error!", t);
+                }
+            }
+            if (queue == null) {
+                queue = logDataQueues.get(DEFAULT_EVENT_QUEUE_NAME);
+                if (queue != null) {
+                    logDataQueues.put(name, queue);
+                    return queue;
+                }
+                queue = (LogDataQueue) instanceLogQueue(DisruptorLogDataQueue.class, null);
+                logDataQueues.put(DEFAULT_EVENT_QUEUE_NAME, queue);
+                logDataQueues.put(name, queue);
+            }
+        }
+        return queue;
     }
 
     private RollingPolicy createRollingPolicy(LogConfig.ArgNode argNode) {
@@ -336,7 +362,8 @@ public class AppenderManager {
                 allAppenderNames.add(key);
             }
             for (AppenderConfig appenderConfig : appenderConfigList) {
-                Appender appender = AppenderManager.instance().createAppender(appenderConfig);
+                Appender appender = AppenderManager.instance()
+                        .createAppender(appenderConfig, logConfig.getQueueConfigSection());
                 if (appender == null) {
                     continue;
                 }
@@ -355,5 +382,61 @@ public class AppenderManager {
 
     private static class SingletonHolder {
         private static final AppenderManager INSTANCE = new AppenderManager();
+    }
+
+    private static Appender buildNopAppender () {
+        return new Appender() {
+
+            @Override
+            public void start() {
+
+            }
+
+            @Override
+            public void stop() {
+
+            }
+
+            @Override
+            public boolean isStarted() {
+                return true;
+            }
+
+            private String name = "console";
+            @Override
+            public void append(LogEvent logEvent) throws IOException {
+
+            }
+
+            @Override
+            public void batchAppend(List<LogEvent> logEvents) throws IOException {
+
+            }
+
+            @Override
+            public String getName() {
+                return name;
+            }
+
+            @Override
+            public void setAsync(boolean async) {
+
+            }
+
+            @Override
+            public void setAsyncQueue(LogDataQueue logDataQueue) {
+
+            }
+
+            @Override
+            public void setName(String name) {
+                this.name = name;
+            }
+
+            @Override
+            public LogWriter getLogoutStream() {
+                return null;
+            }
+        };
     }
 }

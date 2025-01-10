@@ -17,4 +17,5 @@ public class LogConsts {
     public static final WaitStrategy DEFAULT_WAIT_STRATEGY = new SleepingWaitStrategy();
 
     public static final String DEFAULT_EVENT_QUEUE_NAME = "DEFAULT_LOGEVENT_QUEUE";
+    public static final String DEFAULT_DATA_LOG_QUEUE_NAME = "DEFAULT_LOGDATA_QUEUE";
 }

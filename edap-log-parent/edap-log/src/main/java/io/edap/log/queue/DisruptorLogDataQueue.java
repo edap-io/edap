@@ -16,21 +16,25 @@
 
 package io.edap.log.queue;
 
+import com.lmax.disruptor.EventHandler;
 import com.lmax.disruptor.RingBuffer;
 import com.lmax.disruptor.dsl.Disruptor;
+import com.lmax.disruptor.dsl.ProducerType;
+import com.lmax.disruptor.util.DaemonThreadFactory;
 import io.edap.log.LogConfig;
-import io.edap.log.LogEvent;
 import io.edap.log.config.DisruptorConfig;
 import io.edap.log.helps.ByteArrayBuilder;
 
+import static io.edap.log.helpers.Util.printError;
 import static io.edap.log.util.DisruptorUtil.checkSetConfig;
 
 public class DisruptorLogDataQueue implements LogDataQueue {
 
-    private DisruptorConfig      config;
-    private RingBuffer<LogEvent> ringBuffer;
-    private Disruptor<LogEvent>  disruptor;
-    private boolean              started;
+    private DisruptorConfig              config;
+    private RingBuffer<WriteEvent> ringBuffer;
+    private Disruptor<WriteEvent>  disruptor;
+    private boolean                      started;
+    private EventHandler<WriteEvent> eventHandler;
 
     public DisruptorLogDataQueue() {
         config  = new DisruptorConfig();
@@ -38,21 +42,36 @@ public class DisruptorLogDataQueue implements LogDataQueue {
     }
 
     @Override
-    public void publish(LogEvent event) {
+    public void publish(ByteArrayBuilder param) {
+        if (!started) {
+            printError("DisruptorLogEventQueue not started");
+            return;
+        }
+        ringBuffer.publishEvent(LogDataQueue::translate, param);
     }
 
     @Override
     public void start() {
-
+        disruptor = new Disruptor<>(WriteEvent::new, config.getCapacity(), DaemonThreadFactory.INSTANCE,
+                ProducerType.MULTI, config.getWaitStrategy());
+        disruptor.handleEventsWith(eventHandler);
+        ringBuffer = disruptor.start();
+        started = true;
     }
 
     @Override
     public void stop() {
-
+        disruptor.shutdown();
+        started = false;
     }
 
     @Override
     public void setArg(LogConfig.ArgNode arg) throws Throwable {
         checkSetConfig(config, arg);
+    }
+
+    @Override
+    public void setEventHandler(EventHandler<WriteEvent> handler) {
+        this.eventHandler = handler;
     }
 }

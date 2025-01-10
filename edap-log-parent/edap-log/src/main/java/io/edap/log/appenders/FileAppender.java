@@ -16,10 +16,13 @@
 
 package io.edap.log.appenders;
 
+import com.lmax.disruptor.EventHandler;
 import io.edap.log.AbstractEncoder;
+import io.edap.log.AppenderManager;
 import io.edap.log.LogEvent;
 import io.edap.log.helps.ByteArrayBuilder;
 import io.edap.log.io.BaseLogOutputStream;
+import io.edap.log.queue.LogDataQueue;
 import io.edap.util.CollectionUtils;
 
 import java.io.*;
@@ -28,6 +31,7 @@ import java.nio.channels.FileLock;
 import java.util.List;
 import java.util.concurrent.locks.ReentrantLock;
 
+import static io.edap.log.AbstractEncoder.LOCAL_BYTE_ARRAY_BUILDER;
 import static io.edap.log.helpers.Util.printError;
 
 public class FileAppender extends OutputStremAppender {
@@ -80,6 +84,15 @@ public class FileAppender extends OutputStremAppender {
             return;
         }
         openFile();
+        if (async) {
+            queue.setEventHandler((event, l, b) -> {
+                if (b) {
+
+                }
+            });
+            queue.start();
+        }
+        super.start();
     }
 
     public void openFile() {
@@ -122,6 +135,22 @@ public class FileAppender extends OutputStremAppender {
 
     @Override
     public void append(LogEvent logEvent) throws IOException {
+        if (async) {
+            asyncAppend(logEvent);
+        } else {
+            syncAppend(logEvent);
+        }
+    }
+
+    private void asyncAppend(LogEvent logEvent) throws IOException {
+        ByteArrayBuilder builder = LOCAL_BYTE_ARRAY_BUILDER.get();
+        builder.reset();
+        encoder.encode(logEvent, builder);
+        builder.setOutputStream(getOutputStream());
+        queue.publish(builder);
+    }
+
+    private void syncAppend(LogEvent logEvent) throws IOException {
         ByteArrayBuilder builder = encoder.encode(logEvent);
         if (prudent) {
             safeWrite(builder);
@@ -136,7 +165,7 @@ public class FileAppender extends OutputStremAppender {
             return;
         }
         int count = logEvents.size();
-        ByteArrayBuilder builder = AbstractEncoder.LOCAL_BYTE_ARRAY_BUILDER.get();
+        ByteArrayBuilder builder = LOCAL_BYTE_ARRAY_BUILDER.get();
         builder.reset();
         for (int i=0;i<count;i++) {
             encoder.encode(logEvents.get(i), builder);

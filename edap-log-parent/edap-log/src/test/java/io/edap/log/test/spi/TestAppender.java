@@ -21,6 +21,7 @@ import io.edap.log.LogEvent;
 import io.edap.log.LogWriter;
 import io.edap.log.converter.CacheDateFormatterConverter;
 import io.edap.log.helps.ByteArrayBuilder;
+import io.edap.log.queue.LogDataQueue;
 
 import java.io.IOException;
 import java.util.List;
@@ -57,6 +58,16 @@ public class TestAppender implements Appender {
     @Override
     public String getName() {
         return null;
+    }
+
+    @Override
+    public void setAsync(boolean async) {
+
+    }
+
+    @Override
+    public void setAsyncQueue(LogDataQueue logDataQueue) {
+
     }
 
     @Override
