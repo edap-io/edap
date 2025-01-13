@@ -86,8 +86,10 @@ public class FileAppender extends OutputStremAppender {
         openFile();
         if (async) {
             queue.setEventHandler((event, l, b) -> {
-                if (b) {
-
+                if (prudent) {
+                    safeWrite(event.getByteArrayBuilder());
+                } else {
+                    super.lockFreeWriteData(event.getByteArrayBuilder());
                 }
             });
             queue.start();
@@ -146,7 +148,6 @@ public class FileAppender extends OutputStremAppender {
         ByteArrayBuilder builder = LOCAL_BYTE_ARRAY_BUILDER.get();
         builder.reset();
         encoder.encode(logEvent, builder);
-        builder.setOutputStream(getOutputStream());
         queue.publish(builder);
     }
 

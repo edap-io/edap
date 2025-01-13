@@ -33,7 +33,9 @@ public interface LogDataQueue extends LogQueue<ByteArrayBuilder, LogDataQueue.Wr
     void setEventHandler(EventHandler<WriteEvent> handler);
 
     static void translate(WriteEvent event, long sequence, ByteArrayBuilder builder) {
-        event.setOutputStream(builder.getOutputStream());
+        //event.setOutputStream(builder.getOutputStream());
+        event.reset();
+        event.append(builder);
 //        try {
 //            builder.writeTo(builder.getOutputStream());
 //        } catch (IOException e) {
@@ -44,12 +46,30 @@ public interface LogDataQueue extends LogQueue<ByteArrayBuilder, LogDataQueue.Wr
     class WriteEvent {
         private BaseLogOutputStream outputStream;
 
+        private ByteArrayBuilder builder = new ByteArrayBuilder();
+
+        public WriteEvent() {
+
+        }
+
         public BaseLogOutputStream getOutputStream() {
             return outputStream;
         }
 
         public void setOutputStream(BaseLogOutputStream outputStream) {
             this.outputStream = outputStream;
+        }
+
+        public void reset() {
+            builder.reset();
+        }
+
+        public void append(ByteArrayBuilder builder) {
+            this.builder.append(builder);
+        }
+
+        public ByteArrayBuilder getByteArrayBuilder() {
+            return builder;
         }
     }
 
