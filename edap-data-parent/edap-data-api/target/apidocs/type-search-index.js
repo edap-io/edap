@@ -1,1 +1,0 @@
-typeSearchIndex = [{"l":"All Classes and Interfaces","u":"allclasses-index.html"},{"p":"io.edap.data","l":"EntityDao"},{"p":"io.edap.data","l":"MapDao"},{"p":"io.edap.data","l":"QueryParam"},{"p":"io.edap.data","l":"ViewDao"}];updateSearchResults();
