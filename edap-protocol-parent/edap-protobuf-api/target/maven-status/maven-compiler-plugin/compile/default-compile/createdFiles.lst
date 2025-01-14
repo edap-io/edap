@@ -1,0 +1,17 @@
+io/edap/protobuf/ProtoException$InvalidWireTypeException.class
+io/edap/protobuf/util/ProtoUtil$3.class
+io/edap/protobuf/model/ProtoTypeInfo.class
+io/edap/protobuf/model/MessageInfo.class
+io/edap/protobuf/ProtoPersister.class
+io/edap/protobuf/util/ProtoUtil$1.class
+io/edap/protobuf/ProtoBufEnum.class
+io/edap/protobuf/ProtoException.class
+io/edap/protobuf/CodecType.class
+io/edap/protobuf/util/ProtoUtil$2.class
+io/edap/protobuf/internal/ProtoBufOut.class
+io/edap/protobuf/model/ProtoBufOption.class
+io/edap/protobuf/ProtoFieldInfo.class
+io/edap/protobuf/ProtoPersisterManager$SingletonHolder.class
+io/edap/protobuf/EncodeException.class
+io/edap/protobuf/ProtoPersisterManager.class
+io/edap/protobuf/util/ProtoUtil.class

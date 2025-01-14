@@ -19,9 +19,7 @@ package io.edap.beanconvert;
 import io.edap.util.CryptUtil;
 import io.edap.util.internal.GeneratorClassInfo;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -42,10 +40,10 @@ public class ConvertorRegister {
 
     private final ReentrantLock list_lock = new ReentrantLock();
 
-    private ConvertorLoader convertorLoader;
+    private Map<ClassLoader, ConvertorLoader> convertorLoaders;
 
     private ConvertorRegister() {
-        convertorLoader = new ConvertorLoader(this.getClass().getClassLoader());
+        convertorLoaders = new HashMap<>();
         initConvertors();
     }
 
@@ -54,8 +52,20 @@ public class ConvertorRegister {
     }
 
     public static String getConvertorName(Class orignalCls, Class destCls) {
-        return "ebc." + orignalCls.getPackage().getName() + ".Convertor" + CryptUtil.md5(orignalCls.getName() + "_" + destCls.getName());
-        //return toLangName("ebc/io/edap/x/beanconvert/test/CarToCarDtoConvertor");
+        return "ebc." + orignalCls.getPackage().getName() + ".Convertor" +
+                CryptUtil.md5(orignalCls.getName() + "@" + System.identityHashCode(orignalCls) + "_" +
+                        destCls.getName() + "@" + System.identityHashCode(destCls));
+    }
+
+    private synchronized ConvertorLoader getConvertorLoader(Class orignalCls) {
+        ClassLoader classLoader = orignalCls.getClassLoader();
+        ConvertorLoader loader = convertorLoaders.get(classLoader);
+        if (loader == null) {
+            loader = new ConvertorLoader(classLoader);
+            convertorLoaders.put(classLoader, loader);
+        }
+
+        return loader;
     }
 
     /**
@@ -64,7 +74,7 @@ public class ConvertorRegister {
     public void clearConvertors() {
         CONVERTORS.clear();
         initConvertors();
-        convertorLoader = new ConvertorLoader(this.getClass().getClassLoader());
+        convertorLoaders.clear();
     }
 
     public String createListConvert(Class<?> orignalClass, Class<?> destlClass) {
@@ -135,6 +145,7 @@ public class ConvertorRegister {
     private String generateListConvertorClass(Class<?> orignalClass, Class<?> destlClass) {
         ListConvertorGenerator generator = new ListConvertorGenerator(orignalClass, destlClass, null);
         String codecName = toLangName(getListConvertorName(orignalClass, destlClass));
+        ConvertorLoader convertorLoader = getConvertorLoader(orignalClass);
         try {
             GeneratorClassInfo gci = generator.getClassInfo();
             byte[] bs = gci.clazzBytes;
@@ -180,7 +191,14 @@ public class ConvertorRegister {
         }
         ConvertorGenerator generator = new ConvertorGenerator(orignalClass, destlClass, mappers);
         String codecName = toLangName(getConvertorName(orignalClass, destlClass));
+        boolean isExists = false;
         Class encoderCls;
+        ConvertorLoader convertorLoader = getConvertorLoader(orignalClass);
+        try {
+            encoderCls = convertorLoader.loadClass(codecName);
+            return encoderCls;
+        } catch (ClassNotFoundException e) {
+        }
         try {
             GeneratorClassInfo gci = generator.getClassInfo();
             byte[] bs = gci.clazzBytes;

@@ -26,6 +26,15 @@ import java.security.NoSuchAlgorithmException;
  */
 public class CryptUtil {
 
+    final static char[] digits = {
+            '0' , '1' , '2' , '3' , '4' , '5' ,
+            '6' , '7' , '8' , '9' , 'a' , 'b' ,
+            'c' , 'd' , 'e' , 'f' , 'g' , 'h' ,
+            'i' , 'j' , 'k' , 'l' , 'm' , 'n' ,
+            'o' , 'p' , 'q' , 'r' , 's' , 't' ,
+            'u' , 'v' , 'w' , 'x' , 'y' , 'z'
+    };
+
     private CryptUtil() {}
 
     public static String md5(String plain) {
@@ -57,7 +66,9 @@ public class CryptUtil {
     public static String hexStr(byte[] b) {
         StringBuilder result = new StringBuilder();
         for (int i = 0; i < b.length; i++) {
-            result.append(Long.toString(b[i] & 0xff, 16));
+            int v = b[i] & 0xff;
+            result.append(digits[v/16]);
+            result.append(digits[v%16]);
         }
         return result.toString();
     }

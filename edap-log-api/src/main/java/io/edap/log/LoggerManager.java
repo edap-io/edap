@@ -16,28 +16,15 @@
 
 package io.edap.log;
 
-import io.edap.log.spi.LoggerServiceProvider;
-import io.edap.log.spi.NopLoggerFactory;
-import io.edap.log.helpers.Util;
-
-import java.util.*;
-import java.util.concurrent.CopyOnWriteArrayList;
-
-import static io.edap.log.helpers.Util.printError;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
+import java.util.function.Consumer;
 
 /**
  * 日志管理器
  * @author louis
  */
 public class LoggerManager {
-
-    private static final List<LoggerServiceProvider> SPI_PROVIDERS = new CopyOnWriteArrayList<>();
-    private static Boolean INITED = null;
-    private static String SPI_PROVIDER_NAME = null;
-
-    public static final Logger NOP_LOGGER = new NopLogger();
-
-    private static LoggerFactory LOGGER_FACTORY = null;
 
     private LoggerManager() {}
 
@@ -46,84 +33,133 @@ public class LoggerManager {
     }
 
     public static Logger getLogger(String name) {
-        if (LOGGER_FACTORY != null) {
-            return LOGGER_FACTORY.getLogger(name);
-        }
-        if (INITED == null) {
-            init();
-        }
-        if (LOGGER_FACTORY != null) {
-            return LOGGER_FACTORY.getLogger(name);
-        }
-        return NOP_LOGGER;
-    }
-
-    public static void setSpiProviderName(String name, boolean useDefault) {
-        SPI_PROVIDER_NAME = name;
-        if (SPI_PROVIDERS != null && SPI_PROVIDERS.size() > 0) {
-            for (LoggerServiceProvider lsp : SPI_PROVIDERS) {
-                if (lsp.getClass().getName().equals(name)) {
-                    LOGGER_FACTORY = lsp.getLoggerFactory();
-                    return;
-                }
-            }
-            if (useDefault) {
-                if (LOGGER_FACTORY == null) {
-                    LOGGER_FACTORY = SPI_PROVIDERS.get(0).getLoggerFactory();
-                }
-            }
-        }
-    }
-
-    public static void setSpiProviderName(String name) {
-        setSpiProviderName(name, true);
-    }
-
-    private static String getSysSpiProviderName() {
-        String spiProvider = System.getProperty("edap_log_spi_provider");
-        if (spiProvider != null && spiProvider.trim().length() > 0) {
-            return spiProvider;
-        }
-        return System.getenv("edap_log_spi_provider");
-    }
-
-    public static String getSpiProviderName() {
-        return SPI_PROVIDER_NAME;
-    }
-
-    private synchronized static void init() {
-        if (INITED != null) {
-            return;
-        }
-        ClassLoader managerClassLoader = LoggerManager.class.getClassLoader();
-        ServiceLoader<LoggerServiceProvider> loader;
-        loader = ServiceLoader.load(LoggerServiceProvider.class, managerClassLoader);
-        Iterator<LoggerServiceProvider> iterator = loader.iterator();
-        while (iterator.hasNext()) {
-            LoggerServiceProvider provider = safelyInstantiate(iterator);
-            if (provider != null) {
-                SPI_PROVIDERS.add(provider);
-            }
-        }
-        if (SPI_PROVIDERS != null && SPI_PROVIDERS.size() > 0) {
-            setSpiProviderName(getSysSpiProviderName(), true);
-            INITED = true;
-        }
-        if (LOGGER_FACTORY == null) {
-            Util.printError("Can't found LoggerServiceProvider");
-            LOGGER_FACTORY = new NopLoggerFactory();
-            Util.printError("Use NopLoggerFactory");
-            INITED = true;
-        }
-    }
-
-    private static LoggerServiceProvider safelyInstantiate(Iterator<LoggerServiceProvider> iterator) {
+        Logger log = null;
         try {
-            LoggerServiceProvider provider = iterator.next();
-            return provider;
-        } catch (ServiceConfigurationError e) {
-            printError("A EdapLog service provider failed to instantiate:", e);
+            Class logClazz = Class.forName("io.edap.x.log.LoggerImpl");
+
+            Constructor ctc = logClazz.getConstructor(String.class);
+
+            log = (Logger)ctc.newInstance(name);
+            log.level(LogLevel.CONF);
+        } catch (ClassNotFoundException e) {
+
+        } catch (IllegalAccessException e) {
+
+        } catch (InstantiationException e) {
+
+        } catch (NoSuchMethodException e) {
+
+        } catch (InvocationTargetException e) {
+
         }
-        return null;
+        if (log == null) {
+            log = new Logger() {
+                @Override
+                public void trace(Object message) {
+
+                }
+
+                @Override
+                public void trace(String msg, Throwable cause) {
+
+                }
+
+                @Override
+                public void trace(String format, Consumer<LogArgs> logArgsConsumer) {
+
+                }
+
+                @Override
+                public void debug(Object message) {
+
+                }
+
+                @Override
+                public void debug(String msg, Throwable cause) {
+
+                }
+
+                @Override
+                public void debug(String format, Consumer<LogArgs> logArgsConsumer) {
+
+                }
+
+                @Override
+                public void conf(Object message) {
+
+                }
+
+                @Override
+                public void conf(String msg, Throwable cause) {
+
+                }
+
+                @Override
+                public void conf(String format, Consumer<LogArgs> logArgsConsumer) {
+
+                }
+
+                @Override
+                public void info(Object message) {
+
+                }
+
+                @Override
+                public void info(String msg, Throwable cause) {
+
+                }
+
+                @Override
+                public void info(String format, Consumer<LogArgs> logArgsConsumer) {
+
+                }
+
+                @Override
+                public void warn(Object message) {
+
+                }
+
+                @Override
+                public void warn(String msg, Throwable cause) {
+
+                }
+
+                @Override
+                public void warn(String format, Consumer<LogArgs> logArgsConsumer) {
+
+                }
+
+                @Override
+                public void error(Object message) {
+
+                }
+
+                @Override
+                public void error(String msg, Throwable t) {
+
+                }
+
+                @Override
+                public void error(String format, Consumer<LogArgs> logArgsConsumer) {
+
+                }
+
+                @Override
+                public int level() {
+                    return 0;
+                }
+
+                @Override
+                public boolean isEnabled(int level) {
+                    return false;
+                }
+
+                @Override
+                public void level(int level) {
+
+                }
+            };
+        }
+        return log;
     }
 }

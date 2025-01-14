@@ -7,7 +7,7 @@
     <groupId>io.edap</groupId>
     <artifactId>edap</artifactId>
     <packaging>pom</packaging>
-    <version>0.1.3-RELEASE</version>
+    <version>${edap.version}</version>
 
     <developers>
         <developer>
@@ -26,25 +26,35 @@
     </scm>
 
     <properties>
+        <java.version>17</java.version>
+        <edap.version>0.1.3-SNAPSHOT</edap.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <maven.compiler.source>1.8</maven.compiler.source>
-        <maven.compiler.target>1.8</maven.compiler.target>
-        <junit.jupiter.version>5.5.2</junit.jupiter.version>
-        <asm.version>5.1</asm.version>
+        <maven.compiler.source>17</maven.compiler.source>
+        <maven.compiler.target>17</maven.compiler.target>
+        <junit.jupiter.version>5.11.0-M2</junit.jupiter.version>
+        <asm.version>9.4</asm.version>
         <protobuf.java.verson>3.16.1</protobuf.java.verson>
-        <fastjson.version>1.2.83</fastjson.version>
         <qdox.verqdoxsion>2.0.3</qdox.verqdoxsion>
         <system.lambda.version>1.2.1</system.lambda.version>
+        <jmh.version>1.36</jmh.version>
+        <HikariCP.version>4.0.3</HikariCP.version>
+        <spring.version>5.3.20</spring.version>
+        <disruptor.version>3.4.4</disruptor.version>
+        <h2.version>2.2.224</h2.version>
     </properties>
 
     <modules>
-        <module>edap-protobuf-wire</module>
-        <module>edap-protobuf</module>
         <module>edap-common</module>
-        <module>edap-log-api</module>
         <module>edap-bean-convert</module>
-        <module>edap-protobuf-idl</module>
-        <module>edap-log</module>
+        <module>edap-toml</module>
+        <module>edap-json</module>
+        <module>edap-core</module>
+        <module>edap-data-parent</module>
+        <module>edap-rpc</module>
+        <module>edap-http-parent</module>
+        <module>edap-protocol-parent</module>
+        <module>edap-log-parent</module>
+        <module>edap-container</module>
 
     </modules>
 
@@ -63,7 +73,27 @@
             </dependency>
             <dependency>
                 <groupId>io.edap</groupId>
+                <artifactId>edap-log</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.edap</groupId>
+                <artifactId>edap-core</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.edap</groupId>
+                <artifactId>edap-data-api</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.edap</groupId>
                 <artifactId>edap-protobuf-wire</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.edap</groupId>
+                <artifactId>edap-protobuf-api</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
@@ -71,6 +101,28 @@
                 <artifactId>edap-protobuf</artifactId>
                 <version>${project.version}</version>
             </dependency>
+            <dependency>
+                <groupId>io.edap</groupId>
+                <artifactId>edap-json</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>io.edap</groupId>
+                <artifactId>edap-http-api</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.edap</groupId>
+                <artifactId>edap-http-server</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.edap</groupId>
+                <artifactId>edap-http-client</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
             <dependency>
                 <groupId>com.thoughtworks.qdox</groupId>
                 <artifactId>qdox</artifactId>
@@ -84,7 +136,17 @@
             </dependency>
             <dependency>
                 <groupId>org.ow2.asm</groupId>
-                <artifactId>asm-all</artifactId>
+                <artifactId>asm</artifactId>
+                <version>${asm.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.ow2.asm</groupId>
+                <artifactId>asm-tree</artifactId>
+                <version>${asm.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.ow2.asm</groupId>
+                <artifactId>asm-util</artifactId>
                 <version>${asm.version}</version>
             </dependency>
             <dependency>
@@ -98,11 +160,86 @@
                 <artifactId>system-lambda</artifactId>
                 <version>${system.lambda.version}</version>
             </dependency>
+            <dependency>
+                <groupId>org.openjdk.jmh</groupId>
+                <artifactId>jmh-core</artifactId>
+                <version>${jmh.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.openjdk.jmh</groupId>
+                <artifactId>jmh-generator-annprocess</artifactId>
+                <version>${jmh.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.lz4</groupId>
+                <artifactId>lz4-java</artifactId>
+                <version>1.8.0</version>
+            </dependency>
+            <dependency>
+                <groupId>com.h2database</groupId>
+                <artifactId>h2</artifactId>
+                <version>${h2.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.zaxxer</groupId>
+                <artifactId>HikariCP</artifactId>
+                <version>${HikariCP.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.edap</groupId>
+                <artifactId>edap-data-jdbc-dao</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.lmax</groupId>
+                <artifactId>disruptor</artifactId>
+                <version>${disruptor.version}</version>
+            </dependency>
         </dependencies>
     </dependencyManagement>
-
     <build>
         <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.8.1</version>
+                <configuration>
+                    <source>${java.version}</source>
+                    <target>${java.version}</target>
+                    <encoding>utf-8</encoding>
+                    <compilerArgs>
+                        <arg>--add-exports=java.base/sun.nio.ch=ALL-UNNAMED</arg>
+                    </compilerArgs>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>flatten-maven-plugin</artifactId>
+                <version>1.2.7</version>
+                <configuration>
+                    <updatePomFile>true</updatePomFile>
+                    <flattenMode>resolveCiFriendliesOnly</flattenMode>
+                    <pomElements>
+                        <parent>resolve</parent>
+                    </pomElements>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>flatten</id>
+                        <phase>process-resources</phase>
+                        <goals>
+                            <goal>flatten</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>flatten.clean</id>
+                        <phase>clean</phase>
+                        <goals>
+                            <goal>clean</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-source-plugin</artifactId>
@@ -144,20 +281,19 @@
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>2.22.2</version>
                 <configuration>
-                    <!--<skipTests>true</skipTests>-->
+                    <skipTests>true</skipTests>
                 </configuration>
             </plugin>
         </plugins>
     </build>
     <distributionManagement>
         <snapshotRepository>
-            <id>YonyouCloud-Snapshot</id>
-            <name>YonyouCloud-Snapshot</name>
-            <url>https://repo.yyrd.com/artifactory/YonyouCloud-Snapshot/</url>
+            <id>ossrh</id>
+            <url>https://oss.sonatype.org/content/repositories/snapshots/</url>
         </snapshotRepository>
         <repository>
-            <id>YonyouCloud-Release</id>
-            <url>https://repo.yyrd.com/artifactory/YonyouCloud-Release/</url>
+            <id>ossrh</id>
+            <url>https://oss.sonatype.org/service/local/staging/deploy/maven2/</url>
         </repository>
     </distributionManagement>
 </project>

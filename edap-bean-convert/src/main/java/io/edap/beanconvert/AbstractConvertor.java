@@ -57,6 +57,11 @@ public abstract class AbstractConvertor<O, D> implements Convertor<O, D> {
     public AbstractConvertor() {
     }
 
+    public AbstractConvertor(Class orignalClazz, Class destClazz) {
+        this.orignalClazz = orignalClazz;
+        this.destClazz = destClazz;
+    }
+
     /**
      * 目标Bean的Class实例
      */

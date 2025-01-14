@@ -52,7 +52,7 @@ public class ClazzUtil {
             }
         } else if (type instanceof GenericArrayType) {
             GenericArrayType gat = (GenericArrayType)type;
-            sb.append(getDescriptor(gat.getGenericComponentType()));
+            sb.append("[").append(getDescriptor(gat.getGenericComponentType()));
         } else if (type instanceof WildcardType) {
             sb.append("?");
         } else {
@@ -108,6 +108,19 @@ public class ClazzUtil {
                 return buf.toString();
             }
         }
+    }
+
+    public static Field getField(Class clazz, String name) throws NoSuchFieldException {
+        List<Field> fields = getClassFields(clazz);
+        if (CollectionUtils.isEmpty(fields)) {
+            throw new NoSuchFieldException();
+        }
+        for (Field f : fields) {
+            if (f.getName().equals(name)) {
+                return f;
+            }
+        }
+        throw new NoSuchFieldException();
     }
 
     public static List<Field> getClassFields(Class msgCls) {
@@ -169,7 +182,7 @@ public class ClazzUtil {
         return methods;
     }
 
-    private static void fillParentMethod(Class msgCls, List<Method> aMethod) {
+    public static void fillParentMethod(Class msgCls, List<Method> aMethod) {
         Class pClass = msgCls.getSuperclass();
         while (pClass != null && pClass != Object.class) {
             Method[] am = pClass.getDeclaredMethods();

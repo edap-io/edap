@@ -34,17 +34,25 @@ public class AsmUtil {
 
     public static void saveJavaFile(String javaFilePath, byte[] data)
             throws IOException {
-        File f = new File(javaFilePath);
-        if (f.exists()) {
-            Files.delete(f.toPath());
-        } else {
-            if (!f.getParentFile().exists()) {
-                f.getParentFile().mkdirs();
-            }
+        String saveClassFile = System.getProperty("edap.debug.saveClassFile");
+        if (StringUtil.isEmpty(saveClassFile)) {
+            saveClassFile = System.getenv("edap.debug.saveClassFile");
         }
+        saveClassFile = "true";
+        if ("true".equalsIgnoreCase(saveClassFile) || "t".equalsIgnoreCase(saveClassFile)
+                || "1".equalsIgnoreCase(saveClassFile)) {
+            File f = new File(javaFilePath);
+            if (f.exists()) {
+                Files.delete(f.toPath());
+            } else {
+                if (!f.getParentFile().exists()) {
+                    f.getParentFile().mkdirs();
+                }
+            }
 
-        try (RandomAccessFile java = new RandomAccessFile(javaFilePath, "rw")) {
-            java.write(data);
+            try (RandomAccessFile java = new RandomAccessFile(javaFilePath, "rw")) {
+                java.write(data);
+            }
         }
     }
 
@@ -57,21 +65,7 @@ public class AsmUtil {
     }
 
     public static void visitIntInsn(int value, MethodVisitor mv) {
-        if (value == 0) {
-            mv.visitInsn(ICONST_0);
-        }else if (value == 1) {
-            mv.visitInsn(ICONST_1);
-        } else if (value == 2) {
-            mv.visitInsn(ICONST_2);
-        } else if (value == 3) {
-            mv.visitInsn(ICONST_3);
-        } else if (value == 4) {
-            mv.visitInsn(ICONST_4);
-        } else if (value == 5) {
-            mv.visitInsn(ICONST_5);
-        } else if (value < Byte.MAX_VALUE) {
-            mv.visitIntInsn(BIPUSH, value);
-        }
+        visitMethodVisitIntValue(mv, value);
     }
 
     public static boolean isPojo(Type type) {
@@ -141,12 +135,42 @@ public class AsmUtil {
         int start = 0;
         int index = internalName.indexOf('/', start);
         while (index != -1) {
-            sb.append(internalName.substring(start, index)).append('.');
+            sb.append(internalName, start, index).append('.');
             start = index + 1;
             index = internalName.indexOf('/', start);
         }
         sb.append(internalName.substring(start));
         return sb.toString();
+    }
+
+    public static void visitMethodVisitIntValue(MethodVisitor mv, int tag) {
+        switch (tag) {
+            case 0:
+                mv.visitInsn(ICONST_0);
+                break;
+            case 1:
+                mv.visitInsn(ICONST_1);
+                break;
+            case 2:
+                mv.visitInsn(ICONST_2);
+                break;
+            case 3:
+                mv.visitInsn(ICONST_3);
+                break;
+            case 4:
+                mv.visitInsn(ICONST_4);
+                break;
+            case 5:
+                mv.visitInsn(ICONST_5);
+                break;
+            default:
+                if (tag <= Short.MAX_VALUE) {
+                    mv.visitIntInsn(SIPUSH, tag);
+                } else {
+                    mv.visitLdcInsn(new Integer(tag));
+                }
+                break;
+        }
     }
 
     public static int getAloadNum(String type) {

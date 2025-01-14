@@ -1,0 +1,6 @@
+io/edap/toml/TomlArray.class
+io/edap/toml/TomlType.class
+io/edap/toml/Toml.class
+io/edap/toml/TomlMap.class
+io/edap/toml/Parser.class
+io/edap/toml/TomlInvalidTypeException.class

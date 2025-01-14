@@ -59,14 +59,15 @@ public class EdapTime {
         setCurrent(System.currentTimeMillis());
         schService = Executors.newScheduledThreadPool(2, r -> new Thread(r, "Edap_time_thread"));
         //尽量在每毫秒的开始进行定时任务
+
         long time = current;
         while (current == time) {
             time = System.currentTimeMillis();
         }
-        setCurrent(time);
         scheduledFuture = schService.scheduleAtFixedRate(() -> {
             setCurrent(System.currentTimeMillis());
         }, 0, 1000_000, TimeUnit.NANOSECONDS);
+        setCurrent(time);
     }
 
     private void setCurrent(long cur) {

@@ -24,6 +24,9 @@ import java.nio.ByteBuffer;
 import java.security.AccessController;
 import java.security.PrivilegedExceptionAction;
 
+import static sun.misc.Unsafe.ARRAY_BYTE_BASE_OFFSET;
+import static sun.misc.Unsafe.ARRAY_CHAR_BASE_OFFSET;
+
 /**
  * Unsafe操作的常用函数
  */
@@ -75,8 +78,16 @@ public class UnsafeUtil {
         copyMemory0(null, fromAddress, dst, UNSAFE.ARRAY_BYTE_BASE_OFFSET + toOffset, length);
     }
 
+    public static void copyMemory(Object src, long srcOffset, byte [] dst, int toOffset, int length) {
+        copyMemory0(src, srcOffset, dst, UNSAFE.ARRAY_BYTE_BASE_OFFSET + toOffset, length);
+    }
+
     public static void copyMemory(byte[] bs, int offset, long address, int length) {
         copyMemory0(bs, UNSAFE.ARRAY_BYTE_BASE_OFFSET + offset, null, address, length);
+    }
+
+    public static void copyUtf16le(char[] cs, int offset, byte[] dest, int destOffset, int len) {
+        copyMemory0(cs, ARRAY_CHAR_BASE_OFFSET + offset * 2, dest, ARRAY_BYTE_BASE_OFFSET + destOffset, len * 2);
     }
 
     static void copyMemory0(Object from, long fromOffset, Object to, long toOffset, long length) {
@@ -111,7 +122,35 @@ public class UnsafeUtil {
         return field;
     }
 
+    public static void writeByte(long address, byte b) {
+        UNSAFE.putByte(address, b);
+    }
+
+    public static Object getValue(Object value, long offset) {
+        return UNSAFE.getObject(value, offset);
+    }
+
+    public static byte getByte(Object value, long offset) {
+        return UNSAFE.getByte(value, offset);
+    }
+
     public static int readByte(long address) {
         return UNSAFE.getByte(address);
+    }
+
+    public static void putByte(Object obj, long offset, byte b) {
+        UNSAFE.putByte(obj, offset, b);
+    }
+
+    public static void putObject(Object obj, long offset, Object value) {
+        UNSAFE.putObject(obj, offset, value);
+    }
+
+    public static Object allocateInstance(Class<?> clazz) throws InstantiationException {
+        return UNSAFE.allocateInstance(clazz);
+    }
+
+    public static void writeByte(byte[] bs, int offset, byte b) {
+        UNSAFE.putByte(bs, UNSAFE.ARRAY_BYTE_BASE_OFFSET + offset, b);
     }
 }

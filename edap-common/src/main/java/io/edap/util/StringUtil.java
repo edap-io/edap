@@ -23,14 +23,14 @@ import java.lang.reflect.Field;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 
+import static io.edap.util.UnsafeUtil.copyMemory;
+
 /**
  * 字符串常用的操作函数
  */
 public class StringUtil {
 
     static Logger LOG = LoggerManager.getLogger(StringUtil.class);
-
-    public static Long VALUE_OFFSET = UnsafeUtil.fieldOffset(UnsafeUtil.field(String.class, "value"));
 
     /**
      * String中value是否是byte[]
@@ -40,6 +40,10 @@ public class StringUtil {
      * String中value的Field用来反射String的Value值
      */
     public static final Field VALUE_FIELD;
+
+    public static final long VALUE_FIELD_OFFSET;
+
+    public static final long CODER_FIELD_OFFSET;
     /**
      * String中coder的Field用来反射String的编码类型
      */
@@ -71,6 +75,8 @@ public class StringUtil {
         VALUE_FIELD   = valueField;
         IS_BYTE_ARRAY = isByteArray;
         LATIN1_FIELD  = coderField;
+        VALUE_FIELD_OFFSET = UnsafeUtil.fieldOffset(VALUE_FIELD);
+        CODER_FIELD_OFFSET = UnsafeUtil.fieldOffset(coderField);
     }
 
     private StringUtil() {}
@@ -86,12 +92,28 @@ public class StringUtil {
         }
         if (IS_BYTE_ARRAY) {
             try {
-                return (byte[])VALUE_FIELD.get(s);
-            } catch (IllegalAccessException e) {
+                //return (byte[])VALUE_FIELD.get(s);
+                return (byte[]) UnsafeUtil.getValue(s, VALUE_FIELD_OFFSET);
+            } catch (Throwable e) {
                 LOG.warn("", e);
             }
         }
         return s.getBytes(UTF8_CHARSET);
+    }
+
+    public static char[] getCharValue(String s) {
+        if (s == null) {
+            return null;
+        }
+        if (!IS_BYTE_ARRAY) {
+            try {
+                //return (byte[])VALUE_FIELD.get(s);
+                return (char[]) UnsafeUtil.getValue(s, VALUE_FIELD_OFFSET);
+            } catch (Throwable e) {
+                LOG.warn("", e);
+            }
+        }
+        return s.toCharArray();
     }
 
     /**
@@ -101,11 +123,25 @@ public class StringUtil {
      */
     public static boolean isLatin1(String s) {
         try {
-            return LATIN1_FIELD.getByte(s) == 0;
-        } catch (IllegalAccessException e) {
-            e.printStackTrace();
+            //return LATIN1_FIELD.getByte(s) == 0;
+            return UnsafeUtil.getByte(s, CODER_FIELD_OFFSET) == 0;
+        } catch (Throwable e) {
+            LOG.error("UnsafeUtil.getByte error", e);
         }
         return false;
+    }
+
+    /**
+     * jdk9以上根据指定的byte数组和coder快速生成String的实例
+     * @param data
+     * @param coder
+     * @return
+     */
+    public static String fastInstance(byte[] data, byte coder) throws InstantiationException {
+        Object s = UnsafeUtil.allocateInstance(String.class);
+        UnsafeUtil.putByte(s, CODER_FIELD_OFFSET, coder);
+        UnsafeUtil.putObject(s, VALUE_FIELD_OFFSET, data);
+        return (String)s;
     }
 
     /**
@@ -115,5 +151,16 @@ public class StringUtil {
      */
     public static boolean isEmpty(String str) {
         return str==null || str.isEmpty();
+    }
+
+
+    public static void main(String[] args) {
+        String s = "我们😁";
+        Object v = UnsafeUtil.getValue(s, VALUE_FIELD_OFFSET);
+        System.out.println(v);
+        byte[] bs = new byte[8];
+        copyMemory(s, VALUE_FIELD_OFFSET, bs, 0, 8);
+        String d = new String(bs, StandardCharsets.UTF_16);
+        System.out.println(d);
     }
 }
