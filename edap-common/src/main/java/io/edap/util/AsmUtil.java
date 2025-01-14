@@ -38,7 +38,6 @@ public class AsmUtil {
         if (StringUtil.isEmpty(saveClassFile)) {
             saveClassFile = System.getenv("edap.debug.saveClassFile");
         }
-        saveClassFile = "true";
         if ("true".equalsIgnoreCase(saveClassFile) || "t".equalsIgnoreCase(saveClassFile)
                 || "1".equalsIgnoreCase(saveClassFile)) {
             File f = new File(javaFilePath);
