@@ -16,9 +16,9 @@
 
 package io.edap.log;
 
+import io.edap.log.helpers.Util;
 import io.edap.log.spi.LoggerServiceProvider;
 import io.edap.log.spi.NopLoggerFactory;
-import io.edap.log.helpers.Util;
 
 import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
