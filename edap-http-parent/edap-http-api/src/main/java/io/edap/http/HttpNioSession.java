@@ -68,7 +68,6 @@ public class HttpNioSession extends NioSession<HttpRequest> {
         reqeustList = new FastList<>(32);
     }
 
-    @Override
     public void reset() {
 
     }
