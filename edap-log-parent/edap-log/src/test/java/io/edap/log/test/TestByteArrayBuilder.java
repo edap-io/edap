@@ -490,4 +490,17 @@ public class TestByteArrayBuilder {
         builder.append(Boolean.valueOf(false));
         assertArrayEquals(builder.toByteArray(), new byte[]{'f','a','l','s','e'});
     }
+
+    @Test
+    public void testAppenderBuilder() {
+        ByteArrayBuilder builder = new ByteArrayBuilder();
+        builder.append("hello ");
+
+        ByteArrayBuilder builderSrc = new ByteArrayBuilder();
+        builderSrc.append("world!");
+
+        builder.append(builderSrc);
+
+        assertArrayEquals(builder.toByteArray(), "hello world!".getBytes());
+    }
 }
