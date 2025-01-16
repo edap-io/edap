@@ -1,10 +1,13 @@
 package io.edap.log.test;
 
 import io.edap.log.helps.ByteArrayBuilder;
+import io.edap.log.io.BaseLogOutputStream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
@@ -502,5 +505,25 @@ public class TestByteArrayBuilder {
         builder.append(builderSrc);
 
         assertArrayEquals(builder.toByteArray(), "hello world!".getBytes());
+    }
+
+    @Test
+    public void testWriteTo() throws IOException {
+        ByteArrayBuilder builder = new ByteArrayBuilder();
+        builder.append("hello ");
+        builder.append("world!");
+
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        builder.writeTo(out);
+        assertArrayEquals(out.toByteArray(), "hello world!".getBytes());
+    }
+
+    @Test
+    public void testGetOutputStream() {
+        ByteArrayBuilder builder = new ByteArrayBuilder();
+        BaseLogOutputStream stream = new BaseLogOutputStream(new ByteArrayOutputStream());
+        builder.setOutputStream(stream);
+
+        assertEquals(stream, builder.getOutputStream());
     }
 }
