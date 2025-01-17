@@ -355,6 +355,17 @@ public class ConfigManager {
 
         config.setLoggerSection(loggerConfigSection);
 
+        if (!CollectionUtils.isEmpty(queueConfigMap)) {
+            QueueConfigSection queueConfigSection = new QueueConfigSection();
+            List<QueueConfig> qcs = new ArrayList<>();
+            for (Map.Entry<String, QueueConfig> qc : queueConfigMap.entrySet()) {
+                qcs.add(qc.getValue());
+            }
+            queueConfigSection.setQueueConfigList(qcs);
+
+            config.setQueueConfigSection(queueConfigSection);
+        }
+
 
         return config;
     }
@@ -379,8 +390,9 @@ public class ConfigManager {
             QueueConfig qc = new QueueConfig();
             qc.setName(name);
             qc.setClazzName(clazz);
-
             qc.setArgs(parseArgNodes(node.getChildNodes(), properties));
+
+            queueConfigs.put(qc.getName(), qc);
         }
         return queueConfigs;
     }
