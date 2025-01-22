@@ -1,0 +1,2 @@
+2025-01-19 00:31:17.497 INFO  [main] [io.edap.log.test.TestLogger] - test log value:123 
+2025-01-19 23:16:48.945 INFO  [main] [io.edap.log.test.TestLogger] - test log value:123 

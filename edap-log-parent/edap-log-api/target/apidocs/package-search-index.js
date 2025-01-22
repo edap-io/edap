@@ -1,1 +1,0 @@
-packageSearchIndex = [{"l":"io.edap.log"},{"l":"io.edap.log.helpers"},{"l":"io.edap.log.spi"},{"l":"所有程序包","u":"allpackages-index.html"}];updateSearchResults();

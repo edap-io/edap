@@ -5,8 +5,8 @@ io.edap.log.compression
 io.edap.log.config
 io.edap.log.consts
 io.edap.log.converter
-io.edap.log.encoders
 io.edap.log.helps
 io.edap.log.io
+io.edap.log.queue
 io.edap.log.spi
 io.edap.log.util
