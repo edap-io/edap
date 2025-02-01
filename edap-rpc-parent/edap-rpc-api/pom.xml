@@ -5,7 +5,7 @@
     <modelVersion>4.0.0</modelVersion>
     <parent>
         <groupId>io.edap</groupId>
-        <artifactId>edap-rpc</artifactId>
+        <artifactId>edap-rpc-parent</artifactId>
         <version>${edap.version}</version>
     </parent>
 
@@ -16,5 +16,12 @@
         <maven.compiler.target>8</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>io.edap</groupId>
+            <artifactId>edap-protobuf-wire</artifactId>
+        </dependency>
+    </dependencies>
 
 </project>

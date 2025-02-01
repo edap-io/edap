@@ -9,10 +9,11 @@
         <version>${edap.version}</version>
     </parent>
 
-    <artifactId>edap-rpc</artifactId>
+    <artifactId>edap-rpc-parent</artifactId>
     <packaging>pom</packaging>
     <modules>
         <module>edap-rpc-api</module>
+        <module>edap-rpc-client</module>
     </modules>
 
     <properties>
