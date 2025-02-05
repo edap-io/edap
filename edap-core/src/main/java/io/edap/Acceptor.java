@@ -41,22 +41,8 @@ public interface Acceptor {
      */
     void accept();
 
-    /**
-     * 设置该网络连接处理器所属的服务器实例
-     * @param server
-     */
-    void setServer(Server server);
-
-    Server getServer();
-
-    void setEventDispatcher(AcceptDispatcher dispatcher);
-    AcceptDispatcher getEventDispatcher();
-
-    void setSelectorProvider(SelectorProvider selectorProvider);
-    SelectorProvider getSelectorProvider();
-
-    void setServerGroup(ServerGroup serverGroup);
-    ServerGroup getServerGroup();
+    void setServerChannelContext(ServerChannelContext serverChannelCtx);
+    ServerChannelContext getServerChannelContext();
 
     /**
      * 添加监听的列表

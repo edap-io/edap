@@ -20,6 +20,8 @@ import com.lmax.disruptor.*;
 import com.lmax.disruptor.dsl.Disruptor;
 import com.lmax.disruptor.dsl.ProducerType;
 import com.lmax.disruptor.util.DaemonThreadFactory;
+import io.edap.NioSession;
+import io.edap.ServerChannelContext;
 import io.edap.log.Logger;
 import io.edap.log.LoggerManager;
 import io.edap.nio.AcceptDispatcher;
@@ -31,6 +33,8 @@ import java.nio.channels.SelectionKey;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.util.List;
+
+import static io.edap.nio.AbstractAcceptor.THREAD_FACTORY;
 
 public class DisruptorAcceptDispatcher implements AcceptDispatcher {
 
@@ -44,15 +48,13 @@ public class DisruptorAcceptDispatcher implements AcceptDispatcher {
     @Override
     public void dispatch(SelectionKey acceptKey) {
         LOG.info("selectKey {}", l -> l.arg(acceptKey));
-        SocketChannel clientChan = null;
+        SocketChannel clientChan;
         try {
             clientChan = ((ServerSocketChannel)acceptKey.channel()).accept();
-//            clientChan.configureBlocking(false);
-//            clientChan.socket().setReuseAddress(true);
-            acceptKey.attachment();
             boolean published = ringBuffer.tryPublishEvent(
-                    (event, sequence) -> event.setAcceptKey(acceptKey));
-            System.out.println("published " + published);
+                    (event, sequence) -> event.setChannel(clientChan)
+                            .setServerChannelCtx((ServerChannelContext) acceptKey.attachment()));
+            LOG.debug("published {}", l-> l.arg(published));
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -68,13 +70,19 @@ public class DisruptorAcceptDispatcher implements AcceptDispatcher {
         int bufferSize = 1024;
         WaitStrategy waitStrategy = new YieldingWaitStrategy();
         EventHandler<AcceptEvent> handler = (event, sequence, endOfBatch) -> {
-            System.out.println("event " + event.getAcceptKey().channel() +
-                    ",sequence=" + sequence + ",endOfBatch=" + endOfBatch);
+            LOG.debug("event:{}, sequence={}, endOfBatch={}",
+                    l -> l.arg(event.getChannel()).arg(sequence).arg(endOfBatch));
+            ServerChannelContext scc = event.getServerChannelCtx();
+            SocketChannel sc = event.getChannel();
+            sc.configureBlocking(false);
+            NioSession nioSession = event.getServerChannelCtx().getServer().createNioSession();
+            nioSession.setSocketChannel(sc);
+            scc.getIoSelectorManager().registerNioSession(nioSession);
         };
         Disruptor<AcceptEvent> disruptor = new Disruptor<>(
                 eventFactory,
                 bufferSize,
-                DaemonThreadFactory.INSTANCE,
+                THREAD_FACTORY,
                 ProducerType.MULTI,
                 waitStrategy);
         disruptor.handleEventsWith(handler);

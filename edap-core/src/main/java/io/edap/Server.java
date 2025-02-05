@@ -19,6 +19,7 @@ package io.edap;
 import io.edap.log.Logger;
 import io.edap.log.LoggerManager;
 import io.edap.pool.SimpleFastBufPool;
+import io.edap.util.StringUtil;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -57,12 +58,26 @@ public abstract class Server<T, S extends NioSession> {
 
     private Decoder<T, S> decoder;
 
+    private String name;
+
     public Server() {
         curClientCount = new AtomicInteger(0);
         addrs = new ArrayList<>();
         maxClientCount = 256000;
         backLog = 1024;
         setBufPool(new SimpleFastBufPool());
+    }
+
+    public Server name(String name) {
+        this.name = name;
+        return this;
+    }
+
+    public String name() {
+        if (StringUtil.isEmpty(name)) {
+            return this.getClass().getSimpleName();
+        }
+        return this.name;
     }
 
     public int getBackLog() {

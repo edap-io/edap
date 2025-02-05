@@ -156,11 +156,13 @@ public class Edap {
 
         @Override
         public void run() {
+            System.out.println("Edap stop...");
             for (Map.Entry<String, ServerGroup> sgEntry : serverGroups.entrySet()) {
                 System.out.println("ServerGroup [" + sgEntry.getKey() + "] stop ...");
                 sgEntry.getValue().stop();
                 System.out.println("ServerGroup [" + sgEntry.getKey() + "] stopped");
             }
+            System.out.println("Edap stopped");
         }
     }
 }

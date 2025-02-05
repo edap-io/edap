@@ -27,7 +27,7 @@ public class ConfigManager {
 
     static {
         LoggerConfig config = new LoggerConfig();
-        config.setLevel("INFO");
+        config.setLevel("DEBUG");
         config.setName("ROOT");
         config.setAppenderRefs(Arrays.asList(DEFAULT_CONSOLE_APPENDER_NAME, DEFAULT_FILE_APPENDER_NAME));
         DEFAULT_ROOT_LOGGER_CONFIG = config;

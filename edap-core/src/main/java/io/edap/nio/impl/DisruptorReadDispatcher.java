@@ -16,13 +16,28 @@
 
 package io.edap.nio.impl;
 
+import io.edap.NioSession;
+import io.edap.buffer.FastBuf;
+import io.edap.log.Logger;
+import io.edap.log.LoggerManager;
 import io.edap.nio.ReadDispatcher;
 
+import java.io.IOException;
 import java.nio.channels.SelectionKey;
 
 public class DisruptorReadDispatcher implements ReadDispatcher {
+
+    static Logger LOG = LoggerManager.getLogger(DisruptorReadDispatcher.class);
+
     @Override
     public void dispatch(SelectionKey readKey) {
-
+        NioSession nioSession = (NioSession)readKey.attachment();
+//        FastBuf buf = new FastBuf(4096);
+//        try {
+//            nioSession.fastRead(buf);
+//        } catch (IOException e) {
+//            throw new RuntimeException(e);
+//        }
+        LOG.debug("SelectionKey {}", l -> l.arg(readKey));
     }
 }

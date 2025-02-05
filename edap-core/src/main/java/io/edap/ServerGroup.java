@@ -20,13 +20,12 @@ import io.edap.config.EdapConfig;
 import io.edap.log.Logger;
 import io.edap.log.LoggerManager;
 import io.edap.nio.AcceptDispatcher;
-import io.edap.nio.impl.DisruptorAcceptDispatcher;
-import io.edap.nio.impl.FastAcceptor;
-import io.edap.nio.impl.NormalAcceptor;
+import io.edap.nio.IoSelectorManager;
+import io.edap.nio.ReadDispatcher;
+import io.edap.nio.impl.*;
 import io.edap.nio.SelectorProvider;
 import io.edap.nio.enums.EventDispatchType;
 import io.edap.nio.enums.ThreadType;
-import io.edap.nio.impl.ThreadPoolAcceptDispatcher;
 import io.edap.pool.SimpleFastBufPool;
 import io.edap.util.CollectionUtils;
 import io.edap.util.ConfigUtils;
@@ -208,29 +207,38 @@ public class ServerGroup {
         Acceptor fAcceptor = acceptor;
         SelectorProvider provider = selectorProvider;
         LOG.info("serverGroup {} acceptorName {} selectorProvider name {}",
-                l -> l.arg(fAcceptor.getClass().getName()).arg(provider.getClass().getName()));
+                l -> l.arg(name).arg(fAcceptor.getClass().getName()).arg(provider.getClass().getName()));
 
-        AcceptDispatcher dispatcher;
+        AcceptDispatcher acceptDispatcher;
+        ReadDispatcher   readDispatcher;
         if (threadType == ThreadType.EDAP) {
-            dispatcher = new DisruptorAcceptDispatcher();
+            acceptDispatcher = new DisruptorAcceptDispatcher();
+            readDispatcher   = new DisruptorReadDispatcher();
         } else {
-            dispatcher = new ThreadPoolAcceptDispatcher();
+            acceptDispatcher = new ThreadPoolAcceptDispatcher();
+            readDispatcher   = new ThreadPoolReadDispatcher();
         }
         for (Server s : servers) {
             s.init();
+            s.setServerGroup(this);
+            ServerChannelContext scc = new ServerChannelContext();
             List<Server.Addr> addrs = s.getListenAddrs();
             Acceptor acpt;
             if (fAcceptor instanceof FastAcceptor) {
                 acpt = new FastAcceptor();
-                acpt.setSelectorProvider(provider);
             } else {
                 acpt = new NormalAcceptor();
-                acpt.setSelectorProvider(provider);
             }
-            acpt.setServerGroup(this);
-            acpt.setEventDispatcher(dispatcher);
-            acpt.setServer(s);
+            scc.setServer(s);
+            scc.setSelectorProvider(provider);
+            scc.setAcceptDispatcher(acceptDispatcher);
+            scc.setReadDispatcher(readDispatcher);
+            scc.setIoSelectorManager(new IoSelectorManager(scc));
+
+            acpt.setServerChannelContext(scc);
             acpt.addAddrs(addrs);
+
+            acceptors.add(acpt);
             acpt.accept();
         }
         LOG.info("{}",  l -> l.arg(providers));
@@ -239,7 +247,16 @@ public class ServerGroup {
 
 
     public void stop() {
-
+        if (CollectionUtils.isEmpty(acceptors)) {
+            return;
+        }
+        LOG.info("server group [{}] acceptor stop...",  l -> l.arg(name));
+        for (Acceptor acceptor : acceptors) {
+            LOG.info("server group [{}] acceptor [{}] stop...",  l -> l.arg(name).arg(acceptor));
+            acceptor.stop();
+            LOG.info("server group [{}] acceptor [{}] stopped",  l -> l.arg(name).arg(acceptor));
+        }
+        LOG.info("server group [{}] acceptor stopped",  l -> l.arg(name));
     }
 
     private SelectorProvider getSelectorProvider(Acceptor acceptor) {

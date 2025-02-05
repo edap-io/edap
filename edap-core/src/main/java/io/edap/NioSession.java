@@ -17,7 +17,6 @@
 package io.edap;
 
 import io.edap.buffer.BytesBuf;
-import io.edap.pool.BasePoolEntry;
 import io.edap.buffer.FastBuf;
 
 import java.io.FileDescriptor;
@@ -444,4 +443,5 @@ public abstract class NioSession<T> {
     public void setTheadTag(String theadTag) {
         this.theadTag = theadTag;
     }
+
 }
