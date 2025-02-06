@@ -59,6 +59,14 @@ public abstract class Server<T, S extends NioSession> {
     private Decoder<T, S> decoder;
 
     private String name;
+    /**
+     * NioSession是否需要使用对象池，如果连接未短连接连接数较少建议采用池化NioSession，减少内存GC。
+     */
+    private boolean nioSesionPooled;
+    /**
+     * 是否需要缓存请求对象
+     */
+    private boolean reqMsgPooled;
 
     public Server() {
         curClientCount = new AtomicInteger(0);
@@ -221,6 +229,28 @@ public abstract class Server<T, S extends NioSession> {
 
     public void setServerGroup(ServerGroup serverGroup) {
         this.serverGroup = serverGroup;
+    }
+
+    /**
+     * NioSession是否需要使用对象池
+     */
+    public boolean isNioSesionPooled() {
+        return nioSesionPooled;
+    }
+
+    public void setNioSesionPooled(boolean nioSesionPooled) {
+        this.nioSesionPooled = nioSesionPooled;
+    }
+
+    /**
+     * 是否需要缓存请求对象
+     */
+    public boolean isReqMsgPooled() {
+        return reqMsgPooled;
+    }
+
+    public void setReqMsgPooled(boolean reqMsgPooled) {
+        this.reqMsgPooled = reqMsgPooled;
     }
 
     public static class Addr {

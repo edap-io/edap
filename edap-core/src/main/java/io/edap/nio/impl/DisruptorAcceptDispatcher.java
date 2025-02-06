@@ -21,11 +21,13 @@ import com.lmax.disruptor.dsl.Disruptor;
 import com.lmax.disruptor.dsl.ProducerType;
 import com.lmax.disruptor.util.DaemonThreadFactory;
 import io.edap.NioSession;
+import io.edap.Server;
 import io.edap.ServerChannelContext;
 import io.edap.log.Logger;
 import io.edap.log.LoggerManager;
 import io.edap.nio.AcceptDispatcher;
 import io.edap.nio.event.AcceptEvent;
+import io.edap.nio.handler.AcceptEventHandler;
 import io.edap.util.FastList;
 
 import java.io.IOException;
@@ -41,7 +43,10 @@ public class DisruptorAcceptDispatcher implements AcceptDispatcher {
     private static final Logger LOG = LoggerManager.getLogger(DisruptorAcceptDispatcher.class);
 
     private RingBuffer<AcceptEvent> ringBuffer;
-    public DisruptorAcceptDispatcher() {
+    private Server server;
+
+    public DisruptorAcceptDispatcher(Server server) {
+        this.server = server;
         ringBuffer = buildRingBuffer();
     }
 
@@ -69,16 +74,7 @@ public class DisruptorAcceptDispatcher implements AcceptDispatcher {
         EventFactory<AcceptEvent> eventFactory = AcceptEvent::new;
         int bufferSize = 1024;
         WaitStrategy waitStrategy = new YieldingWaitStrategy();
-        EventHandler<AcceptEvent> handler = (event, sequence, endOfBatch) -> {
-            LOG.debug("event:{}, sequence={}, endOfBatch={}",
-                    l -> l.arg(event.getChannel()).arg(sequence).arg(endOfBatch));
-            ServerChannelContext scc = event.getServerChannelCtx();
-            SocketChannel sc = event.getChannel();
-            sc.configureBlocking(false);
-            NioSession nioSession = event.getServerChannelCtx().getServer().createNioSession();
-            nioSession.setSocketChannel(sc);
-            scc.getIoSelectorManager().registerNioSession(nioSession);
-        };
+        EventHandler<AcceptEvent> handler = new AcceptEventHandler(server);
         Disruptor<AcceptEvent> disruptor = new Disruptor<>(
                 eventFactory,
                 bufferSize,

@@ -211,13 +211,6 @@ public class ServerGroup {
 
         AcceptDispatcher acceptDispatcher;
         ReadDispatcher   readDispatcher;
-        if (threadType == ThreadType.EDAP) {
-            acceptDispatcher = new DisruptorAcceptDispatcher();
-            readDispatcher   = new DisruptorReadDispatcher();
-        } else {
-            acceptDispatcher = new ThreadPoolAcceptDispatcher();
-            readDispatcher   = new ThreadPoolReadDispatcher();
-        }
         for (Server s : servers) {
             s.init();
             s.setServerGroup(this);
@@ -231,6 +224,13 @@ public class ServerGroup {
             }
             scc.setServer(s);
             scc.setSelectorProvider(provider);
+            if (threadType == ThreadType.EDAP) {
+                acceptDispatcher = new DisruptorAcceptDispatcher(s);
+                readDispatcher   = new DisruptorReadDispatcher(s);
+            } else {
+                acceptDispatcher = new ThreadPoolAcceptDispatcher();
+                readDispatcher   = new ThreadPoolReadDispatcher();
+            }
             scc.setAcceptDispatcher(acceptDispatcher);
             scc.setReadDispatcher(readDispatcher);
             scc.setIoSelectorManager(new IoSelectorManager(scc));

@@ -17,10 +17,15 @@
 package io.edap.nio.impl;
 
 import io.edap.NioSession;
+import io.edap.Server;
 import io.edap.buffer.FastBuf;
 import io.edap.log.Logger;
 import io.edap.log.LoggerManager;
 import io.edap.nio.ReadDispatcher;
+import io.edap.pool.MpscPool;
+import io.edap.pool.Pool;
+import io.edap.pool.impl.ArrayBlockingQueueMpscPool;
+import io.edap.pool.impl.ThreadLocalPool;
 
 import java.io.IOException;
 import java.nio.channels.SelectionKey;
@@ -29,15 +34,39 @@ public class DisruptorReadDispatcher implements ReadDispatcher {
 
     static Logger LOG = LoggerManager.getLogger(DisruptorReadDispatcher.class);
 
+    private Pool<FastBuf> bbPool;
+
+    private MpscPool reqPool;
+    private boolean reqMsgPooled;
+
+    public DisruptorReadDispatcher(Server server) {
+        bbPool  = new ThreadLocalPool<>();
+        reqPool = null;
+        if (server != null && server.isReqMsgPooled()) {
+            reqPool = new ArrayBlockingQueueMpscPool();
+            reqMsgPooled = true;
+        } else {
+            reqPool = null;
+            reqMsgPooled = false;
+        }
+    }
+
     @Override
     public void dispatch(SelectionKey readKey) {
         NioSession nioSession = (NioSession)readKey.attachment();
-//        FastBuf buf = new FastBuf(4096);
-//        try {
-//            nioSession.fastRead(buf);
-//        } catch (IOException e) {
-//            throw new RuntimeException(e);
-//        }
+        FastBuf buf = bbPool.borrow();
+        try {
+            int len = nioSession.fastRead(buf);
+            if (len < 0) {
+
+            } else {
+                if (reqMsgPooled) {
+
+                }
+            }
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
         LOG.debug("SelectionKey {}", l -> l.arg(readKey));
     }
 }
