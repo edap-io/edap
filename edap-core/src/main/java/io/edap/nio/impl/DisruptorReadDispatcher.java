@@ -16,12 +16,19 @@
 
 package io.edap.nio.impl;
 
+import com.lmax.disruptor.*;
+import com.lmax.disruptor.dsl.Disruptor;
+import com.lmax.disruptor.dsl.ProducerType;
+import io.edap.Decoder;
 import io.edap.NioSession;
+import io.edap.ParseResult;
 import io.edap.Server;
 import io.edap.buffer.FastBuf;
 import io.edap.log.Logger;
 import io.edap.log.LoggerManager;
 import io.edap.nio.ReadDispatcher;
+import io.edap.nio.event.AcceptEvent;
+import io.edap.nio.handler.AcceptEventHandler;
 import io.edap.pool.MpscPool;
 import io.edap.pool.Pool;
 import io.edap.pool.impl.ArrayBlockingQueueMpscPool;
@@ -30,24 +37,26 @@ import io.edap.pool.impl.ThreadLocalPool;
 import java.io.IOException;
 import java.nio.channels.SelectionKey;
 
+import static io.edap.nio.AbstractAcceptor.THREAD_FACTORY;
+
 public class DisruptorReadDispatcher implements ReadDispatcher {
 
     static Logger LOG = LoggerManager.getLogger(DisruptorReadDispatcher.class);
 
     private Pool<FastBuf> bbPool;
 
-    private MpscPool reqPool;
-    private boolean reqMsgPooled;
+    private Decoder decoder;
+    private Server  server;
+
+    private RingBuffer<AcceptEvent>[] ringBuffers;
+
 
     public DisruptorReadDispatcher(Server server) {
-        bbPool  = new ThreadLocalPool<>();
-        reqPool = null;
-        if (server != null && server.isReqMsgPooled()) {
-            reqPool = new ArrayBlockingQueueMpscPool();
-            reqMsgPooled = true;
-        } else {
-            reqPool = null;
-            reqMsgPooled = false;
+        this.server = server;
+        this.bbPool  = new ThreadLocalPool<>();
+        this.decoder = server.getDecoder();
+        for (int i=0;i<2) {
+
         }
     }
 
@@ -55,18 +64,32 @@ public class DisruptorReadDispatcher implements ReadDispatcher {
     public void dispatch(SelectionKey readKey) {
         NioSession nioSession = (NioSession)readKey.attachment();
         FastBuf buf = bbPool.borrow();
+        ParseResult pr;
         try {
             int len = nioSession.fastRead(buf);
             if (len < 0) {
 
             } else {
-                if (reqMsgPooled) {
-
-                }
+                pr = decoder.decode(buf, nioSession);
             }
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
         LOG.debug("SelectionKey {}", l -> l.arg(readKey));
+    }
+
+    public RingBuffer<AcceptEvent> buildRingBuffer() {
+        EventFactory<AcceptEvent> eventFactory = AcceptEvent::new;
+        int bufferSize = 1024;
+        WaitStrategy waitStrategy = new YieldingWaitStrategy();
+        EventHandler<AcceptEvent> handler = new AcceptEventHandler(server);
+        Disruptor<AcceptEvent> disruptor = new Disruptor<>(
+                eventFactory,
+                bufferSize,
+                THREAD_FACTORY,
+                ProducerType.MULTI,
+                waitStrategy);
+        disruptor.handleEventsWith(handler);
+        return disruptor.start();
     }
 }
