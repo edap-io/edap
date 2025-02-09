@@ -21,6 +21,7 @@ import io.edap.Server;
 import io.edap.ServerChannelContext;
 import io.edap.log.Logger;
 import io.edap.log.LoggerManager;
+import io.edap.util.EventHandleThreadFactory;
 
 import java.io.IOException;
 import java.nio.channels.ClosedChannelException;
@@ -38,6 +39,12 @@ public class IoSelectorManager {
     private Selector             selector;
     private Thread               runningThread;
     private volatile boolean     running;
+
+    public static final EventHandleThreadFactory BIZ_THREAD_FACTORY;
+
+    static {
+        BIZ_THREAD_FACTORY = new EventHandleThreadFactory("edap-biz-handle");
+    }
 
     public IoSelectorManager(ServerChannelContext scc) {
         this.serverChannelContext = scc;

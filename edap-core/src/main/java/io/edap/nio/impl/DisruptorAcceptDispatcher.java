@@ -19,8 +19,6 @@ package io.edap.nio.impl;
 import com.lmax.disruptor.*;
 import com.lmax.disruptor.dsl.Disruptor;
 import com.lmax.disruptor.dsl.ProducerType;
-import com.lmax.disruptor.util.DaemonThreadFactory;
-import io.edap.NioSession;
 import io.edap.Server;
 import io.edap.ServerChannelContext;
 import io.edap.log.Logger;
@@ -28,15 +26,13 @@ import io.edap.log.LoggerManager;
 import io.edap.nio.AcceptDispatcher;
 import io.edap.nio.event.AcceptEvent;
 import io.edap.nio.handler.AcceptEventHandler;
-import io.edap.util.FastList;
 
 import java.io.IOException;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
-import java.util.List;
 
-import static io.edap.nio.AbstractAcceptor.THREAD_FACTORY;
+import static io.edap.nio.AbstractAcceptor.ACCEPT_THREAD_FACTORY;
 
 public class DisruptorAcceptDispatcher implements AcceptDispatcher {
 
@@ -78,7 +74,7 @@ public class DisruptorAcceptDispatcher implements AcceptDispatcher {
         Disruptor<AcceptEvent> disruptor = new Disruptor<>(
                 eventFactory,
                 bufferSize,
-                THREAD_FACTORY,
+                ACCEPT_THREAD_FACTORY,
                 ProducerType.MULTI,
                 waitStrategy);
         disruptor.handleEventsWith(handler);

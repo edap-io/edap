@@ -48,10 +48,10 @@ public abstract class AbstractAcceptor implements Acceptor {
 
     protected ServerChannelContext serverChannelContext;
 
-    public static final EventHandleThreadFactory THREAD_FACTORY;
+    public static final EventHandleThreadFactory ACCEPT_THREAD_FACTORY;
 
     static {
-        THREAD_FACTORY = new EventHandleThreadFactory("edap-Accept-handle");
+        ACCEPT_THREAD_FACTORY = new EventHandleThreadFactory("edap-Accept-handle");
     }
 
     @Override

@@ -28,16 +28,16 @@ import io.edap.log.Logger;
 import io.edap.log.LoggerManager;
 import io.edap.nio.ReadDispatcher;
 import io.edap.nio.event.AcceptEvent;
+import io.edap.nio.event.BizEvent;
 import io.edap.nio.handler.AcceptEventHandler;
-import io.edap.pool.MpscPool;
+import io.edap.nio.handler.BizEventHandler;
 import io.edap.pool.Pool;
-import io.edap.pool.impl.ArrayBlockingQueueMpscPool;
 import io.edap.pool.impl.ThreadLocalPool;
 
 import java.io.IOException;
 import java.nio.channels.SelectionKey;
 
-import static io.edap.nio.AbstractAcceptor.THREAD_FACTORY;
+import static io.edap.nio.IoSelectorManager.BIZ_THREAD_FACTORY;
 
 public class DisruptorReadDispatcher implements ReadDispatcher {
 
@@ -48,15 +48,15 @@ public class DisruptorReadDispatcher implements ReadDispatcher {
     private Decoder decoder;
     private Server  server;
 
-    private RingBuffer<AcceptEvent>[] ringBuffers;
+    private RingBuffer<BizEvent>[] ringBuffers;
 
 
     public DisruptorReadDispatcher(Server server) {
         this.server = server;
         this.bbPool  = new ThreadLocalPool<>();
         this.decoder = server.getDecoder();
-        for (int i=0;i<2) {
-
+        for (int i=0;i<256;i++) {
+            ringBuffers[i] = buildRingBuffer();
         }
     }
 
@@ -71,6 +71,9 @@ public class DisruptorReadDispatcher implements ReadDispatcher {
 
             } else {
                 pr = decoder.decode(buf, nioSession);
+                if (pr.isFinished()) {
+
+                }
             }
         } catch (IOException e) {
             throw new RuntimeException(e);
@@ -78,15 +81,15 @@ public class DisruptorReadDispatcher implements ReadDispatcher {
         LOG.debug("SelectionKey {}", l -> l.arg(readKey));
     }
 
-    public RingBuffer<AcceptEvent> buildRingBuffer() {
-        EventFactory<AcceptEvent> eventFactory = AcceptEvent::new;
+    public RingBuffer<BizEvent> buildRingBuffer() {
+        EventFactory<BizEvent> eventFactory = BizEvent::new;
         int bufferSize = 1024;
         WaitStrategy waitStrategy = new YieldingWaitStrategy();
-        EventHandler<AcceptEvent> handler = new AcceptEventHandler(server);
-        Disruptor<AcceptEvent> disruptor = new Disruptor<>(
+        EventHandler<BizEvent> handler = new BizEventHandler(server);
+        Disruptor<BizEvent> disruptor = new Disruptor<>(
                 eventFactory,
                 bufferSize,
-                THREAD_FACTORY,
+                BIZ_THREAD_FACTORY,
                 ProducerType.MULTI,
                 waitStrategy);
         disruptor.handleEventsWith(handler);
