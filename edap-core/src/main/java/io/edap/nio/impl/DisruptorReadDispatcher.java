@@ -52,7 +52,7 @@ public class DisruptorReadDispatcher implements ReadDispatcher {
 
 
     public DisruptorReadDispatcher(Server server) {
-        this.server = server;
+        this.server  = server;
         this.bbPool  = new ThreadLocalPool<>();
         this.decoder = server.getDecoder();
         for (int i=0;i<256;i++) {
