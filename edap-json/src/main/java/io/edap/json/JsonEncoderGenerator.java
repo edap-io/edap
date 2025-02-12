@@ -357,8 +357,6 @@ public class JsonEncoderGenerator {
         mv.visitVarInsn(ALOAD, 1);
         mv.visitIntInsn(BIPUSH, 91);
         mv.visitMethodInsn(INVOKEINTERFACE, WRITER_NAME, "write", "(B)V", true);
-        mv.visitInsn(ICONST_0);
-        mv.visitVarInsn(ISTORE, 4);
         mv.visitVarInsn(ALOAD, 2);
         Type type = jfi.field.getGenericType();
         Class pojoCls = null;
@@ -387,36 +385,15 @@ public class JsonEncoderGenerator {
         } else {
             mv.visitFieldInsn(GETFIELD, pojoName, jfi.field.getName(), typeString);
         }
-        mv.visitVarInsn(ASTORE, 5);
-        mv.visitInsn(ICONST_0);
-        mv.visitVarInsn(ISTORE, 6);
-        Label labelFor = new Label();
-        mv.visitLabel(labelFor);
-        mv.visitVarInsn(ILOAD, 6);
-        mv.visitVarInsn(ALOAD, 5);
+        mv.visitVarInsn(ASTORE, 4);
+        mv.visitVarInsn(ALOAD, 4);
         mv.visitMethodInsn(INVOKEINTERFACE, "java/util/List", "size", "()I", true);
-        Label labelForBreak = new Label();
-        mv.visitJumpInsn(IF_ICMPGE, labelForBreak);
-        // 输出逗号
-        mv.visitVarInsn(ILOAD, 4);
-        Label labelCommon = new Label();
-        mv.visitJumpInsn(IFEQ, labelCommon);
+        // 输出第一个元素
+        Label labelNoItem = new Label();
+        mv.visitJumpInsn(IFLE, labelNoItem);
         mv.visitVarInsn(ALOAD, 1);
-        mv.visitIntInsn(BIPUSH, 44);
-        mv.visitMethodInsn(INVOKEINTERFACE, WRITER_NAME, "write", "(B)V", true);
-
-        // 输出list的item
-        Label labelWriteItem = new Label();
-        mv.visitJumpInsn(GOTO, labelWriteItem);
-
-        mv.visitLabel(labelCommon);
-        mv.visitInsn(ICONST_1);
-        mv.visitVarInsn(ISTORE, 4);
-
-        mv.visitLabel(labelWriteItem);
-        mv.visitVarInsn(ALOAD, 1);
-        mv.visitVarInsn(ALOAD, 5);
-        mv.visitVarInsn(ILOAD, 6);
+        mv.visitVarInsn(ALOAD, 4);
+        mv.visitInsn(ICONST_0);
         mv.visitMethodInsn(INVOKEINTERFACE, "java/util/List", "get", "(I)Ljava/lang/Object;", true);
         mv.visitTypeInsn(CHECKCAST, pojoTypeName);
         if (isPojo(pojoType)) {
@@ -435,7 +412,45 @@ public class JsonEncoderGenerator {
             }
             visitMethod(mv, INVOKEINTERFACE, WRITER_NAME, writeMethod, "(" + typeString + ")V", true);
         }
-        mv.visitIincInsn(6, 1);
+        // for循环输出下标大于1的元素
+        mv.visitLabel(labelNoItem);
+        mv.visitInsn(ICONST_1);
+        mv.visitVarInsn(ISTORE, 5);
+
+        Label labelFor = new Label();
+        mv.visitLabel(labelFor);
+        mv.visitVarInsn(ILOAD, 5);
+        mv.visitVarInsn(ALOAD, 4);
+        mv.visitMethodInsn(INVOKEINTERFACE, "java/util/List", "size", "()I", true);
+        Label labelForBreak = new Label();
+        mv.visitJumpInsn(IF_ICMPGE, labelForBreak);
+
+        mv.visitVarInsn(ALOAD, 1);
+        mv.visitIntInsn(BIPUSH, 44);
+        mv.visitMethodInsn(INVOKEINTERFACE, WRITER_NAME, "write", "(B)V", true);
+
+        mv.visitVarInsn(ALOAD, 1);
+        mv.visitVarInsn(ALOAD, 4);
+        mv.visitVarInsn(ILOAD, 5);
+        mv.visitMethodInsn(INVOKEINTERFACE, "java/util/List", "get", "(I)Ljava/lang/Object;", true);
+        mv.visitTypeInsn(CHECKCAST, pojoTypeName);
+        if (isPojo(pojoType)) {
+            if (!((Class)pojoType).getName().equals(this.pojoCls.getName())) {
+                mv.visitFieldInsn(GETSTATIC, encoderName, getCodecFieldName(pojoCls), "L" + IFACE_NAME + ";");
+            } else {
+                mv.visitVarInsn(ALOAD, 0);
+            }
+            mv.visitMethodInsn(INVOKEINTERFACE, IFACE_NAME, "encode",
+                    "(L" + WRITER_NAME + ";Ljava/lang/Object;)V", true);
+        } else {
+            String writeMethod = getWriteMethod(pojoCls);
+            typeString = getDescriptor(pojoCls);
+            if (writeMethod.equals("writeObject")) {
+                typeString = "Ljava/lang/Object;";
+            }
+            visitMethod(mv, INVOKEINTERFACE, WRITER_NAME, writeMethod, "(" + typeString + ")V", true);
+        }
+        mv.visitIincInsn(5, 1);
         mv.visitJumpInsn(GOTO, labelFor);
 
         mv.visitLabel(labelForBreak);

@@ -36,17 +36,14 @@ public class DemoFieldListEncoder extends AbstractEncoder implements JsonEncoder
         if (var2.getList() != null) {
             var1.writeField(KBS_FIELD1, start, 10);
             var1.write((byte)'[');
-            boolean needCommon = false;
             List<Integer> list = var2.getList();
-            for(int i=0;i<list.size();i++) {
-                if (needCommon) {
-                    var1.write((byte)',');
-                } else {
-                    needCommon = true;
-                }
+            if (list.size() > 0) {
+                var1.write(list.get(0));
+            }
+            for(int i=1;i<list.size();i++) {
+                var1.write((byte)',');
                 var1.write(list.get(i));
             }
-
             var1.write(']');
             start = 0;
         }
