@@ -402,8 +402,9 @@ public class JsonEncoderGenerator {
             } else {
                 mv.visitVarInsn(ALOAD, 0);
             }
-            mv.visitMethodInsn(INVOKEINTERFACE, IFACE_NAME, "encode",
-                    "(L" + WRITER_NAME + ";Ljava/lang/Object;)V", true);
+            String writeMethod = "write";
+            mv.visitMethodInsn(INVOKEINTERFACE, WRITER_NAME, writeMethod,
+                    "(Ljava/lang/Object;L" + IFACE_NAME + ";)V", true);
         } else {
             String writeMethod = getWriteMethod(pojoCls);
             typeString = getDescriptor(pojoCls);
@@ -440,8 +441,9 @@ public class JsonEncoderGenerator {
             } else {
                 mv.visitVarInsn(ALOAD, 0);
             }
-            mv.visitMethodInsn(INVOKEINTERFACE, IFACE_NAME, "encode",
-                    "(L" + WRITER_NAME + ";Ljava/lang/Object;)V", true);
+            String writeMethod = "write";
+            mv.visitMethodInsn(INVOKEINTERFACE, WRITER_NAME, writeMethod,
+                    "(Ljava/lang/Object;L" + IFACE_NAME + ";)V", true);
         } else {
             String writeMethod = getWriteMethod(pojoCls);
             typeString = getDescriptor(pojoCls);
