@@ -83,11 +83,11 @@ public abstract class AbstractWriter implements EprotoWriter {
             writeByteArrayString(v);
         } else {
             int len = v.length();
-//            if (len <= 10) {
+            if (len <= 10) {
                 writeCharArrayString(v, len);
-//            } else {
-//                writeUtf16String(v, len);
-//            }
+            } else {
+                writeUtf16String(v, len);
+            }
         }
     }
 
