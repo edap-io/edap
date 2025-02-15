@@ -19,10 +19,7 @@ package io.edap.nio.impl;
 import com.lmax.disruptor.*;
 import com.lmax.disruptor.dsl.Disruptor;
 import com.lmax.disruptor.dsl.ProducerType;
-import io.edap.Decoder;
-import io.edap.NioSession;
-import io.edap.ParseResult;
-import io.edap.Server;
+import io.edap.*;
 import io.edap.buffer.FastBuf;
 import io.edap.log.Logger;
 import io.edap.log.LoggerManager;
@@ -50,12 +47,17 @@ public class DisruptorReadDispatcher implements ReadDispatcher {
 
     private RingBuffer<BizEvent>[] ringBuffers;
 
+    private volatile int queueSize = 256;
+
+    private int seq = 0;
+
 
     public DisruptorReadDispatcher(Server server) {
-        this.server  = server;
-        this.bbPool  = new ThreadLocalPool<>();
-        this.decoder = server.getDecoder();
-        for (int i=0;i<256;i++) {
+        this.server      = server;
+        this.bbPool      = new ThreadLocalPool<>();
+        this.decoder     = server.getDecoder();
+        this.ringBuffers = new RingBuffer[queueSize];
+        for (int i=0;i<queueSize;i++) {
             ringBuffers[i] = buildRingBuffer();
         }
     }
@@ -64,6 +66,9 @@ public class DisruptorReadDispatcher implements ReadDispatcher {
     public void dispatch(SelectionKey readKey) {
         NioSession nioSession = (NioSession)readKey.attachment();
         FastBuf buf = bbPool.borrow();
+        if (buf == null) {
+            buf = new FastBuf(4096);
+        }
         ParseResult pr;
         try {
             int len = nioSession.fastRead(buf);
@@ -72,11 +77,22 @@ public class DisruptorReadDispatcher implements ReadDispatcher {
             } else {
                 pr = decoder.decode(buf, nioSession);
                 if (pr.isFinished()) {
-
+                    int index = seq++%queueSize;
+                    boolean published = ringBuffers[index].tryPublishEvent(
+                            (event, sequence) -> {
+                                event.setNioSession(nioSession);
+                                event.setServerChannelContext(nioSession.getServerChannelContext());
+                                event.setBizData(pr);
+                            });
+                    LOG.debug("published {}", l-> l.arg(published));
                 }
             }
         } catch (IOException e) {
             throw new RuntimeException(e);
+        } finally {
+            if (buf != null) {
+                bbPool.requite(buf);
+            }
         }
         LOG.debug("SelectionKey {}", l -> l.arg(readKey));
     }
@@ -84,7 +100,7 @@ public class DisruptorReadDispatcher implements ReadDispatcher {
     public RingBuffer<BizEvent> buildRingBuffer() {
         EventFactory<BizEvent> eventFactory = BizEvent::new;
         int bufferSize = 1024;
-        WaitStrategy waitStrategy = new YieldingWaitStrategy();
+        WaitStrategy waitStrategy = new BlockingWaitStrategy();
         EventHandler<BizEvent> handler = new BizEventHandler(server);
         Disruptor<BizEvent> disruptor = new Disruptor<>(
                 eventFactory,

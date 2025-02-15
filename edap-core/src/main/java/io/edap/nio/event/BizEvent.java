@@ -17,19 +17,20 @@
 package io.edap.nio.event;
 
 import io.edap.NioSession;
+import io.edap.ParseResult;
 import io.edap.ServerChannelContext;
 
 public class BizEvent {
 
-    private Object bizData;
+    private ParseResult bizData;
     private NioSession nioSession;
     private ServerChannelContext serverChannelContext;
 
-    public Object getBizData() {
+    public ParseResult getBizData() {
         return bizData;
     }
 
-    public void setBizData(Object bizData) {
+    public void setBizData(ParseResult bizData) {
         this.bizData = bizData;
     }
 

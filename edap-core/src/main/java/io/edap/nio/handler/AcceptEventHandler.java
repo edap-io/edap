@@ -58,6 +58,7 @@ public class AcceptEventHandler implements EventHandler<AcceptEvent> {
             nioSession = server.createNioSession();
         }
         nioSession.setSocketChannel(sc);
+        nioSession.setChannelFd(NioSession.getValue(sc, "fd"));
         scc.getIoSelectorManager().registerNioSession(nioSession);
     }
 }
