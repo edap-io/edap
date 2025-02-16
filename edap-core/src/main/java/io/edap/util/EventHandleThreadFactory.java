@@ -17,10 +17,13 @@
 package io.edap.util;
 
 import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class EventHandleThreadFactory implements ThreadFactory {
 
     private String threadName;
+
+    private static final AtomicInteger THREAD_SEQ = new AtomicInteger();
 
     public EventHandleThreadFactory(String threadName) {
         this.threadName = threadName;
@@ -30,7 +33,7 @@ public class EventHandleThreadFactory implements ThreadFactory {
     public Thread newThread(Runnable r) {
         Thread t = new Thread(r);
         t.setDaemon(true);
-        t.setName(threadName);
+        t.setName(threadName  + "-" + THREAD_SEQ.addAndGet(1));
         return t;
     }
 }
