@@ -16,10 +16,7 @@
 
 package io.edap;
 
-import io.edap.nio.AcceptDispatcher;
-import io.edap.nio.IoSelectorManager;
-import io.edap.nio.ReadDispatcher;
-import io.edap.nio.SelectorProvider;
+import io.edap.nio.*;
 
 /**
  * 服务器端SocketChannel中附加的上下文信息，在服务器启动时有容器添加到ServerSocketChannel
@@ -29,11 +26,11 @@ import io.edap.nio.SelectorProvider;
  */
 public class ServerChannelContext {
 
-    private Server            server;
-    private IoSelectorManager ioSelectorManager;
-    private ReadDispatcher    readDispatcher;
-    private SelectorProvider  selectorProvider;
-    private AcceptDispatcher  acceptDispatcher;
+    private Server                  server;
+    private IoSelectorManager       ioSelectorManager;
+    private ReadDispatcherFactory   readDispatcherFactory;
+    private SelectorProvider        selectorProvider;
+    private AcceptDispatcherFactory acceptDispatcherFactory;
 
     public Server getServer() {
         return this.server;
@@ -51,14 +48,6 @@ public class ServerChannelContext {
         this.ioSelectorManager = ioSelectorManager;
     }
 
-    public ReadDispatcher getReadDispatcher() {
-        return readDispatcher;
-    }
-
-    public void setReadDispatcher(ReadDispatcher readDispatcher) {
-        this.readDispatcher = readDispatcher;
-    }
-
     public SelectorProvider getSelectorProvider() {
         return selectorProvider;
     }
@@ -67,12 +56,20 @@ public class ServerChannelContext {
         this.selectorProvider = selectorProvider;
     }
 
-    public AcceptDispatcher getAcceptDispatcher() {
-        return acceptDispatcher;
+    public AcceptDispatcherFactory getAcceptDispatcherFactory() {
+        return acceptDispatcherFactory;
     }
 
-    public void setAcceptDispatcher(AcceptDispatcher acceptDispatcher) {
-        this.acceptDispatcher = acceptDispatcher;
+    public void setAcceptDispatcherFactory(AcceptDispatcherFactory acceptDispatcherFactory) {
+        this.acceptDispatcherFactory = acceptDispatcherFactory;
+    }
+
+    public ReadDispatcherFactory getReadDispatcherFactory() {
+        return readDispatcherFactory;
+    }
+
+    public void setReadDispatcherFactory(ReadDispatcherFactory readDispatcherFactory) {
+        this.readDispatcherFactory = readDispatcherFactory;
     }
 }
 

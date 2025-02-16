@@ -59,6 +59,9 @@ public abstract class Server<T, S extends NioSession> {
     private Decoder<T, S> decoder;
 
     private String name;
+
+    private int ioThreadCount;
+    private int bizThreadCount;
     /**
      * NioSession是否需要使用对象池，如果连接未短连接连接数较少建议采用池化NioSession，减少内存GC。
      */
@@ -236,6 +239,22 @@ public abstract class Server<T, S extends NioSession> {
 
     public void setNioSesionPooled(boolean nioSesionPooled) {
         this.nioSesionPooled = nioSesionPooled;
+    }
+
+    public int getIoThreadCount() {
+        return ioThreadCount;
+    }
+
+    public void setIoThreadCount(int ioThreadCount) {
+        this.ioThreadCount = ioThreadCount;
+    }
+
+    public int getBizThreadCount() {
+        return bizThreadCount;
+    }
+
+    public void setBizThreadCount(int bizThreadCount) {
+        this.bizThreadCount = bizThreadCount;
     }
 
     public static class Addr {

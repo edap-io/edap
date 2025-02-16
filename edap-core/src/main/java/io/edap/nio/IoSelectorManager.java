@@ -27,18 +27,23 @@ import java.io.IOException;
 import java.nio.channels.ClosedChannelException;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import static io.edap.util.SystemUtil.getCpuCount;
 
 public class IoSelectorManager {
 
     static Logger LOG = LoggerManager.getLogger(IoSelectorManager.class);
 
-    private Server               server;
-    private SelectorProvider     selectorProvider;
-    private ServerChannelContext serverChannelContext;
-    private ReadDispatcher       readDispatcher;
-    private Selector             selector;
-    private Thread               runningThread;
-    private volatile boolean     running;
+    private Server                server;
+    private SelectorProvider      selectorProvider;
+    private ServerChannelContext  serverChannelContext;
+    private ReadDispatcherFactory readDispatcherFactory;
+    private IoWorker[]            ioWorkers;
+    private int                   ioThreadCount;
+    private volatile int ioWorkerIndex;
+
+    private static final AtomicInteger THREAD_SEQ = new AtomicInteger();
 
     public static final EventHandleThreadFactory BIZ_THREAD_FACTORY;
 
@@ -48,45 +53,67 @@ public class IoSelectorManager {
 
     public IoSelectorManager(ServerChannelContext scc) {
         this.serverChannelContext = scc;
-        selectorProvider = scc.getSelectorProvider();
-        readDispatcher   = scc.getReadDispatcher();
-        EventDispatcherSet eventDispatcherSet;
-        try {
-            EdapSelectorInfo info = selectorProvider.openSelector(readDispatcher);
-            selector = info.getSelector();
-            eventDispatcherSet = info.getEventDispatcherSet();
-        } catch (IOException e) {
-            throw new RuntimeException(e);
+        selectorProvider          = scc.getSelectorProvider();
+        readDispatcherFactory     = scc.getReadDispatcherFactory();
+        if (scc.getServer().getIoThreadCount() < 1) {
+            ioThreadCount = getCpuCount();
         }
-        runningThread = new Thread(() -> {
-            while (running) {
-                try {
-                    eventDispatcherSet.reset();
-                    int count = selector.select();
-                    if (count > 0) {
-                        LOG.info("selector.select() count: {}", l -> l.arg(count));
-                    }
-                } catch (IOException e) {
-                    LOG.warn("selector.select() error", e);
-                }
+
+        ioWorkers = new IoWorker[ioThreadCount];
+        for (int i=0;i<ioThreadCount;i++) {
+            IoWorker ioWorker = new IoWorker();
+            EventDispatcherSet eventDispatcherSet;
+            Selector selector;
+            try {
+                EdapSelectorInfo info = selectorProvider.openSelector(readDispatcherFactory.createReadDispatcher(scc.getServer()));
+                selector = info.getSelector();
+                eventDispatcherSet = info.getEventDispatcherSet();
+                ioWorker.selector = selector;
+            } catch (IOException e) {
+                throw new RuntimeException(e);
             }
+            Thread runningThread = new Thread(() -> {
+                    while (ioWorker.running) {
+                        try {
+                            eventDispatcherSet.reset();
+                            int count = selector.select();
+                            if (count > 0) {
+                                LOG.info("selector.select() count: {}", l -> l.arg(count));
+                            }
+                        } catch (IOException e) {
+                            LOG.warn("selector.select() error", e);
+                        }
+                    }
+                }
+            );
+            runningThread.setName("edap-io-select-" + THREAD_SEQ.addAndGet(1));
+            runningThread.setDaemon(true);
+            ioWorker.ioThread = runningThread;
+            ioWorkers[i] = ioWorker;
         }
-        );
-        runningThread.setName("edap-io-select");
-        runningThread.setDaemon(true);
     }
 
     public void registerNioSession(NioSession nioSession) {
         LOG.debug("registerNioSession {}", l -> l.arg(nioSession));
         SelectionKey key;
         try {
-            key = nioSession.getSocketChannel().register(selector, SelectionKey.OP_READ, nioSession);
-            if (!running) {
-                running = true;
-                runningThread.start();
+            IoWorker ioWorker = ioWorkers[ioWorkerIndex++];
+            if (ioWorkerIndex == ioWorkers.length) {
+                ioWorkerIndex = 0;
+            }
+            key = nioSession.getSocketChannel().register(ioWorker.selector, SelectionKey.OP_READ, nioSession);
+            if (!ioWorker.running) {
+                ioWorker.running = true;
+                ioWorker.ioThread.start();
             }
         } catch (ClosedChannelException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    class IoWorker {
+        private Selector selector;
+        private boolean running;
+        private Thread ioThread;
     }
 }

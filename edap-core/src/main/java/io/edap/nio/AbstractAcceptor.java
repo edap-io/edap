@@ -42,7 +42,7 @@ public abstract class AbstractAcceptor implements Acceptor {
 
     protected SelectorProvider selectorProvider;
 
-    protected AcceptDispatcher acceptDispatcher;
+    protected AcceptDispatcherFactory acceptDispatcherFactory;
 
     protected ServerGroup serverGroup;
 
@@ -70,13 +70,13 @@ public abstract class AbstractAcceptor implements Acceptor {
     }
 
 
-    public void setAcceptDispatcher(AcceptDispatcher dispatcher) {
-        this.acceptDispatcher = acceptDispatcher;
+    public void setAcceptDispatcherFactory(AcceptDispatcherFactory dispatcherFactory) {
+        this.acceptDispatcherFactory = dispatcherFactory;
     }
 
 
-    public AcceptDispatcher getAcceptDispatcher() {
-        return acceptDispatcher;
+    public AcceptDispatcherFactory getAcceptDispatcherFactory() {
+        return acceptDispatcherFactory;
     }
 
     /**
@@ -133,10 +133,10 @@ public abstract class AbstractAcceptor implements Acceptor {
 
     @Override
     public void setServerChannelContext(ServerChannelContext serverChannelContext) {
-        this.serverChannelContext = serverChannelContext;
-        this.selectorProvider = serverChannelContext.getSelectorProvider();
-        this.serverGroup      = serverChannelContext.getServer().getServerGroup();
-        this.acceptDispatcher = serverChannelContext.getAcceptDispatcher();
-        this.server           = serverChannelContext.getServer();
+        this.serverChannelContext    = serverChannelContext;
+        this.selectorProvider        = serverChannelContext.getSelectorProvider();
+        this.serverGroup             = serverChannelContext.getServer().getServerGroup();
+        this.acceptDispatcherFactory = serverChannelContext.getAcceptDispatcherFactory();
+        this.server                  = serverChannelContext.getServer();
     }
 }

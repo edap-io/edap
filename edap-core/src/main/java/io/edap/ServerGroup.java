@@ -19,11 +19,8 @@ package io.edap;
 import io.edap.config.EdapConfig;
 import io.edap.log.Logger;
 import io.edap.log.LoggerManager;
-import io.edap.nio.AcceptDispatcher;
-import io.edap.nio.IoSelectorManager;
-import io.edap.nio.ReadDispatcher;
+import io.edap.nio.*;
 import io.edap.nio.impl.*;
-import io.edap.nio.SelectorProvider;
 import io.edap.nio.enums.EventDispatchType;
 import io.edap.nio.enums.ThreadType;
 import io.edap.pool.SimpleFastBufPool;
@@ -209,8 +206,8 @@ public class ServerGroup {
         LOG.info("serverGroup {} acceptorName {} selectorProvider name {}",
                 l -> l.arg(name).arg(fAcceptor.getClass().getName()).arg(provider.getClass().getName()));
 
-        AcceptDispatcher acceptDispatcher;
-        ReadDispatcher   readDispatcher;
+        AcceptDispatcherFactory acceptDispatcherFactory;
+        ReadDispatcherFactory   readDispatcherFactory;
         for (Server s : servers) {
             s.init();
             s.setServerGroup(this);
@@ -224,15 +221,8 @@ public class ServerGroup {
             }
             scc.setServer(s);
             scc.setSelectorProvider(provider);
-            if (threadType == ThreadType.EDAP) {
-                acceptDispatcher = new DisruptorAcceptDispatcher(s);
-                readDispatcher   = new DisruptorReadDispatcher(s);
-            } else {
-                acceptDispatcher = new ThreadPoolAcceptDispatcher();
-                readDispatcher   = new ThreadPoolReadDispatcher();
-            }
-            scc.setAcceptDispatcher(acceptDispatcher);
-            scc.setReadDispatcher(readDispatcher);
+            scc.setAcceptDispatcherFactory(new AcceptDispatcherFactory(threadType));
+            scc.setReadDispatcherFactory(new ReadDispatcherFactory(threadType));
             scc.setIoSelectorManager(new IoSelectorManager(scc));
 
             acpt.setServerChannelContext(scc);

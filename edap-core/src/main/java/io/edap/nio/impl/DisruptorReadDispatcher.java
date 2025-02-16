@@ -24,9 +24,7 @@ import io.edap.buffer.FastBuf;
 import io.edap.log.Logger;
 import io.edap.log.LoggerManager;
 import io.edap.nio.ReadDispatcher;
-import io.edap.nio.event.AcceptEvent;
 import io.edap.nio.event.BizEvent;
-import io.edap.nio.handler.AcceptEventHandler;
 import io.edap.nio.handler.BizEventHandler;
 import io.edap.pool.Pool;
 import io.edap.pool.impl.ThreadLocalPool;
@@ -71,6 +69,7 @@ public class DisruptorReadDispatcher implements ReadDispatcher {
         }
         ParseResult pr;
         try {
+            buf.reset();
             int len = nioSession.fastRead(buf);
             if (len < 0) {
 
@@ -84,7 +83,7 @@ public class DisruptorReadDispatcher implements ReadDispatcher {
                                 event.setServerChannelContext(nioSession.getServerChannelContext());
                                 event.setBizData(pr);
                             });
-                    LOG.debug("published {}", l-> l.arg(published));
+                    LOG.debug("ringbuffer:{} published {}", l-> l.arg(index).arg(published));
                 }
             }
         } catch (IOException e) {

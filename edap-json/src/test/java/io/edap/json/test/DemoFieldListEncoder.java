@@ -25,7 +25,7 @@ import java.util.Iterator;
 import java.util.List;
 
 public class DemoFieldListEncoder extends AbstractEncoder implements JsonEncoder<DemoFieldList> {
-    private static final byte[] KBS_FIELD1 = ",\"field1\":null".getBytes();
+    private static final byte[] KBS_FIELD1 = ",\"field1\":[".getBytes();
 
     public DemoFieldListEncoder() {
     }
@@ -34,8 +34,7 @@ public class DemoFieldListEncoder extends AbstractEncoder implements JsonEncoder
         var1.write((byte)'{');
         int start = 1;
         if (var2.getList() != null) {
-            var1.writeField(KBS_FIELD1, start, 10);
-            var1.write((byte)'[');
+            var1.writeField(KBS_FIELD1, start, 11);
             List<Integer> list = var2.getList();
             if (list.size() > 0) {
                 var1.write(list.get(0));

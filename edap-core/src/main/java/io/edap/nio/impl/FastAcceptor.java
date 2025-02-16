@@ -47,7 +47,7 @@ public class FastAcceptor extends AbstractAcceptor {
     public void accept() {
         EventDispatcherSet eventDispatcherSet;
         try {
-            EdapSelectorInfo info = selectorProvider.openSelector(acceptDispatcher);
+            EdapSelectorInfo info = selectorProvider.openSelector(acceptDispatcherFactory.createAcceptDispatcher(server));
             selector = info.getSelector();
             eventDispatcherSet = info.getEventDispatcherSet();
         } catch (IOException e) {
