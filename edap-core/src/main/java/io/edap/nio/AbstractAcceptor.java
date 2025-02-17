@@ -51,7 +51,7 @@ public abstract class AbstractAcceptor implements Acceptor {
     public static final EventHandleThreadFactory ACCEPT_THREAD_FACTORY;
 
     static {
-        ACCEPT_THREAD_FACTORY = new EventHandleThreadFactory("edap-Accept-handle");
+        ACCEPT_THREAD_FACTORY = new EventHandleThreadFactory("edap-accept-handle");
     }
 
     @Override

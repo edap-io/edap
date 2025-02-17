@@ -17,22 +17,20 @@
 package io.edap.nio.impl;
 
 import com.lmax.disruptor.*;
-import com.lmax.disruptor.dsl.Disruptor;
-import com.lmax.disruptor.dsl.ProducerType;
 import io.edap.*;
 import io.edap.buffer.FastBuf;
 import io.edap.log.Logger;
 import io.edap.log.LoggerManager;
 import io.edap.nio.ReadDispatcher;
 import io.edap.nio.event.BizEvent;
-import io.edap.nio.handler.BizEventHandler;
 import io.edap.pool.Pool;
 import io.edap.pool.impl.ThreadLocalPool;
 
 import java.io.IOException;
 import java.nio.channels.SelectionKey;
+import java.nio.channels.SocketChannel;
 
-import static io.edap.nio.IoSelectorManager.BIZ_THREAD_FACTORY;
+import static io.edap.util.NetUtil.getRemoteAddress;
 
 public class DisruptorReadDispatcher implements ReadDispatcher {
 
@@ -45,19 +43,17 @@ public class DisruptorReadDispatcher implements ReadDispatcher {
 
     private RingBuffer<BizEvent>[] ringBuffers;
 
-    private volatile int queueSize = 256;
+    private volatile int queueSize;
 
     private int seq = 0;
 
 
-    public DisruptorReadDispatcher(Server server) {
+    public DisruptorReadDispatcher(Server server, RingBuffer<BizEvent>[] ringBuffers) {
         this.server      = server;
         this.bbPool      = new ThreadLocalPool<>();
         this.decoder     = server.getDecoder();
-        this.ringBuffers = new RingBuffer[queueSize];
-        for (int i=0;i<queueSize;i++) {
-            ringBuffers[i] = buildRingBuffer();
-        }
+        this.ringBuffers = ringBuffers;
+        this.queueSize   = ringBuffers.length;
     }
 
     @Override
@@ -72,7 +68,7 @@ public class DisruptorReadDispatcher implements ReadDispatcher {
             buf.reset();
             int len = nioSession.fastRead(buf);
             if (len < 0) {
-
+                closeChannel(readKey, nioSession);
             } else {
                 pr = decoder.decode(buf, nioSession);
                 if (pr.isFinished()) {
@@ -87,7 +83,7 @@ public class DisruptorReadDispatcher implements ReadDispatcher {
                 }
             }
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            LOG.warn("channel {} read error ", l -> l.arg(getRemoteAddress(readKey.channel())).arg(e));
         } finally {
             if (buf != null) {
                 bbPool.requite(buf);
@@ -96,18 +92,19 @@ public class DisruptorReadDispatcher implements ReadDispatcher {
         LOG.debug("SelectionKey {}", l -> l.arg(readKey));
     }
 
-    public RingBuffer<BizEvent> buildRingBuffer() {
-        EventFactory<BizEvent> eventFactory = BizEvent::new;
-        int bufferSize = 1024;
-        WaitStrategy waitStrategy = new BlockingWaitStrategy();
-        EventHandler<BizEvent> handler = new BizEventHandler(server);
-        Disruptor<BizEvent> disruptor = new Disruptor<>(
-                eventFactory,
-                bufferSize,
-                BIZ_THREAD_FACTORY,
-                ProducerType.MULTI,
-                waitStrategy);
-        disruptor.handleEventsWith(handler);
-        return disruptor.start();
+    private void closeChannel(SelectionKey readKey, NioSession nioSession) {
+        SocketChannel channel = (SocketChannel)readKey.channel();
+        try {
+            String remoteAddr = channel.getRemoteAddress().toString();
+            readKey.cancel();
+            readKey.channel().close();
+            LOG.info("channel {} closed", l -> l.arg(remoteAddr));
+        } catch (IOException e) {
+            LOG.info("channel {} close error", l -> l.arg(channel));
+        } finally {
+            if (nioSession != null && server != null && server.isNioSesionPooled()) {
+                server.getNioSessionPool().requite(nioSession);
+            }
+        }
     }
 }

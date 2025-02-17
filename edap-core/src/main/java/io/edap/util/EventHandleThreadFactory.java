@@ -16,6 +16,9 @@
 
 package io.edap.util;
 
+import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -23,7 +26,7 @@ public class EventHandleThreadFactory implements ThreadFactory {
 
     private String threadName;
 
-    private static final AtomicInteger THREAD_SEQ = new AtomicInteger();
+    private static final Map<String, AtomicInteger> THREAD_SEQ_MAP = new ConcurrentHashMap<>();
 
     public EventHandleThreadFactory(String threadName) {
         this.threadName = threadName;
@@ -31,9 +34,17 @@ public class EventHandleThreadFactory implements ThreadFactory {
 
     @Override
     public Thread newThread(Runnable r) {
+        AtomicInteger threadSeq = THREAD_SEQ_MAP.get(threadName);
+        if (threadSeq == null) {
+            threadSeq = new AtomicInteger();
+            AtomicInteger oldSeq = THREAD_SEQ_MAP.putIfAbsent(threadName, threadSeq);
+            if (oldSeq != null) {
+                threadSeq = oldSeq;
+            }
+        }
         Thread t = new Thread(r);
         t.setDaemon(true);
-        t.setName(threadName  + "-" + THREAD_SEQ.addAndGet(1));
+        t.setName(threadName  + "-" + threadSeq.getAndAdd(1));
         return t;
     }
 }

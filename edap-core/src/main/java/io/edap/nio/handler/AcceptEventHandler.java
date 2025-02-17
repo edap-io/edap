@@ -36,7 +36,12 @@ public class AcceptEventHandler implements EventHandler<AcceptEvent> {
 
     public AcceptEventHandler(Server server) {
         if (server.isNioSesionPooled()) {
-            nioSessionPool = new ThreadLocalPool();
+            if (server.getNioSessionPool() == null) {
+                nioSessionPool = new ThreadLocalPool();
+                server.setNioSessionPool(nioSessionPool);
+            } else {
+                nioSessionPool = server.getNioSessionPool();
+            }
         }
     }
 

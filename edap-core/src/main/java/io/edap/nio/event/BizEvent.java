@@ -20,10 +20,13 @@ import io.edap.NioSession;
 import io.edap.ParseResult;
 import io.edap.ServerChannelContext;
 
+/**
+ * 框架业务处理事件定义，业务事件通过分发器分发到对应的处理线程来处理业务
+ */
 public class BizEvent {
 
-    private ParseResult bizData;
-    private NioSession nioSession;
+    private ParseResult          bizData;
+    private NioSession           nioSession;
     private ServerChannelContext serverChannelContext;
 
     public ParseResult getBizData() {

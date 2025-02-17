@@ -16,8 +16,10 @@
 
 package io.edap.nio;
 
+import com.lmax.disruptor.RingBuffer;
 import io.edap.Server;
 import io.edap.nio.enums.ThreadType;
+import io.edap.nio.event.BizEvent;
 import io.edap.nio.impl.DisruptorReadDispatcher;
 import io.edap.nio.impl.ThreadPoolReadDispatcher;
 
@@ -29,9 +31,9 @@ public class ReadDispatcherFactory {
         this.threadType = threadType;
     }
 
-    public ReadDispatcher createReadDispatcher(Server server) {
+    public ReadDispatcher createReadDispatcher(Server server, RingBuffer<BizEvent>[] ringBuffers) {
         if (threadType == ThreadType.EDAP) {
-            return new DisruptorReadDispatcher(server);
+            return new DisruptorReadDispatcher(server, ringBuffers);
         } else {
             return new ThreadPoolReadDispatcher();
         }

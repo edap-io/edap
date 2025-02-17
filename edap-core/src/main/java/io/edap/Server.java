@@ -18,6 +18,7 @@ package io.edap;
 
 import io.edap.log.Logger;
 import io.edap.log.LoggerManager;
+import io.edap.pool.Pool;
 import io.edap.pool.SimpleFastBufPool;
 import io.edap.util.StringUtil;
 
@@ -66,6 +67,8 @@ public abstract class Server<T, S extends NioSession> {
      * NioSession是否需要使用对象池，如果连接未短连接连接数较少建议采用池化NioSession，减少内存GC。
      */
     private boolean nioSesionPooled;
+
+    private Pool<NioSession> nioSessionPool;
 
     public Server() {
         curClientCount = new AtomicInteger(0);
@@ -255,6 +258,14 @@ public abstract class Server<T, S extends NioSession> {
 
     public void setBizThreadCount(int bizThreadCount) {
         this.bizThreadCount = bizThreadCount;
+    }
+
+    public Pool<NioSession> getNioSessionPool() {
+        return nioSessionPool;
+    }
+
+    public void setNioSessionPool(Pool<NioSession> nioSessionPool) {
+        this.nioSessionPool = nioSessionPool;
     }
 
     public static class Addr {
