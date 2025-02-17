@@ -30,6 +30,7 @@ import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.nio.channels.SelectionKey.OP_ACCEPT;
 
@@ -42,6 +43,8 @@ public class FastAcceptor extends AbstractAcceptor {
     private Thread runningThread;
 
     private volatile boolean running;
+
+    private static AtomicInteger THREAD_SEQ = new AtomicInteger();
 
     @Override
     public void accept() {
@@ -80,7 +83,7 @@ public class FastAcceptor extends AbstractAcceptor {
                 }
             }
         );
-        runningThread.setName("edap-accept-select");
+        runningThread.setName("edap-accept-select-" + THREAD_SEQ.getAndAdd(1));
         runningThread.start();
     }
 
