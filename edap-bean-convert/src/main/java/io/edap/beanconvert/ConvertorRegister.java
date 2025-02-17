@@ -16,6 +16,8 @@
 
 package io.edap.beanconvert;
 
+import io.edap.log.Logger;
+import io.edap.log.LoggerManager;
 import io.edap.util.CryptUtil;
 import io.edap.util.internal.GeneratorClassInfo;
 
@@ -30,6 +32,8 @@ import static io.edap.util.AsmUtil.toLangName;
  * Bean转换器的注册器，管理Bean转换器的注册生成等操作
  */
 public class ConvertorRegister {
+
+    static Logger LOG = LoggerManager.getLogger(ConvertorRegister.class);
 
     static final ConcurrentHashMap<String, AbstractConvertor> CONVERTORS = new ConcurrentHashMap<>();
 
@@ -57,9 +61,26 @@ public class ConvertorRegister {
                         destCls.getName() + "@" + System.identityHashCode(destCls));
     }
 
-    private synchronized ConvertorLoader getConvertorLoader(Class orignalCls) {
+    private synchronized ConvertorLoader getConvertorLoader(Class orignalCls, Class destCls) {
         ClassLoader classLoader = orignalCls.getClassLoader();
-        ConvertorLoader loader = convertorLoaders.get(classLoader);
+        ConvertorLoader loader = null;
+        try {
+            classLoader.loadClass(destCls.getName());
+            loader = convertorLoaders.get(classLoader);
+        } catch (ClassNotFoundException e) {
+            LOG.warn("orignalCls {} Classloader cann't load destCls {}",
+                    l -> l.arg(orignalCls.getName()).arg(destCls.getName()));
+        }
+        if (loader == null) {
+            try {
+                classLoader = destCls.getClassLoader();
+                classLoader.loadClass(orignalCls.getName());
+                loader = convertorLoaders.get(classLoader);
+            } catch (ClassNotFoundException e) {
+                LOG.warn("destCls {} Classloader cann't load orignalCls {}",
+                        l -> l.arg(destCls.getName()).arg(orignalCls.getName()));
+            }
+        }
         if (loader == null) {
             loader = new ConvertorLoader(classLoader);
             convertorLoaders.put(classLoader, loader);
@@ -145,7 +166,7 @@ public class ConvertorRegister {
     private String generateListConvertorClass(Class<?> orignalClass, Class<?> destlClass) {
         ListConvertorGenerator generator = new ListConvertorGenerator(orignalClass, destlClass, null);
         String codecName = toLangName(getListConvertorName(orignalClass, destlClass));
-        ConvertorLoader convertorLoader = getConvertorLoader(orignalClass);
+        ConvertorLoader convertorLoader = getConvertorLoader(orignalClass, destlClass);
         try {
             GeneratorClassInfo gci = generator.getClassInfo();
             byte[] bs = gci.clazzBytes;
@@ -193,7 +214,7 @@ public class ConvertorRegister {
         String codecName = toLangName(getConvertorName(orignalClass, destlClass));
         boolean isExists = false;
         Class encoderCls;
-        ConvertorLoader convertorLoader = getConvertorLoader(orignalClass);
+        ConvertorLoader convertorLoader = getConvertorLoader(orignalClass, destlClass);
         try {
             encoderCls = convertorLoader.loadClass(codecName);
             return encoderCls;
