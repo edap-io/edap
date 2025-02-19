@@ -22,6 +22,7 @@ import io.edap.protobuf.wire.Field.Type;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Protocol buffer协议的序列化writer接口负责按协议写入数据
@@ -117,6 +118,8 @@ public interface ProtoBufWriter extends BufWriter {
 
     void writeObject(byte[] fieldData, Object v) throws EncodeException;
     void writeObject(Object v) throws EncodeException;
+
+    <K,V> void writeMap(Map<K, V> map, MapEncoder<K, V> mapEncoder) throws EncodeException;
 
     <T> void writeMessage(T msg, ProtoBufEncoder<T> encoder) throws EncodeException;
     <T> void writeMessage(byte[] fieldData, int tag, T msg, ProtoBufEncoder<T> encoder) throws EncodeException;

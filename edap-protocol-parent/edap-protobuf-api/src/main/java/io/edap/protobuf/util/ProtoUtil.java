@@ -710,6 +710,10 @@ public class ProtoUtil {
                         typeInfo.setCardinality(Cardinality.REPEATED);
                         typeInfo.setProtoTypeInfo(innerTypeInfo);
                         return typeInfo;
+                    } else if (isMap(itemType)) {
+                        typeInfo.setProtoType(Type.OBJECT);
+                        typeInfo.setCardinality(Cardinality.REPEATED);
+                        return typeInfo;
                     }
                 }
             } else if (javaType instanceof Class) {

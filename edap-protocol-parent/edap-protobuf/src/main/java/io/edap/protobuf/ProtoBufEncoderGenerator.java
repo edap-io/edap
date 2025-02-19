@@ -803,6 +803,8 @@ public class ProtoBufEncoderGenerator {
                     "([B" + rType + ")V",
                     true);
             return;
+        } else if (isMap(itemType)) {
+
         } else if (itemType instanceof ParameterizedType) {
             mv.visitVarInsn(ALOAD, 1);
             mv.visitFieldInsn(GETSTATIC, pojoCodecName, "tag" + pfi.protoField.tag(), "[B");
