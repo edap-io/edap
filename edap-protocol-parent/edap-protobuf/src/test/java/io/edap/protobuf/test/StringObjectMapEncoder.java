@@ -17,32 +17,30 @@
 package io.edap.protobuf.test;
 
 import io.edap.protobuf.EncodeException;
-import io.edap.protobuf.MapEncoder;
+import io.edap.protobuf.MapEntryEncoder;
+import io.edap.protobuf.ProtoBufEncoder;
 import io.edap.protobuf.ProtoBufWriter;
+import io.edap.protobuf.test.message.v3.Project;
 import io.edap.protobuf.util.ProtoUtil;
 import io.edap.protobuf.wire.Field;
-import io.edap.util.CollectionUtils;
 
 import java.util.Map;
 
-public class StringObjectMapEncoder implements MapEncoder<String, Object> {
+public class StringObjectMapEncoder implements MapEntryEncoder<String, Project> {
 
     private static final byte[] tagKey;
 
     private static final byte[] tagValue;
+
+    private static ProtoBufEncoder<Project> projectEncoder;
     static {
         tagKey = ProtoUtil.buildFieldData(1, Field.Type.STRING, Field.Cardinality.OPTIONAL);
         tagValue = ProtoUtil.buildFieldData(2, Field.Type.OBJECT, Field.Cardinality.OPTIONAL);
     }
 
     @Override
-    public void encode(ProtoBufWriter writer, Map<String, Object> map) throws EncodeException {
-        if ( CollectionUtils.isEmpty(map)) {
-            return;
-        }
-        for (Map.Entry<String, Object> entry : map.entrySet()) {
-            writer.writeString(entry.getKey());
-            writer.writeObject(entry.getValue());
-        }
+    public void encode(ProtoBufWriter writer, Map.Entry<String, Project> entry) throws EncodeException {
+        writer.writeString(tagKey, entry.getKey());
+        writer.writeField(tagValue, entry.getValue());
     }
 }

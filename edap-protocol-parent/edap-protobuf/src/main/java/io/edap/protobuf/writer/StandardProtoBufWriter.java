@@ -18,7 +18,7 @@ package io.edap.protobuf.writer;
 
 import io.edap.io.BufOut;
 import io.edap.protobuf.EncodeException;
-import io.edap.protobuf.MapEncoder;
+import io.edap.protobuf.MapEntryEncoder;
 import io.edap.protobuf.ProtoBufEncoder;
 import io.edap.protobuf.ext.AnyCodec;
 import io.edap.protobuf.wire.Field;
@@ -830,7 +830,7 @@ public class StandardProtoBufWriter extends AbstractWriter {
     }
 
     @Override
-    public <K, V> void writeMap(Map<K, V> map, MapEncoder<K, V> mapEncoder) throws EncodeException {
+    public <K, V> void writeMap(byte[] fieldData, Map<K, V> map, MapEntryEncoder<K, V> mapEncoder) throws EncodeException {
 
     }
 

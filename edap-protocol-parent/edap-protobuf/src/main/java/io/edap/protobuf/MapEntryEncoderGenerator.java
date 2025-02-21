@@ -25,15 +25,14 @@ import java.io.IOException;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 
-import static io.edap.protobuf.util.ProtoUtil.buildMapEncodeName;
-import static io.edap.util.AsmUtil.isMap;
-import static io.edap.util.AsmUtil.toInternalName;
+import static io.edap.protobuf.util.ProtoUtil.*;
+import static io.edap.util.AsmUtil.*;
 import static io.edap.util.ClazzUtil.getDescriptor;
 import static org.objectweb.asm.Opcodes.*;
 
-public class MapEncoderGenerator {
+public class MapEntryEncoderGenerator {
 
-    static String IFACE_NAME       = toInternalName(MapEncoder.class.getName());
+    static String IFACE_NAME       = toInternalName(MapEntryEncoder.class.getName());
     static String PROTO_FIELD_NAME = toInternalName(Field.class.getName());
     static String PROTO_UTIL_NAME  = toInternalName(ProtoUtil.class.getName());
     static String WRITER_NAME      = toInternalName(ProtoBufWriter.class.getName());
@@ -47,7 +46,7 @@ public class MapEncoderGenerator {
     private ClassWriter cw;
     private String encoderName;
 
-    public MapEncoderGenerator(Type mapType) {
+    public MapEntryEncoderGenerator(java.lang.reflect.Type mapType) {
         if (mapType instanceof ParameterizedType) {
             ParameterizedType ptype = (ParameterizedType)mapType;
             if (ptype.getActualTypeArguments() != null
@@ -73,7 +72,7 @@ public class MapEncoderGenerator {
                 throw new RuntimeException("MapType define error");
             }
         }
-        this.encoderName = toInternalName(buildMapEncodeName(mapType, null));
+        this.encoderName = toInternalName(buildMapEntryEncodeName(mapType, null));
         this.keyTypeSignature = getDescriptor(keyType);
         this.valTypeSingature = getDescriptor(valueType);
     }
@@ -82,10 +81,10 @@ public class MapEncoderGenerator {
         GeneratorClassInfo gci = new GeneratorClassInfo();
 
         cw = new ClassWriter(ClassWriter.COMPUTE_MAXS | ClassWriter.COMPUTE_FRAMES);
-        String encoderSignature = "";
+        String encoderSignature = "Ljava/lang/Object;L" + IFACE_NAME + "<" + keyTypeSignature + valTypeSingature +  ">;";
         String[] ifaceList = new String[]{IFACE_NAME};
         cw.visit(V1_8, ACC_PUBLIC + ACC_SUPER, encoderName, encoderSignature,
-                "java/lang/Object", null);
+                "java/lang/Object", ifaceList);
 
         visitInitMethod();
         visitCinitMethod();
@@ -94,61 +93,68 @@ public class MapEncoderGenerator {
 
         cw.visitEnd();
 
+        gci.clazzName  = encoderName;
         gci.clazzBytes = cw.toByteArray();
 
         return gci;
     }
 
     private void visitEncodeMethod() {
-        MethodVisitor mv = cw.visitMethod(ACC_PUBLIC, "encode", "(L" + WRITER_NAME + ";Ljava/util/Map;)V",
-                "(L" + WRITER_NAME + ";Ljava/util/Map<" + keyTypeSignature + valTypeSingature + ">;)V",
+        MethodVisitor mv = cw.visitMethod(ACC_PUBLIC, "encode", "(L" + WRITER_NAME + ";Ljava/util/Map$Entry;)V",
+                "(L" + WRITER_NAME + ";Ljava/util/Map$Entry<" + keyTypeSignature + valTypeSingature + ">;)V",
                 new String[] { "io/edap/protobuf/EncodeException" });
         mv.visitCode();
-        mv.visitVarInsn(ALOAD, 2);
-        mv.visitMethodInsn(INVOKESTATIC, "io/edap/util/CollectionUtils", "isEmpty",
-                "(Ljava/util/Map;)Z", false);
-        Label labelNotEmpty = new Label();
-        // 如果map为空
-        mv.visitJumpInsn(IFEQ, labelNotEmpty);
-        mv.visitInsn(RETURN);
-        mv.visitLabel(labelNotEmpty);
 
-        int varEntryItr = 3;
-        mv.visitVarInsn(ALOAD, 2);
-        mv.visitMethodInsn(INVOKEINTERFACE, "java/util/Map", "entrySet", "()Ljava/util/Set;", true);
-        mv.visitMethodInsn(INVOKEINTERFACE, "java/util/Set", "iterator", "()Ljava/util/Iterator;", true);
-        mv.visitVarInsn(ASTORE, varEntryItr);
-
-        Label lbItr = new Label();
-        mv.visitLabel(lbItr);
-        mv.visitFrame(Opcodes.F_APPEND,1, new Object[] {"java/util/Iterator"}, 0, null);
-        mv.visitVarInsn(ALOAD, varEntryItr);
-        mv.visitMethodInsn(INVOKEINTERFACE, "java/util/Iterator", "hasNext", "()Z", true);
-
-        int varEntry = varEntryItr + 1;
-        Label lbHasNotNext = new Label();
-        mv.visitJumpInsn(IFEQ, lbHasNotNext);
-        mv.visitVarInsn(ALOAD, varEntryItr);
-        mv.visitMethodInsn(INVOKEINTERFACE, "java/util/Iterator", "next", "()Ljava/lang/Object;", true);
-        mv.visitTypeInsn(CHECKCAST, "java/util/Map$Entry");
-        mv.visitVarInsn(ASTORE, varEntry);
         mv.visitVarInsn(ALOAD, 1);
-        mv.visitVarInsn(ALOAD, varEntry);
+        mv.visitFieldInsn(GETSTATIC, encoderName, "tagKey", "[B");
+        mv.visitVarInsn(ALOAD, 2);
         mv.visitMethodInsn(INVOKEINTERFACE, "java/util/Map$Entry", "getKey", "()Ljava/lang/Object;", true);
-        mv.visitTypeInsn(CHECKCAST, "java/lang/String");
-        mv.visitMethodInsn(INVOKEINTERFACE, WRITER_NAME, "writeString", "(Ljava/lang/String;)V", true);
+        visitWriteCode(mv, keyType);
 
         mv.visitVarInsn(ALOAD, 1);
-        mv.visitVarInsn(ALOAD, varEntry);
+        mv.visitFieldInsn(GETSTATIC, encoderName, "tagValue", "[B");
+        mv.visitVarInsn(ALOAD, 2);
         mv.visitMethodInsn(INVOKEINTERFACE, "java/util/Map$Entry", "getValue", "()Ljava/lang/Object;", true);
-        mv.visitMethodInsn(INVOKEINTERFACE, WRITER_NAME, "writeObject", "(Ljava/lang/Object;)V", true);
+        visitWriteCode(mv, valueType);
 
-        mv.visitJumpInsn(GOTO, lbItr);
-        mv.visitLabel(lbHasNotNext);
-        mv.visitFrame(Opcodes.F_CHOP,1, null, 0, null);
         mv.visitInsn(RETURN);
         mv.visitMaxs(2, 5);
         mv.visitEnd();
+    }
+
+    private void visitWriteCode(MethodVisitor mv, Type valueType) {
+        String writeMethod = getWriteMethod(javaToProtoType(valueType).getProtoType());
+        String rType = getDescriptor(valueType);
+        if (rType.startsWith("L")) {
+            rType = rType.substring(1, rType.length()-1);
+        }
+        if (!rType.equals("java/lang/Object")) {
+            mv.visitTypeInsn(CHECKCAST, rType);
+        }
+
+        if (isPojo(valueType)) {
+
+        } else {
+            if (valueType instanceof Class) {
+                String typeName = ((Class)valueType).getName();
+                if (typeName.equals("byte") ||
+                        typeName.equals("short") ||
+                        typeName.equals("char")) {
+                    rType = "I";
+                } else if (typeName.equals("java.lang.Byte")) {
+                    rType = "I";
+                    mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/Byte", "byteValue", "()B", false);
+                } else if (typeName.equals("java.lang.Short")) {
+                    rType = "I";
+                    mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/Short", "shortValue", "()S", false);
+                } else if (typeName.equals("java.lang.Character")) {
+                    rType = "I";
+                    mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/Character", "charValue", "()C", false);
+                }
+            }
+            visitMethod(mv, INVOKEINTERFACE, WRITER_NAME, writeMethod,
+                    "([BL" + rType + ";)V", true);
+        }
     }
 
     private void visitCinitMethod() {

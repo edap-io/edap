@@ -18,7 +18,7 @@ package io.edap.protobuf;
 
 import java.util.Map;
 
-public interface MapEncoder<K, V> {
+public interface MapEntryEncoder<K, V> {
 
     /**
      * 将Java的POJO对象做ProtoBuf编码写到BufOut中
@@ -26,5 +26,5 @@ public interface MapEncoder<K, V> {
      * @param map 需要编码的Map
      * @throws EncodeException 编码异常
      */
-    void encode(ProtoBufWriter writer, Map<K, V> map) throws EncodeException;
+    void encode(ProtoBufWriter writer, Map.Entry<K, V> map) throws EncodeException;
 }

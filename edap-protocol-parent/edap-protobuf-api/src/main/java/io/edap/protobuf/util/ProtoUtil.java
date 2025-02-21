@@ -806,6 +806,36 @@ public class ProtoUtil {
         return name.toString();
     }
 
+    public static String buildMapEntryEncodeName(java.lang.reflect.Type mapType, ProtoBufOption option) {
+        StringBuilder name = new StringBuilder("io.edap.protobuf.");
+        if (option != null && CodecType.FAST == option.getCodecType()) {
+            name.append('f');
+        }
+        name.append("mapencoder.MapEntryEncoder_");
+        if (mapType instanceof ParameterizedType) {
+            ParameterizedType ptype = (ParameterizedType)mapType;
+            java.lang.reflect.Type[] types = ptype.getActualTypeArguments();
+            StringBuilder codes = new StringBuilder();
+            for (int i=0;i<types.length;i++) {
+                if (i > 0) {
+                    codes.append("_");
+                }
+                codes.append(types[i].getTypeName());
+            }
+            name.append(md5(codes.toString()));
+        } else if (mapType instanceof Class) {
+            Class mapClazz = (Class)mapType;
+            if (isMap(mapClazz)) {
+                name.append(md5("java.lang.Object_java.lang.Object"));
+            } else {
+                throw  new RuntimeException("mapType [" + mapType.getTypeName() + "] is not map");
+            }
+        } else {
+            throw  new RuntimeException("mapType [" + mapType.getTypeName() + "] is not map");
+        }
+        return name.toString();
+    }
+
     private static boolean needEncode(Field field) {
         if ("org.slf4j.Logger".equals(field.getType().getName())) {
             return false;

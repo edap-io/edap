@@ -1,25 +1,18 @@
 package io.edap.protobuf.test;
 
-import io.edap.protobuf.wire.WireFormat;
-import io.edap.protobuf.wire.WireType;
+import io.edap.protobuf.MapEntryEncoderGenerator;
+import io.edap.protobuf.test.message.v3.OneMap;
+import io.edap.util.internal.GeneratorClassInfo;
 
-import static io.edap.protobuf.wire.WireFormat.makeTag;
+import java.io.IOException;
+
+import static io.edap.util.AsmUtil.saveJavaFile;
 
 public class T {
-    public static void main(String[] args) {
-        System.out.println(Integer.parseInt("b", 16));
-        System.out.println(Integer.parseInt("c", 16));
-        System.out.println(makeTag(10, WireType.START_GROUP));
-        System.out.println(makeTag(1, WireType.OBJECT));
-        System.out.println(Integer.toHexString(makeTag(1, WireType.OBJECT)));
-
-        System.out.println(Integer.parseInt("800", 16));
-        System.out.println(Integer.toHexString(2047));
-
-        for (int i=0;i<256;i++) {
-            System.out.println((i < 0x80) + "\t" + ((i & ~0x7F) == 0));
-        }
-
-
+    public static void main(String[] args) throws NoSuchFieldException, IOException {
+        MapEntryEncoderGenerator meg = new MapEntryEncoderGenerator(OneMap.class.getDeclaredField("value").getGenericType());
+        GeneratorClassInfo gci = meg.getClassInfo();
+        byte[] bs = gci.clazzBytes;
+        saveJavaFile("./" + gci.clazzName + ".class", bs);
     }
 }
