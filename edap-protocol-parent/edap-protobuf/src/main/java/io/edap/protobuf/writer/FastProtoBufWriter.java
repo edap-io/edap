@@ -18,12 +18,15 @@ package io.edap.protobuf.writer;
 
 import io.edap.io.BufOut;
 import io.edap.protobuf.EncodeException;
+import io.edap.protobuf.MapEntryEncoder;
 import io.edap.protobuf.ProtoBufEncoder;
 import io.edap.protobuf.wire.WireFormat;
 import io.edap.protobuf.wire.WireType;
+import io.edap.util.CollectionUtils;
 import io.edap.util.StringUtil;
 
 import java.util.List;
+import java.util.Map;
 
 import static io.edap.protobuf.wire.WireFormat.MAX_VARINT_SIZE;
 import static io.edap.util.StringUtil.IS_BYTE_ARRAY;
@@ -44,6 +47,18 @@ public class FastProtoBufWriter extends StandardProtoBufWriter {
         writeInt32(START_TAG);
         codec.encode(this, v);
         writeInt32(END_TAG);
+    }
+
+    @Override
+    public <K, V> void writeMap(byte[] fieldData, Map<K, V> map, MapEntryEncoder<K, V> mapEncoder) throws EncodeException {
+        if (CollectionUtils.isEmpty(map)) {
+            return;
+        }
+        for (Map.Entry<K, V> entry : map.entrySet()) {
+            writeInt32(START_TAG);
+            mapEncoder.encode(this, entry);
+            writeInt32(END_TAG);
+        }
     }
 
     @Override

@@ -831,7 +831,18 @@ public class StandardProtoBufWriter extends AbstractWriter {
 
     @Override
     public <K, V> void writeMap(byte[] fieldData, Map<K, V> map, MapEntryEncoder<K, V> mapEncoder) throws EncodeException {
-
+        if (CollectionUtils.isEmpty(map)) {
+            return;
+        }
+        for (Map.Entry<K, V> entry : map.entrySet()) {
+            expand(MAX_VARINT_SIZE);
+            writeFieldData(fieldData);
+            int oldPos = pos;
+            pos += 1;
+            mapEncoder.encode(this, entry);
+            int len = pos - oldPos - 1;
+            pos += writeLenMoveBytes(bs, oldPos, len);
+        }
     }
 
     @Override

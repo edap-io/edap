@@ -20,6 +20,8 @@ import io.edap.protobuf.model.ProtoBufOption;
 import io.edap.util.CollectionUtils;
 import io.edap.util.internal.GeneratorClassInfo;
 
+import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.util.HashMap;
@@ -30,6 +32,7 @@ import java.util.concurrent.locks.ReentrantLock;
 import static io.edap.protobuf.ProtoBufDecoderGenerator.getDecoderName;
 import static io.edap.protobuf.ProtoBufEncoderGenerator.getEncoderName;
 import static io.edap.protobuf.util.ProtoUtil.buildMapEncodeName;
+import static io.edap.protobuf.util.ProtoUtil.buildMapEntryEncodeName;
 import static io.edap.util.AsmUtil.*;
 import static io.edap.util.CollectionUtils.isEmpty;
 
@@ -46,10 +49,12 @@ public enum ProtoBufCodecRegister {
 
     private final Map<Type, ProtoBufDecoder>  fdecoders  = new HashMap<>();
     private final Map<Type, Class> mapEncoders     = new HashMap<>();
+    private final Map<Type, MapEntryEncoder> mapEntryEncoders = new HashMap<>();
 
     private final Map<Type, Class> fmapEncoders     = new HashMap<>();
     private final Map<ClassLoader, ProtoCodecLoader> encoderLoaders   = new HashMap<>();
-    private final ReentrantLock    lock            = new ReentrantLock();
+    private final Map<Type, ReentrantLock>   locks = new HashMap<>();
+    private final ReentrantLock    mapEntryLock    = new ReentrantLock();
 
     private ProtoPersister protoPersister;
 
@@ -59,6 +64,18 @@ public enum ProtoBufCodecRegister {
 
     public ProtoPersister getProtoPersister() {
         return this.protoPersister;
+    }
+
+    private ReentrantLock getLock(Type msgCls) {
+        ReentrantLock lock = locks.get(msgCls);
+        if (lock == null) {
+            lock = new ReentrantLock();
+            ReentrantLock old = locks.putIfAbsent(msgCls, lock);
+            if (old != null) {
+                lock = old;
+            }
+        }
+        return lock;
     }
 
     /**
@@ -72,6 +89,7 @@ public enum ProtoBufCodecRegister {
         if (encoder != null) {
             return encoder;
         }
+        ReentrantLock lock = getLock(msgCls);
         try {
             lock.lock();
             encoder = encoders.get(msgCls);
@@ -99,6 +117,7 @@ public enum ProtoBufCodecRegister {
         if (encoder != null) {
             return encoder;
         }
+        ReentrantLock lock = getLock(msgCls);
         try {
             lock.lock();
             encoder = fencoders.get(msgCls);
@@ -125,6 +144,7 @@ public enum ProtoBufCodecRegister {
         if (decoder != null) {
             return decoder;
         }
+        ReentrantLock lock = getLock(msgCls);
         try {
             lock.lock();
             decoder = decoders.get(msgCls);
@@ -152,6 +172,7 @@ public enum ProtoBufCodecRegister {
         if (decoder != null) {
             return decoder;
         }
+        ReentrantLock lock = getLock(msgCls);
         try {
             lock.lock();
             decoder = fdecoders.get(msgCls);
@@ -170,6 +191,60 @@ public enum ProtoBufCodecRegister {
         return decoder;
     }
 
+    public MapEntryEncoder getMapEntryEncoder(Type mapType, Class ownerCls) {
+        MapEntryEncoder encoder = mapEntryEncoders.get(mapType);
+        if (encoder != null) {
+            return encoder;
+        }
+        mapEntryLock.lock();
+        try {
+            ProtoCodecLoader encoderLoader;
+            if (ownerCls != null) {
+                encoderLoader = getCodecLoader(ownerCls);
+            } else {
+                encoderLoader = getCodecLoader(ProtoBufCodecRegister.class);
+            }
+            String encoderName = buildMapEntryEncodeName(mapType, null);
+            Class encoderCls = null;
+            try {
+                encoderCls = encoderLoader.loadClass(encoderName);
+            } catch (ClassNotFoundException e) {
+            }
+            if (encoderCls == null) {
+                MapEntryEncoderGenerator meeg = new MapEntryEncoderGenerator(mapType);
+                GeneratorClassInfo gci = meeg.getClassInfo();
+                saveJavaFile("./" + toInternalName(gci.clazzName) + ".class", gci.clazzBytes);
+                try {
+                    encoderCls = encoderLoader.define(encoderName, gci.clazzBytes, 0, gci.clazzBytes.length);
+                } catch (Throwable e) {
+                    try {
+                        encoderCls = encoderLoader.loadClass(encoderName);
+                    } catch (ClassNotFoundException ex) {
+
+                    }
+                }
+                if (encoderCls != null) {
+                    encoder = (MapEntryEncoder) encoderCls.getDeclaredConstructors()[0].newInstance(new Object[0]);
+                    if (encoder != null) {
+                        mapEntryEncoders.put(mapType, encoder);
+                        return encoder;
+                    }
+                }
+            }
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        } catch (InvocationTargetException e) {
+            throw new RuntimeException(e);
+        } catch (InstantiationException e) {
+            throw new RuntimeException(e);
+        } catch (IllegalAccessException e) {
+            throw new RuntimeException(e);
+        } finally {
+            mapEntryLock.unlock();
+        }
+        return null;
+    }
+
     public Class generateMapEntryClass(Type mapType, Class ownerCls) {
         Class mapEntryCls = mapEncoders.get(ownerCls);
         if (mapEntryCls != null) {
@@ -177,6 +252,7 @@ public enum ProtoBufCodecRegister {
         }
         String mapEntryName = "";
         ProtoCodecLoader encoderLoader = getCodecLoader(ownerCls);
+        ReentrantLock lock = getLock(mapType);
         try {
             lock.lock();
             mapEntryName = buildMapEncodeName(mapType, null);
@@ -217,6 +293,7 @@ public enum ProtoBufCodecRegister {
         }
         String mapEntryName = "";
         ProtoCodecLoader encoderLoader = getCodecLoader(ownerCls);
+        ReentrantLock lock = getLock(mapType);
         try {
             lock.lock();
             mapEntryName = buildMapEncodeName(mapType, option);

@@ -36,6 +36,8 @@ public class MapEntryEncoderGenerator {
     static String PROTO_FIELD_NAME = toInternalName(Field.class.getName());
     static String PROTO_UTIL_NAME  = toInternalName(ProtoUtil.class.getName());
     static String WRITER_NAME      = toInternalName(ProtoBufWriter.class.getName());
+    static String PB_ENCODER_NAME  = toInternalName(ProtoBufEncoder.class.getName());
+    static String PB_REGISTER_NAME = toInternalName(ProtoBufCodecRegister.class.getName());
 
 
     private final Type keyType;
@@ -47,31 +49,9 @@ public class MapEntryEncoderGenerator {
     private String encoderName;
 
     public MapEntryEncoderGenerator(java.lang.reflect.Type mapType) {
-        if (mapType instanceof ParameterizedType) {
-            ParameterizedType ptype = (ParameterizedType)mapType;
-            if (ptype.getActualTypeArguments() != null
-                    && ptype.getActualTypeArguments().length == 2) {
-                keyType = ptype.getActualTypeArguments()[0];
-                valueType = ptype.getActualTypeArguments()[1];
-            } else {
-                throw new RuntimeException("MapType define error");
-            }
-        } else if (mapType instanceof Class) {
-            Class clazz = (Class)mapType;
-            if (isMap(clazz)) {
-                keyType   = Object.class;
-                valueType = Object.class;
-            } else {
-                throw new RuntimeException("MapType [" + mapType + "] not Map");
-            }
-        } else {
-            if (isMap(mapType)) {
-                keyType   = Object.class;
-                valueType = Object.class;
-            } else {
-                throw new RuntimeException("MapType define error");
-            }
-        }
+        MapEntryTypeInfo info = getMapEntryTypeInfo(mapType);
+        this.keyType = info.getKeyType();
+        this.valueType = info.getValueType();
         this.encoderName = toInternalName(buildMapEntryEncodeName(mapType, null));
         this.keyTypeSignature = getDescriptor(keyType);
         this.valTypeSingature = getDescriptor(valueType);
@@ -106,13 +86,16 @@ public class MapEntryEncoderGenerator {
         mv.visitCode();
 
         mv.visitVarInsn(ALOAD, 1);
-        mv.visitFieldInsn(GETSTATIC, encoderName, "tagKey", "[B");
+        mv.visitFieldInsn(GETSTATIC, encoderName, "keyTag", "[B");
         mv.visitVarInsn(ALOAD, 2);
         mv.visitMethodInsn(INVOKEINTERFACE, "java/util/Map$Entry", "getKey", "()Ljava/lang/Object;", true);
         visitWriteCode(mv, keyType);
 
         mv.visitVarInsn(ALOAD, 1);
-        mv.visitFieldInsn(GETSTATIC, encoderName, "tagValue", "[B");
+        mv.visitFieldInsn(GETSTATIC, encoderName, "valueTag", "[B");
+        if (isPojo(valueType)) {
+            mv.visitInsn(ICONST_2);
+        }
         mv.visitVarInsn(ALOAD, 2);
         mv.visitMethodInsn(INVOKEINTERFACE, "java/util/Map$Entry", "getValue", "()Ljava/lang/Object;", true);
         visitWriteCode(mv, valueType);
@@ -133,7 +116,9 @@ public class MapEntryEncoderGenerator {
         }
 
         if (isPojo(valueType)) {
-
+            mv.visitFieldInsn(GETSTATIC, encoderName, "valueEncoder", "L" + PB_ENCODER_NAME + ";");
+            mv.visitMethodInsn(INVOKEINTERFACE, WRITER_NAME, "writeMessage",
+                    "([BILjava/lang/Object;L" + PB_ENCODER_NAME + ";)V", true);
         } else {
             if (valueType instanceof Class) {
                 String typeName = ((Class)valueType).getName();
@@ -163,11 +148,20 @@ public class MapEntryEncoderGenerator {
         fvTag1.visitEnd();
         FieldVisitor fvTag2 = cw.visitField(ACC_PRIVATE | ACC_FINAL | ACC_STATIC, "valueTag", "[B", null, null);
         fvTag2.visitEnd();
+        if (isPojo(valueType)) {
+            FieldVisitor fvVEncoder = cw.visitField(ACC_PRIVATE | ACC_FINAL | ACC_STATIC,
+                    "valueEncoder", "L" + PB_ENCODER_NAME + ";",
+                    "L" + PB_ENCODER_NAME + "<" + valTypeSingature + ">;", null);
+            fvVEncoder.visitEnd();
+        }
+
 
         MethodVisitor mv = cw.visitMethod(ACC_STATIC, "<clinit>", "()V", null, null);
         mv.visitCode();
         mv.visitInsn(ICONST_1);
-        mv.visitFieldInsn(GETSTATIC, PROTO_FIELD_NAME + "$Type", "STRING",
+        String keyPbType = javaToProtoType(keyType).getProtoType().name();
+        String valPbType = javaToProtoType(valueType).getProtoType().name();
+        mv.visitFieldInsn(GETSTATIC, PROTO_FIELD_NAME + "$Type", keyPbType,
                 "L" + PROTO_FIELD_NAME + "$Type;");
         mv.visitFieldInsn(GETSTATIC, PROTO_FIELD_NAME + "$Cardinality", "OPTIONAL",
                 "L" + PROTO_FIELD_NAME + "$Cardinality;");
@@ -175,13 +169,22 @@ public class MapEntryEncoderGenerator {
                 "(IL" + PROTO_FIELD_NAME + "$Type;L" + PROTO_FIELD_NAME + "$Cardinality;)[B", false);
         mv.visitFieldInsn(PUTSTATIC, encoderName, "keyTag", "[B");
         mv.visitInsn(ICONST_2);
-        mv.visitFieldInsn(GETSTATIC, PROTO_FIELD_NAME + "$Type", "OBJECT",
+        mv.visitFieldInsn(GETSTATIC, PROTO_FIELD_NAME + "$Type", valPbType,
                 "L" + PROTO_FIELD_NAME + "$Type;");
         mv.visitFieldInsn(GETSTATIC, PROTO_FIELD_NAME + "$Cardinality", "OPTIONAL",
                 "L" + PROTO_FIELD_NAME + "$Cardinality;");
         mv.visitMethodInsn(INVOKESTATIC, PROTO_UTIL_NAME, "buildFieldData",
                 "(IL" + PROTO_FIELD_NAME + "$Type;L" + PROTO_FIELD_NAME + "$Cardinality;)[B", false);
         mv.visitFieldInsn(PUTSTATIC, encoderName, "valueTag", "[B");
+
+        if (isPojo(valueType)) {
+            mv.visitFieldInsn(GETSTATIC, PB_REGISTER_NAME, "INSTANCE", "L" + PB_REGISTER_NAME + ";");
+            mv.visitLdcInsn(org.objectweb.asm.Type.getType(valTypeSingature));
+            mv.visitMethodInsn(INVOKEVIRTUAL, PB_REGISTER_NAME, "getEncoder",
+                    "(Ljava/lang/Class;)L" + PB_ENCODER_NAME + ";", false);
+            mv.visitFieldInsn(PUTSTATIC, encoderName, "valueEncoder", "L" + PB_ENCODER_NAME + ";");
+        }
+
         mv.visitInsn(RETURN);
         mv.visitMaxs(3, 0);
         mv.visitEnd();

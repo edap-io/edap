@@ -16,10 +16,7 @@
 
 package io.edap.protobuf.test;
 
-import io.edap.protobuf.EncodeException;
-import io.edap.protobuf.MapEntryEncoder;
-import io.edap.protobuf.ProtoBufEncoder;
-import io.edap.protobuf.ProtoBufWriter;
+import io.edap.protobuf.*;
 import io.edap.protobuf.test.message.v3.Project;
 import io.edap.protobuf.util.ProtoUtil;
 import io.edap.protobuf.wire.Field;
@@ -36,11 +33,12 @@ public class StringObjectMapEncoder implements MapEntryEncoder<String, Project> 
     static {
         tagKey = ProtoUtil.buildFieldData(1, Field.Type.STRING, Field.Cardinality.OPTIONAL);
         tagValue = ProtoUtil.buildFieldData(2, Field.Type.OBJECT, Field.Cardinality.OPTIONAL);
+        projectEncoder = ProtoBufCodecRegister.INSTANCE.getEncoder(Project.class);
     }
 
     @Override
     public void encode(ProtoBufWriter writer, Map.Entry<String, Project> entry) throws EncodeException {
         writer.writeString(tagKey, entry.getKey());
-        writer.writeField(tagValue, entry.getValue());
+        writer.writeMessage(tagValue, 2, entry.getValue(), projectEncoder);
     }
 }

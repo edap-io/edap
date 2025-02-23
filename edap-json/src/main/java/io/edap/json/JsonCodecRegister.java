@@ -23,6 +23,7 @@ import io.edap.json.enums.JsonVersion;
 import io.edap.log.LoggerManager;
 import io.edap.util.internal.GeneratorClassInfo;
 
+import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -46,6 +47,8 @@ public class JsonCodecRegister {
         ENCODER_MAP.put(Long.class,    new LongEncoder());
         ENCODER_MAP.put(Object.class,  new ObjectEncoder());
         ENCODER_MAP.put(Double.class,  new DoubleEncoder());
+
+        ENCODER_MAP.put(Date.class,    new DateEncoder());
     }
 
     private final Map<ClassLoader, JsonCodecLoader> codecLoaders = new HashMap<>();
