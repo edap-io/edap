@@ -16,9 +16,8 @@
 
 package io.edap.protobuf.test;
 
-import io.edap.protobuf.EncodeException;
-import io.edap.protobuf.ProtoBufEncoder;
-import io.edap.protobuf.ProtoBufWriter;
+import io.edap.protobuf.*;
+import io.edap.protobuf.model.ProtoBufOption;
 import io.edap.protobuf.test.message.ext.ListMapFieldModel;
 import io.edap.protobuf.util.ProtoUtil;
 import io.edap.protobuf.wire.Field;
@@ -31,7 +30,13 @@ public class ListMapFieldEncoder implements ProtoBufEncoder<ListMapFieldModel> {
     private static final byte[] tag1;
 
     private static final byte[] mapTag1;
+
+    private static final ProtoBufOption PROTO_BUF_OPTION;
+
+    private MapEntryEncoder<String, Object> mapEntryEncoder;
+
     static {
+        PROTO_BUF_OPTION = new ProtoBufOption();
         tag1 = ProtoUtil.buildFieldData(1, Field.Type.OBJECT, Field.Cardinality.REPEATED);
         mapTag1 = ProtoUtil.buildFieldData(1, Field.Type.MESSAGE, Field.Cardinality.REPEATED);
     }
@@ -47,22 +52,25 @@ public class ListMapFieldEncoder implements ProtoBufEncoder<ListMapFieldModel> {
         }
     }
 
-    private void writeList_0(ProtoBufWriter param1, List<Map<String, Object>> param2) throws EncodeException {
-        if (CollectionUtils.isEmpty(param2)) {
+    private void writeList_0(ProtoBufWriter writer, List<Map<String, Object>> vs) throws EncodeException {
+        if (CollectionUtils.isEmpty(vs)) {
             return;
         }
-        for (int i=0;i<param2.size();i++) {
-
+        MapEntryEncoder<String, Object> encoder = getMapEntryEncoder();
+        for (int i=0;i<vs.size();i++) {
+            writer.writeMap(mapTag1, 1, vs.get(i), encoder);
         }
     }
 
-    private void writeMap_0(ProtoBufWriter param1, Map<String, Object> map) {
-        if (CollectionUtils.isEmpty(map)) {
-            return;
+    private MapEntryEncoder<String, Object> getMapEntryEncoder() {
+        if (mapEntryEncoder == null) {
+            try {
+                mapEntryEncoder = ProtoBufCodecRegister.INSTANCE.getMapEntryEncoder(
+                        ListMapFieldModel.class.getDeclaredField("").getGenericType(), null, PROTO_BUF_OPTION);
+            } catch (Throwable e) {
+                throw  new RuntimeException(e.getMessage(), e);
+            }
         }
-
-//        for (Map.Entry<String, Object> entry : map.entrySet()) {
-//            param1.write
-//        }
+        return mapEntryEncoder;
     }
 }

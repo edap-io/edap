@@ -174,14 +174,6 @@ public class ProtoBufEncoderGenerator {
         mv = cw.visitMethod(ACC_PUBLIC, "encode",
                 "(L" + WRITER_NAME + ";L" + pojoName + ";)V", null, new String[] { ENCODE_EX_NAME });
         mv.visitCode();
-//        mv.visitVarInsn(ALOAD, 0);
-//        //visitMethod(mv, INVOKESPECIAL, PROTO_WRITER, "<init>",
-//        //        "(" + OUT_IFACE + ")V", false);
-//        visitMethod(mv, INVOKEVIRTUAL, pojoCodecName, "getLocalWriter", "()L" + ABSTRACT_WRITER_NAME + ";", false);
-//        mv.visitVarInsn(ASTORE, 3);
-//        mv.visitVarInsn(ALOAD, 3);
-//        mv.visitVarInsn(ALOAD, 1);
-//        visitMethod(mv, INVOKEVIRTUAL, ABSTRACT_WRITER_NAME, "setBufOut", "(" + OUT_IFACE + ")V", false);
 
         if (!CollectionUtils.isEmpty(fields) || parentMapType != null) {
             Label l000 = new Label();
@@ -200,8 +192,7 @@ public class ProtoBufEncoderGenerator {
                     visitGetFieldValue(mv, pfi, pojoName, pojoCodecName, 2, rType);
                     String itemCodec = getPojoEncoderName(pfi.field.getGenericType());
                     mv.visitVarInsn(ALOAD, 0);
-//                mv.visitFieldInsn(GETFIELD, pojoCodecName, itemCodec,
-//                        "L" + IFACE_NAME + ";");
+
                     if (!pfi.field.getType().getName().equals(pojoCls.getName())) {
                         String codecName = getPojoEncoderName(pfi.field.getGenericType());
                         String getEncoderName = "get" + codecName.substring(0, 1).toUpperCase(Locale.ENGLISH) + codecName.substring(1);
@@ -770,6 +761,56 @@ public class ProtoBufEncoderGenerator {
                     true);
             return;
         } else if (isMap(itemType)) {
+            mv.visitVarInsn(ALOAD, 2);
+            mv.visitMethodInsn(INVOKESTATIC, "io/edap/util/CollectionUtils", "isEmpty",
+                    "(Ljava/util/Collection;)Z", false);
+            Label lbNotEmpty = new Label();
+            mv.visitJumpInsn(IFEQ, lbNotEmpty);
+            mv.visitInsn(RETURN);
+
+            String encodeName = buildMapEntryEncodeName(itemType, null);
+            MapEntryTypeInfo mti = getMapEntryTypeInfo(itemType);
+            String mapEncoderName = getMapEntryFieldName(encodeName);
+            int varMapEncoder = 3;
+            mv.visitLabel(lbNotEmpty);
+            // 为MapEntryEncoder赋值
+            mv.visitVarInsn(ALOAD, 0);
+            mv.visitMethodInsn(INVOKESPECIAL, pojoCodecName,  mapEncoderName,
+                    "()L" + MAP_ENTRY_ENCODER_NAME + ";", false);
+            mv.visitVarInsn(ASTORE, varMapEncoder);
+
+            // for循环编码Map
+            int varForIndex = varMapEncoder + 1;
+            mv.visitInsn(ICONST_0);
+            mv.visitVarInsn(ISTORE, varForIndex);
+
+            Label lbFor = new Label();
+            mv.visitLabel(lbFor);
+            mv.visitVarInsn(ILOAD, varForIndex);
+            mv.visitVarInsn(ALOAD, 2);
+            mv.visitMethodInsn(INVOKEINTERFACE, "java/util/List", "size", "()I", true);
+
+            Label lbForEnd = new Label();
+            // 编码Map
+            mv.visitJumpInsn(IF_ICMPGE, lbForEnd);
+            mv.visitVarInsn(ALOAD, 1);
+            mv.visitFieldInsn(GETSTATIC, pojoCodecName, "tag" + pfi.protoField.tag(), "[B");
+            visitTagOpcode(mv, pfi.protoField.tag());
+            mv.visitVarInsn(ALOAD, 2);
+            mv.visitVarInsn(ILOAD, varForIndex);
+            mv.visitMethodInsn(INVOKEINTERFACE, "java/util/List", "get",
+                    "(I)Ljava/lang/Object;", true);
+            mv.visitTypeInsn(CHECKCAST, "java/util/Map");
+            mv.visitVarInsn(ALOAD, varMapEncoder);
+            mv.visitMethodInsn(INVOKEINTERFACE, WRITER_NAME, "writeMap",
+                    "([BILjava/util/Map;L" + MAP_ENTRY_ENCODER_NAME + ";)V", true);
+            mv.visitIincInsn(varForIndex, 1);
+            mv.visitJumpInsn(GOTO, lbFor);
+            mv.visitLabel(lbForEnd);
+
+            mv.visitInsn(RETURN);
+
+            return;
 
         } else if (itemType instanceof ParameterizedType) {
             mv.visitVarInsn(ALOAD, 1);
