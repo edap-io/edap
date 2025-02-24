@@ -10,7 +10,7 @@ import static io.edap.util.AsmUtil.saveJavaFile;
 
 public class T {
     public static void main(String[] args) throws NoSuchFieldException, IOException {
-        MapEntryEncoderGenerator meg = new MapEntryEncoderGenerator(OneMap.class.getDeclaredField("value").getGenericType());
+        MapEntryEncoderGenerator meg = new MapEntryEncoderGenerator(OneMap.class.getDeclaredField("value").getGenericType(), null);
         GeneratorClassInfo gci = meg.getClassInfo();
         byte[] bs = gci.clazzBytes;
         saveJavaFile("./" + gci.clazzName + ".class", bs);

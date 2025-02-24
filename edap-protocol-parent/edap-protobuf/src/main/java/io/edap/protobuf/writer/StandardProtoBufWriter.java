@@ -830,7 +830,7 @@ public class StandardProtoBufWriter extends AbstractWriter {
     }
 
     @Override
-    public <K, V> void writeMap(byte[] fieldData, Map<K, V> map, MapEntryEncoder<K, V> mapEncoder) throws EncodeException {
+    public <K, V> void writeMap(byte[] fieldData, int tag, Map<K, V> map, MapEntryEncoder<K, V> mapEncoder) throws EncodeException {
         if (CollectionUtils.isEmpty(map)) {
             return;
         }

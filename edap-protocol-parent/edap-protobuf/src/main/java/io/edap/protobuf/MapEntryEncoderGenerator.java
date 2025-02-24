@@ -16,6 +16,8 @@
 
 package io.edap.protobuf;
 
+import io.edap.protobuf.model.ProtoBufOption;
+import io.edap.protobuf.model.ProtoTypeInfo;
 import io.edap.protobuf.util.ProtoUtil;
 import io.edap.protobuf.wire.Field;
 import io.edap.util.internal.GeneratorClassInfo;
@@ -38,6 +40,7 @@ public class MapEntryEncoderGenerator {
     static String WRITER_NAME      = toInternalName(ProtoBufWriter.class.getName());
     static String PB_ENCODER_NAME  = toInternalName(ProtoBufEncoder.class.getName());
     static String PB_REGISTER_NAME = toInternalName(ProtoBufCodecRegister.class.getName());
+    static String PROTOBUF_OPTIION_NAME  = toInternalName(ProtoBufOption.class.getName());
 
 
     private final Type keyType;
@@ -47,12 +50,14 @@ public class MapEntryEncoderGenerator {
 
     private ClassWriter cw;
     private String encoderName;
+    private ProtoBufOption option;
 
-    public MapEntryEncoderGenerator(java.lang.reflect.Type mapType) {
+    public MapEntryEncoderGenerator(java.lang.reflect.Type mapType, ProtoBufOption option) {
         MapEntryTypeInfo info = getMapEntryTypeInfo(mapType);
-        this.keyType = info.getKeyType();
-        this.valueType = info.getValueType();
-        this.encoderName = toInternalName(buildMapEntryEncodeName(mapType, null));
+        this.option           = option;
+        this.keyType          = info.getKeyType();
+        this.valueType        = info.getValueType();
+        this.encoderName      = toInternalName(buildMapEntryEncodeName(mapType, option));
         this.keyTypeSignature = getDescriptor(keyType);
         this.valTypeSingature = getDescriptor(valueType);
     }
@@ -155,33 +160,70 @@ public class MapEntryEncoderGenerator {
             fvVEncoder.visitEnd();
         }
 
+        boolean isFast = false;
+        if (option != null && CodecType.FAST == option.getCodecType()) {
+            isFast = true;
+        }
+
+        FieldVisitor fvOption = cw.visitField(ACC_PRIVATE | ACC_FINAL | ACC_STATIC, "PROTO_BUF_OPTION",
+                "L" + PROTOBUF_OPTIION_NAME + ";", null, null);
+        fvOption.visitEnd();
+
 
         MethodVisitor mv = cw.visitMethod(ACC_STATIC, "<clinit>", "()V", null, null);
         mv.visitCode();
+
+        mv.visitTypeInsn(NEW, PROTOBUF_OPTIION_NAME);
+        mv.visitInsn(DUP);
+        mv.visitMethodInsn(INVOKESPECIAL, PROTOBUF_OPTIION_NAME, "<init>", "()V", false);
+        mv.visitFieldInsn(PUTSTATIC, encoderName, "PROTO_BUF_OPTION", "L" + PROTOBUF_OPTIION_NAME + ";");
+        if (isFast) {
+            mv.visitFieldInsn(GETSTATIC, encoderName, "PROTO_BUF_OPTION", "L" + PROTOBUF_OPTIION_NAME + ";");
+            mv.visitFieldInsn(GETSTATIC, "io/edap/protobuf/CodecType",
+                    "FAST", "Lio/edap/protobuf/CodecType;");
+            mv.visitMethodInsn(INVOKEVIRTUAL, PROTOBUF_OPTIION_NAME, "setCodecType",
+                    "(Lio/edap/protobuf/CodecType;)V", false);
+        }
+
         mv.visitInsn(ICONST_1);
+        io.edap.protobuf.wire.Field.Type protoType = javaToProtoType(valueType).getProtoType();
+        if (isFast) {
+            if (protoType == Field.Type.MESSAGE) {
+                protoType = Field.Type.GROUP;
+            }
+        }
         String keyPbType = javaToProtoType(keyType).getProtoType().name();
-        String valPbType = javaToProtoType(valueType).getProtoType().name();
+        String valPbType = protoType.name();
         mv.visitFieldInsn(GETSTATIC, PROTO_FIELD_NAME + "$Type", keyPbType,
                 "L" + PROTO_FIELD_NAME + "$Type;");
         mv.visitFieldInsn(GETSTATIC, PROTO_FIELD_NAME + "$Cardinality", "OPTIONAL",
                 "L" + PROTO_FIELD_NAME + "$Cardinality;");
+        mv.visitFieldInsn(GETSTATIC, "io/edap/protobuf/wire/Syntax", "PROTO_3",
+                "Lio/edap/protobuf/wire/Syntax;");
+        mv.visitFieldInsn(GETSTATIC, encoderName, "PROTO_BUF_OPTION", "L" + PROTOBUF_OPTIION_NAME +";");
         mv.visitMethodInsn(INVOKESTATIC, PROTO_UTIL_NAME, "buildFieldData",
-                "(IL" + PROTO_FIELD_NAME + "$Type;L" + PROTO_FIELD_NAME + "$Cardinality;)[B", false);
+                "(IL" + PROTO_FIELD_NAME + "$Type;L" + PROTO_FIELD_NAME + "$Cardinality;" +
+                        "Lio/edap/protobuf/wire/Syntax;L" + PROTOBUF_OPTIION_NAME + ";)[B", false);
         mv.visitFieldInsn(PUTSTATIC, encoderName, "keyTag", "[B");
         mv.visitInsn(ICONST_2);
         mv.visitFieldInsn(GETSTATIC, PROTO_FIELD_NAME + "$Type", valPbType,
                 "L" + PROTO_FIELD_NAME + "$Type;");
         mv.visitFieldInsn(GETSTATIC, PROTO_FIELD_NAME + "$Cardinality", "OPTIONAL",
                 "L" + PROTO_FIELD_NAME + "$Cardinality;");
+        mv.visitFieldInsn(GETSTATIC, "io/edap/protobuf/wire/Syntax", "PROTO_3",
+                "Lio/edap/protobuf/wire/Syntax;");
+        mv.visitFieldInsn(GETSTATIC, encoderName, "PROTO_BUF_OPTION", "L" + PROTOBUF_OPTIION_NAME +";");
         mv.visitMethodInsn(INVOKESTATIC, PROTO_UTIL_NAME, "buildFieldData",
-                "(IL" + PROTO_FIELD_NAME + "$Type;L" + PROTO_FIELD_NAME + "$Cardinality;)[B", false);
+                "(IL" + PROTO_FIELD_NAME + "$Type;L" + PROTO_FIELD_NAME + "$Cardinality;" +
+                        "Lio/edap/protobuf/wire/Syntax;L" + PROTOBUF_OPTIION_NAME + ";)[B", false);
         mv.visitFieldInsn(PUTSTATIC, encoderName, "valueTag", "[B");
 
         if (isPojo(valueType)) {
             mv.visitFieldInsn(GETSTATIC, PB_REGISTER_NAME, "INSTANCE", "L" + PB_REGISTER_NAME + ";");
             mv.visitLdcInsn(org.objectweb.asm.Type.getType(valTypeSingature));
+            mv.visitFieldInsn(GETSTATIC, encoderName, "PROTO_BUF_OPTION", "L" + PROTOBUF_OPTIION_NAME +";");
             mv.visitMethodInsn(INVOKEVIRTUAL, PB_REGISTER_NAME, "getEncoder",
-                    "(Ljava/lang/Class;)L" + PB_ENCODER_NAME + ";", false);
+                    "(Ljava/lang/Class;L" + PROTOBUF_OPTIION_NAME + ";)L" + PB_ENCODER_NAME + ";", false);
             mv.visitFieldInsn(PUTSTATIC, encoderName, "valueEncoder", "L" + PB_ENCODER_NAME + ";");
         }
 

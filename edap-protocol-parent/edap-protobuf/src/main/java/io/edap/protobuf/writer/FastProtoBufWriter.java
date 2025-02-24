@@ -50,14 +50,14 @@ public class FastProtoBufWriter extends StandardProtoBufWriter {
     }
 
     @Override
-    public <K, V> void writeMap(byte[] fieldData, Map<K, V> map, MapEntryEncoder<K, V> mapEncoder) throws EncodeException {
+    public <K, V> void writeMap(byte[] fieldData, int tag, Map<K, V> map, MapEntryEncoder<K, V> mapEncoder) throws EncodeException {
         if (CollectionUtils.isEmpty(map)) {
             return;
         }
         for (Map.Entry<K, V> entry : map.entrySet()) {
-            writeInt32(START_TAG);
+            writeInt32(WireFormat.makeTag(tag, WireType.START_GROUP));
             mapEncoder.encode(this, entry);
-            writeInt32(END_TAG);
+            writeInt32(WireFormat.makeTag(tag, WireType.END_GROUP));
         }
     }
 
