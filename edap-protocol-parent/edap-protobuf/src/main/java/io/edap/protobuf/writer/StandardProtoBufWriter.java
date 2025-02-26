@@ -21,6 +21,7 @@ import io.edap.protobuf.EncodeException;
 import io.edap.protobuf.MapEntryEncoder;
 import io.edap.protobuf.ProtoBufEncoder;
 import io.edap.protobuf.ext.AnyCodec;
+import io.edap.protobuf.util.ProtoUtil;
 import io.edap.protobuf.wire.Field;
 import io.edap.util.CollectionUtils;
 
@@ -843,6 +844,34 @@ public class StandardProtoBufWriter extends AbstractWriter {
             int len = pos - oldPos - 1;
             pos += writeLenMoveBytes(bs, oldPos, len);
         }
+    }
+
+    @Override
+    public <K, V> void writeMapMessage(byte[] fieldData, int tag, Map<K, V> map, MapEntryEncoder<K, V> mapEncoder) throws EncodeException {
+        if (CollectionUtils.isEmpty(map)) {
+            return;
+        }
+        expand(MAX_VARINT_SIZE);
+        writeFieldData(fieldData);
+
+        int outOldPos = pos;
+
+        byte[] mapMsgTagData = ProtoUtil.buildFieldData(1, Field.Type.MAP, Field.Cardinality.REPEATED);
+        boolean needFieldData = true;
+        for (Map.Entry<K, V> entry : map.entrySet()) {
+            if (needFieldData) {
+                expand(MAX_VARINT_SIZE);
+                writeFieldData(mapMsgTagData);
+                needFieldData = false;
+            }
+//            int oldPos = pos;
+//            pos += 1;
+            mapEncoder.encode(this, entry);
+//            int len = pos - oldPos - 1;
+//            pos += writeLenMoveBytes(bs, oldPos, len);
+        }
+        int len = pos - outOldPos - 1;
+        pos += writeLenMoveBytes(bs, outOldPos, len);
     }
 
     @Override

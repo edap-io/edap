@@ -41,10 +41,7 @@ import java.io.IOException;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.*;
 import java.lang.reflect.Field;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import static io.edap.util.AsmUtil.*;
 import static io.edap.util.ClazzUtil.*;
@@ -836,6 +833,59 @@ public class ProtoUtil {
         return name.toString();
     }
 
+    public static String buildMapDecoderName(java.lang.reflect.Type mapType, ProtoBufOption option) {
+        StringBuilder name = new StringBuilder("io.edap.protobuf.");
+        if (option != null && CodecType.FAST == option.getCodecType()) {
+            name.append('f');
+        }
+        name.append("mapdecoder.MapDecoder_");
+        if (mapType instanceof ParameterizedType) {
+            ParameterizedType ptype = (ParameterizedType)mapType;
+            java.lang.reflect.Type[] types = ptype.getActualTypeArguments();
+            StringBuilder codes = new StringBuilder();
+            for (int i=0;i<types.length;i++) {
+                if (i > 0) {
+                    codes.append("_");
+                }
+                codes.append(types[i].getTypeName());
+            }
+            name.append(md5(codes.toString()));
+        } else if (mapType instanceof Class) {
+            Class mapClazz = (Class)mapType;
+            if (isMap(mapClazz)) {
+                name.append(md5("java.lang.Object_java.lang.Object"));
+            } else {
+                throw  new RuntimeException("mapType [" + mapType.getTypeName() + "] is not map");
+            }
+        } else {
+            throw  new RuntimeException("mapType [" + mapType.getTypeName() + "] is not map");
+        }
+        return name.toString();
+    }
+
+    public static java.lang.reflect.Type getFeldType(Class cls, String fieldName) {
+        try {
+            return cls.getDeclaredField(fieldName).getGenericType();
+        } catch (Exception e) {
+            throw new RuntimeException(e.getMessage(), e);
+        }
+    }
+
+    public static java.lang.reflect.Type getMapType(java.lang.reflect.Type type) {
+        if (isMap(type)) {
+            return type;
+        }
+        if (isList(type)) {
+            if (type instanceof ParameterizedType) {
+                ParameterizedType ptype = (ParameterizedType)type;
+                if (isMap(ptype.getActualTypeArguments()[0])) {
+                    return ptype.getActualTypeArguments()[0];
+                }
+            }
+        }
+        return null;
+    }
+
     public static MapEntryTypeInfo getMapEntryTypeInfo(java.lang.reflect.Type mapType) {
         MapEntryTypeInfo info = new MapEntryTypeInfo();
         java.lang.reflect.Type keyType;
@@ -1124,6 +1174,18 @@ public class ProtoUtil {
         return type;
     }
 
+    public static String getReadMethod(java.lang.reflect.Type type) {
+        if (type instanceof Class) {
+            Class cls = (Class)type;
+            switch (cls.getName()) {
+                case "java.lang.String":
+                    return "readString";
+            }
+        }
+
+        return "readObject";
+    }
+
     public static String getWriteMethod(Type type) {
         switch (type) {
             case FLOAT:
@@ -1162,5 +1224,21 @@ public class ProtoUtil {
                 return "writeObject";
         }
         return "";
+    }
+
+    public static String getSimpleName(String name) {
+        int dot = name.lastIndexOf(".");
+        if (dot == -1) {
+            return name;
+        }
+        return name.substring(dot + 1);
+    }
+
+    public static String lowerCaseFirstChar(String name) {
+        if (StringUtil.isEmpty(name)) {
+            return name.substring(0, 1).toLowerCase(Locale.ENGLISH) + name.substring(1);
+        }
+
+        return name;
     }
 }

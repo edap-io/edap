@@ -20,6 +20,7 @@ import io.edap.protobuf.wire.Field.Type;
 
 import java.nio.charset.Charset;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 读取ProtoBuf基本数据的Reader接口
@@ -239,6 +240,8 @@ public interface ProtoBufReader {
      * @throws ProtoException
      */
     Object readObject() throws ProtoException;
+
+    <K, V> Map<K, V> readMap(MapDecoder<K, V> mapDecoder) throws ProtoException;
 
     /**
      * 读取一个Message的对象

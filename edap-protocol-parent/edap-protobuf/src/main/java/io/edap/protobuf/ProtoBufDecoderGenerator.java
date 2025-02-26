@@ -43,12 +43,13 @@ import static org.objectweb.asm.Opcodes.RETURN;
 
 public class ProtoBufDecoderGenerator {
 
-    static final String IFACE_NAME = toInternalName(ProtoBufDecoder.class.getName());
-    static final String REGISTER_NAME = toInternalName(ProtoBufCodecRegister.class.getName());
-    static final String READER_NAME = toInternalName(ProtoBufReader.class.getName());
-    static final String COLLECTION_UTIL = toInternalName(CollectionUtils.class.getName());
-    static final String FIELD_TYPE_NAME = toInternalName(Field.Type.class.getName());
-    static final String CLAZZ_UTIL_NAME = toInternalName(ClazzUtil.class.getName());
+    static final String IFACE_NAME       = toInternalName(ProtoBufDecoder.class.getName());
+    static final String REGISTER_NAME    = toInternalName(ProtoBufCodecRegister.class.getName());
+    static final String READER_NAME      = toInternalName(ProtoBufReader.class.getName());
+    static final String COLLECTION_UTIL  = toInternalName(CollectionUtils.class.getName());
+    static final String FIELD_TYPE_NAME  = toInternalName(Field.Type.class.getName());
+    static final String CLAZZ_UTIL_NAME  = toInternalName(ClazzUtil.class.getName());
+    static final String MAP_DECODER_NAME = toInternalName(MapDecoder.class.getName());
 
     static final String PROTO_OPTION_NAME = toInternalName(ProtoBufOption.class.getName());
 
@@ -69,6 +70,8 @@ public class ProtoBufDecoderGenerator {
     private final List<String> listMethods = new ArrayList<>();
     private final List<String> arrayMethods = new ArrayList<>();
     private final List<String> mapMethods = new ArrayList<>();
+    private final List<String> mapDecoders = new ArrayList<>();
+    private final List<String> getMapDecoderMehods = new ArrayList<>();
 
     private final java.lang.reflect.Type parentMapType;
 
@@ -218,6 +221,7 @@ public class ProtoBufDecoderGenerator {
         mv.visitVarInsn(ASTORE, varPojo);
 
         List<Object> framObjs = new ArrayList<>();
+        Map<String, Integer> mapDecoderVars = new HashMap<>();
         framObjs.add(pojoName);
 
         int preNextVar = 3;
@@ -253,6 +257,41 @@ public class ProtoBufDecoderGenerator {
             mv.visitVarInsn(ASTORE, varIndex);
             aListTag.put(pfi.protoField.tag(), varIndex);
             framObjs.add("java/util/List");
+
+            ParameterizedType ptype = (ParameterizedType)pfi.field.getGenericType();
+            java.lang.reflect.Type itemType = ptype.getActualTypeArguments()[0];
+            if (isMap(itemType)) {
+                MapEntryTypeInfo meti = getMapEntryTypeInfo(itemType);
+                String mapDecoderName = buildMapDecoderName(itemType, option);
+                String simpleName = getSimpleName(mapDecoderName);
+                String mapDecoderFieldName = lowerCaseFirstChar(simpleName);
+                if (!mapDecoders.contains(mapDecoderFieldName)) {
+                    FieldVisitor fvMapDecoder = cw.visitField(ACC_PRIVATE, mapDecoderFieldName,
+                            "L" + MAP_DECODER_NAME + ";",
+                            "L" + MAP_DECODER_NAME + "<" + getDescriptor(meti.getKeyType()) +
+                                    getDescriptor(meti.getValueType()) + ">;", null);
+                    fvMapDecoder.visitEnd();
+
+                    mv.visitLdcInsn(org.objectweb.asm.Type.getType("L" +  pojoName + ";"));
+                    mv.visitLdcInsn(pfi.field.getName());
+                    mv.visitMethodInsn(INVOKESTATIC, "io/edap/protobuf/util/ProtoUtil", "getFeldType",
+                            "(Ljava/lang/Class;Ljava/lang/String;)Ljava/lang/reflect/Type;", false);
+                    preNextVar++;
+                    mv.visitVarInsn(ASTORE, preNextVar);
+                    mv.visitVarInsn(ALOAD, 0);
+                    mv.visitVarInsn(ALOAD, preNextVar);
+                    mv.visitMethodInsn(INVOKESTATIC, "io/edap/protobuf/util/ProtoUtil", "getMapType",
+                            "(Ljava/lang/reflect/Type;)Ljava/lang/reflect/Type;", false);
+                    mv.visitMethodInsn(INVOKEVIRTUAL, pojoCodecName, "get" + simpleName,
+                            "(Ljava/lang/reflect/Type;)L" + MAP_DECODER_NAME +  ";", false);
+
+                    visitGetMapDecoderMethod(itemType);
+                    preNextVar++;
+                    mv.visitVarInsn(ASTORE, preNextVar);
+                    mapDecoderVars.put(mapDecoderFieldName, preNextVar);
+                    mapDecoders.add(mapDecoderFieldName);
+                }
+            }
         }
         preNextVar += listFields.size();
         Map<Integer, Integer> aMapTag = new HashMap<>();
@@ -549,6 +588,18 @@ public class ProtoBufDecoderGenerator {
                     visitMethod(mv, INVOKEINTERFACE, "java/util/List", "add",
                             "(Ljava/lang/Object;)Z", true);
                     mv.visitInsn(POP);
+                } else if (isMap(itemType)) {
+                    String mapDecoderName = buildMapDecoderName(itemType, option);
+                    String simpleName = getSimpleName(mapDecoderName);
+                    String mapDecoderFieldName = lowerCaseFirstChar(simpleName);
+                    mv.visitVarInsn(ALOAD, aListTag.get(pfi.protoField.tag()));
+                    mv.visitVarInsn(ALOAD, 1);
+                    mv.visitVarInsn(ALOAD, mapDecoderVars.get(mapDecoderFieldName));
+                    mv.visitMethodInsn(INVOKEINTERFACE, READER_NAME, "readMap",
+                            "(Lio/edap/protobuf/MapDecoder;)Ljava/util/Map;", true);
+                    mv.visitMethodInsn(INVOKEVIRTUAL, "java/util/ArrayList", "add",
+                            "(Ljava/lang/Object;)Z", false);
+                    mv.visitInsn(POP);
                 } else if (isEnum(itemType)) {
                     String convertName = visitConvertEnumMethod(pfi);
                     if (!pfi.hasSetAccessed) {
@@ -842,6 +893,39 @@ public class ProtoBufDecoderGenerator {
             isPrimitive = true;
         }
         return isPrimitive;
+    }
+
+    private void visitGetMapDecoderMethod(java.lang.reflect.Type mapType) {
+        String mapDecoderName = buildMapDecoderName(mapType, option);
+        String simpleName     = getSimpleName(mapDecoderName);
+        String fieldName      = lowerCaseFirstChar(simpleName);
+        if (!getMapDecoderMehods.contains(fieldName)) {
+            MethodVisitor mv = cw.visitMethod(ACC_PUBLIC, "get" + simpleName,
+                    "(Ljava/lang/reflect/Type;)L" + MAP_DECODER_NAME + ";", null, null);
+            mv.visitCode();
+            mv.visitVarInsn(ALOAD, 0);
+            mv.visitFieldInsn(GETFIELD, pojoCodecName, fieldName, "L" + MAP_DECODER_NAME + ";");
+            Label label0 = new Label();
+            mv.visitJumpInsn(IFNONNULL, label0);
+            mv.visitVarInsn(ALOAD, 0);
+            mv.visitFieldInsn(GETSTATIC, REGISTER_NAME, "INSTANCE", "L" + REGISTER_NAME + ";");
+            mv.visitVarInsn(ALOAD, 1);
+            mv.visitInsn(ACONST_NULL);
+            mv.visitFieldInsn(GETSTATIC, pojoCodecName, "PROTO_BUF_OPTION", "L" + PROTO_OPTION_NAME + ";");
+            mv.visitMethodInsn(INVOKEVIRTUAL, REGISTER_NAME, "getMapDecoder",
+                    "(Ljava/lang/reflect/Type;Ljava/lang/Class;L" + PROTO_OPTION_NAME + ";)L" +
+                            MAP_DECODER_NAME + ";", false);
+            mv.visitFieldInsn(PUTFIELD, pojoCodecName, fieldName, "L" + MAP_DECODER_NAME + ";");
+            mv.visitLabel(label0);
+            mv.visitFrame(Opcodes.F_SAME, 0, null, 0, null);
+            mv.visitVarInsn(ALOAD, 0);
+            mv.visitFieldInsn(GETFIELD, pojoCodecName, fieldName, "L" + MAP_DECODER_NAME + ";");
+            mv.visitInsn(ARETURN);
+            mv.visitMaxs(5, 2);
+            mv.visitEnd();
+
+            getMapDecoderMehods.add(fieldName);
+        }
     }
 
     private List<String> methodEnums = new ArrayList<>();
@@ -1611,10 +1695,22 @@ public class ProtoBufDecoderGenerator {
     }
 
     private void visitClinitMethod() {
+
+        FieldVisitor fvOption = cw.visitField(ACC_PRIVATE | ACC_STATIC, "PROTO_BUF_OPTION",
+                "L" + PROTO_OPTION_NAME + ";", null, null);
+        fvOption.visitEnd();
+
         FieldVisitor fv;
         MethodVisitor mv;
+
         mv = cw.visitMethod(ACC_STATIC, "<clinit>", "()V", null, null);
         mv.visitCode();
+
+        mv.visitTypeInsn(NEW, PROTO_OPTION_NAME);
+        mv.visitInsn(DUP);
+        mv.visitMethodInsn(INVOKESPECIAL, PROTO_OPTION_NAME, "<init>", "()V", false);
+        mv.visitFieldInsn(PUTSTATIC, pojoCodecName, "PROTO_BUF_OPTION", "L" + PROTO_OPTION_NAME + ";");
+
         int innerClsCount = 0;
         for (int i=0;i<arrayFields.size();i++) {
             ProtoFieldInfo pfi = arrayFields.get(i);

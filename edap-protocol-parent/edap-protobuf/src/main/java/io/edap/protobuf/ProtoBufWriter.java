@@ -120,6 +120,7 @@ public interface ProtoBufWriter extends BufWriter {
     void writeObject(Object v) throws EncodeException;
 
     <K,V> void writeMap(byte[] fieldData, int tag, Map<K, V> map, MapEntryEncoder<K, V> mapEncoder) throws EncodeException;
+    <K,V> void writeMapMessage(byte[] fieldData, int tag, Map<K, V> map, MapEntryEncoder<K, V> mapEncoder) throws EncodeException;
 
     <T> void writeMessage(T msg, ProtoBufEncoder<T> encoder) throws EncodeException;
     <T> void writeMessage(byte[] fieldData, int tag, T msg, ProtoBufEncoder<T> encoder) throws EncodeException;
