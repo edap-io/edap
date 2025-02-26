@@ -209,18 +209,6 @@ public class StandardProtoBufWriter extends AbstractWriter {
         switch (type) {
             case INT32:
             case UINT32:
-
-//                len = 0;
-//                for (Integer i : values) {
-//                    len += computeRawVarint32Size(i);
-//                }
-//                expand(wbuf, MAX_VARINT_SIZE << 1 + len);
-//                writeFieldData(fieldData);
-//                writeUInt32_0(values.size());
-//                for (Integer i : values) {
-//                    writeUInt32_0(i);
-//                }
-//
                 size = values.size();
                 len = size * 5;
                 expand((MAX_VARLONG_SIZE << 1) + len);
@@ -265,20 +253,6 @@ public class StandardProtoBufWriter extends AbstractWriter {
 
                 len = pos - oldPos - 1;
                 pos += writeLenMoveBytes(bs, oldPos, len);
-
-//                ProtoWriter twriter = getLocalWriter();
-//                try {
-//                    int size = values.size();
-//                    for (int i = 0; i < size; i++) {
-//                        twriter.writeInt32(values.get(i));
-//                    }
-//                    len = twriter.getBufOut().getWriteBuf().start;
-//                    writeByteArray(fieldData, 0, fieldData.length);
-//                    writeUInt32(len);
-//                    writeByteArray(twriter.getBufOut().getWriteBuf().bs, 0, len);
-//                } finally {
-//                    releaseLocalWriter(twriter);
-//                }
                 return;
             case SINT32:
                 len = values.size() * MAX_VARINT_SIZE;

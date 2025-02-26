@@ -20,6 +20,8 @@ import io.edap.io.BufOut;
 import io.edap.protobuf.EncodeException;
 import io.edap.protobuf.MapEntryEncoder;
 import io.edap.protobuf.ProtoBufEncoder;
+import io.edap.protobuf.ProtoBufWriter;
+import io.edap.protobuf.wire.Field;
 import io.edap.protobuf.wire.WireFormat;
 import io.edap.protobuf.wire.WireType;
 import io.edap.util.CollectionUtils;
@@ -29,6 +31,8 @@ import java.util.List;
 import java.util.Map;
 
 import static io.edap.protobuf.wire.WireFormat.MAX_VARINT_SIZE;
+import static io.edap.protobuf.wire.WireFormat.MAX_VARLONG_SIZE;
+import static io.edap.util.CollectionUtils.isEmpty;
 import static io.edap.util.StringUtil.*;
 import static io.edap.util.StringUtil.getCharValue;
 
@@ -47,6 +51,82 @@ public class FastProtoBufWriter extends StandardProtoBufWriter {
         writeInt32(START_TAG);
         codec.encode(this, v);
         writeInt32(END_TAG);
+    }
+
+    @Override
+    public void writePackedInts(byte[] fieldData, List<Integer> values, Field.Type type) {
+        if (isEmpty(values)) {
+            return;
+        }
+        int len;
+        int size;
+        int oldPos;
+        switch (type) {
+            case INT32:
+            case UINT32:
+                size = values.size();
+                len = size * 5;
+                expand((MAX_VARLONG_SIZE << 1) + len);
+                writeFieldData(fieldData);
+
+                writeInt32_0(size);
+                int i = 0;
+                writeInt32_0(values.get(i++));
+                if (size > 1) {
+                    writeInt32_0(values.get(i++));
+                }
+                if (size > 2) {
+                    writeInt32_0(values.get(i++));
+                }
+                if (size > 3) {
+                    writeInt32_0(values.get(i++));
+                }
+                if (size > 4) {
+                    writeInt32_0(values.get(i++));
+                }
+                if (size > 5) {
+                    writeInt32_0(values.get(i++));
+                }
+                if (size > 6) {
+                    writeInt32_0(values.get(i++));
+                }
+                if (size > 7) {
+                    writeUInt32_0(values.get(i++));
+                }
+                if (size > 8) {
+                    writeInt32_0(values.get(i++));
+                }
+                if (size > 9) {
+                    writeInt32_0(values.get(i++));
+                }
+                for (i=10;i<size;i++) {
+                    writeInt32_0(values.get(i));
+                }
+                return;
+            case SINT32:
+                len = values.size() * MAX_VARINT_SIZE;
+                expand(MAX_VARINT_SIZE << 1 + len);
+                writeFieldData(fieldData);
+                oldPos = pos;
+                pos++;
+                for (Integer v : values) {
+                    writeUInt32_0(ProtoBufWriter.encodeZigZag32(v));
+                }
+                len = pos - oldPos - 1;
+                pos += writeLenMoveBytes(bs, oldPos, len);
+                return;
+            case FIXED32:
+            case SFIXED32:
+                size = values.size();
+                expand(MAX_VARINT_SIZE << 1 + size << 2);
+                writeFieldData(fieldData);
+                writeUInt32_0(size << 2);
+                for (Integer v : values) {
+                    writeFixed32_0(v);
+                }
+            default:
+                break;
+        }
     }
 
     @Override
