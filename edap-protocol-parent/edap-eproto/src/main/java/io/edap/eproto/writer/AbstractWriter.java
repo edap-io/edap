@@ -126,10 +126,9 @@ public abstract class AbstractWriter implements EprotoWriter {
             bs[pos++] = ZIGZAG32_TWO;
             writeUInt32_0(encodeZigZag32(charLen));
             if (charLen < 16) {
-                pos += writeChars(v, 0, charLen, pos);
+                pos += writeChars(getCharValue(v), 0, charLen, pos);
             } else {
-                char[] cs = getCharValue(v);
-                pos += writeChars(cs, 0, charLen, pos);
+                pos += writeChars(getCharValue(v), 0, charLen, pos);
             }
             return;
         }
