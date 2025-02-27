@@ -104,23 +104,21 @@ public class FastProtoBufWriter extends StandardProtoBufWriter {
                 }
                 return;
             case SINT32:
-                len = values.size() * MAX_VARINT_SIZE;
+                size = values.size();
+                len = size * MAX_VARINT_SIZE;
                 expand(MAX_VARINT_SIZE << 1 + len);
                 writeFieldData(fieldData);
-                oldPos = pos;
-                pos++;
-                for (Integer v : values) {
-                    writeUInt32_0(ProtoBufWriter.encodeZigZag32(v));
+                writeUInt32_0(size);
+                for (i=0;i<size;i++) {
+                    writeUInt32_0(ProtoBufWriter.encodeZigZag32(values.get(i)));
                 }
-                len = pos - oldPos - 1;
-                pos += writeLenMoveBytes(bs, oldPos, len);
                 return;
             case FIXED32:
             case SFIXED32:
                 size = values.size();
                 expand(MAX_VARINT_SIZE << 1 + size << 2);
                 writeFieldData(fieldData);
-                writeUInt32_0(size << 2);
+                writeUInt32_0(size);
                 for (Integer v : values) {
                     writeFixed32_0(v);
                 }

@@ -16,6 +16,7 @@
 
 package io.edap.protobuf;
 
+import io.edap.protobuf.annotation.ProtoField;
 import io.edap.protobuf.model.ProtoBufOption;
 import io.edap.protobuf.util.ProtoUtil;
 import io.edap.util.internal.GeneratorClassInfo;
@@ -26,6 +27,7 @@ import org.objectweb.asm.MethodVisitor;
 import java.lang.reflect.Type;
 
 import static io.edap.protobuf.util.ProtoUtil.*;
+import static io.edap.protobuf.util.ProtoUtil.buildProtoReadMethod;
 import static io.edap.util.AsmUtil.toInternalName;
 import static io.edap.util.ClazzUtil.getDescriptor;
 import static org.objectweb.asm.Opcodes.*;
@@ -107,7 +109,7 @@ public class MapDecoderGenerator {
         // 解码key，value
         mv.visitLabel(lbReadMap);
         mv.visitVarInsn(ALOAD, 1);
-        mv.visitMethodInsn(INVOKEINTERFACE, READER_NAME, getReadMethod(keyType), "()" + keyTypeSignature, true);
+        mv.visitMethodInsn(INVOKEINTERFACE, READER_NAME, getReadMethod(keyType, 1), "()" + keyTypeSignature, true);
         mv.visitVarInsn(ASTORE, varKey);
 
         mv.visitVarInsn(ALOAD, 1);
@@ -115,7 +117,7 @@ public class MapDecoderGenerator {
         mv.visitInsn(POP);
 
         mv.visitVarInsn(ALOAD, 1);
-        mv.visitMethodInsn(INVOKEINTERFACE, READER_NAME, getReadMethod(valueType), "()" + valTypeSingature, true);
+        mv.visitMethodInsn(INVOKEINTERFACE, READER_NAME, getReadMethod(valueType, 2), "()" + valTypeSingature, true);
         mv.visitVarInsn(ASTORE, varVal);
         mv.visitVarInsn(ALOAD, 2);
         mv.visitVarInsn(ALOAD, varKey);
@@ -131,6 +133,12 @@ public class MapDecoderGenerator {
         mv.visitInsn(ARETURN);
         mv.visitMaxs(3, 7);
         mv.visitEnd();
+    }
+
+    private String getReadMethod(Type type, int tag) {
+        ProtoField protoField = buildProtoFieldAnnotation(tag, type);
+        ReadMethodInfo rmi = buildProtoReadMethod(type, protoField);
+        return rmi.getMethod();
     }
 
     private void visitInitMethod() {

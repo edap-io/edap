@@ -52,6 +52,8 @@ import static org.objectweb.asm.Opcodes.CHECKCAST;
 
 public class ProtoUtil {
 
+    static final String FIELD_TYPE_NAME  = toInternalName(io.edap.protobuf.wire.Field.Type.class.getName());
+
     private ProtoUtil() {}
 
     public static boolean implInterface(Class type, Class iface) {
@@ -380,7 +382,7 @@ public class ProtoUtil {
         }
     }
 
-    private static ProtoField buildProtoFieldAnnotation(io.edap.protobuf.wire.Field field) {
+    public static ProtoField buildProtoFieldAnnotation(io.edap.protobuf.wire.Field field) {
         ProtoField pf = new ProtoField() {
             @Override
             public Cardinality cardinality() {
@@ -550,6 +552,19 @@ public class ProtoUtil {
             cardinality = Cardinality.REPEATED;
         }
         Type type = javaToProtoType(field.getGenericType()).getProtoType();
+        String[] opitons = null;
+        return buildProtoFieldAnnotation(tag, cardinality, type, opitons);
+    }
+
+    public static ProtoField buildProtoFieldAnnotation(final int tag, java.lang.reflect.Type valuType) {
+        Cardinality cardinality = Cardinality.OPTIONAL;
+        if (AsmUtil.isList(valuType)
+                || AsmUtil.isSet(valuType)
+                || isRepeatedArray(valuType)
+                || isIterable(valuType)) {
+            cardinality = Cardinality.REPEATED;
+        }
+        Type type = javaToProtoType(valuType).getProtoType();
         String[] opitons = null;
         return buildProtoFieldAnnotation(tag, cardinality, type, opitons);
     }
@@ -803,12 +818,42 @@ public class ProtoUtil {
         return name.toString();
     }
 
-    public static String buildMapEntryEncodeName(java.lang.reflect.Type mapType, ProtoBufOption option) {
+    public static String buildMapEntryEncoderName(java.lang.reflect.Type mapType, ProtoBufOption option) {
         StringBuilder name = new StringBuilder("io.edap.protobuf.");
         if (option != null && CodecType.FAST == option.getCodecType()) {
             name.append('f');
         }
         name.append("mapencoder.MapEntryEncoder_");
+        if (mapType instanceof ParameterizedType) {
+            ParameterizedType ptype = (ParameterizedType)mapType;
+            java.lang.reflect.Type[] types = ptype.getActualTypeArguments();
+            StringBuilder codes = new StringBuilder();
+            for (int i=0;i<types.length;i++) {
+                if (i > 0) {
+                    codes.append("_");
+                }
+                codes.append(types[i].getTypeName());
+            }
+            name.append(md5(codes.toString()));
+        } else if (mapType instanceof Class) {
+            Class mapClazz = (Class)mapType;
+            if (isMap(mapClazz)) {
+                name.append(md5("java.lang.Object_java.lang.Object"));
+            } else {
+                throw  new RuntimeException("mapType [" + mapType.getTypeName() + "] is not map");
+            }
+        } else {
+            throw  new RuntimeException("mapType [" + mapType.getTypeName() + "] is not map");
+        }
+        return name.toString();
+    }
+
+    public static String buildMapEntryDecoderName(java.lang.reflect.Type mapType, ProtoBufOption option) {
+        StringBuilder name = new StringBuilder("io.edap.protobuf.");
+        if (option != null && CodecType.FAST == option.getCodecType()) {
+            name.append('f');
+        }
+        name.append("mapdecoder.MapEntryDecoder_");
         if (mapType instanceof ParameterizedType) {
             ParameterizedType ptype = (ParameterizedType)mapType;
             java.lang.reflect.Type[] types = ptype.getActualTypeArguments();
@@ -1174,18 +1219,6 @@ public class ProtoUtil {
         return type;
     }
 
-    public static String getReadMethod(java.lang.reflect.Type type) {
-        if (type instanceof Class) {
-            Class cls = (Class)type;
-            switch (cls.getName()) {
-                case "java.lang.String":
-                    return "readString";
-            }
-        }
-
-        return "readObject";
-    }
-
     public static String getWriteMethod(Type type) {
         switch (type) {
             case FLOAT:
@@ -1240,5 +1273,347 @@ public class ProtoUtil {
         }
 
         return name;
+    }
+
+    public static class ReadMethodInfo {
+        private String method;
+        private String paramType;
+        private String returnType;
+
+
+        public String getMethod() {
+            return method;
+        }
+
+        public void setMethod(String method) {
+            this.method = method;
+        }
+
+        public String getParamType() {
+            return paramType;
+        }
+
+        public void setParamType(String paramType) {
+            this.paramType = paramType;
+        }
+
+        public String getReturnType() {
+            return returnType;
+        }
+
+        public void setReturnType(String returnType) {
+            this.returnType = returnType;
+        }
+    }
+
+    public static ReadMethodInfo buildProtoReadMethod(java.lang.reflect.Type vaueType, ProtoField protoField) {
+        boolean isArray = false;
+        boolean isList = false;
+        if (isRepeatedArray(vaueType)) {
+            isArray = true;
+        } else if (AsmUtil.isList(vaueType)) {
+            isList = true;
+        }
+        ReadMethodInfo rmi = new ReadMethodInfo();
+        rmi.setParamType("");
+        switch (protoField.type()) {
+            case FLOAT:
+                if (isArray) {
+                    if ("[Ljava/lang/Float;".equals(getDescriptor(vaueType))) {
+                        rmi.setMethod("readPackedFloatArray");
+                        rmi.setReturnType("[Ljava/lang/Float;");
+                    } else {
+                        rmi.setMethod("readPackedFloatArrayValue");
+                        rmi.setReturnType("[F");
+                    }
+                } else if (isList) {
+                    rmi.setMethod("readPackedFloat");
+                    rmi.setReturnType("Ljava/util/List;");
+                } else {
+                    rmi.setMethod("readFloat");
+                    rmi.setReturnType("F");
+                }
+                break;
+            case DOUBLE:
+                if (isList) {
+                    rmi.setMethod("readPackedDouble");
+                    rmi.setReturnType("Ljava/util/List;");
+                } else if (isArray) {
+                    if ("[Ljava/lang/Double;".equals(getDescriptor(vaueType))) {
+                        rmi.setMethod("readPackedDoubleArray");
+                        rmi.setReturnType("[Ljava/lang/Double;");
+                    } else {
+                        rmi.setMethod("readPackedDoubleArrayValue");
+                        rmi.setReturnType("[D");
+                    }
+                } else {
+                    rmi.setMethod("readDouble");
+                    rmi.setReturnType("D");
+                }
+                break;
+            case INT32:
+                if (isArray) {
+                    if ("[Ljava/lang/Integer;".equals(getDescriptor(vaueType))) {
+                        rmi.setMethod("readPackedInt32Array");
+                        rmi.setReturnType("[Ljava/lang/Integer;");
+                        rmi.setParamType("L" + FIELD_TYPE_NAME + ";");
+                    } else {
+                        rmi.setMethod("readPackedInt32ArrayValue");
+                        rmi.setReturnType("[I");
+                        rmi.setParamType("L" + FIELD_TYPE_NAME + ";");
+                    }
+                } else if (isList) {
+                    rmi.setMethod("readPackedInt32");
+                    rmi.setReturnType("Ljava/util/List;");
+                    rmi.setParamType("L" + FIELD_TYPE_NAME + ";");
+                } else {
+                    rmi.setMethod("readInt32");
+                    rmi.setReturnType("I");
+                }
+                break;
+            case INT64:
+                if (isArray) {
+                    if ("[Ljava/lang/Long;".equals(getDescriptor(vaueType))) {
+                        rmi.setMethod("readPackedInt64Array");
+                        rmi.setReturnType("[Ljava/lang/Long;");
+                        rmi.setParamType("L" + FIELD_TYPE_NAME + ";");
+                    } else {
+                        rmi.setMethod("readPackedInt64ArrayValue");
+                        rmi.setReturnType("[J");
+                        rmi.setParamType("L" + FIELD_TYPE_NAME + ";");
+                    }
+                } else if (isList) {
+                    rmi.setMethod("readPackedInt64");
+                    rmi.setReturnType("Ljava/util/List;");
+                    rmi.setParamType("L" + FIELD_TYPE_NAME + ";");
+                } else {
+                    rmi.setMethod("readInt64");
+                    rmi.setReturnType("J");
+                }
+                break;
+            case UINT32:
+                if (isArray) {
+                    if ("[Ljava/lang/Integer;".equals(getDescriptor(vaueType))) {
+                        rmi.setMethod("readPackedInt32Array");
+                        rmi.setReturnType("[Ljava/lang/Integer;");
+                        rmi.setParamType("L" + FIELD_TYPE_NAME + ";");
+                    } else {
+                        rmi.setMethod("readPackedInt32ArrayValue");
+                        rmi.setReturnType("[I");
+                        rmi.setParamType("L" + FIELD_TYPE_NAME + ";");
+                    }
+                } else if (isList) {
+                    rmi.setMethod("readPackedInt32");
+                    rmi.setReturnType("Ljava/util/List;");
+                    rmi.setParamType("L" + FIELD_TYPE_NAME + ";");
+                } else {
+                    rmi.setMethod("readUInt32");
+                    rmi.setReturnType("I");
+                }
+                break;
+            case UINT64:
+                if (isArray) {
+                    if ("[Ljava/lang/Long;".equals(getDescriptor(vaueType))) {
+                        rmi.setMethod("readPackedInt64Array");
+                        rmi.setReturnType("[Ljava/lang/Long;");
+                        rmi.setParamType("L" + FIELD_TYPE_NAME + ";");
+                    } else {
+                        rmi.setMethod("readPackedInt64ArrayValue");
+                        rmi.setReturnType("[J");
+                        rmi.setParamType("L" + FIELD_TYPE_NAME + ";");
+                    }
+                } else if (isList) {
+                    rmi.setMethod("readPackedInt64");
+                    rmi.setReturnType("Ljava/util/List;");
+                    rmi.setParamType("L" + FIELD_TYPE_NAME + ";");
+                } else {
+                    rmi.setMethod("readUInt64");
+                    rmi.setReturnType("J");
+                }
+                break;
+            case SINT32:
+                if (isArray) {
+                    if ("[Ljava/lang/Integer;".equals(getDescriptor(vaueType))) {
+                        rmi.setMethod("readPackedInt32Array");
+                        rmi.setReturnType("[Ljava/lang/Integer;");
+                        rmi.setParamType("L" + FIELD_TYPE_NAME + ";");
+                    } else {
+                        rmi.setMethod("readPackedInt32ArrayValue");
+                        rmi.setReturnType("[I");
+                        rmi.setParamType("L" + FIELD_TYPE_NAME + ";");
+                    }
+                } else if (isList) {
+                    rmi.setMethod("readPackedInt32");
+                    rmi.setReturnType("Ljava/util/List;");
+                    rmi.setParamType("L" + FIELD_TYPE_NAME + ";");
+                } else {
+                    rmi.setMethod("readSInt32");
+                    rmi.setReturnType("I");
+                }
+                break;
+            case SINT64:
+                if (isArray) {
+                    if ("[Ljava/lang/Long;".equals(getDescriptor(vaueType))) {
+                        rmi.setMethod("readPackedInt64Array");
+                        rmi.setReturnType("[Ljava/lang/Long;");
+                        rmi.setParamType("L" + FIELD_TYPE_NAME + ";");
+                    } else {
+                        rmi.setMethod("readPackedInt64ArrayValue");
+                        rmi.setReturnType("[J");
+                        rmi.setParamType("L" + FIELD_TYPE_NAME + ";");
+                    }
+                } else if (isList) {
+                    rmi.setMethod("readPackedInt64");
+                    rmi.setReturnType("Ljava/util/List;");
+                    rmi.setParamType("L" + FIELD_TYPE_NAME + ";");
+                } else {
+                    rmi.setMethod("readSInt64");
+                    rmi.setReturnType("J");
+                }
+                break;
+            case FIXED32:
+                if (isList) {
+                    rmi.setMethod("readPackedInt32");
+                    rmi.setReturnType("Ljava/util/List;");
+                    rmi.setParamType("L" + FIELD_TYPE_NAME + ";");
+                } else if (isArray) {
+                    if ("[Ljava/lang/Integer;".equals(getDescriptor(vaueType))) {
+                        rmi.setMethod("readPackedInt32Array");
+                        rmi.setReturnType("[Ljava/lang/Integer;");
+                        rmi.setParamType("L" + FIELD_TYPE_NAME + ";");
+                    } else {
+                        rmi.setMethod("readPackedInt32ArrayValue");
+                        rmi.setReturnType("[I");
+                        rmi.setParamType("L" + FIELD_TYPE_NAME + ";");
+                    }
+                } else {
+                    rmi.setMethod("readFixed32");
+                    rmi.setReturnType("I");
+                }
+                break;
+            case FIXED64:
+                if (isList) {
+                    rmi.setMethod("readPackedInt64");
+                    rmi.setReturnType("Ljava/util/List;");
+                    rmi.setParamType("L" + FIELD_TYPE_NAME + ";");
+                } else if (isArray) {
+                    if ("[Ljava/lang/Long;".equals(getDescriptor(vaueType))) {
+                        rmi.setMethod("readPackedInt64Array");
+                        rmi.setReturnType("[Ljava/lang/Long;");
+                        rmi.setParamType("L" + FIELD_TYPE_NAME + ";");
+                    } else {
+                        rmi.setMethod("readPackedInt64ArrayValue");
+                        rmi.setReturnType("[J");
+                        rmi.setParamType("L" + FIELD_TYPE_NAME + ";");
+                    }
+                } else {
+                    rmi.setMethod("readFixed64");
+                    rmi.setReturnType("J");
+                }
+                break;
+            case SFIXED32:
+                if (isList) {
+                    rmi.setMethod("readPackedInt32");
+                    rmi.setReturnType("Ljava/util/List;");
+                    rmi.setParamType("L" + FIELD_TYPE_NAME + ";");
+                } else if (isArray) {
+                    if ("[Ljava/lang/Integer;".equals(getDescriptor(vaueType))) {
+                        rmi.setMethod("readPackedInt32Array");
+                        rmi.setReturnType("[Ljava/lang/Integer;");
+                        rmi.setParamType("L" + FIELD_TYPE_NAME + ";");
+                    } else {
+                        rmi.setMethod("readPackedInt32ArrayValue");
+                        rmi.setReturnType("[I");
+                        rmi.setParamType("L" + FIELD_TYPE_NAME + ";");
+                    }
+                } else {
+                    rmi.setMethod("readSFixed32");
+                    rmi.setReturnType("I");
+                }
+                break;
+            case SFIXED64:
+                if (isList) {
+                    rmi.setMethod("readPackedInt64");
+                    rmi.setReturnType("Ljava/util/List;");
+                    rmi.setParamType("L" + FIELD_TYPE_NAME + ";");
+                } else if (isArray) {
+                    if ("[Ljava/lang/Long;".equals(getDescriptor(vaueType))) {
+                        rmi.setMethod("readPackedInt64Array");
+                        rmi.setReturnType("[Ljava/lang/Long;");
+                        rmi.setParamType("L" + FIELD_TYPE_NAME + ";");
+                    } else {
+                        rmi.setMethod("readPackedInt64ArrayValue");
+                        rmi.setReturnType("[J");
+                        rmi.setParamType("L" + FIELD_TYPE_NAME + ";");
+                    }
+                } else {
+                    rmi.setMethod("readSFixed64");
+                    rmi.setReturnType("J");
+                }
+                break;
+            case BOOL:
+                if (isArray) {
+                } else if (isList) {
+                    rmi.setMethod("readPackedBool");
+                    rmi.setReturnType("Ljava/util/List;");
+                } else {
+                    rmi.setMethod("readBool");
+                    rmi.setReturnType("Z");
+                }
+                break;
+            case ENUM:
+                if (isList) {
+                    rmi.setMethod("readEnums");
+                    rmi.setReturnType("Ljava/util/List;");
+                } else if (isArray) {
+
+                } else {
+                    rmi.setMethod("readInt32");
+                    rmi.setReturnType("I");
+                }
+                break;
+            case STRING:
+                rmi.setMethod("readString");
+                rmi.setReturnType("Ljava/lang/String;");
+                break;
+            case BYTES:
+                rmi.setMethod("readBytes");
+                rmi.setReturnType("[B");
+                break;
+            case MESSAGE:
+                rmi.setMethod("readMessage");
+                rmi.setReturnType(getDescriptor(vaueType));
+                break;
+            case OBJECT:
+                if (isList) {
+                    rmi.setMethod("readObject");
+                    rmi.setReturnType(getDescriptor(Object.class));
+                } else if (isArray) {
+                    rmi.setMethod("readObject");
+                    if (vaueType instanceof GenericArrayType) {
+                        java.lang.reflect.Type itemType = ((GenericArrayType)vaueType)
+                                .getGenericComponentType();
+                        rmi.setReturnType(getDescriptor(itemType));
+                    } else {
+                        rmi.setReturnType(getDescriptor(vaueType));
+                    }
+                } else {
+                    rmi.setMethod("readObject");
+                    rmi.setReturnType(getDescriptor(vaueType));
+                }
+                break;
+            case GROUP:
+
+                break;
+            case MAP:
+                java.lang.reflect.Type mapType = vaueType;
+
+                rmi.setMethod("readMap");
+                rmi.setReturnType("");
+                break;
+            default:
+                break;
+        }
+        return rmi;
     }
 }

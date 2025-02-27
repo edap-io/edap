@@ -17,14 +17,12 @@
 package io.edap.protobuf;
 
 import io.edap.protobuf.model.ProtoBufOption;
-import io.edap.protobuf.model.ProtoTypeInfo;
 import io.edap.protobuf.util.ProtoUtil;
 import io.edap.protobuf.wire.Field;
 import io.edap.util.internal.GeneratorClassInfo;
 import org.objectweb.asm.*;
 
 import java.io.IOException;
-import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 
 import static io.edap.protobuf.util.ProtoUtil.*;
@@ -57,7 +55,7 @@ public class MapEntryEncoderGenerator {
         this.option           = option;
         this.keyType          = info.getKeyType();
         this.valueType        = info.getValueType();
-        this.encoderName      = toInternalName(buildMapEntryEncodeName(mapType, option));
+        this.encoderName      = toInternalName(buildMapEntryEncoderName(mapType, option));
         this.keyTypeSignature = getDescriptor(keyType);
         this.valTypeSingature = getDescriptor(valueType);
     }

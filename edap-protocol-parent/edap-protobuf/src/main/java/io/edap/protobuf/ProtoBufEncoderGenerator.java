@@ -34,7 +34,7 @@ import java.lang.reflect.ParameterizedType;
 import java.util.*;
 
 import static io.edap.protobuf.util.ProtoUtil.*;
-import static io.edap.protobuf.util.ProtoUtil.buildMapEntryEncodeName;
+import static io.edap.protobuf.util.ProtoUtil.buildMapEntryEncoderName;
 import static io.edap.util.AsmUtil.*;
 import static io.edap.util.ClazzUtil.getDescriptor;
 import static io.edap.util.ClazzUtil.getTypeName;
@@ -331,7 +331,7 @@ public class ProtoBufEncoderGenerator {
     }
 
     private void visitGetMapEntryEncoderMethod(java.lang.reflect.Type mapType, ProtoFieldInfo pfi) {
-        String encodeName = buildMapEntryEncodeName(mapType, null);
+        String encodeName = buildMapEntryEncoderName(mapType, null);
         MapEntryTypeInfo mti = getMapEntryTypeInfo(mapType);
         String keySign = getDescriptor(mti.getKeyType());
         String valSign = getDescriptor(mti.getValueType());
@@ -409,7 +409,7 @@ public class ProtoBufEncoderGenerator {
     }
 
     private void visitMapOpcodes(MethodVisitor mv, ProtoFieldInfo pfi) {
-        String entryEncoderName = buildMapEntryEncodeName(pfi.field.getGenericType(), null);
+        String entryEncoderName = buildMapEntryEncoderName(pfi.field.getGenericType(), null);
         String encodeName = getMapEntryFieldName(entryEncoderName);
         String rType = getDescriptor(pfi.field.getType());
         if (!mapEntryEncoders.contains(entryEncoderName)) {
@@ -773,7 +773,7 @@ public class ProtoBufEncoderGenerator {
             mv.visitJumpInsn(IFEQ, lbNotEmpty);
             mv.visitInsn(RETURN);
 
-            String encodeName = buildMapEntryEncodeName(itemType, option);
+            String encodeName = buildMapEntryEncoderName(itemType, option);
             //MapEntryTypeInfo mti = getMapEntryTypeInfo(itemType);
             String mapEncoderName = getMapEntryFieldName(encodeName);
             visitGetMapEntryEncoderMethod(itemType, pfi);

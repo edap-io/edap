@@ -442,7 +442,7 @@ public class ProtoBufDecoderGenerator {
                     }
                     mv.visitVarInsn(ALOAD, varPojo);
                     mv.visitVarInsn(ALOAD, 1);
-                    mv.visitMethodInsn(INVOKEINTERFACE, READER_NAME, readMethod.method, "()" + readMethod.returnType, true);
+                    mv.visitMethodInsn(INVOKEINTERFACE, READER_NAME, readMethod.getMethod(), "()" + readMethod.getReturnType(), true);
                     visitSetValueOpcode(mv, pfi);
                 } else if (pfi.protoField.type() == Type.ENUM) {
                     String name = visitConvertEnumArrayMethod(pfi);
@@ -478,20 +478,20 @@ public class ProtoBufDecoderGenerator {
                                 pfi.protoField.type().name(),
                                 "L" + FIELD_TYPE_NAME + ";");
                     }
-                    visitMethod(mv, INVOKEINTERFACE, READER_NAME, readMethod.method,
-                            "(" + readMethod.paramType + ")" + readMethod.returnType, true);
+                    visitMethod(mv, INVOKEINTERFACE, READER_NAME, readMethod.getMethod(),
+                            "(" + readMethod.getParamType() + ")" + readMethod.getReturnType(), true);
                     visitSetValueOpcode(mv, pfi);
                 } else {
                     mv.visitVarInsn(ALOAD, aArrayTag.get(pfi.protoField.tag()));
                     mv.visitVarInsn(ALOAD, 1);
-                    String resType = readMethod.returnType;
-                    if (readMethod.method.equals("readObject")) {
+                    String resType = readMethod.getReturnType();
+                    if (readMethod.getMethod().equals("readObject")) {
                         resType = "Ljava/lang/Object;";
                     }
-                    visitMethod(mv, INVOKEINTERFACE, READER_NAME, readMethod.method,
+                    visitMethod(mv, INVOKEINTERFACE, READER_NAME, readMethod.getMethod(),
                                 "()" + resType, true);
-                    if (!readMethod.returnType.equals("Ljava/lang/Object;")) {
-                        mv.visitTypeInsn(CHECKCAST, readMethod.returnType.substring(1, readMethod.returnType.length()-1));
+                    if (!readMethod.getReturnType().equals("Ljava/lang/Object;")) {
+                        mv.visitTypeInsn(CHECKCAST, readMethod.getReturnType().substring(1, readMethod.getReturnType().length()-1));
                     }
                     visitMethod(mv, INVOKEINTERFACE, "java/util/List", "add",
                             "(Ljava/lang/Object;)Z", true);
@@ -508,8 +508,8 @@ public class ProtoBufDecoderGenerator {
                     visitMethod(mv, INVOKESTATIC, enumName, "values",
                             "()[L" + enumName + ";", false);
                     mv.visitVarInsn(ALOAD, 1);
-                    visitMethod(mv, INVOKEINTERFACE, READER_NAME, readMethod.method,
-                            "()" + readMethod.returnType, true);
+                    visitMethod(mv, INVOKEINTERFACE, READER_NAME, readMethod.getMethod(),
+                            "()" + readMethod.getReturnType(), true);
                     mv.visitInsn(AALOAD);
                 } else {
                     mv.visitVarInsn(ALOAD, 1);
@@ -624,15 +624,15 @@ public class ProtoBufDecoderGenerator {
                     }
                     mv.visitVarInsn(ALOAD, varPojo);
                     mv.visitVarInsn(ALOAD, 1);
-                    if (!StringUtil.isEmpty(readMethod.paramType)) {
+                    if (!StringUtil.isEmpty(readMethod.getParamType())) {
                         mv.visitFieldInsn(GETSTATIC, FIELD_TYPE_NAME,
                                 pfi.protoField.type().name(),
                                 "L" + FIELD_TYPE_NAME + ";");
-                        visitMethod(mv, INVOKEINTERFACE, READER_NAME, readMethod.method,
-                                "(" + readMethod.paramType + ")" + readMethod.returnType, true);
+                        visitMethod(mv, INVOKEINTERFACE, READER_NAME, readMethod.getMethod(),
+                                "(" + readMethod.getParamType() + ")" + readMethod.getReturnType(), true);
                     } else {
-                        visitMethod(mv, INVOKEINTERFACE, READER_NAME, readMethod.method,
-                                "()" + readMethod.returnType, true);
+                        visitMethod(mv, INVOKEINTERFACE, READER_NAME, readMethod.getMethod(),
+                                "()" + readMethod.getReturnType(), true);
                     }
                     visitSetValueOpcode(mv, pfi);
                     if (pfi.setMethod != null
@@ -643,8 +643,8 @@ public class ProtoBufDecoderGenerator {
 
                     mv.visitVarInsn(ALOAD, aListTag.get(pfi.protoField.tag()));
                     mv.visitVarInsn(ALOAD, 1);
-                    visitMethod(mv, INVOKEINTERFACE, READER_NAME, readMethod.method,
-                            "()" + readMethod.returnType, true);
+                    visitMethod(mv, INVOKEINTERFACE, READER_NAME, readMethod.getMethod(),
+                            "()" + readMethod.getReturnType(), true);
                     visitBoxOpcode(mv, pfi, itemType);
                     visitMethod(mv, INVOKEINTERFACE, "java/util/List", "add",
                             "(Ljava/lang/Object;)Z", true);
@@ -688,13 +688,13 @@ public class ProtoBufDecoderGenerator {
                 String timeUtil = toInternalName(TimeUtil.class.getName());
                 mv.visitVarInsn(ALOAD, varPojo);
                 mv.visitVarInsn(ALOAD, 1);
-                String resType = readMethod.returnType;
-                if ("readObject".equals(readMethod.method)) {
+                String resType = readMethod.getReturnType();
+                if ("readObject".equals(readMethod.getMethod())) {
                     resType = "Ljava/lang/Object;";
                 }
-                visitMethod(mv, INVOKEINTERFACE, READER_NAME, readMethod.method,
+                visitMethod(mv, INVOKEINTERFACE, READER_NAME, readMethod.getMethod(),
                         "()" + resType, true);
-                if (readMethod.returnType.equals("Ljava/lang/Object;")) {
+                if (readMethod.getReturnType().equals("Ljava/lang/Object;")) {
                     mv.visitTypeInsn(CHECKCAST, resType.substring(1, resType.length()-1));
                 }
                 if ("java.util.Date".equals(pfi.field.getType().getName())) {
@@ -1147,321 +1147,8 @@ public class ProtoBufDecoderGenerator {
         }
     }
 
-    class ReadMethodInfo {
-        private String method;
-        private String paramType;
-        private String returnType;
-    }
-
     private ReadMethodInfo getProtoReadMethod(ProtoFieldInfo pfi) {
-        boolean isArray = false;
-        boolean isList = false;
-        if (isRepeatedArray(pfi.field.getGenericType())) {
-            isArray = true;
-        } else if (AsmUtil.isList(pfi.field.getGenericType())) {
-            isList = true;
-        }
-        ReadMethodInfo rmi = new ReadMethodInfo();
-        rmi.paramType = "";
-        switch (pfi.protoField.type()) {
-            case FLOAT:
-                if (isArray) {
-                    if ("[Ljava/lang/Float;".equals(getDescriptor(pfi.field.getGenericType()))) {
-                        rmi.method = "readPackedFloatArray";
-                        rmi.returnType = "[Ljava/lang/Float;";
-                    } else {
-                        rmi.method = "readPackedFloatArrayValue";
-                        rmi.returnType = "[F";
-                    }
-                } else if (isList) {
-                    rmi.method = "readPackedFloat";
-                    rmi.returnType = "Ljava/util/List;";
-                } else {
-                    rmi.method = "readFloat";
-                    rmi.returnType = "F";
-                }
-                break;
-            case DOUBLE:
-                if (isList) {
-                    rmi.method = "readPackedDouble";
-                    rmi.returnType = "Ljava/util/List;";
-                } else if (isArray) {
-                    if ("[Ljava/lang/Double;".equals(getDescriptor(pfi.field.getGenericType()))) {
-                        rmi.method = "readPackedDoubleArray";
-                        rmi.returnType = "[Ljava/lang/Double;";
-                    } else {
-                        rmi.method = "readPackedDoubleArrayValue";
-                        rmi.returnType = "[D";
-                    }
-                } else {
-                    rmi.method = "readDouble";
-                    rmi.returnType = "D";
-                }
-                break;
-            case INT32:
-                if (isArray) {
-                    if ("[Ljava/lang/Integer;".equals(getDescriptor(pfi.field.getGenericType()))) {
-                        rmi.method = "readPackedInt32Array";
-                        rmi.returnType = "[Ljava/lang/Integer;";
-                        rmi.paramType = "L" + FIELD_TYPE_NAME + ";";
-                    } else {
-                        rmi.method = "readPackedInt32ArrayValue";
-                        rmi.returnType = "[I";
-                        rmi.paramType = "L" + FIELD_TYPE_NAME + ";";
-                    }
-                } else if (isList) {
-                    rmi.method = "readPackedInt32";
-                    rmi.returnType = "Ljava/util/List;";
-                    rmi.paramType = "L" + FIELD_TYPE_NAME + ";";
-                } else {
-                    rmi.method = "readInt32";
-                    rmi.returnType = "I";
-                }
-                break;
-            case INT64:
-                if (isArray) {
-                    if ("[Ljava/lang/Long;".equals(getDescriptor(pfi.field.getGenericType()))) {
-                        rmi.method = "readPackedInt64Array";
-                        rmi.returnType = "[Ljava/lang/Long;";
-                        rmi.paramType = "L" + FIELD_TYPE_NAME + ";";
-                    } else {
-                        rmi.method = "readPackedInt64ArrayValue";
-                        rmi.returnType = "[J";
-                        rmi.paramType = "L" + FIELD_TYPE_NAME + ";";
-                    }
-                } else if (isList) {
-                    rmi.method = "readPackedInt64";
-                    rmi.returnType = "Ljava/util/List;";
-                    rmi.paramType = "L" + FIELD_TYPE_NAME + ";";
-                } else {
-                    rmi.method = "readInt64";
-                    rmi.returnType = "J";
-                }
-                break;
-            case UINT32:
-                if (isArray) {
-                    if ("[Ljava/lang/Integer;".equals(getDescriptor(pfi.field.getGenericType()))) {
-                        rmi.method = "readPackedInt32Array";
-                        rmi.returnType = "[Ljava/lang/Integer;";
-                        rmi.paramType = "L" + FIELD_TYPE_NAME + ";";
-                    } else {
-                        rmi.method = "readPackedInt32ArrayValue";
-                        rmi.returnType = "[I";
-                        rmi.paramType = "L" + FIELD_TYPE_NAME + ";";
-                    }
-                } else if (isList) {
-                    rmi.method = "readPackedInt32";
-                    rmi.returnType = "Ljava/util/List;";
-                    rmi.paramType = "L" + FIELD_TYPE_NAME + ";";
-                } else {
-                    rmi.method = "readUInt32";
-                    rmi.returnType = "I";
-                }
-                break;
-            case UINT64:
-                if (isArray) {
-                    if ("[Ljava/lang/Long;".equals(getDescriptor(pfi.field.getGenericType()))) {
-                        rmi.method = "readPackedInt64Array";
-                        rmi.returnType = "[Ljava/lang/Long;";
-                        rmi.paramType = "L" + FIELD_TYPE_NAME + ";";
-                    } else {
-                        rmi.method = "readPackedInt64ArrayValue";
-                        rmi.returnType = "[J";
-                        rmi.paramType = "L" + FIELD_TYPE_NAME + ";";
-                    }
-                } else if (isList) {
-                    rmi.method = "readPackedInt64";
-                    rmi.returnType = "Ljava/util/List;";
-                    rmi.paramType = "L" + FIELD_TYPE_NAME + ";";
-                } else {
-                    rmi.method = "readUInt64";
-                    rmi.returnType = "J";
-                }
-                break;
-            case SINT32:
-                if (isArray) {
-                    if ("[Ljava/lang/Integer;".equals(getDescriptor(pfi.field.getGenericType()))) {
-                        rmi.method = "readPackedInt32Array";
-                        rmi.returnType = "[Ljava/lang/Integer;";
-                        rmi.paramType = "L" + FIELD_TYPE_NAME + ";";
-                    } else {
-                        rmi.method = "readPackedInt32ArrayValue";
-                        rmi.returnType = "[I";
-                        rmi.paramType = "L" + FIELD_TYPE_NAME + ";";
-                    }
-                } else if (isList) {
-                    rmi.method = "readPackedInt32";
-                    rmi.returnType = "Ljava/util/List;";
-                    rmi.paramType = "L" + FIELD_TYPE_NAME + ";";
-                } else {
-                    rmi.method = "readSInt32";
-                    rmi.returnType = "I";
-                }
-                break;
-            case SINT64:
-                if (isArray) {
-                    if ("[Ljava/lang/Long;".equals(getDescriptor(pfi.field.getGenericType()))) {
-                        rmi.method = "readPackedInt64Array";
-                        rmi.returnType = "[Ljava/lang/Long;";
-                        rmi.paramType = "L" + FIELD_TYPE_NAME + ";";
-                    } else {
-                        rmi.method = "readPackedInt64ArrayValue";
-                        rmi.returnType = "[J";
-                        rmi.paramType = "L" + FIELD_TYPE_NAME + ";";
-                    }
-                } else if (isList) {
-                    rmi.method = "readPackedInt64";
-                    rmi.returnType = "Ljava/util/List;";
-                    rmi.paramType = "L" + FIELD_TYPE_NAME + ";";
-                } else {
-                    rmi.method = "readSInt64";
-                    rmi.returnType = "J";
-                }
-                break;
-            case FIXED32:
-                if (isList) {
-                    rmi.method = "readPackedInt32";
-                    rmi.returnType = "Ljava/util/List;";
-                    rmi.paramType = "L" + FIELD_TYPE_NAME + ";";
-                } else if (isArray) {
-                    if ("[Ljava/lang/Integer;".equals(getDescriptor(pfi.field.getGenericType()))) {
-                        rmi.method = "readPackedInt32Array";
-                        rmi.returnType = "[Ljava/lang/Integer;";
-                        rmi.paramType = "L" + FIELD_TYPE_NAME + ";";
-                    } else {
-                        rmi.method = "readPackedInt32ArrayValue";
-                        rmi.returnType = "[I";
-                        rmi.paramType = "L" + FIELD_TYPE_NAME + ";";
-                    }
-                } else {
-                    rmi.method = "readFixed32";
-                    rmi.returnType = "I";
-                }
-                break;
-            case FIXED64:
-                if (isList) {
-                    rmi.method = "readPackedInt64";
-                    rmi.returnType = "Ljava/util/List;";
-                    rmi.paramType = "L" + FIELD_TYPE_NAME + ";";
-                } else if (isArray) {
-                    if ("[Ljava/lang/Long;".equals(getDescriptor(pfi.field.getGenericType()))) {
-                        rmi.method = "readPackedInt64Array";
-                        rmi.returnType = "[Ljava/lang/Long;";
-                        rmi.paramType = "L" + FIELD_TYPE_NAME + ";";
-                    } else {
-                        rmi.method = "readPackedInt64ArrayValue";
-                        rmi.returnType = "[J";
-                        rmi.paramType = "L" + FIELD_TYPE_NAME + ";";
-                    }
-                } else {
-                    rmi.method = "readFixed64";
-                    rmi.returnType = "J";
-                }
-                break;
-            case SFIXED32:
-                if (isList) {
-                    rmi.method = "readPackedInt32";
-                    rmi.returnType = "Ljava/util/List;";
-                    rmi.paramType = "L" + FIELD_TYPE_NAME + ";";
-                } else if (isArray) {
-                    if ("[Ljava/lang/Integer;".equals(getDescriptor(pfi.field.getGenericType()))) {
-                        rmi.method = "readPackedInt32Array";
-                        rmi.returnType = "[Ljava/lang/Integer;";
-                        rmi.paramType = "L" + FIELD_TYPE_NAME + ";";
-                    } else {
-                        rmi.method = "readPackedInt32ArrayValue";
-                        rmi.returnType = "[I";
-                        rmi.paramType = "L" + FIELD_TYPE_NAME + ";";
-                    }
-                } else {
-                    rmi.method = "readSFixed32";
-                    rmi.returnType = "I";
-                }
-                break;
-            case SFIXED64:
-                if (isList) {
-                    rmi.method = "readPackedInt64";
-                    rmi.returnType = "Ljava/util/List;";
-                    rmi.paramType = "L" + FIELD_TYPE_NAME + ";";
-                } else if (isArray) {
-                    if ("[Ljava/lang/Long;".equals(getDescriptor(pfi.field.getGenericType()))) {
-                        rmi.method = "readPackedInt64Array";
-                        rmi.returnType = "[Ljava/lang/Long;";
-                        rmi.paramType = "L" + FIELD_TYPE_NAME + ";";
-                    } else {
-                        rmi.method = "readPackedInt64ArrayValue";
-                        rmi.returnType = "[J";
-                        rmi.paramType = "L" + FIELD_TYPE_NAME + ";";
-                    }
-                } else {
-                    rmi.method = "readSFixed64";
-                    rmi.returnType = "J";
-                }
-                break;
-            case BOOL:
-                if (isArray) {
-                } else if (isList) {
-                    rmi.method = "readPackedBool";
-                    rmi.returnType = "Ljava/util/List;";
-                } else {
-                    rmi.method = "readBool";
-                    rmi.returnType = "Z";
-                }
-                break;
-            case ENUM:
-                if (isList) {
-                    rmi.method = "readEnums";
-                    rmi.returnType = "Ljava/util/List;";
-                } else if (isArray) {
-
-                } else {
-                    rmi.method = "readInt32";
-                    rmi.returnType = "I";
-                }
-                break;
-            case STRING:
-                rmi.method = "readString";
-                rmi.returnType = "Ljava/lang/String;";
-                break;
-            case BYTES:
-                rmi.method = "readBytes";
-                rmi.returnType = "[B";
-                break;
-            case MESSAGE:
-                rmi.method = "readMessage";
-                rmi.returnType = getDescriptor(pfi.field.getGenericType());
-                break;
-            case OBJECT:
-                if (isList) {
-                    rmi.method = "readObject";
-                    rmi.returnType = getDescriptor(Object.class);
-                } else if (isArray) {
-                    rmi.method = "readObject";
-                    if (pfi.field.getGenericType() instanceof GenericArrayType) {
-                        java.lang.reflect.Type itemType = ((GenericArrayType)pfi.field.getGenericType())
-                                .getGenericComponentType();
-                        rmi.returnType = getDescriptor(itemType);
-                    } else {
-                        rmi.returnType = getDescriptor(pfi.field.getGenericType());
-                    }
-                } else {
-                    rmi.method = "readObject";
-                    rmi.returnType = getDescriptor(pfi.field.getGenericType());
-                }
-                break;
-            case GROUP:
-
-                break;
-            case MAP:
-                java.lang.reflect.Type mapType = pfi.field.getGenericType();
-
-                rmi.method = "readMap";
-                rmi.returnType = "";
-                break;
-            default:
-                break;
-        }
-        return rmi;
+        return buildProtoReadMethod(pfi.field.getGenericType(), pfi.protoField);
     }
 
     private void visitDecodeBridgeMethod() {

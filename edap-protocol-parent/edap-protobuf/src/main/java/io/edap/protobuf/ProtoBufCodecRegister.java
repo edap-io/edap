@@ -50,6 +50,8 @@ public enum ProtoBufCodecRegister {
     private final Map<Type, Class> mapEncoders     = new HashMap<>();
     private final Map<Type, MapEntryEncoder> mapEntryEncoders = new HashMap<>();
     private final Map<Type, MapEntryEncoder> mapEntryFastEncoders = new HashMap<>();
+    private final Map<Type, MapEntryDecoder> mapEntryDecoders = new HashMap<>();
+    private final Map<Type, MapEntryDecoder> mapEntryFastDecoders = new HashMap<>();
 
     private final Map<Type, MapDecoder> mapDecoders = new HashMap<>();
     private final Map<Type, MapDecoder> mapFastDecoders = new HashMap<>();
@@ -264,6 +266,74 @@ public enum ProtoBufCodecRegister {
         return decoder;
     }
 
+    public MapEntryDecoder getMapEntryDecoder(Type mapType, Class ownerCls, ProtoBufOption option) {
+        Map<Type, MapEntryDecoder> decodes;
+        if (option != null && option.getCodecType() == CodecType.FAST) {
+            decodes = mapEntryFastDecoders;
+        } else {
+            decodes = mapEntryDecoders;
+        }
+        MapEntryDecoder encoder = decodes.get(mapType);
+        if (encoder != null) {
+            return encoder;
+        }
+        ReentrantLock mapEntryLock = mapEntryLocks.get(mapType);
+        if (mapEntryLock == null) {
+            mapEntryLock = new ReentrantLock();
+            ReentrantLock old = mapEntryLocks.putIfAbsent(mapType, mapEntryLock);
+            if (old != null) {
+                mapEntryLock = old;
+            }
+        }
+        mapEntryLock.lock();
+        try {
+            ProtoCodecLoader decoderLoader;
+            if (ownerCls != null) {
+                decoderLoader = getCodecLoader(ownerCls);
+            } else {
+                decoderLoader = getCodecLoader(ProtoBufCodecRegister.class);
+            }
+            String decoderName = buildMapEntryDecoderName(mapType, option);
+            Class encoderCls = null;
+            try {
+                encoderCls = decoderLoader.loadClass(decoderName);
+            } catch (ClassNotFoundException e) {
+            }
+            if (encoderCls == null) {
+                MapEntryDecoderGenerator meeg = new MapEntryDecoderGenerator(mapType, option);
+                GeneratorClassInfo gci = meeg.getClassInfo();
+                saveJavaFile("./" + toInternalName(gci.clazzName) + ".class", gci.clazzBytes);
+                try {
+                    encoderCls = decoderLoader.define(decoderName, gci.clazzBytes, 0, gci.clazzBytes.length);
+                } catch (Throwable e) {
+                    try {
+                        encoderCls = decoderLoader.loadClass(decoderName);
+                    } catch (ClassNotFoundException ex) {
+
+                    }
+                }
+            }
+            if (encoderCls != null) {
+                encoder = (MapEntryDecoder) encoderCls.getDeclaredConstructors()[0].newInstance(new Object[0]);
+                if (encoder != null) {
+                    decodes.put(mapType, encoder);
+                    return encoder;
+                }
+            }
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        } catch (InvocationTargetException e) {
+            throw new RuntimeException(e);
+        } catch (InstantiationException e) {
+            throw new RuntimeException(e);
+        } catch (IllegalAccessException e) {
+            throw new RuntimeException(e);
+        } finally {
+            mapEntryLock.unlock();
+        }
+        return null;
+    }
+
     public MapEntryEncoder getMapEntryEncoder(Type mapType, Class ownerCls, ProtoBufOption option) {
         Map<Type, MapEntryEncoder> encodes;
         if (option != null && option.getCodecType() == CodecType.FAST) {
@@ -291,7 +361,7 @@ public enum ProtoBufCodecRegister {
             } else {
                 encoderLoader = getCodecLoader(ProtoBufCodecRegister.class);
             }
-            String encoderName = buildMapEntryEncodeName(mapType, option);
+            String encoderName = buildMapEntryEncoderName(mapType, option);
             Class encoderCls = null;
             try {
                 encoderCls = encoderLoader.loadClass(encoderName);
