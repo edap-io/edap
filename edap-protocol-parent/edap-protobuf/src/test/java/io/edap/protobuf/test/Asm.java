@@ -1,10 +1,11 @@
 package io.edap.protobuf.test;
 
-import io.edap.protobuf.mapdecoder.MapEntryDecoder_539ff;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.util.ASMifier;
 import org.objectweb.asm.util.TraceClassVisitor;
+import pbe.io.edap.protobuf.test.message.v3.OneMapNoAccessEncoder;
+import pbef.io.edap.protobuf.test.message.v3.OneMapNoAccessEncoder2;
 
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
@@ -24,7 +25,7 @@ public class Asm {
 
 //        String clsPath = "/Users/louis/NetBeansProjects/edap/edap-json/target/test-classes/" +
 //                "io/edap/json/test/DemoPojoDecoder.class";
-        String clsPath = MapEntryDecoder_539ff.class.getName();
+        String clsPath = OneMapNoAccessEncoder2.class.getName();
         ClassReader cr;
         if (clsPath.endsWith(".class") || clsPath.indexOf('\\') > -1
                 || clsPath.indexOf('/') > -1) {

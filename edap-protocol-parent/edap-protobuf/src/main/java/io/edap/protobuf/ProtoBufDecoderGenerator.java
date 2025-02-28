@@ -50,6 +50,7 @@ public class ProtoBufDecoderGenerator {
     static final String FIELD_TYPE_NAME  = toInternalName(Field.Type.class.getName());
     static final String CLAZZ_UTIL_NAME  = toInternalName(ClazzUtil.class.getName());
     static final String MAP_DECODER_NAME = toInternalName(MapDecoder.class.getName());
+    static final String MAP_ENTRY_DECODER_NAME = toInternalName(MapEntryDecoder.class.getName());
 
     static final String PROTO_OPTION_NAME = toInternalName(ProtoBufOption.class.getName());
 
@@ -71,7 +72,9 @@ public class ProtoBufDecoderGenerator {
     private final List<String> arrayMethods = new ArrayList<>();
     private final List<String> mapMethods = new ArrayList<>();
     private final List<String> mapDecoders = new ArrayList<>();
-    private final List<String> getMapDecoderMehods = new ArrayList<>();
+    private final List<String> getMapDecoderMethods = new ArrayList<>();
+    private final List<String> mapEntryDecoders = new ArrayList<>();
+    private final List<String> mapEntryFieldNames = new ArrayList<>();
 
     private final java.lang.reflect.Type parentMapType;
 
@@ -222,6 +225,7 @@ public class ProtoBufDecoderGenerator {
 
         List<Object> framObjs = new ArrayList<>();
         Map<String, Integer> mapDecoderVars = new HashMap<>();
+
         framObjs.add(pojoName);
 
         int preNextVar = 3;
@@ -274,7 +278,7 @@ public class ProtoBufDecoderGenerator {
 
                     mv.visitLdcInsn(org.objectweb.asm.Type.getType("L" +  pojoName + ";"));
                     mv.visitLdcInsn(pfi.field.getName());
-                    mv.visitMethodInsn(INVOKESTATIC, "io/edap/protobuf/util/ProtoUtil", "getFeldType",
+                    mv.visitMethodInsn(INVOKESTATIC, "io/edap/protobuf/util/ProtoUtil", "getFieldType",
                             "(Ljava/lang/Class;Ljava/lang/String;)Ljava/lang/reflect/Type;", false);
                     preNextVar++;
                     mv.visitVarInsn(ASTORE, preNextVar);
@@ -293,6 +297,8 @@ public class ProtoBufDecoderGenerator {
                 }
             }
         }
+
+        Map<String, Integer> mapEntryVars = new HashMap<>();
         preNextVar += listFields.size();
         Map<Integer, Integer> aMapTag = new HashMap<>();
         for (int i=0;i<mapFields.size();i++) {
@@ -306,6 +312,17 @@ public class ProtoBufDecoderGenerator {
             mv.visitVarInsn(ASTORE, varIndex);
             aMapTag.put(pfi.protoField.tag(), varIndex);
             framObjs.add("java/util/Map");
+
+            String mapDecoderName = buildMapDecoderName(pfi.field.getGenericType(), option);
+            String simpleName     = getSimpleName(mapDecoderName);
+            String fieldName      = lowerCaseFirstChar(simpleName);
+            ProtoUtil.MapEntryTypeInfo info = getMapEntryTypeInfo(pfi.field.getGenericType());
+            if (!mapEntryFieldNames.contains(fieldName)) {
+                FieldVisitor fv = cw.visitField(ACC_PRIVATE, fieldName, "L" + MAP_ENTRY_DECODER_NAME + ";",
+                        "L" + MAP_ENTRY_DECODER_NAME + "<" + getDescriptor(info.getKeyType()) +
+                                getDescriptor(info.getValueType()) + ">;", null);
+                fv.visitEnd();
+            }
         }
 
         framObjs.add("java/lang/Integer");
@@ -523,42 +540,51 @@ public class ProtoBufDecoderGenerator {
                     mv.visitInsn(POP);
                 }
             } else if (isMap(pfi.field.getGenericType())) {
-                String keyTypeDesc = "Ljava/lang/Object;";
-                String valTypeDesc = "Ljava/lang/Object;";
-                if (pfi.field.getGenericType() instanceof ParameterizedType) {
-                    ParameterizedType ptype = (ParameterizedType) pfi.field.getGenericType();
-                    keyTypeDesc = getDescriptor(ptype.getActualTypeArguments()[0]);
-                    valTypeDesc = getDescriptor(ptype.getActualTypeArguments()[1]);
-                }
-                Class mapEntryCls = ProtoBufCodecRegister.INSTANCE
-                        .generateMapEntryClass(pfi.field.getGenericType(), null, pojoCls);
-                String codecName = getMapCodecName(mapEntryCls);
-                String mapTypeName = toInternalName(mapEntryCls.getName());
-
-                mv.visitVarInsn(ALOAD, 1);
+                String mapDecoderName = buildMapDecoderName(pfi.field.getGenericType(), option);
+                String simpleName     = getSimpleName(mapDecoderName);
+                String fieldName      = lowerCaseFirstChar(simpleName);
                 mv.visitVarInsn(ALOAD, 0);
-                mv.visitFieldInsn(GETFIELD, pojoCodecName, codecName,
-                        "L" + IFACE_NAME + ";");
-                if (isFast) {
-                    visitIntInsn(makeTag(pfi.protoField.tag(), WireType.END_GROUP), mv);
-                    visitMethod(mv, INVOKEINTERFACE, READER_NAME, "readMessage",
-                            "(L" + IFACE_NAME + ";I)Ljava/lang/Object;", true);
-                } else {
-                    visitMethod(mv, INVOKEINTERFACE, READER_NAME, "readMessage",
-                            "(L" + IFACE_NAME + ";)Ljava/lang/Object;", true);
-                }
-                mv.visitTypeInsn(CHECKCAST, mapTypeName);
-                varSwitchPre++;
-                mv.visitVarInsn(ASTORE, varSwitchPre);
+                mv.visitFieldInsn(GETFIELD, pojoCodecName, fieldName, "L" + MAP_ENTRY_DECODER_NAME +";");
+                mv.visitVarInsn(ALOAD, 1);
                 mv.visitVarInsn(ALOAD, aMapTag.get(pfi.protoField.tag()));
-                mv.visitVarInsn(ALOAD, varSwitchPre);
-                mv.visitFieldInsn(GETFIELD, mapTypeName, "key", keyTypeDesc);
-                mv.visitVarInsn(ALOAD, varSwitchPre);
-                mv.visitFieldInsn(GETFIELD, mapTypeName, "value", valTypeDesc);
-                visitMethod(mv, INVOKEINTERFACE, "java/util/Map", "put",
-                        "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;",
-                        true);
-                mv.visitInsn(POP);
+                mv.visitMethodInsn(INVOKEINTERFACE, MAP_ENTRY_DECODER_NAME, "decode",
+                        "(L" + READER_NAME +";Ljava/util/Map;)V", true);
+//                String keyTypeDesc = "Ljava/lang/Object;";
+//                String valTypeDesc = "Ljava/lang/Object;";
+//                if (pfi.field.getGenericType() instanceof ParameterizedType) {
+//                    ParameterizedType ptype = (ParameterizedType) pfi.field.getGenericType();
+//                    keyTypeDesc = getDescriptor(ptype.getActualTypeArguments()[0]);
+//                    valTypeDesc = getDescriptor(ptype.getActualTypeArguments()[1]);
+//                }
+//                Class mapEntryCls = ProtoBufCodecRegister.INSTANCE
+//                        .generateMapEntryClass(pfi.field.getGenericType(), null, pojoCls);
+//                String codecName = getMapCodecName(mapEntryCls);
+//                String mapTypeName = toInternalName(mapEntryCls.getName());
+//
+//                mv.visitVarInsn(ALOAD, 1);
+//                mv.visitVarInsn(ALOAD, 0);
+//                mv.visitFieldInsn(GETFIELD, pojoCodecName, codecName,
+//                        "L" + IFACE_NAME + ";");
+//                if (isFast) {
+//                    visitIntInsn(makeTag(pfi.protoField.tag(), WireType.END_GROUP), mv);
+//                    visitMethod(mv, INVOKEINTERFACE, READER_NAME, "readMessage",
+//                            "(L" + IFACE_NAME + ";I)Ljava/lang/Object;", true);
+//                } else {
+//                    visitMethod(mv, INVOKEINTERFACE, READER_NAME, "readMessage",
+//                            "(L" + IFACE_NAME + ";)Ljava/lang/Object;", true);
+//                }
+//                mv.visitTypeInsn(CHECKCAST, mapTypeName);
+//                varSwitchPre++;
+//                mv.visitVarInsn(ASTORE, varSwitchPre);
+//                mv.visitVarInsn(ALOAD, aMapTag.get(pfi.protoField.tag()));
+//                mv.visitVarInsn(ALOAD, varSwitchPre);
+//                mv.visitFieldInsn(GETFIELD, mapTypeName, "key", keyTypeDesc);
+//                mv.visitVarInsn(ALOAD, varSwitchPre);
+//                mv.visitFieldInsn(GETFIELD, mapTypeName, "value", valTypeDesc);
+//                visitMethod(mv, INVOKEINTERFACE, "java/util/Map", "put",
+//                        "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;",
+//                        true);
+//                mv.visitInsn(POP);
 
             } else if (isList(pfi.field.getGenericType())) {
 
@@ -899,7 +925,7 @@ public class ProtoBufDecoderGenerator {
         String mapDecoderName = buildMapDecoderName(mapType, option);
         String simpleName     = getSimpleName(mapDecoderName);
         String fieldName      = lowerCaseFirstChar(simpleName);
-        if (!getMapDecoderMehods.contains(fieldName)) {
+        if (!getMapDecoderMethods.contains(fieldName)) {
             MethodVisitor mv = cw.visitMethod(ACC_PUBLIC, "get" + simpleName,
                     "(Ljava/lang/reflect/Type;)L" + MAP_DECODER_NAME + ";", null, null);
             mv.visitCode();
@@ -924,7 +950,7 @@ public class ProtoBufDecoderGenerator {
             mv.visitMaxs(5, 2);
             mv.visitEnd();
 
-            getMapDecoderMehods.add(fieldName);
+            getMapDecoderMethods.add(fieldName);
         }
     }
 
@@ -1193,35 +1219,36 @@ public class ProtoBufDecoderGenerator {
             String codecName = getPojoDecoderName(type);
             String encoderName = toInternalName(getDecoderName((Class)type, option));
             if (!encoderName.equals(pojoCodecName)) {
-                cw.visitField(ACC_PRIVATE, codecName, "L" + IFACE_NAME + ";",
+                FieldVisitor fvPojoDecoder = cw.visitField(ACC_PRIVATE, codecName, "L" + IFACE_NAME + ";",
                         "L" + IFACE_NAME + "<L" + itemType + ";>;", null);
+                fvPojoDecoder.visitEnd();
             }
         }
-        Map<String, String> mapNames = new HashMap<>();
-        for (ProtoFieldInfo pfi : mapFields) {
-            Class mapCls = ProtoBufCodecRegister.INSTANCE
-                    .generateMapEntryClass(pfi.field.getGenericType(), null, pojoCls);
-            String codecName = getMapCodecName(mapCls);
-            if (!mapNames.containsKey(codecName)) {
-                String itemType = toInternalName(mapCls.getName());
-                cw.visitField(ACC_PRIVATE, codecName, "L" + IFACE_NAME + ";",
-                        "L" + IFACE_NAME + "<L" + itemType + ";>;", null);
-                String typeName = getDescriptor(mapCls);
-                mapNames.put(codecName, typeName);
-            }
-        }
-        if (parentMapType != null) {
-            Class mapCls = ProtoBufCodecRegister.INSTANCE
-                    .generateMapEntryClass(parentMapType, null, pojoCls);
-            String codecName = getMapCodecName(mapCls);
-            if (!mapNames.containsKey(codecName)) {
-                String itemType = toInternalName(mapCls.getName());
-                cw.visitField(ACC_PRIVATE, codecName, "L" + IFACE_NAME + ";",
-                        "L" + IFACE_NAME + "<L" + itemType + ";>;", null);
-                String typeName = getDescriptor(mapCls);
-                mapNames.put(codecName, typeName);
-            }
-        }
+//        Map<String, String> mapNames = new HashMap<>();
+//        for (ProtoFieldInfo pfi : mapFields) {
+//            Class mapCls = ProtoBufCodecRegister.INSTANCE
+//                    .generateMapEntryClass(pfi.field.getGenericType(), null, pojoCls);
+//            String codecName = getMapCodecName(mapCls);
+//            if (!mapNames.containsKey(codecName)) {
+//                String itemType = toInternalName(mapCls.getName());
+//                cw.visitField(ACC_PRIVATE, codecName, "L" + IFACE_NAME + ";",
+//                        "L" + IFACE_NAME + "<L" + itemType + ";>;", null);
+//                String typeName = getDescriptor(mapCls);
+//                mapNames.put(codecName, typeName);
+//            }
+//        }
+//        if (parentMapType != null) {
+//            Class mapCls = ProtoBufCodecRegister.INSTANCE
+//                    .generateMapEntryClass(parentMapType, null, pojoCls);
+//            String codecName = getMapCodecName(mapCls);
+//            if (!mapNames.containsKey(codecName)) {
+//                String itemType = toInternalName(mapCls.getName());
+//                cw.visitField(ACC_PRIVATE, codecName, "L" + IFACE_NAME + ";",
+//                        "L" + IFACE_NAME + "<L" + itemType + ";>;", null);
+//                String typeName = getDescriptor(mapCls);
+//                mapNames.put(codecName, typeName);
+//            }
+//        }
 
         MethodVisitor mv;
         mv = cw.visitMethod(ACC_PUBLIC, "<init>", "()V", null, null);
@@ -1240,83 +1267,89 @@ public class ProtoBufDecoderGenerator {
             String codecName = getPojoDecoderName(type);
             String encoderName = toInternalName(getDecoderName((Class)type, option));
             if (!encoderName.equals(pojoCodecName)) {
-                if (isFast && !hasOption) {
-                    mv.visitTypeInsn(NEW, PROTO_OPTION_NAME);
-                    mv.visitInsn(DUP);
-                    mv.visitMethodInsn(INVOKESPECIAL, PROTO_OPTION_NAME, "<init>",
-                            "()V", false);
-                    mv.visitVarInsn(ASTORE, 1);
-                    mv.visitVarInsn(ALOAD, 1);
-                    mv.visitFieldInsn(GETSTATIC, "io/edap/protobuf/CodecType",
-                            "FAST", "Lio/edap/protobuf/CodecType;");
-                    mv.visitMethodInsn(INVOKEVIRTUAL, PROTO_OPTION_NAME, "setCodecType",
-                            "(Lio/edap/protobuf/CodecType;)V", false);
-                    hasOption = true;
-                }
                 mv.visitVarInsn(ALOAD, 0);
                 mv.visitFieldInsn(GETSTATIC, REGISTER_NAME,
                         "INSTANCE", "L" + REGISTER_NAME + ";");
                 String tdescriptor = getDescriptor(type);
                 mv.visitLdcInsn(org.objectweb.asm.Type.getType(tdescriptor));
-                if (isFast) {
-                    mv.visitVarInsn(ALOAD, 1);
-                    visitMethod(mv, INVOKEVIRTUAL, REGISTER_NAME, getCodecName,
-                            "(Ljava/lang/Class;L" + PROTO_OPTION_NAME + ";)L" + IFACE_NAME + ";", false);
-                } else {
-                    visitMethod(mv, INVOKEVIRTUAL, REGISTER_NAME, getCodecName,
-                            "(Ljava/lang/Class;)L" + IFACE_NAME + ";", false);
-                }
+                mv.visitFieldInsn(GETSTATIC, pojoCodecName, "PROTO_BUF_OPTION",
+                        "L" + PROTO_OPTION_NAME + ";");
+                mv.visitMethodInsn(INVOKEVIRTUAL, REGISTER_NAME, "getDecoder",
+                        "(Ljava/lang/Class;L" + PROTO_OPTION_NAME +";)L" + IFACE_NAME + ";", false);
                 mv.visitFieldInsn(PUTFIELD, pojoCodecName,
                         codecName, "L" + IFACE_NAME + ";");
             }
         }
 
-        for (Map.Entry<String, String> mapFields : mapNames.entrySet()) {
-            mv.visitVarInsn(ALOAD, 0);
-            mv.visitFieldInsn(GETSTATIC, REGISTER_NAME,
-                    "INSTANCE", "L" + REGISTER_NAME + ";");
-            mv.visitLdcInsn(org.objectweb.asm.Type.getType(mapFields.getValue()));
-            if (isFast && !hasOption) {
-                mv.visitTypeInsn(NEW, PROTO_OPTION_NAME);
-                mv.visitInsn(DUP);
-                mv.visitMethodInsn(INVOKESPECIAL, PROTO_OPTION_NAME, "<init>",
-                        "()V", false);
-                mv.visitVarInsn(ASTORE, 1);
-                mv.visitVarInsn(ALOAD, 1);
-                mv.visitFieldInsn(GETSTATIC, "io/edap/protobuf/CodecType",
-                        "FAST", "Lio/edap/protobuf/CodecType;");
-                mv.visitMethodInsn(INVOKEVIRTUAL, PROTO_OPTION_NAME, "setCodecType",
-                        "(Lio/edap/protobuf/CodecType;)V", false);
-                hasOption = true;
-            }
-            if (isFast) {
-                mv.visitVarInsn(ALOAD, 1);
-                visitMethod(mv, INVOKEVIRTUAL, REGISTER_NAME, getCodecName,
-                        "(Ljava/lang/Class;L" + PROTO_OPTION_NAME + ";)L" + IFACE_NAME + ";", false);
-            } else {
-                visitMethod(mv, INVOKEVIRTUAL, REGISTER_NAME, getCodecName,
-                        "(Ljava/lang/Class;)L" + IFACE_NAME + ";", false);
-            }
-            mv.visitFieldInsn(PUTFIELD, pojoCodecName,
-                    mapFields.getKey(), "L" + IFACE_NAME + ";");
-        }
-        if (parentMapType != null) {
-            Class mapCls = ProtoBufCodecRegister.INSTANCE
-                    .generateMapEntryClass(parentMapType, null, pojoCls);
-            String codecName = getMapCodecName(mapCls);
-            String itemType = toInternalName(mapCls.getName());
-            if (!mapNames.containsKey(codecName)) {
-                cw.visitField(ACC_PRIVATE, codecName, "L" + IFACE_NAME + ";",
-                        "L" + IFACE_NAME + "<L" + itemType + ";>;", null);
-                String typeName = getDescriptor(mapCls);
-                mapNames.put(codecName, typeName);
-            }
+        int varType = 1;
+        for (ProtoFieldInfo pfi : mapFields) {
+            String mapDecoderName = buildMapDecoderName(pfi.field.getGenericType(), option);
+            String simpleName     = getSimpleName(mapDecoderName);
+            String fieldName      = lowerCaseFirstChar(simpleName);
+            mv.visitLdcInsn(org.objectweb.asm.Type.getType("L" + pojoName + ";"));
+            mv.visitLdcInsn(pfi.field.getName());
+            mv.visitMethodInsn(INVOKESTATIC, "io/edap/protobuf/util/ProtoUtil", "getFieldType",
+                    "(Ljava/lang/Class;Ljava/lang/String;)Ljava/lang/reflect/Type;", false);
+            mv.visitVarInsn(ASTORE, varType);
             mv.visitVarInsn(ALOAD, 0);
             mv.visitFieldInsn(GETSTATIC, REGISTER_NAME, "INSTANCE", "L" + REGISTER_NAME + ";");
-            mv.visitLdcInsn(org.objectweb.asm.Type.getType("L" + itemType + ";"));
-            mv.visitMethodInsn(INVOKEVIRTUAL, REGISTER_NAME, "getDecoder", "(Ljava/lang/Class;)L" + IFACE_NAME + ";", false);
-            mv.visitFieldInsn(PUTFIELD, pojoCodecName, codecName, "L" + IFACE_NAME + ";");
+            mv.visitVarInsn(ALOAD, varType);
+            mv.visitInsn(ACONST_NULL);
+            mv.visitTypeInsn(CHECKCAST, "java/lang/Class");
+            mv.visitFieldInsn(GETSTATIC, pojoCodecName, "PROTO_BUF_OPTION", "L" + PROTO_OPTION_NAME + ";");
+            mv.visitMethodInsn(INVOKEVIRTUAL, REGISTER_NAME, "getMapEntryDecoder",
+                    "(Ljava/lang/reflect/Type;Ljava/lang/Class;L" + PROTO_OPTION_NAME + ";)L" +
+                            MAP_ENTRY_DECODER_NAME + ";", false);
+            mv.visitFieldInsn(PUTFIELD, pojoCodecName, fieldName, "L" + MAP_ENTRY_DECODER_NAME + ";");
         }
+
+
+//        for (Map.Entry<String, String> mapFields : mapNames.entrySet()) {
+//            mv.visitVarInsn(ALOAD, 0);
+//            mv.visitFieldInsn(GETSTATIC, REGISTER_NAME,
+//                    "INSTANCE", "L" + REGISTER_NAME + ";");
+//            mv.visitLdcInsn(org.objectweb.asm.Type.getType(mapFields.getValue()));
+//            if (isFast && !hasOption) {
+//                mv.visitTypeInsn(NEW, PROTO_OPTION_NAME);
+//                mv.visitInsn(DUP);
+//                mv.visitMethodInsn(INVOKESPECIAL, PROTO_OPTION_NAME, "<init>",
+//                        "()V", false);
+//                mv.visitVarInsn(ASTORE, 1);
+//                mv.visitVarInsn(ALOAD, 1);
+//                mv.visitFieldInsn(GETSTATIC, "io/edap/protobuf/CodecType",
+//                        "FAST", "Lio/edap/protobuf/CodecType;");
+//                mv.visitMethodInsn(INVOKEVIRTUAL, PROTO_OPTION_NAME, "setCodecType",
+//                        "(Lio/edap/protobuf/CodecType;)V", false);
+//                hasOption = true;
+//            }
+//            if (isFast) {
+//                mv.visitVarInsn(ALOAD, 1);
+//                visitMethod(mv, INVOKEVIRTUAL, REGISTER_NAME, getCodecName,
+//                        "(Ljava/lang/Class;L" + PROTO_OPTION_NAME + ";)L" + IFACE_NAME + ";", false);
+//            } else {
+//                visitMethod(mv, INVOKEVIRTUAL, REGISTER_NAME, getCodecName,
+//                        "(Ljava/lang/Class;)L" + IFACE_NAME + ";", false);
+//            }
+//            mv.visitFieldInsn(PUTFIELD, pojoCodecName,
+//                    mapFields.getKey(), "L" + IFACE_NAME + ";");
+//        }
+//        if (parentMapType != null) {
+//            Class mapCls = ProtoBufCodecRegister.INSTANCE
+//                    .generateMapEntryClass(parentMapType, null, pojoCls);
+//            String codecName = getMapCodecName(mapCls);
+//            String itemType = toInternalName(mapCls.getName());
+//            if (!mapNames.containsKey(codecName)) {
+//                cw.visitField(ACC_PRIVATE, codecName, "L" + IFACE_NAME + ";",
+//                        "L" + IFACE_NAME + "<L" + itemType + ";>;", null);
+//                String typeName = getDescriptor(mapCls);
+//                mapNames.put(codecName, typeName);
+//            }
+//            mv.visitVarInsn(ALOAD, 0);
+//            mv.visitFieldInsn(GETSTATIC, REGISTER_NAME, "INSTANCE", "L" + REGISTER_NAME + ";");
+//            mv.visitLdcInsn(org.objectweb.asm.Type.getType("L" + itemType + ";"));
+//            mv.visitMethodInsn(INVOKEVIRTUAL, REGISTER_NAME, "getDecoder", "(Ljava/lang/Class;)L" + IFACE_NAME + ";", false);
+//            mv.visitFieldInsn(PUTFIELD, pojoCodecName, codecName, "L" + IFACE_NAME + ";");
+//        }
 
         visitReflectField(mv, fields);
 
@@ -1397,6 +1430,11 @@ public class ProtoBufDecoderGenerator {
         mv.visitInsn(DUP);
         mv.visitMethodInsn(INVOKESPECIAL, PROTO_OPTION_NAME, "<init>", "()V", false);
         mv.visitFieldInsn(PUTSTATIC, pojoCodecName, "PROTO_BUF_OPTION", "L" + PROTO_OPTION_NAME + ";");
+        if (option != null && option.getCodecType() == CodecType.FAST) {
+            mv.visitFieldInsn(GETSTATIC, pojoCodecName, "PROTO_BUF_OPTION", "L" + PROTO_OPTION_NAME + ";");
+            mv.visitFieldInsn(GETSTATIC, "io/edap/protobuf/CodecType", "FAST", "Lio/edap/protobuf/CodecType;");
+            mv.visitMethodInsn(INVOKEVIRTUAL, PROTO_OPTION_NAME, "setCodecType", "(Lio/edap/protobuf/CodecType;)V", false);
+        }
 
         int innerClsCount = 0;
         for (int i=0;i<arrayFields.size();i++) {

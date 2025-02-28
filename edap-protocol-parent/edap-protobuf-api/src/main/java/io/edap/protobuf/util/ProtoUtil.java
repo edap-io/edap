@@ -883,7 +883,7 @@ public class ProtoUtil {
         if (option != null && CodecType.FAST == option.getCodecType()) {
             name.append('f');
         }
-        name.append("mapdecoder.MapDecoder_");
+        name.append("mapdecoder.MapEntryDecoder_");
         if (mapType instanceof ParameterizedType) {
             ParameterizedType ptype = (ParameterizedType)mapType;
             java.lang.reflect.Type[] types = ptype.getActualTypeArguments();
@@ -908,7 +908,7 @@ public class ProtoUtil {
         return name.toString();
     }
 
-    public static java.lang.reflect.Type getFeldType(Class cls, String fieldName) {
+    public static java.lang.reflect.Type getFieldType(Class cls, String fieldName) {
         try {
             return cls.getDeclaredField(fieldName).getGenericType();
         } catch (Exception e) {
@@ -1268,7 +1268,7 @@ public class ProtoUtil {
     }
 
     public static String lowerCaseFirstChar(String name) {
-        if (StringUtil.isEmpty(name)) {
+        if (!StringUtil.isEmpty(name)) {
             return name.substring(0, 1).toLowerCase(Locale.ENGLISH) + name.substring(1);
         }
 

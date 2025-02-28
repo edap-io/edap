@@ -27,50 +27,30 @@ import java.util.List;
 import java.util.Map;
 
 public class ListMapFieldEncoder implements ProtoBufEncoder<ListMapFieldModel> {
+    private static final ProtoBufOption PROTO_BUF_OPTION = new ProtoBufOption();
     private static final byte[] tag1;
-
-    private static final byte[] mapTag1;
-
-    private static final ProtoBufOption PROTO_BUF_OPTION;
-
-    private MapEntryEncoder<String, Object> mapEntryEncoder;
-
+    private MapEntryEncoder mapEntryDecoder_c76246d865f02f3afdfdcf953ba6a35e;
     static {
-        PROTO_BUF_OPTION = new ProtoBufOption();
         tag1 = ProtoUtil.buildFieldData(1, Field.Type.OBJECT, Field.Cardinality.REPEATED);
-        mapTag1 = ProtoUtil.buildFieldData(1, Field.Type.MESSAGE, Field.Cardinality.REPEATED);
     }
 
     public ListMapFieldEncoder() {
+
     }
 
     public void encode(ProtoBufWriter var1, ListMapFieldModel var2) throws EncodeException {
         try {
-            this.writeList_0(var1, var2.getListMap());
-        } catch (Exception var4) {
-            throw new EncodeException(var4);
-        }
-    }
+            if (!CollectionUtils.isEmpty(var2.getListMap())) {
+                MapEntryEncoder var3 = this.mapEntryDecoder_c76246d865f02f3afdfdcf953ba6a35e;
+                List var4 = var2.getListMap();
 
-    private void writeList_0(ProtoBufWriter writer, List<Map<String, Object>> vs) throws EncodeException {
-        if (CollectionUtils.isEmpty(vs)) {
-            return;
-        }
-        MapEntryEncoder<String, Object> encoder = getMapEntryEncoder();
-        for (int i=0;i<vs.size();i++) {
-            writer.writeMap(mapTag1, 1, vs.get(i), encoder);
-        }
-    }
+                for(int var5 = 0; var5 < var4.size(); ++var5) {
+                    var1.writeMapMessage(tag1, 1, (Map)var4.get(var5), var3);
+                }
 
-    private MapEntryEncoder<String, Object> getMapEntryEncoder() {
-        if (mapEntryEncoder == null) {
-            try {
-                mapEntryEncoder = ProtoBufCodecRegister.INSTANCE.getMapEntryEncoder(
-                        ListMapFieldModel.class.getDeclaredField("").getGenericType(), null, PROTO_BUF_OPTION);
-            } catch (Throwable e) {
-                throw  new RuntimeException(e.getMessage(), e);
             }
+        } catch (Exception var6) {
+            throw new EncodeException(var6);
         }
-        return mapEntryEncoder;
     }
 }

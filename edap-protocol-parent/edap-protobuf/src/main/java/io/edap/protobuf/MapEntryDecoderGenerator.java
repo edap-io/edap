@@ -91,7 +91,17 @@ public class MapEntryDecoderGenerator {
                 "(L" + READER_NAME + ";Ljava/util/Map<" + keyTypeSignature + valTypeSingature + ">;)V",
                 new String[]{"io/edap/protobuf/ProtoException"});
         mv.visitCode();
-
+        boolean isFast;
+        if (option != null && option.getCodecType() == CodecType.FAST) {
+            isFast = true;
+        } else {
+            isFast = false;
+        }
+        if (!isFast) {
+            mv.visitVarInsn(ALOAD, 1);
+            mv.visitMethodInsn(INVOKEINTERFACE, READER_NAME, "readUInt32", "()I", true);
+            mv.visitInsn(POP);
+        }
         mv.visitVarInsn(ALOAD, 1);
         mv.visitMethodInsn(INVOKEINTERFACE, READER_NAME, "readTag", "()I", true);
         mv.visitInsn(POP);
@@ -110,16 +120,30 @@ public class MapEntryDecoderGenerator {
         mv.visitVarInsn(ALOAD, varKey);
         if (isPojo(valueType)) {
             String getDecoderMethodName = "getValueDecoder";
-            visitGetPojoDecodeMethod(valueType, getDecoderMethodName, valTypeSingature);
+            String fieldName = lowerCaseFirstChar(getDecoderMethodName.substring(3));
+            visitGetPojoDecodeMethod(fieldName, getDecoderMethodName, valueType, valTypeSingature);
+
+            FieldVisitor valFv = cw.visitField(ACC_PRIVATE, fieldName, "L" + PB_DECODER_NAME + ";",
+                    "L" + PB_DECODER_NAME + "<" + valTypeSingature + ">;", null);
+            valFv.visitEnd();
 
             mv.visitVarInsn(ALOAD, 1);
             mv.visitVarInsn(ALOAD, 0);
             mv.visitMethodInsn(INVOKEVIRTUAL, decoderName, getDecoderMethodName,
                     "()L" + PB_DECODER_NAME + ";", false);
-            mv.visitMethodInsn(INVOKEINTERFACE, READER_NAME, "readMessage",
-                    "(L" + PB_DECODER_NAME + ";)Ljava/lang/Object;", true);
-            mv.visitTypeInsn(CHECKCAST, valTypeSingature.substring(0, valTypeSingature.length()-1));
-
+            if (!isFast) {
+                mv.visitMethodInsn(INVOKEINTERFACE, READER_NAME, "readMessage",
+                        "(L" + PB_DECODER_NAME + ";)Ljava/lang/Object;", true);
+            } else {
+                mv.visitInsn(ICONST_2);
+                mv.visitFieldInsn(GETSTATIC, "io/edap/protobuf/wire/WireType", "END_GROUP",
+                        "Lio/edap/protobuf/wire/WireType;");
+                mv.visitMethodInsn(INVOKESTATIC, "io/edap/protobuf/wire/WireFormat", "makeTag",
+                        "(ILio/edap/protobuf/wire/WireType;)I", false);
+                mv.visitMethodInsn(INVOKEINTERFACE, READER_NAME, "readMessage",
+                        "(L" + PB_DECODER_NAME + ";I)Ljava/lang/Object;", true);
+            }
+            mv.visitTypeInsn(CHECKCAST, valTypeSingature.substring(1, valTypeSingature.length() - 1));
         } else {
             readMethod = getReadMethod(valueType, 2);
             mv.visitVarInsn(ALOAD, 1);
@@ -128,6 +152,12 @@ public class MapEntryDecoderGenerator {
         mv.visitMethodInsn(INVOKEINTERFACE, "java/util/Map", "put",
                 "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;", true);
         mv.visitInsn(POP);
+
+        if (isFast) {
+            mv.visitVarInsn(ALOAD, 1);
+            mv.visitMethodInsn(INVOKEINTERFACE, READER_NAME, "readUInt32", "()I", true);
+            mv.visitInsn(POP);
+        }
 
         mv.visitInsn(RETURN);
         mv.visitMaxs(4, 4);
@@ -140,26 +170,26 @@ public class MapEntryDecoderGenerator {
         return rmi.getMethod();
     }
 
-    private void visitGetPojoDecodeMethod(Type type, String methodName, String typeSignature) {
+    private void visitGetPojoDecodeMethod(String fieldName, String methodName, Type type, String typeSignature) {
         MethodVisitor mv = cw.visitMethod(ACC_PRIVATE, methodName, "()L" + PB_DECODER_NAME+ ";",
                 "()L" + PB_DECODER_NAME+ "<" + typeSignature + ">;", null);
         mv.visitCode();
 
         mv.visitVarInsn(ALOAD, 0);
-        mv.visitFieldInsn(GETFIELD, decoderName, "valDecoder", "L" + PB_DECODER_NAME + ";");
+        mv.visitFieldInsn(GETFIELD, decoderName, fieldName, "L" + PB_DECODER_NAME + ";");
         Label lbNotNull = new Label();
         mv.visitJumpInsn(IFNONNULL, lbNotNull);
         mv.visitVarInsn(ALOAD, 0);
-        mv.visitFieldInsn(GETSTATIC, PB_REGISTER_NAME, "INSTANCE", "L" + READER_NAME + ";");
+        mv.visitFieldInsn(GETSTATIC, PB_REGISTER_NAME, "INSTANCE", "L" + PB_REGISTER_NAME + ";");
         mv.visitLdcInsn(org.objectweb.asm.Type.getType(getDescriptor(type)));
         mv.visitFieldInsn(GETSTATIC, decoderName, "PROTO_BUF_OPTION", "L" + PROTOBUF_OPTIION_NAME + ";");
         mv.visitMethodInsn(INVOKEVIRTUAL, PB_REGISTER_NAME, "getDecoder",
                 "(Ljava/lang/Class;L" + PROTOBUF_OPTIION_NAME + ";)L" + PB_DECODER_NAME + ";", false);
-        mv.visitFieldInsn(PUTFIELD, decoderName, "valDecoder", "L" + PB_DECODER_NAME + ";");
+        mv.visitFieldInsn(PUTFIELD, decoderName, fieldName, "L" + PB_DECODER_NAME + ";");
 
         mv.visitLabel(lbNotNull);
         mv.visitVarInsn(ALOAD, 0);
-        mv.visitFieldInsn(GETFIELD, decoderName, "valDecoder", "L" + PB_DECODER_NAME + ";");
+        mv.visitFieldInsn(GETFIELD, decoderName, fieldName, "L" + PB_DECODER_NAME + ";");
         mv.visitInsn(ARETURN);
         mv.visitMaxs(4, 1);
         mv.visitEnd();
@@ -190,11 +220,9 @@ public class MapEntryDecoderGenerator {
                     "(Lio/edap/protobuf/CodecType;)V", false);
         }
 
-        if (isPojo(valueType)) {
-            FieldVisitor valFv = cw.visitField(ACC_PRIVATE, "valDecoder", "L" + PB_DECODER_NAME + ";",
-                    "L" + PB_DECODER_NAME + "<" + valTypeSingature + ">;", null);
-            valFv.visitEnd();
-        }
+        mv.visitInsn(RETURN);
+        mv.visitMaxs(2, 0);
+        mv.visitEnd();
     }
 
     private void visitInitMethod() {
