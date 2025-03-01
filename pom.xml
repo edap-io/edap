@@ -31,16 +31,16 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven.compiler.source>8</maven.compiler.source>
         <maven.compiler.target>8</maven.compiler.target>
-        <junit.jupiter.version>5.11.0-M2</junit.jupiter.version>
-        <asm.version>9.4</asm.version>
-        <protobuf.java.verson>3.16.1</protobuf.java.verson>
+        <junit.jupiter.version>5.12.0</junit.jupiter.version>
+        <asm.version>9.7.1</asm.version>
+        <protobuf.java.verson>4.29.3</protobuf.java.verson>
         <qdox.verqdoxsion>2.0.3</qdox.verqdoxsion>
         <system.lambda.version>1.2.1</system.lambda.version>
-        <jmh.version>1.36</jmh.version>
-        <HikariCP.version>4.0.3</HikariCP.version>
+        <jmh.version>1.37</jmh.version>
+        <HikariCP.version>6.2.1</HikariCP.version>
         <spring.version>5.3.20</spring.version>
         <disruptor.version>3.4.4</disruptor.version>
-        <h2.version>2.2.224</h2.version>
+        <h2.version>2.3.232</h2.version>
     </properties>
 
     <modules>
