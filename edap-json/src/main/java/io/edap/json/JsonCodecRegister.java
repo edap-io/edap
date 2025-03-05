@@ -23,13 +23,17 @@ import io.edap.json.enums.JsonVersion;
 import io.edap.log.LoggerManager;
 import io.edap.util.internal.GeneratorClassInfo;
 
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Type;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
-import static io.edap.json.util.JsonUtil.buildDecoderName;
-import static io.edap.json.util.JsonUtil.buildEncoderName;
+import static io.edap.json.util.JsonUtil.*;
+import static io.edap.json.util.JsonUtil.buildMapDecoderName;
 import static io.edap.util.AsmUtil.saveJavaFile;
 import static io.edap.util.AsmUtil.toLangName;
 import static io.edap.util.CollectionUtils.isEmpty;
@@ -39,6 +43,9 @@ public class JsonCodecRegister {
     private static final Map<Class<?>, Map<String, JsonDecoder>> DECODER_MAP = new ConcurrentHashMap<>();
 
     private static final Map<Class<?>, JsonEncoder> ENCODER_MAP = new ConcurrentHashMap<>();
+    private static final Map<Type, MapEncoder> MAP_ENCODER_MAP = new ConcurrentHashMap<>();
+    private static final Map<Type, Lock> MAP_TYPE_LOCKS = new ConcurrentHashMap();
+    private static final Map<Type, JsonCodecLoader> MAP_ENCODER_LOADER = new HashMap<>();
 
     static {
         ENCODER_MAP.put(Boolean.class, new BooleanEncoder());
@@ -100,6 +107,100 @@ public class JsonCodecRegister {
             }
         }
         return codec;
+    }
+
+    public <K, V> MapEncoder<K, V> getMapEncoder(Type mapType, Class ownerClass, DataType dataType) {
+        MapEncoder encoder = MAP_ENCODER_MAP.get(mapType);
+        if (encoder != null) {
+            return encoder;
+        }
+        Lock lock = getMapTypeLock(mapType);
+        lock.lock();
+        try {
+            String encoderName = buildMapDecoderName(mapType);
+            JsonCodecLoader codecLoader = MAP_ENCODER_LOADER.get(mapType);
+            if (codecLoader == null) {
+                ClassLoader loader = getClassLoader(ownerClass);
+                codecLoader = new JsonCodecLoader(loader);
+                MAP_ENCODER_LOADER.put(mapType, codecLoader);
+            }
+            Class encoderCls;
+            try {
+                encoderCls = codecLoader.loadClass(encoderName);
+            } catch (ClassNotFoundException e) {
+                encoderCls = generateMapEncoderClass(mapType, dataType, codecLoader);
+            }
+            encoder = (MapEncoder)encoderCls.getDeclaredConstructors()[0].newInstance();
+            if (encoder != null) {
+                MAP_ENCODER_MAP.put(mapType, encoder);
+            }
+        } catch (InvocationTargetException e) {
+            throw new RuntimeException(e);
+        } catch (InstantiationException e) {
+            throw new RuntimeException(e);
+        } catch (IllegalAccessException e) {
+            throw new RuntimeException(e);
+        } finally {
+            lock.unlock();
+        }
+        return encoder;
+    }
+
+    private Class generateMapEncoderClass(Type mapType, DataType dataType, JsonCodecLoader loader) {
+        Class encoderCls;
+        String encoderName = buildMapDecoderName(mapType);
+        try {
+            long start = System.currentTimeMillis();
+            MapEncoderGenerator generator = new MapEncoderGenerator(mapType);
+            GeneratorClassInfo gci = generator.getClassInfo();
+
+            byte[] bs = gci.clazzBytes;
+            System.out.println("generate class time: " + (System.currentTimeMillis() - start));
+            saveJavaFile("./" + gci.clazzName + ".class", bs);
+            encoderCls = loader.define(encoderName, bs, 0, bs.length);
+            if (!isEmpty(gci.inners)) {
+                for (GeneratorClassInfo inner : gci.inners) {
+                    bs = inner.clazzBytes;
+                    String innerName = toLangName(inner.clazzName);
+                    saveJavaFile("./" + inner.clazzName + ".class", bs);
+                    loader.define(innerName, bs, 0, bs.length);
+                }
+            }
+        } catch (Throwable e) {
+            try {
+                if (loader.loadClass(encoderName) != null) {
+                    return loader.loadClass(encoderName);
+                }
+            } catch (ClassNotFoundException ex) {
+                throw new RuntimeException("generateEncoder "
+                        + mapType.getTypeName() + " error", ex);
+            }
+            throw new RuntimeException("generateEncoder "
+                    + mapType.getTypeName() + " error", e);
+        }
+
+        return encoderCls;
+    }
+
+    private ClassLoader getClassLoader(Class ownerClass) {
+        if (ownerClass == null) {
+            return JsonCodecRegister.class.getClassLoader();
+        }
+        return ownerClass.getClassLoader();
+    }
+
+    private Lock getMapTypeLock(Type mapType) {
+        Lock lock = MAP_TYPE_LOCKS.get(mapType);
+        if (lock != null) {
+            return lock;
+        }
+        lock = new ReentrantLock();
+        Lock oldLock = MAP_TYPE_LOCKS.putIfAbsent(mapType, lock);
+        if (oldLock != null) {
+            return lock;
+        }
+
+        return lock;
     }
 
     private JsonEncoder generateEncoder(Class cls) {

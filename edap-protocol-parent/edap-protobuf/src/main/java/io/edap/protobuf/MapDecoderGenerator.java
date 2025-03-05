@@ -18,7 +18,7 @@ package io.edap.protobuf;
 
 import io.edap.protobuf.annotation.ProtoField;
 import io.edap.protobuf.model.ProtoBufOption;
-import io.edap.protobuf.util.ProtoUtil;
+import io.edap.util.AsmUtil;
 import io.edap.util.internal.GeneratorClassInfo;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.Label;
@@ -28,6 +28,7 @@ import java.lang.reflect.Type;
 
 import static io.edap.protobuf.util.ProtoUtil.*;
 import static io.edap.protobuf.util.ProtoUtil.buildProtoReadMethod;
+import static io.edap.util.AsmUtil.getMapEntryTypeInfo;
 import static io.edap.util.AsmUtil.toInternalName;
 import static io.edap.util.ClazzUtil.getDescriptor;
 import static org.objectweb.asm.Opcodes.*;
@@ -49,7 +50,7 @@ public class MapDecoderGenerator {
     private ClassWriter cw;
 
     public MapDecoderGenerator(Type mapType, ProtoBufOption option) {
-        ProtoUtil.MapEntryTypeInfo info = getMapEntryTypeInfo(mapType);
+        AsmUtil.MapEntryTypeInfo info = getMapEntryTypeInfo(mapType);
         this.option           = option;
         this.keyType          = info.getKeyType();
         this.valueType        = info.getValueType();

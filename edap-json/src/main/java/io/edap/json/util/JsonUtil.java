@@ -31,6 +31,7 @@ import static io.edap.json.consts.JsonConsts.INVALID_CHAR_FOR_NUMBER;
 import static io.edap.util.AsmUtil.isMap;
 import static io.edap.util.AsmUtil.isPojo;
 import static io.edap.util.ClazzUtil.*;
+import static io.edap.util.CryptUtil.md5;
 
 public class JsonUtil {
 
@@ -566,5 +567,32 @@ public class JsonUtil {
             return "t".equalsIgnoreCase(v) || "true".equalsIgnoreCase(v) || "1".equals(v);
         }
         return false;
+    }
+
+    public static String buildMapDecoderName(Type mapType) {
+        StringBuilder name = new StringBuilder("io.edap.json.");
+        name.append("mapencoder.MapEncoder_");
+        if (mapType instanceof ParameterizedType) {
+            ParameterizedType ptype = (ParameterizedType)mapType;
+            java.lang.reflect.Type[] types = ptype.getActualTypeArguments();
+            StringBuilder codes = new StringBuilder();
+            for (int i=0;i<types.length;i++) {
+                if (i > 0) {
+                    codes.append("_");
+                }
+                codes.append(types[i].getTypeName());
+            }
+            name.append(md5(codes.toString()));
+        } else if (mapType instanceof Class) {
+            Class mapClazz = (Class)mapType;
+            if (isMap(mapClazz)) {
+                name.append(md5("java.lang.Object_java.lang.Object"));
+            } else {
+                throw  new RuntimeException("mapType [" + mapType.getTypeName() + "] is not map");
+            }
+        } else {
+            throw  new RuntimeException("mapType [" + mapType.getTypeName() + "] is not map");
+        }
+        return name.toString();
     }
 }

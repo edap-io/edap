@@ -278,13 +278,13 @@ public class ProtoBufDecoderGenerator {
 
                     mv.visitLdcInsn(org.objectweb.asm.Type.getType("L" +  pojoName + ";"));
                     mv.visitLdcInsn(pfi.field.getName());
-                    mv.visitMethodInsn(INVOKESTATIC, "io/edap/protobuf/util/ProtoUtil", "getFieldType",
+                    mv.visitMethodInsn(INVOKESTATIC, "io/edap/util/AsmUtil", "getFieldType",
                             "(Ljava/lang/Class;Ljava/lang/String;)Ljava/lang/reflect/Type;", false);
                     preNextVar++;
                     mv.visitVarInsn(ASTORE, preNextVar);
                     mv.visitVarInsn(ALOAD, 0);
                     mv.visitVarInsn(ALOAD, preNextVar);
-                    mv.visitMethodInsn(INVOKESTATIC, "io/edap/protobuf/util/ProtoUtil", "getMapType",
+                    mv.visitMethodInsn(INVOKESTATIC, "io/edap/util/AsmUtil", "getMapType",
                             "(Ljava/lang/reflect/Type;)Ljava/lang/reflect/Type;", false);
                     mv.visitMethodInsn(INVOKEVIRTUAL, pojoCodecName, "get" + simpleName,
                             "(Ljava/lang/reflect/Type;)L" + MAP_DECODER_NAME +  ";", false);
@@ -316,7 +316,7 @@ public class ProtoBufDecoderGenerator {
             String mapDecoderName = buildMapDecoderName(pfi.field.getGenericType(), option);
             String simpleName     = getSimpleName(mapDecoderName);
             String fieldName      = lowerCaseFirstChar(simpleName);
-            ProtoUtil.MapEntryTypeInfo info = getMapEntryTypeInfo(pfi.field.getGenericType());
+            MapEntryTypeInfo info = getMapEntryTypeInfo(pfi.field.getGenericType());
             if (!mapEntryFieldNames.contains(fieldName)) {
                 FieldVisitor fv = cw.visitField(ACC_PRIVATE, fieldName, "L" + MAP_ENTRY_DECODER_NAME + ";",
                         "L" + MAP_ENTRY_DECODER_NAME + "<" + getDescriptor(info.getKeyType()) +
@@ -1288,7 +1288,7 @@ public class ProtoBufDecoderGenerator {
             String fieldName      = lowerCaseFirstChar(simpleName);
             mv.visitLdcInsn(org.objectweb.asm.Type.getType("L" + pojoName + ";"));
             mv.visitLdcInsn(pfi.field.getName());
-            mv.visitMethodInsn(INVOKESTATIC, "io/edap/protobuf/util/ProtoUtil", "getFieldType",
+            mv.visitMethodInsn(INVOKESTATIC, "io/edap/util/AsmUtil", "getFieldType",
                     "(Ljava/lang/Class;Ljava/lang/String;)Ljava/lang/reflect/Type;", false);
             mv.visitVarInsn(ASTORE, varType);
             mv.visitVarInsn(ALOAD, 0);

@@ -30,15 +30,12 @@ import java.io.IOException;
 import java.lang.reflect.Type;
 
 import static io.edap.protobuf.util.ProtoUtil.*;
-import static io.edap.util.AsmUtil.isPojo;
-import static io.edap.util.AsmUtil.toInternalName;
+import static io.edap.util.AsmUtil.*;
 import static io.edap.util.ClazzUtil.getDescriptor;
 import static org.objectweb.asm.Opcodes.*;
 
 public class MapEntryDecoderGenerator {
     static String IFACE_NAME       = toInternalName(MapEntryDecoder.class.getName());
-    static String PROTO_FIELD_NAME = toInternalName(Field.class.getName());
-    static String PROTO_UTIL_NAME  = toInternalName(ProtoUtil.class.getName());
     static String READER_NAME      = toInternalName(ProtoBufReader.class.getName());
     static String PB_DECODER_NAME  = toInternalName(ProtoBufDecoder.class.getName());
     static String PB_REGISTER_NAME = toInternalName(ProtoBufCodecRegister.class.getName());
@@ -55,7 +52,7 @@ public class MapEntryDecoderGenerator {
     private ProtoBufOption option;
 
     public MapEntryDecoderGenerator(java.lang.reflect.Type mapType, ProtoBufOption option) {
-        ProtoUtil.MapEntryTypeInfo info = getMapEntryTypeInfo(mapType);
+        MapEntryTypeInfo info = getMapEntryTypeInfo(mapType);
         this.option           = option;
         this.keyType          = info.getKeyType();
         this.valueType        = info.getValueType();

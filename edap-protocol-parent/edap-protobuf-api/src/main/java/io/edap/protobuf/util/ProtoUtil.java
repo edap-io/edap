@@ -662,6 +662,13 @@ public class ProtoUtil {
                 typeInfo.setMessageInfo(msgInfo);
                 typeInfo.setProtoType(Type.OBJECT);
                 break;
+            case "java.math.BigDecimal":
+                msgInfo = new MessageInfo();
+                msgInfo.setMessageName(Type.OBJECT.value());
+                msgInfo.setJavaType(javaType);
+                typeInfo.setMessageInfo(msgInfo);
+                typeInfo.setProtoType(Type.OBJECT);
+                break;
             default:
                 msgInfo = new MessageInfo();
                 msgInfo.setMessageName(Type.MESSAGE.name());
@@ -908,90 +915,21 @@ public class ProtoUtil {
         return name.toString();
     }
 
-    public static java.lang.reflect.Type getFieldType(Class cls, String fieldName) {
-        try {
-            return cls.getDeclaredField(fieldName).getGenericType();
-        } catch (Exception e) {
-            throw new RuntimeException(e.getMessage(), e);
-        }
-    }
-
-    public static java.lang.reflect.Type getMapType(java.lang.reflect.Type type) {
-        if (isMap(type)) {
-            return type;
-        }
-        if (isList(type)) {
-            if (type instanceof ParameterizedType) {
-                ParameterizedType ptype = (ParameterizedType)type;
-                if (isMap(ptype.getActualTypeArguments()[0])) {
-                    return ptype.getActualTypeArguments()[0];
-                }
-            }
-        }
-        return null;
-    }
-
-    public static MapEntryTypeInfo getMapEntryTypeInfo(java.lang.reflect.Type mapType) {
-        MapEntryTypeInfo info = new MapEntryTypeInfo();
-        java.lang.reflect.Type keyType;
-        java.lang.reflect.Type valueType;
-        if (mapType instanceof ParameterizedType) {
-            ParameterizedType ptype = (ParameterizedType)mapType;
-            if (ptype.getActualTypeArguments() != null
-                    && ptype.getActualTypeArguments().length == 2) {
-                keyType = ptype.getActualTypeArguments()[0];
-                valueType = ptype.getActualTypeArguments()[1];
-            } else {
-                throw new RuntimeException("MapType define error");
-            }
-        } else if (mapType instanceof Class) {
-            Class clazz = (Class)mapType;
-            if (isMap(clazz)) {
-                keyType   = Object.class;
-                valueType = Object.class;
-            } else {
-                throw new RuntimeException("MapType [" + mapType + "] not Map");
-            }
-        } else {
-            if (isMap(mapType)) {
-                keyType   = Object.class;
-                valueType = Object.class;
-            } else {
-                throw new RuntimeException("MapType define error");
-            }
-        }
-        info.setKeyType(keyType);
-        info.setValueType(valueType);
-        return info;
-    }
-
-    public static class MapEntryTypeInfo {
-        private java.lang.reflect.Type keyType;
-        private java.lang.reflect.Type valueType;
-
-        public java.lang.reflect.Type getKeyType() {
-            return keyType;
-        }
-
-        public void setKeyType(java.lang.reflect.Type keyType) {
-            this.keyType = keyType;
-        }
-
-        public java.lang.reflect.Type getValueType() {
-            return valueType;
-        }
-
-        public void setValueType(java.lang.reflect.Type valueType) {
-            this.valueType = valueType;
-        }
-    }
-
     private static boolean needEncode(Field field) {
         if ("org.slf4j.Logger".equals(field.getType().getName())) {
             return false;
         }
         int mod = field.getModifiers();
-        return !Modifier.isStatic(mod) && !Modifier.isTransient(mod);
+        if (Modifier.isStatic(mod)) {
+            return false;
+        }
+        if (Modifier.isFinal(mod)) {
+            return false;
+        }
+        if (Modifier.isTransient(mod)) {
+            return false;
+        }
+        return true;
     }
 
     private static ProtoField getProtoAnnotation(Field field, Method method) {

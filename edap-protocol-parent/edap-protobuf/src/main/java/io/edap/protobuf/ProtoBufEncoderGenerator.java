@@ -336,75 +336,6 @@ public class ProtoBufEncoderGenerator {
                 "(L" + WRITER_NAME + ";I" + rClazzDesc + ")V", false);
     }
 
-//    private void visitGetMapEntryEncoderMethod(java.lang.reflect.Type mapType, ProtoFieldInfo pfi) {
-//        String encodeName = buildMapEntryEncoderName(mapType, null);
-//        MapEntryTypeInfo mti = getMapEntryTypeInfo(mapType);
-//        String keySign = getDescriptor(mti.getKeyType());
-//        String valSign = getDescriptor(mti.getValueType());
-//        String mapEncoderName = getMapEntryFieldName(encodeName);
-//        String simpleName = mapEncoderName.substring(0, 1).toUpperCase(Locale.ENGLISH) +
-//                mapEncoderName.substring(1);
-//        FieldVisitor fv = cw.visitField(ACC_PRIVATE, mapEncoderName, "L" + MAP_ENTRY_ENCODER_NAME + ";",
-//                "L" + MAP_ENTRY_ENCODER_NAME + "<" + keySign + valSign + ">;", null);
-//        fv.visitEnd();
-//
-//        MethodVisitor mv = cw.visitMethod(ACC_PRIVATE, "get" + simpleName,
-//                "()L" + MAP_ENTRY_ENCODER_NAME + ";",
-//                "()L" + MAP_ENTRY_ENCODER_NAME + "<" + keySign + valSign + ">;", null);
-//        mv.visitCode();
-//        Label label0 = new Label();
-//        Label label1 = new Label();
-//        Label label2 = new Label();
-//        mv.visitTryCatchBlock(label0, label1, label2, "java/lang/Exception");
-//        mv.visitVarInsn(ALOAD, 0);
-//        mv.visitFieldInsn(GETFIELD, pojoCodecName, mapEncoderName, "L" + MAP_ENTRY_ENCODER_NAME + ";");
-//        Label label3 = new Label();
-//        mv.visitJumpInsn(IFNONNULL, label3);
-//        mv.visitLabel(label0);
-//        mv.visitLdcInsn(org.objectweb.asm.Type.getType("L" + pojoName + ";"));
-//        mv.visitLdcInsn(pfi.field.getName());
-//        mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/Class", "getDeclaredField",
-//                "(Ljava/lang/String;)Ljava/lang/reflect/Field;", false);
-//        mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/reflect/Field", "getGenericType",
-//                "()Ljava/lang/reflect/Type;", false);
-//        mv.visitVarInsn(ASTORE, 1);
-//        mv.visitVarInsn(ALOAD, 1);
-//        mv.visitMethodInsn(INVOKESTATIC, "io/edap/protobuf/util/ProtoUtil", "getMapType",
-//                "(Ljava/lang/reflect/Type;)Ljava/lang/reflect/Type;", false);
-//        mv.visitVarInsn(ASTORE, 1);
-//        mv.visitVarInsn(ALOAD, 0);
-//        mv.visitFieldInsn(GETSTATIC, REGISTER_NAME, "INSTANCE", "L" + REGISTER_NAME + ";");
-//        mv.visitVarInsn(ALOAD, 1);
-//        mv.visitInsn(ACONST_NULL);
-//        mv.visitFieldInsn(GETSTATIC, pojoCodecName, "PROTO_BUF_OPTION", "L" + PROTOBUF_OPTIION_NAME + ";");
-//        mv.visitMethodInsn(INVOKEVIRTUAL, REGISTER_NAME, "getMapEntryEncoder",
-//                "(Ljava/lang/reflect/Type;Ljava/lang/Class;L" + PROTOBUF_OPTIION_NAME + ";)" +
-//                        "L" + MAP_ENTRY_ENCODER_NAME + ";", false);
-//        mv.visitFieldInsn(PUTFIELD, pojoCodecName, mapEncoderName, "L" + MAP_ENTRY_ENCODER_NAME + ";");
-//        mv.visitLabel(label1);
-//        mv.visitJumpInsn(GOTO, label3);
-//        mv.visitLabel(label2);
-//        mv.visitFrame(Opcodes.F_SAME1, 0, null, 1, new Object[] {"java/lang/Exception"});
-//        mv.visitVarInsn(ASTORE, 1);
-//        mv.visitTypeInsn(NEW, "java/lang/RuntimeException");
-//        mv.visitInsn(DUP);
-//        mv.visitVarInsn(ALOAD, 1);
-//        mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/Exception", "getMessage",
-//                "()Ljava/lang/String;", false);
-//        mv.visitVarInsn(ALOAD, 1);
-//        mv.visitMethodInsn(INVOKESPECIAL, "java/lang/RuntimeException", "<init>",
-//                "(Ljava/lang/String;Ljava/lang/Throwable;)V", false);
-//        mv.visitInsn(ATHROW);
-//        mv.visitLabel(label3);
-//        mv.visitFrame(Opcodes.F_SAME, 0, null, 0, null);
-//        mv.visitVarInsn(ALOAD, 0);
-//        mv.visitFieldInsn(GETFIELD, pojoCodecName, mapEncoderName, "L" + MAP_ENTRY_ENCODER_NAME + ";");
-//        mv.visitInsn(ARETURN);
-//        mv.visitMaxs(5, 2);
-//        mv.visitEnd();
-//
-//    }
-
     private String getMapEntryFieldName(String encodeName) {
         String mapEncoderName;
         int dotIndex = encodeName.lastIndexOf(".");
@@ -1347,11 +1278,11 @@ public class ProtoBufEncoderGenerator {
 
                 mv.visitLdcInsn(org.objectweb.asm.Type.getType("L" + pojoName + ";"));
                 mv.visitLdcInsn(pfi.field.getName());
-                mv.visitMethodInsn(INVOKESTATIC, "io/edap/protobuf/util/ProtoUtil", "getFieldType",
+                mv.visitMethodInsn(INVOKESTATIC, "io/edap/util/AsmUtil", "getFieldType",
                         "(Ljava/lang/Class;Ljava/lang/String;)Ljava/lang/reflect/Type;", false);
                 mv.visitVarInsn(ASTORE, varMapEntry);
                 mv.visitVarInsn(ALOAD, varMapEntry);
-                mv.visitMethodInsn(INVOKESTATIC, "io/edap/protobuf/util/ProtoUtil", "getMapType",
+                mv.visitMethodInsn(INVOKESTATIC, "io/edap/util/AsmUtil", "getMapType",
                         "(Ljava/lang/reflect/Type;)Ljava/lang/reflect/Type;", false);
                 mv.visitVarInsn(ASTORE, varMapEntry);
                 mv.visitVarInsn(ALOAD, 0);
@@ -1371,7 +1302,7 @@ public class ProtoBufEncoderGenerator {
         }
 
         for (ProtoFieldInfo pfi : mapTypes) {
-            java.lang.reflect.Type mapType = ProtoUtil.getMapType(pfi.field.getGenericType());
+            java.lang.reflect.Type mapType = getMapType(pfi.field.getGenericType());
             String mapDecoderName = buildMapDecoderName(mapType, option);
             String simpleName     = getSimpleName(mapDecoderName);
             String fieldName      = lowerCaseFirstChar(simpleName);
@@ -1385,11 +1316,11 @@ public class ProtoBufEncoderGenerator {
 
                 mv.visitLdcInsn(org.objectweb.asm.Type.getType("L" + pojoName + ";"));
                 mv.visitLdcInsn(pfi.field.getName());
-                mv.visitMethodInsn(INVOKESTATIC, "io/edap/protobuf/util/ProtoUtil", "getFieldType",
+                mv.visitMethodInsn(INVOKESTATIC, "io/edap/util/AsmUtil", "getFieldType",
                         "(Ljava/lang/Class;Ljava/lang/String;)Ljava/lang/reflect/Type;", false);
                 mv.visitVarInsn(ASTORE, varMapEntry);
                 mv.visitVarInsn(ALOAD, varMapEntry);
-                mv.visitMethodInsn(INVOKESTATIC, "io/edap/protobuf/util/ProtoUtil", "getMapType",
+                mv.visitMethodInsn(INVOKESTATIC, "io/edap/util/AsmUtil", "getMapType",
                         "(Ljava/lang/reflect/Type;)Ljava/lang/reflect/Type;", false);
                 mv.visitVarInsn(ASTORE, varMapEntry);
                 mv.visitVarInsn(ALOAD, 0);

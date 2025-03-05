@@ -1,5 +1,6 @@
 package io.edap.json.test;
 
+import eje.com.jsoniter.benchmark.with_map_field.TestObjectEncoder;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.util.ASMifier;
@@ -23,7 +24,7 @@ public class Asm {
 
 //        String clsPath = "/Users/louis/NetBeansProjects/edap/edap-json/target/test-classes/" +
 //                "io/edap/json/test/DemoPojoDecoder.class";
-        String clsPath = DemoFieldListEncoder.class.getName();
+        String clsPath = MapEncoder_223.class.getName();
         ClassReader cr;
         if (clsPath.endsWith(".class") || clsPath.indexOf('\\') > -1
                 || clsPath.indexOf('/') > -1) {

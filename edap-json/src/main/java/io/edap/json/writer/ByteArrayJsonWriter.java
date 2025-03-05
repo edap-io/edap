@@ -22,6 +22,7 @@ import io.edap.io.ByteArrayBufOut;
 import io.edap.json.Eson;
 import io.edap.json.JsonEncoder;
 import io.edap.json.JsonWriter;
+import io.edap.json.MapEncoder;
 import io.edap.util.Grisu;
 import io.edap.util.Grisu3;
 import io.edap.util.StringUtil;
@@ -31,7 +32,9 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
+import java.util.Map;
 
+import static io.edap.json.Eson.serialize;
 import static io.edap.json.consts.JsonConsts.NEGATIVE_INFINITY_BYTES;
 import static io.edap.json.consts.JsonConsts.POSITIVE_INFINITY_BYTES;
 import static io.edap.util.FastNum.uncheckWriteInt;
@@ -458,13 +461,26 @@ public class ByteArrayJsonWriter extends AbstractJsonWriter implements JsonWrite
             writeNull();
             return;
         }
-        Eson.serialize(obj, this);
+        serialize(obj, this);
         //write(obj.toString());
     }
 
     @Override
     public void write(Object obj, JsonEncoder encoder) {
         encoder.encode(this, obj);
+    }
+
+    @Override
+    public <K, V> void write(Map<K, V> map, MapEncoder<K, V> mapEncoder) {
+        if (map == null) {
+           writeNull();
+           return;
+        }
+        if (map.isEmpty()) {
+            write((byte)'{', (byte)'}');
+            return;
+        }
+        mapEncoder.encode(this, map);
     }
 
 
