@@ -39,6 +39,8 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArraySet;
 
 import static io.edap.protobuf.ext.AnyCodec.RANGE_NULL;
 import static io.edap.protobuf.test.TestUtil.conver2HexStr;
@@ -949,5 +951,106 @@ public class TestFieldObject {
         nfo = ProtoBuf.toObject(epb, FieldObject.class);
         System.out.println(Eson.toJsonString(nfo.getObj()));
         assertArrayEquals((Object[])nfo.getObj(), objs);
+    }
+
+    @Test
+    public void testCopyOnWriteArraySet() {
+        CopyOnWriteArraySet<Integer> set = new CopyOnWriteArraySet<>();
+        set.add(1);
+        set.add(-1);
+        set.add(129);
+        set.add(-129);
+        FieldObject fo = new FieldObject();
+        fo.setObj(set);
+        byte[] epb = ProtoBuf.toByteArray(fo);
+        System.out.println(conver2HexStr(epb));
+
+        FieldObject nfo = ProtoBuf.toObject(epb, FieldObject.class);
+        System.out.println(Eson.toJsonString(nfo.getObj()));
+        CopyOnWriteArraySet<Integer> nset = (CopyOnWriteArraySet)nfo.getObj();
+        assertEquals(set.size(), nset.size());
+        Iterator<Integer> itr = nset.iterator();
+        for (Integer v : set) {
+            assertEquals(v, itr.next());
+        }
+    }
+
+    @Test
+    public void testConcurrentHashMap() {
+        ConcurrentHashMap<String, Object> map = new ConcurrentHashMap<>();
+        map.put("key1", 123);
+        map.put("key2", new Date());
+        map.put("key3", 31.415d);
+        FieldObject fo = new FieldObject();
+        fo.setObj(map);
+        byte[] epb = ProtoBuf.toByteArray(fo);
+        System.out.println(conver2HexStr(epb));
+
+        FieldObject nfo = ProtoBuf.toObject(epb, FieldObject.class);
+        System.out.println(Eson.toJsonString(nfo.getObj()));
+        ConcurrentHashMap<String, Object> nmap = (ConcurrentHashMap)nfo.getObj();
+        assertEquals(map.size(), nmap.size());
+        for (Map.Entry<String, Object> v : map.entrySet()) {
+            assertTrue(nmap.containsKey(v.getKey()));
+            assertEquals(v.getValue(), nmap.get(v.getKey()));
+        }
+    }
+
+    @Test
+    public void testHashSet() {
+        HashSet<Integer> set = new HashSet<>();
+        set.add(1);
+        set.add(-1);
+        set.add(129);
+        set.add(-129);
+        FieldObject fo = new FieldObject();
+        fo.setObj(set);
+        byte[] epb = ProtoBuf.toByteArray(fo);
+        System.out.println(conver2HexStr(epb));
+
+        FieldObject nfo = ProtoBuf.toObject(epb, FieldObject.class);
+        System.out.println(Eson.toJsonString(nfo.getObj()));
+        HashSet<Integer> nset = (HashSet)nfo.getObj();
+        assertEquals(set.size(), nset.size());
+        Iterator<Integer> itr = nset.iterator();
+        for (Integer v : set) {
+            assertEquals(v, itr.next());
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "2020-03-04 13:24:35.678"
+    })
+    void testSqlDateCodec(String value) throws EncodeException, ProtoException, ParseException {
+        SimpleDateFormat timeF = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS");
+        java.sql.Date date = new java.sql.Date(timeF.parse(value).getTime());
+        FieldObject fo = new FieldObject();
+        fo.setObj(date);
+        byte[] epb = ProtoBuf.toByteArray(fo);
+        System.out.println(conver2HexStr(epb));
+
+        FieldObject nfo = ProtoBuf.toObject(epb, FieldObject.class);
+        System.out.println(timeF.format((java.sql.Date)nfo.getObj()));
+        assertEquals(nfo.getObj(), date);
+
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "2020-03-04 13:24:35.678"
+    })
+    void testSqlTimestampCodec(String value) throws EncodeException, ProtoException, ParseException {
+        SimpleDateFormat timeF = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS");
+        java.sql.Timestamp date = new java.sql.Timestamp(timeF.parse(value).getTime());
+        FieldObject fo = new FieldObject();
+        fo.setObj(date);
+        byte[] epb = ProtoBuf.toByteArray(fo);
+        System.out.println(conver2HexStr(epb));
+
+        FieldObject nfo = ProtoBuf.toObject(epb, FieldObject.class);
+        System.out.println(timeF.format((java.sql.Timestamp)nfo.getObj()));
+        assertEquals(nfo.getObj(), date);
+
     }
 }

@@ -16,6 +16,7 @@
 
 package io.edap.protobuf.reader;
 
+import io.edap.protobuf.MapDecoder;
 import io.edap.protobuf.ProtoBufDecoder;
 import io.edap.protobuf.ProtoException;
 import io.edap.protobuf.ext.AnyCodec;
@@ -23,6 +24,7 @@ import io.edap.protobuf.wire.Field.Type;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import static io.edap.protobuf.wire.WireFormat.FIXED_32_SIZE;
 import static io.edap.protobuf.wire.WireFormat.FIXED_64_SIZE;
@@ -629,6 +631,20 @@ public class ByteArrayReader extends AbstractReader {
             return 0;
         }
         return readInt32();
+    }
+
+    @Override
+    public <K, V> Map<K, V> readMap(MapDecoder<K, V> mapDecoder) throws ProtoException {
+        int len = readUInt32();
+        int oldLimit = limit;
+
+        limit = pos + len;
+        if (limit > originalLimit) {
+            throw ProtoException.truncatedMessage();
+        }
+        Map t = mapDecoder.decode(this);
+        limit = oldLimit;
+        return t;
     }
 
     @Override

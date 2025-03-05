@@ -19,40 +19,43 @@ package io.edap.nio.impl;
 import com.lmax.disruptor.*;
 import com.lmax.disruptor.dsl.Disruptor;
 import com.lmax.disruptor.dsl.ProducerType;
-import com.lmax.disruptor.util.DaemonThreadFactory;
+import io.edap.Server;
+import io.edap.ServerChannelContext;
 import io.edap.log.Logger;
 import io.edap.log.LoggerManager;
 import io.edap.nio.AcceptDispatcher;
 import io.edap.nio.event.AcceptEvent;
-import io.edap.util.FastList;
+import io.edap.nio.handler.AcceptEventHandler;
 
 import java.io.IOException;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
-import java.util.List;
+
+import static io.edap.nio.AbstractAcceptor.ACCEPT_THREAD_FACTORY;
 
 public class DisruptorAcceptDispatcher implements AcceptDispatcher {
 
     private static final Logger LOG = LoggerManager.getLogger(DisruptorAcceptDispatcher.class);
 
     private RingBuffer<AcceptEvent> ringBuffer;
-    public DisruptorAcceptDispatcher() {
+    private Server server;
+
+    public DisruptorAcceptDispatcher(Server server) {
+        this.server = server;
         ringBuffer = buildRingBuffer();
     }
 
     @Override
     public void dispatch(SelectionKey acceptKey) {
         LOG.info("selectKey {}", l -> l.arg(acceptKey));
-        SocketChannel clientChan = null;
+        SocketChannel clientChan;
         try {
             clientChan = ((ServerSocketChannel)acceptKey.channel()).accept();
-//            clientChan.configureBlocking(false);
-//            clientChan.socket().setReuseAddress(true);
-            acceptKey.attachment();
             boolean published = ringBuffer.tryPublishEvent(
-                    (event, sequence) -> event.setAcceptKey(acceptKey));
-            System.out.println("published " + published);
+                    (event, sequence) -> event.setChannel(clientChan)
+                            .setServerChannelCtx((ServerChannelContext) acceptKey.attachment()));
+            LOG.debug("published {}", l-> l.arg(published));
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -67,14 +70,11 @@ public class DisruptorAcceptDispatcher implements AcceptDispatcher {
         EventFactory<AcceptEvent> eventFactory = AcceptEvent::new;
         int bufferSize = 1024;
         WaitStrategy waitStrategy = new YieldingWaitStrategy();
-        EventHandler<AcceptEvent> handler = (event, sequence, endOfBatch) -> {
-            System.out.println("event " + event.getAcceptKey().channel() +
-                    ",sequence=" + sequence + ",endOfBatch=" + endOfBatch);
-        };
+        EventHandler<AcceptEvent> handler = new AcceptEventHandler(server);
         Disruptor<AcceptEvent> disruptor = new Disruptor<>(
                 eventFactory,
                 bufferSize,
-                DaemonThreadFactory.INSTANCE,
+                ACCEPT_THREAD_FACTORY,
                 ProducerType.MULTI,
                 waitStrategy);
         disruptor.handleEventsWith(handler);

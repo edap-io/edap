@@ -15,19 +15,31 @@
 
 package io.edap.nio.event;
 
+import io.edap.ServerChannelContext;
 import io.edap.nio.NioOpEvent;
 
-import java.nio.channels.SelectionKey;
+import java.nio.channels.SocketChannel;
 
 public class AcceptEvent extends NioOpEvent {
 
-    private SelectionKey acceptKey;
+    private SocketChannel channel;
+    private ServerChannelContext serverChannelCtx;
 
-    public SelectionKey getAcceptKey() {
-        return acceptKey;
+    public SocketChannel getChannel() {
+        return channel;
     }
 
-    public void setAcceptKey(SelectionKey acceptKey) {
-        this.acceptKey = acceptKey;
+    public AcceptEvent setChannel(SocketChannel channel) {
+        this.channel = channel;
+        return this;
+    }
+
+    public ServerChannelContext getServerChannelCtx() {
+        return serverChannelCtx;
+    }
+
+    public AcceptEvent setServerChannelCtx(ServerChannelContext serverChannelCtx) {
+        this.serverChannelCtx = serverChannelCtx;
+        return this;
     }
 }

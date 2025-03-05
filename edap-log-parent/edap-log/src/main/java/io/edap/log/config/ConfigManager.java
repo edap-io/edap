@@ -27,7 +27,7 @@ public class ConfigManager {
 
     static {
         LoggerConfig config = new LoggerConfig();
-        config.setLevel("INFO");
+        config.setLevel("DEBUG");
         config.setName("ROOT");
         config.setAppenderRefs(Arrays.asList(DEFAULT_CONSOLE_APPENDER_NAME, DEFAULT_FILE_APPENDER_NAME));
         DEFAULT_ROOT_LOGGER_CONFIG = config;
@@ -355,6 +355,17 @@ public class ConfigManager {
 
         config.setLoggerSection(loggerConfigSection);
 
+        if (!CollectionUtils.isEmpty(queueConfigMap)) {
+            QueueConfigSection queueConfigSection = new QueueConfigSection();
+            List<QueueConfig> qcs = new ArrayList<>();
+            for (Map.Entry<String, QueueConfig> qc : queueConfigMap.entrySet()) {
+                qcs.add(qc.getValue());
+            }
+            queueConfigSection.setQueueConfigList(qcs);
+
+            config.setQueueConfigSection(queueConfigSection);
+        }
+
 
         return config;
     }
@@ -379,8 +390,9 @@ public class ConfigManager {
             QueueConfig qc = new QueueConfig();
             qc.setName(name);
             qc.setClazzName(clazz);
-
             qc.setArgs(parseArgNodes(node.getChildNodes(), properties));
+
+            queueConfigs.put(qc.getName(), qc);
         }
         return queueConfigs;
     }

@@ -16,6 +16,7 @@
 
 package io.edap.json.test;
 
+import eje.com.jsoniter.benchmark.with_map_field.TestObject;
 import io.edap.io.ByteArrayBufOut;
 import io.edap.json.JsonCodecRegister;
 import io.edap.json.JsonDecoderGenerator;
@@ -32,7 +33,6 @@ import java.nio.charset.StandardCharsets;
 public class T {
 
     public static void main(String[] args) throws IOException {
-
-        JsonCodecRegister.instance().getEncoder(TableExpectInfo.class);
+        TestObject to = new TestObject();
     }
 }

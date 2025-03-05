@@ -1,1 +1,0 @@
-packageSearchIndex = [{"l":"io.edap.eproto"},{"l":"io.edap.eproto.reader"},{"l":"io.edap.eproto.writer"},{"l":"所有程序包","u":"allpackages-index.html"}];updateSearchResults();

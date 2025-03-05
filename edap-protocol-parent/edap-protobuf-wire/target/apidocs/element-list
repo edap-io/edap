@@ -1,7 +1,0 @@
-io.edap.protobuf.annotation
-io.edap.protobuf.builder
-io.edap.protobuf.codegen
-io.edap.protobuf.internal
-io.edap.protobuf.wire
-io.edap.protobuf.wire.exceptions
-io.edap.protobuf.wire.parser

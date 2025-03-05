@@ -34,6 +34,6 @@ public class TestAsyncAppender {
         edapAsyncAppenderLogger.debug(MESSAGE);
         edapAsyncAppenderLogger.debug(MESSAGE);
 
-        System.in.read();
+//        System.in.read();
     }
 }

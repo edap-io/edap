@@ -16,6 +16,8 @@
 
 package io.edap.nio;
 
+import io.edap.NioSession;
+
 import java.nio.channels.SelectionKey;
 import java.util.AbstractSet;
 import java.util.Iterator;

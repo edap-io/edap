@@ -1,8 +1,0 @@
-io.edap.protobuf
-io.edap.protobuf.ext
-io.edap.protobuf.ext.codec
-io.edap.protobuf.internal
-io.edap.protobuf.persisters
-io.edap.protobuf.reader
-io.edap.protobuf.util
-io.edap.protobuf.writer

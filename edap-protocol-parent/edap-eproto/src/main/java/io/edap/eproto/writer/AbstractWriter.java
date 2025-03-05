@@ -82,8 +82,23 @@ public abstract class AbstractWriter implements EprotoWriter {
         if (IS_BYTE_ARRAY) {
             writeByteArrayString(v);
         } else {
-            writeCharArrayString(v);
+            int len = v.length();
+            if (len <= 10) {
+                writeCharArrayString(v, len);
+            } else {
+                writeUtf16String(v, len);
+            }
         }
+    }
+
+    private void writeUtf16String(String v, int len) {
+        expand(MAX_VARINT_SIZE + (len*2) + 1);
+        int _pos = pos;
+        byte[] _bs = bs;
+        bs[pos++] = ZIGZAG32_TWO;
+        writeUInt32_0(len);
+        UnsafeUtil.copyUtf16le(getCharValue(v), 0, _bs, _pos, len);
+        pos = _pos + len * 2;
     }
 
     private void writeByteArrayString(String v) {
@@ -102,8 +117,7 @@ public abstract class AbstractWriter implements EprotoWriter {
         pos += len;
     }
 
-    private void writeCharArrayString(String v) {
-        int charLen = v.length();
+    private void writeCharArrayString(String v, int charLen) {
         // 转为utf8后最大的所需字节数
         int maxBytes = charLen * 3 + 1;
         // 如果所需最大字节数小于3k + 编码int最大字节数 则直接扩容所需最大字节数
@@ -112,10 +126,9 @@ public abstract class AbstractWriter implements EprotoWriter {
             bs[pos++] = ZIGZAG32_TWO;
             writeUInt32_0(encodeZigZag32(charLen));
             if (charLen < 16) {
-                pos += writeChars(v, 0, charLen, pos);
+                pos += writeChars(getCharValue(v), 0, charLen, pos);
             } else {
-                char[] cs = getCharValue(v);
-                pos += writeChars(cs, 0, charLen, pos);
+                pos += writeChars(getCharValue(v), 0, charLen, pos);
             }
             return;
         }

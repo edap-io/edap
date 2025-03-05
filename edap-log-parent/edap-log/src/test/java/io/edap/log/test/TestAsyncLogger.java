@@ -17,18 +17,42 @@ package io.edap.log.test;
 
 import io.edap.log.Logger;
 import io.edap.log.LoggerManager;
+import io.edap.log.config.ConfigManager;
+import io.edap.log.test.spi.EdapTestAdapter;
 import org.junit.jupiter.api.Test;
+import org.xml.sax.SAXException;
 
+import javax.xml.parsers.ParserConfigurationException;
 import java.io.IOException;
+
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 public class TestAsyncLogger {
 
     @Test
-    public void testDefaultConfig() throws IOException {
+    public void testDefaultConfig() throws IOException, ParserConfigurationException, SAXException {
         System.setProperty("edaplog.configurationFile", "edap-log-async-logger-basefile.xml");
+        EdapTestAdapter edapTestAdapter = (EdapTestAdapter) ConfigManager.getLogAdapter();
+        edapTestAdapter.reloadConfig("/edap-log-async-logger-basefile.xml");
         Logger logger = LoggerManager.getLogger(TestAsyncLogger.class);
         String    format     = new String("name {}, age: {}");
         logger.info(format, l -> l.arg("louis").arg(28));
+
+        Logger queue1Logger = LoggerManager.getLogger("queue1");
+        queue1Logger.info(format, l -> l.arg("china").arg(5000));
+
+        edapTestAdapter.reloadConfig("/edap-log-async-logger-hasqueue.xml");
+        queue1Logger = LoggerManager.getLogger("queue1-1");
+        queue1Logger.info(format, l -> l.arg("china").arg(5000));
+
+
+        Logger queue2Logger = LoggerManager.getLogger("queue2-1");
+        queue2Logger.info(format, l -> l.arg("china").arg(5000));
+
+        Logger queue22Logger = LoggerManager.getLogger("queue2-2");
+        queue22Logger.info(format, l -> l.arg("china").arg(5000));
+
+        assertNotNull(logger);
 //        System.in.read();
     }
 }

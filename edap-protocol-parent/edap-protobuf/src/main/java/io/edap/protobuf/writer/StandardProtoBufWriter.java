@@ -18,8 +18,10 @@ package io.edap.protobuf.writer;
 
 import io.edap.io.BufOut;
 import io.edap.protobuf.EncodeException;
+import io.edap.protobuf.MapEntryEncoder;
 import io.edap.protobuf.ProtoBufEncoder;
 import io.edap.protobuf.ext.AnyCodec;
+import io.edap.protobuf.util.ProtoUtil;
 import io.edap.protobuf.wire.Field;
 import io.edap.util.CollectionUtils;
 
@@ -207,18 +209,6 @@ public class StandardProtoBufWriter extends AbstractWriter {
         switch (type) {
             case INT32:
             case UINT32:
-
-//                len = 0;
-//                for (Integer i : values) {
-//                    len += computeRawVarint32Size(i);
-//                }
-//                expand(wbuf, MAX_VARINT_SIZE << 1 + len);
-//                writeFieldData(fieldData);
-//                writeUInt32_0(values.size());
-//                for (Integer i : values) {
-//                    writeUInt32_0(i);
-//                }
-//
                 size = values.size();
                 len = size * 5;
                 expand((MAX_VARLONG_SIZE << 1) + len);
@@ -263,20 +253,6 @@ public class StandardProtoBufWriter extends AbstractWriter {
 
                 len = pos - oldPos - 1;
                 pos += writeLenMoveBytes(bs, oldPos, len);
-
-//                ProtoWriter twriter = getLocalWriter();
-//                try {
-//                    int size = values.size();
-//                    for (int i = 0; i < size; i++) {
-//                        twriter.writeInt32(values.get(i));
-//                    }
-//                    len = twriter.getBufOut().getWriteBuf().start;
-//                    writeByteArray(fieldData, 0, fieldData.length);
-//                    writeUInt32(len);
-//                    writeByteArray(twriter.getBufOut().getWriteBuf().bs, 0, len);
-//                } finally {
-//                    releaseLocalWriter(twriter);
-//                }
                 return;
             case SINT32:
                 len = values.size() * MAX_VARINT_SIZE;
@@ -826,6 +802,50 @@ public class StandardProtoBufWriter extends AbstractWriter {
 //        int oldPos = pos;
 //        pos += 5;
         AnyCodec.encode(this, v);
+    }
+
+    @Override
+    public <K, V> void writeMap(byte[] fieldData, int tag, Map<K, V> map, MapEntryEncoder<K, V> mapEncoder) throws EncodeException {
+        if (CollectionUtils.isEmpty(map)) {
+            return;
+        }
+        for (Map.Entry<K, V> entry : map.entrySet()) {
+            expand(MAX_VARINT_SIZE);
+            writeFieldData(fieldData);
+            int oldPos = pos;
+            pos += 1;
+            mapEncoder.encode(this, entry);
+            int len = pos - oldPos - 1;
+            pos += writeLenMoveBytes(bs, oldPos, len);
+        }
+    }
+
+    @Override
+    public <K, V> void writeMapMessage(byte[] fieldData, int tag, Map<K, V> map, MapEntryEncoder<K, V> mapEncoder) throws EncodeException {
+        if (CollectionUtils.isEmpty(map)) {
+            return;
+        }
+        expand(MAX_VARINT_SIZE);
+        writeFieldData(fieldData);
+
+        int outOldPos = pos;
+
+        byte[] mapMsgTagData = ProtoUtil.buildFieldData(1, Field.Type.MAP, Field.Cardinality.REPEATED);
+        boolean needFieldData = true;
+        for (Map.Entry<K, V> entry : map.entrySet()) {
+            if (needFieldData) {
+                expand(MAX_VARINT_SIZE);
+                writeFieldData(mapMsgTagData);
+                needFieldData = false;
+            }
+//            int oldPos = pos;
+//            pos += 1;
+            mapEncoder.encode(this, entry);
+//            int len = pos - oldPos - 1;
+//            pos += writeLenMoveBytes(bs, oldPos, len);
+        }
+        int len = pos - outOldPos - 1;
+        pos += writeLenMoveBytes(bs, outOldPos, len);
     }
 
     @Override

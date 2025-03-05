@@ -18,10 +18,12 @@ package io.edap.nio;
 
 import io.edap.Acceptor;
 import io.edap.Server;
+import io.edap.ServerChannelContext;
 import io.edap.ServerGroup;
 import io.edap.log.Logger;
 import io.edap.log.LoggerManager;
 import io.edap.util.CollectionUtils;
+import io.edap.util.EventHandleThreadFactory;
 import io.edap.util.StringUtil;
 
 import java.io.IOException;
@@ -40,18 +42,16 @@ public abstract class AbstractAcceptor implements Acceptor {
 
     protected SelectorProvider selectorProvider;
 
-    protected AcceptDispatcher dispatcher;
+    protected AcceptDispatcherFactory acceptDispatcherFactory;
 
     protected ServerGroup serverGroup;
 
-    @Override
-    public void setServer(Server server) {
-        this.server = server;
-    }
+    protected ServerChannelContext serverChannelContext;
 
-    @Override
-    public Server getServer() {
-        return server;
+    public static final EventHandleThreadFactory ACCEPT_THREAD_FACTORY;
+
+    static {
+        ACCEPT_THREAD_FACTORY = new EventHandleThreadFactory("edap-accept-handle");
     }
 
     @Override
@@ -69,32 +69,14 @@ public abstract class AbstractAcceptor implements Acceptor {
         }
     }
 
-    public void setEventDispatcher(AcceptDispatcher dispatcher) {
-        this.dispatcher = dispatcher;
+
+    public void setAcceptDispatcherFactory(AcceptDispatcherFactory dispatcherFactory) {
+        this.acceptDispatcherFactory = dispatcherFactory;
     }
 
-    public AcceptDispatcher getEventDispatcher() {
-        return dispatcher;
-    }
 
-    @Override
-    public void setSelectorProvider(SelectorProvider selectorProvider) {
-        this.selectorProvider = selectorProvider;
-    }
-
-    @Override
-    public SelectorProvider getSelectorProvider() {
-        return selectorProvider;
-    }
-
-    @Override
-    public void setServerGroup(ServerGroup serverGroup) {
-        this.serverGroup = serverGroup;
-    }
-
-    @Override
-    public ServerGroup getServerGroup() {
-        return serverGroup;
+    public AcceptDispatcherFactory getAcceptDispatcherFactory() {
+        return acceptDispatcherFactory;
     }
 
     /**
@@ -124,5 +106,37 @@ public abstract class AbstractAcceptor implements Acceptor {
         } catch (IOException e) {
             throw new RuntimeException(addr + " bind error", e);
         }
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder id = new StringBuilder();
+        id.append(server.name()).append("::");
+        if (!CollectionUtils.isEmpty(addrs)) {
+            int i = 0;
+            for (Server.Addr addr : addrs) {
+                if (i > 0) {
+                    id.append("/");
+                }
+                id.append(addr.host).append(':').append(addr.port);
+                i++;
+            }
+        }
+
+        return id.toString();
+    }
+
+    @Override
+    public ServerChannelContext getServerChannelContext() {
+        return serverChannelContext;
+    }
+
+    @Override
+    public void setServerChannelContext(ServerChannelContext serverChannelContext) {
+        this.serverChannelContext    = serverChannelContext;
+        this.selectorProvider        = serverChannelContext.getSelectorProvider();
+        this.serverGroup             = serverChannelContext.getServer().getServerGroup();
+        this.acceptDispatcherFactory = serverChannelContext.getAcceptDispatcherFactory();
+        this.server                  = serverChannelContext.getServer();
     }
 }

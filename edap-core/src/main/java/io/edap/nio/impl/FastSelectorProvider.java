@@ -44,14 +44,14 @@ public class FastSelectorProvider implements SelectorProvider {
             Field keysField    = ClazzUtil.getDeclaredField(cls, "selectedKeys");
             Field pubKeysField = ClazzUtil.getDeclaredField(cls, "publicSelectedKeys");
 
-            if (!keysField.canAccess(selector)) {
+            //if (!keysField.canAccess(selector)) {
                 keysField.setAccessible(true);
                 keysField.setAccessible(false);
-            }
-            if (!pubKeysField.canAccess(selector)) {
+            //}
+            //if (!pubKeysField.canAccess(selector)) {
                 pubKeysField.setAccessible(true);
                 pubKeysField.setAccessible(false);
-            }
+            //}
             enableFastDispatch = true;
         } catch (IOException | NoSuchFieldException e) {
             enableFastDispatch = false;
@@ -68,26 +68,26 @@ public class FastSelectorProvider implements SelectorProvider {
             Class<?> cls = selector.getClass();
             Field keysField    = ClazzUtil.getDeclaredField(cls, "selectedKeys");
             Field pubKeysField = ClazzUtil.getDeclaredField(cls, "publicSelectedKeys");
-            boolean keysCanAccess    = keysField.canAccess(selector);
-            boolean pubKeysCanAccess = pubKeysField.canAccess(selector);
+//            boolean keysCanAccess    = keysField.canAccess(selector);
+//            boolean pubKeysCanAccess = pubKeysField.canAccess(selector);
 
-            if (!keysCanAccess) {
+            //if (!keysCanAccess) {
                 keysField.setAccessible(true);
-            }
-            if (!pubKeysCanAccess) {
+            //}
+            //if (!pubKeysCanAccess) {
                 pubKeysField.setAccessible(true);
-            }
+            //}
 
             EventDispatcherSet eventDispatcherSet = new EventDispatcherSet(dispatcher);
             keysField.set(selector, eventDispatcherSet);
             pubKeysField.set(selector, eventDispatcherSet);
 
-            if (!keysCanAccess) {
+            //if (!keysCanAccess) {
                 keysField.setAccessible(false);
-            }
-            if (!pubKeysCanAccess) {
+            //}
+            //if (!pubKeysCanAccess) {
                 pubKeysField.setAccessible(false);
-            }
+            //}
             info.setEventDispatcherSet(eventDispatcherSet);
             info.setSelector(selector);
             return info;

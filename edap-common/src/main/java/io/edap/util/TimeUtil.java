@@ -40,7 +40,7 @@ public class TimeUtil {
      * @return
      */
     public static long timeMillis(Date date) {
-        return date.getTime();
+        return date==null?0:date.getTime();
     }
 
     /**
@@ -49,7 +49,7 @@ public class TimeUtil {
      * @return
      */
     public static long timeMillis(Calendar calendar) {
-        return calendar.getTimeInMillis();
+        return calendar==null?0:calendar.getTimeInMillis();
     }
 
     /**
@@ -58,7 +58,7 @@ public class TimeUtil {
      * @return
      */
     public static long timeMillis(LocalDateTime time) {
-        return time.toEpochSecond(UTC_ZONEOFFSET);
+        return time==null?0:time.toEpochSecond(UTC_ZONEOFFSET);
     }
 
     /**

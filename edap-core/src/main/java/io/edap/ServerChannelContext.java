@@ -16,6 +16,8 @@
 
 package io.edap;
 
+import io.edap.nio.*;
+
 /**
  * 服务器端SocketChannel中附加的上下文信息，在服务器启动时有容器添加到ServerSocketChannel
  * 的selectorKey的attachment中
@@ -24,7 +26,11 @@ package io.edap;
  */
 public class ServerChannelContext {
 
-    private Server server;
+    private Server                  server;
+    private IoSelectorManager       ioSelectorManager;
+    private ReadDispatcherFactory   readDispatcherFactory;
+    private SelectorProvider        selectorProvider;
+    private AcceptDispatcherFactory acceptDispatcherFactory;
 
     public Server getServer() {
         return this.server;
@@ -32,6 +38,38 @@ public class ServerChannelContext {
 
     public void setServer(Server server) {
         this.server = server;
+    }
+
+    public IoSelectorManager getIoSelectorManager() {
+        return ioSelectorManager;
+    }
+
+    public void setIoSelectorManager(IoSelectorManager ioSelectorManager) {
+        this.ioSelectorManager = ioSelectorManager;
+    }
+
+    public SelectorProvider getSelectorProvider() {
+        return selectorProvider;
+    }
+
+    public void setSelectorProvider(SelectorProvider selectorProvider) {
+        this.selectorProvider = selectorProvider;
+    }
+
+    public AcceptDispatcherFactory getAcceptDispatcherFactory() {
+        return acceptDispatcherFactory;
+    }
+
+    public void setAcceptDispatcherFactory(AcceptDispatcherFactory acceptDispatcherFactory) {
+        this.acceptDispatcherFactory = acceptDispatcherFactory;
+    }
+
+    public ReadDispatcherFactory getReadDispatcherFactory() {
+        return readDispatcherFactory;
+    }
+
+    public void setReadDispatcherFactory(ReadDispatcherFactory readDispatcherFactory) {
+        this.readDispatcherFactory = readDispatcherFactory;
     }
 }
 

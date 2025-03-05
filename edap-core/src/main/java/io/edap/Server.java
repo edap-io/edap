@@ -18,7 +18,9 @@ package io.edap;
 
 import io.edap.log.Logger;
 import io.edap.log.LoggerManager;
+import io.edap.pool.Pool;
 import io.edap.pool.SimpleFastBufPool;
+import io.edap.util.StringUtil;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -57,12 +59,35 @@ public abstract class Server<T, S extends NioSession> {
 
     private Decoder<T, S> decoder;
 
+    private String name;
+
+    private int ioThreadCount;
+    private int bizThreadCount;
+    /**
+     * NioSession是否需要使用对象池，如果连接未短连接连接数较少建议采用池化NioSession，减少内存GC。
+     */
+    private boolean nioSesionPooled;
+
+    private Pool<NioSession> nioSessionPool;
+
     public Server() {
         curClientCount = new AtomicInteger(0);
         addrs = new ArrayList<>();
         maxClientCount = 256000;
         backLog = 1024;
         setBufPool(new SimpleFastBufPool());
+    }
+
+    public Server name(String name) {
+        this.name = name;
+        return this;
+    }
+
+    public String name() {
+        if (StringUtil.isEmpty(name)) {
+            return this.getClass().getSimpleName();
+        }
+        return this.name;
     }
 
     public int getBackLog() {
@@ -206,6 +231,41 @@ public abstract class Server<T, S extends NioSession> {
 
     public void setServerGroup(ServerGroup serverGroup) {
         this.serverGroup = serverGroup;
+    }
+
+    /**
+     * NioSession是否需要使用对象池
+     */
+    public boolean isNioSesionPooled() {
+        return nioSesionPooled;
+    }
+
+    public void setNioSesionPooled(boolean nioSesionPooled) {
+        this.nioSesionPooled = nioSesionPooled;
+    }
+
+    public int getIoThreadCount() {
+        return ioThreadCount;
+    }
+
+    public void setIoThreadCount(int ioThreadCount) {
+        this.ioThreadCount = ioThreadCount;
+    }
+
+    public int getBizThreadCount() {
+        return bizThreadCount;
+    }
+
+    public void setBizThreadCount(int bizThreadCount) {
+        this.bizThreadCount = bizThreadCount;
+    }
+
+    public Pool<NioSession> getNioSessionPool() {
+        return nioSessionPool;
+    }
+
+    public void setNioSessionPool(Pool<NioSession> nioSessionPool) {
+        this.nioSessionPool = nioSessionPool;
     }
 
     public static class Addr {

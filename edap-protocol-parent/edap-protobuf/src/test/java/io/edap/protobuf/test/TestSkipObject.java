@@ -23,6 +23,8 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArraySet;
 
 import static io.edap.protobuf.test.TestUtil.conver2HexStr;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -1293,6 +1295,107 @@ public class TestSkipObject {
         assertEquals(dest.field19, str);
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "0,1,125,128,-1,-129"
+    })
+    public void testSkipCopyOnWriteArraySet(String setStr) {
+        String str = new Random().nextDouble() + "";
+        String[] strs = setStr.split(",");
+        CopyOnWriteArraySet<Integer> set = new CopyOnWriteArraySet<>();
+        for (int i=0;i<strs.length;i++) {
+            set.add(Integer.parseInt(strs[i]));
+        }
+
+        SkipSrc src = buildSkipSrc(str, set);
+
+        byte[] epb = ProtoBuf.toByteArray(src);
+        System.out.println("+-epb[" + epb.length + "]-------------------+");
+        System.out.println(conver2HexStr(epb));
+        System.out.println("+--------------------+");
+
+        SkipDest dest = ProtoBuf.toObject(epb, SkipDest.class);
+        assertNotNull(dest);
+        assertEquals(dest.field19, str);
+
+        ProtoBufOption option = new ProtoBufOption();
+        option.setCodecType(CodecType.FAST);
+        epb = ProtoBuf.toByteArray(src, option);
+        System.out.println("+-epbf[" + epb.length + "]-------------------+");
+        System.out.println(conver2HexStr(epb));
+        System.out.println("+--------------------+");
+
+        dest = ProtoBuf.toObject(epb, SkipDest.class, option);
+        assertNotNull(dest);
+        assertEquals(dest.field19, str);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "0,1,125,128,-1,-129"
+    })
+    public void testSkipHashSet(String setStr) {
+        String str = new Random().nextDouble() + "";
+        String[] strs = setStr.split(",");
+        HashSet<Integer> set = new HashSet<>();
+        for (int i=0;i<strs.length;i++) {
+            set.add(Integer.parseInt(strs[i]));
+        }
+
+        SkipSrc src = buildSkipSrc(str, set);
+
+        byte[] epb = ProtoBuf.toByteArray(src);
+        System.out.println("+-epb[" + epb.length + "]-------------------+");
+        System.out.println(conver2HexStr(epb));
+        System.out.println("+--------------------+");
+
+        SkipDest dest = ProtoBuf.toObject(epb, SkipDest.class);
+        assertNotNull(dest);
+        assertEquals(dest.field19, str);
+
+        ProtoBufOption option = new ProtoBufOption();
+        option.setCodecType(CodecType.FAST);
+        epb = ProtoBuf.toByteArray(src, option);
+        System.out.println("+-epbf[" + epb.length + "]-------------------+");
+        System.out.println(conver2HexStr(epb));
+        System.out.println("+--------------------+");
+
+        dest = ProtoBuf.toObject(epb, SkipDest.class, option);
+        assertNotNull(dest);
+        assertEquals(dest.field19, str);
+    }
+
+    @Test
+    public void testSkipConcurrentHashMap() {
+        String str = new Random().nextDouble() + "";
+        ConcurrentHashMap<String, Object> map = new ConcurrentHashMap<>();
+        map.put("key1", 123);
+        map.put("key2", new Date());
+        map.put("key3", 31.415d);
+
+        SkipSrc src = buildSkipSrc(str, map);
+
+        byte[] epb = ProtoBuf.toByteArray(src);
+        System.out.println("+-epb[" + epb.length + "]-------------------+");
+        System.out.println(conver2HexStr(epb));
+        System.out.println("+--------------------+");
+
+        SkipDest dest = ProtoBuf.toObject(epb, SkipDest.class);
+        assertNotNull(dest);
+        assertEquals(dest.field19, str);
+
+        ProtoBufOption option = new ProtoBufOption();
+        option.setCodecType(CodecType.FAST);
+        epb = ProtoBuf.toByteArray(src, option);
+        System.out.println("+-epbf[" + epb.length + "]-------------------+");
+        System.out.println(conver2HexStr(epb));
+        System.out.println("+--------------------+");
+
+        dest = ProtoBuf.toObject(epb, SkipDest.class, option);
+        assertNotNull(dest);
+        assertEquals(dest.field19, str);
+    }
+
     private SkipSrc buildSkipSrc(String v, Object skipObj) {
         Project project = new Project();
         project.setName("edap");
@@ -1326,4 +1429,69 @@ public class TestSkipObject {
 
         return src;
     }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "2020-03-04 13:24:35.678"
+    })
+    public void testSkipSqlTimestamp(String dateStr) throws ParseException {
+        String str = new Random().nextDouble() + "";
+        SimpleDateFormat timeF = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS");
+        java.sql.Timestamp v = new java.sql.Timestamp(timeF.parse(dateStr).getTime());
+
+        SkipSrc src = buildSkipSrc(str, v);
+
+        byte[] epb = ProtoBuf.toByteArray(src);
+        System.out.println("+-epb[" + epb.length + "]-------------------+");
+        System.out.println(conver2HexStr(epb));
+        System.out.println("+--------------------+");
+
+        SkipDest dest = ProtoBuf.toObject(epb, SkipDest.class);
+        assertNotNull(dest);
+        assertEquals(dest.field19, str);
+
+        ProtoBufOption option = new ProtoBufOption();
+        option.setCodecType(CodecType.FAST);
+        epb = ProtoBuf.toByteArray(src, option);
+        System.out.println("+-epbf[" + epb.length + "]-------------------+");
+        System.out.println(conver2HexStr(epb));
+        System.out.println("+--------------------+");
+
+        dest = ProtoBuf.toObject(epb, SkipDest.class, option);
+        assertNotNull(dest);
+        assertEquals(dest.field19, str);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "2020-03-04 13:24:35.678"
+    })
+    public void testSkipSqlDate(String dateStr) throws ParseException {
+        String str = new Random().nextDouble() + "";
+        SimpleDateFormat timeF = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS");
+        java.sql.Date v = new java.sql.Date(timeF.parse(dateStr).getTime());
+
+        SkipSrc src = buildSkipSrc(str, v);
+
+        byte[] epb = ProtoBuf.toByteArray(src);
+        System.out.println("+-epb[" + epb.length + "]-------------------+");
+        System.out.println(conver2HexStr(epb));
+        System.out.println("+--------------------+");
+
+        SkipDest dest = ProtoBuf.toObject(epb, SkipDest.class);
+        assertNotNull(dest);
+        assertEquals(dest.field19, str);
+
+        ProtoBufOption option = new ProtoBufOption();
+        option.setCodecType(CodecType.FAST);
+        epb = ProtoBuf.toByteArray(src, option);
+        System.out.println("+-epbf[" + epb.length + "]-------------------+");
+        System.out.println(conver2HexStr(epb));
+        System.out.println("+--------------------+");
+
+        dest = ProtoBuf.toObject(epb, SkipDest.class, option);
+        assertNotNull(dest);
+        assertEquals(dest.field19, str);
+    }
+
 }

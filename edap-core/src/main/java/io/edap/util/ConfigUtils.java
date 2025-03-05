@@ -124,7 +124,7 @@ public class ConfigUtils {
     private static Object parseEnvValue(List<String> keys) {
         StringBuilder keyBuilder = new StringBuilder();
         for (String k : keys) {
-            if (!keyBuilder.isEmpty()) {
+            if (keyBuilder.length() > 0) {
                 keyBuilder.append(".");
             }
             keyBuilder.append(k);

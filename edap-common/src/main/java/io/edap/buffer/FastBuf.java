@@ -166,7 +166,7 @@ public class FastBuf extends BasePoolEntry {
     }
 
     public int writeTo(byte[] bs, int offseet, int len) {
-        UnsafeUtil.copyMemory(address, bs, offseet, len);
+        UnsafeUtil.copyMemory(readPos, bs, offseet, len);
         return len;
     }
 

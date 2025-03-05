@@ -21,6 +21,7 @@ import io.edap.protobuf.ext.codec.*;
 import io.edap.protobuf.model.ProtoBufOption;
 
 import java.util.HashMap;
+import java.util.concurrent.CopyOnWriteArraySet;
 
 /**
  * Any类型的编解码器
@@ -51,50 +52,56 @@ public class AnyCodec {
     public static final int RANGE_INT_START       = 0;
     public static final int RANGE_INT_END         = RANGE_INT_START + 15;
 
-    public static final int RANGE_STRING_START    = RANGE_INT_END + 1; //16;
-    public static final int RANGE_STRING_END      = RANGE_STRING_START + 64; //47;
+    public static final int RANGE_STRING_START    = RANGE_INT_END + 1;           //16;
+    public static final int RANGE_STRING_END      = RANGE_STRING_START + 64;     //47;
 
-    public static final int RANGE_HASHMAP_START   = RANGE_STRING_END + 1; //48;
-    public static final int RANGE_HASHMAP_END     = RANGE_HASHMAP_START + 15;//63;
+    public static final int RANGE_HASHMAP_START   = RANGE_STRING_END + 1;         //48;
+    public static final int RANGE_HASHMAP_END     = RANGE_HASHMAP_START + 15;     //63;
 
-    public static final int RANGE_LONG            = RANGE_HASHMAP_END + 1; //64;
-    public static final int RANGE_BOOL_FALSE      = RANGE_LONG + 1; //65;
-    public static final int RANGE_BOOL_TRUE       = RANGE_BOOL_FALSE + 1; //66;
-    public static final int RANGE_DOUBLE          = RANGE_BOOL_TRUE + 1; //67;
-    public static final int RANGE_FLOAT           = RANGE_DOUBLE + 1; //68;
-    public static final int RANGE_DATE            = RANGE_FLOAT + 1; //69;
-    public static final int RANGE_LOCALDATE       = RANGE_DATE + 1; //70;
-    public static final int RANGE_LOCALTIME       = RANGE_LOCALDATE + 1; //71;
-    public static final int RANGE_LOCALDATETIME   = RANGE_LOCALTIME + 1; //72;
-    public static final int RANGE_CALENDAR        = RANGE_LOCALDATETIME + 1; //73;
-    public static final int RANGE_BIGINTEGER      = RANGE_CALENDAR + 1; //74;
-    public static final int RANGE_BIGDDECIMAL     = RANGE_BIGINTEGER + 1; //75;
-    public static final int RANGE_CLASS           = RANGE_BIGDDECIMAL + 1; //76;
+    public static final int RANGE_LONG            = RANGE_HASHMAP_END + 1;        //64;
+    public static final int RANGE_BOOL_FALSE      = RANGE_LONG + 1;               //65;
+    public static final int RANGE_BOOL_TRUE       = RANGE_BOOL_FALSE + 1;         //66;
+    public static final int RANGE_DOUBLE          = RANGE_BOOL_TRUE + 1;          //67;
+    public static final int RANGE_FLOAT           = RANGE_DOUBLE + 1;             //68;
+    public static final int RANGE_DATE            = RANGE_FLOAT + 1;              //69;
+    public static final int RANGE_LOCALDATE       = RANGE_DATE + 1;               //70;
+    public static final int RANGE_LOCALTIME       = RANGE_LOCALDATE + 1;          //71;
+    public static final int RANGE_LOCALDATETIME   = RANGE_LOCALTIME + 1;          //72;
+    public static final int RANGE_CALENDAR        = RANGE_LOCALDATETIME + 1;      //73;
+    public static final int RANGE_BIGINTEGER      = RANGE_CALENDAR + 1;           //74;
+    public static final int RANGE_BIGDDECIMAL     = RANGE_BIGINTEGER + 1;         //75;
+    public static final int RANGE_CLASS           = RANGE_BIGDDECIMAL + 1;        //76;
 
-    public static final int RANGE_ARRAYLIST_START = RANGE_CLASS + 1; //77;
-    public static final int RANGE_ARRAYLIST_END   = RANGE_ARRAYLIST_START + 16; //93;
+    public static final int RANGE_ARRAYLIST_START = RANGE_CLASS + 1;              //77;
+    public static final int RANGE_ARRAYLIST_END   = RANGE_ARRAYLIST_START + 16;   //93;
 
-    public static final int RANGE_MESSAGE         = RANGE_ARRAYLIST_END + 1; //94;
+    public static final int RANGE_MESSAGE         = RANGE_ARRAYLIST_END + 1;      //94;
 
-    public static final int RANGE_ARRAY_BYTE       = RANGE_MESSAGE + 1; //95;
-    public static final int RANGE_ARRAY_CHAR       = RANGE_ARRAY_BYTE + 1; //96;
-    public static final int RANGE_ARRAY_INT        = RANGE_ARRAY_CHAR + 1; //97;
-    public static final int RANGE_ARRAY_INTEGER    = RANGE_ARRAY_INT + 1; //98;
-    public static final int RANGE_ARRAY_LONG       = RANGE_ARRAY_INTEGER + 1; //99;
-    public static final int RANGE_ARRAY_LONG_OBJ   = RANGE_ARRAY_LONG + 1; //100;
-    public static final int RANGE_ARRAY_FLOAT      = RANGE_ARRAY_LONG_OBJ + 1; //101;
-    public static final int RANGE_ARRAY_FLOAT_OBJ  = RANGE_ARRAY_FLOAT + 1; //102;
-    public static final int RANGE_ARRAY_DOUBLE     = RANGE_ARRAY_FLOAT_OBJ + 1; //103;
-    public static final int RANGE_ARRAY_DOUBLE_OBJ = RANGE_ARRAY_DOUBLE + 1; //104;
-    public static final int RANGE_ARRAY_STRING     = RANGE_ARRAY_DOUBLE_OBJ + 1; //105;
-    public static final int RANGE_ARRAY_BOOL       = RANGE_ARRAY_STRING + 1; //106;
-    public static final int RANGE_ARRAY_BOOL_OBJ   = RANGE_ARRAY_BOOL + 1; //107;
-    public static final int RANGE_ARRAY_OBJECT     = RANGE_ARRAY_BOOL_OBJ + 1; //108;
-    public static final int RANGE_NULL             = RANGE_ARRAY_OBJECT + 1; //109;
+    public static final int RANGE_ARRAY_BYTE       = RANGE_MESSAGE + 1;           //95;
+    public static final int RANGE_ARRAY_CHAR       = RANGE_ARRAY_BYTE + 1;        //96;
+    public static final int RANGE_ARRAY_INT        = RANGE_ARRAY_CHAR + 1;        //97;
+    public static final int RANGE_ARRAY_INTEGER    = RANGE_ARRAY_INT + 1;         //98;
+    public static final int RANGE_ARRAY_LONG       = RANGE_ARRAY_INTEGER + 1;     //99;
+    public static final int RANGE_ARRAY_LONG_OBJ   = RANGE_ARRAY_LONG + 1;        //100;
+    public static final int RANGE_ARRAY_FLOAT      = RANGE_ARRAY_LONG_OBJ + 1;    //101;
+    public static final int RANGE_ARRAY_FLOAT_OBJ  = RANGE_ARRAY_FLOAT + 1;       //102;
+    public static final int RANGE_ARRAY_DOUBLE     = RANGE_ARRAY_FLOAT_OBJ + 1;   //103;
+    public static final int RANGE_ARRAY_DOUBLE_OBJ = RANGE_ARRAY_DOUBLE + 1;      //104;
+    public static final int RANGE_ARRAY_STRING     = RANGE_ARRAY_DOUBLE_OBJ + 1;  //105;
+    public static final int RANGE_ARRAY_BOOL       = RANGE_ARRAY_STRING + 1;      //106;
+    public static final int RANGE_ARRAY_BOOL_OBJ   = RANGE_ARRAY_BOOL + 1;        // 107;
+    public static final int RANGE_ARRAY_OBJECT     = RANGE_ARRAY_BOOL_OBJ + 1;    // 108;
+    public static final int RANGE_NULL             = RANGE_ARRAY_OBJECT + 1;      // 109;
 
-    public static final int RANGE_LINKED_HASHMAP   = RANGE_NULL + 1; //110;
+    public static final int RANGE_LINKED_HASHMAP       = RANGE_NULL + 1;                 // 110;
+    public static final int RANGE_CONCURRENT_HASHMAP   = RANGE_LINKED_HASHMAP + 1;       // 111 java.util.concurrent.ConcurrentHashMap
+    public static final int RANGE_HASH_SET             = RANGE_CONCURRENT_HASHMAP + 1;   // 112 CopyOnWriteArraySet
+    public static final int RANGE_COPYONWRITE_ARRAYSET = RANGE_HASH_SET + 1;             // 113 CopyOnWriteArraySet
+    public static final int RANGE_SQL_DATE             = RANGE_COPYONWRITE_ARRAYSET + 1; // 114 java.sql.Date;
+    public static final int RANGE_SQL_TIMEATAMP        = RANGE_SQL_DATE + 1;             // 115 java.sql.Timestamp;
 
-    public static final int RANGE_MAX              = RANGE_LINKED_HASHMAP + 1;
+
+    public static final int RANGE_MAX              = RANGE_SQL_TIMEATAMP + 1;
 
     static {
         MessageCodec msgCodec = new MessageCodec();
@@ -135,7 +142,14 @@ public class AnyCodec {
         HashMapCodec        hashMapCodec        = new HashMapCodec();
         ArrayListCodec      arrayListCodec      = new ArrayListCodec();
         ArrayObjectCodec    arrayObjectCodec    = new ArrayObjectCodec();
-        LinkedHashMapCodec  linkedHashMapCodec  = new LinkedHashMapCodec();
+
+        LinkedHashMapCodec       linkedHashMapCodec       = new LinkedHashMapCodec();
+        ConcurrentHashMapCodec   concurentHashMapCodec    = new ConcurrentHashMapCodec();
+        CopyOnWriteArraySetCodec copyOnWriteArraySetCodec = new CopyOnWriteArraySetCodec();
+        SqlDateCodec             sqlDateCodec             = new SqlDateCodec();
+        SqlTimestampCodec        sqlTimestampCodec        = new SqlTimestampCodec();
+        HashSetCodec             hashSetCodec             = new HashSetCodec();
+
 
         MSG_ENCODERS.put("java.lang.String",            stringCodec);
         MSG_ENCODERS.put("java.lang.Integer",           integerCodec);
@@ -154,6 +168,11 @@ public class AnyCodec {
         MSG_ENCODERS.put("java.util.HashMap",           hashMapCodec);
         MSG_ENCODERS.put("java.util.ArrayList",         arrayListCodec);
         MSG_ENCODERS.put("java.util.LinkedHashMap",     linkedHashMapCodec);
+        MSG_ENCODERS.put("java.util.concurrent.ConcurrentHashMap", concurentHashMapCodec);
+        MSG_ENCODERS.put("java.util.concurrent.CopyOnWriteArraySet", copyOnWriteArraySetCodec);
+        MSG_ENCODERS.put("java.util.HashSet",           hashSetCodec);
+        MSG_ENCODERS.put("java.sql.Date",               sqlDateCodec);
+        MSG_ENCODERS.put("java.sql.Timestamp",          sqlTimestampCodec);
 
         MSG_ENCODERS.put("[B",                          arrayByteCodec);
         MSG_ENCODERS.put("[C",                          arrayCharCodec);
@@ -186,7 +205,13 @@ public class AnyCodec {
         MSG_FAST_ENCODERS.put("java.lang.Class",             classCodec);
         MSG_FAST_ENCODERS.put("java.util.HashMap",           hashMapCodec);
         MSG_FAST_ENCODERS.put("java.util.ArrayList",         arrayListCodec);
-        MSG_FAST_ENCODERS.put("java.util.LinkedHashMap",     linkedHashMapCodec);
+
+        MSG_FAST_ENCODERS.put("java.util.LinkedHashMap",                  linkedHashMapCodec);
+        MSG_FAST_ENCODERS.put("java.util.concurrent.ConcurrentHashMap",   concurentHashMapCodec);
+        MSG_FAST_ENCODERS.put("java.util.concurrent.CopyOnWriteArraySet", copyOnWriteArraySetCodec);
+        MSG_FAST_ENCODERS.put("java.util.HashSet",           hashSetCodec);
+        MSG_FAST_ENCODERS.put("java.sql.Date",               sqlDateCodec);
+        MSG_FAST_ENCODERS.put("java.sql.Timestamp",          sqlTimestampCodec);
 
         MSG_FAST_ENCODERS.put("[B",                          arrayByteCodec);
         MSG_FAST_ENCODERS.put("[C",                          arrayCharCodec);
@@ -256,7 +281,14 @@ public class AnyCodec {
         DECODERS[RANGE_ARRAY_BOOL_OBJ]   = arrayBoolObjCodec;
         DECODERS[RANGE_ARRAY_OBJECT]     = arrayObjectCodec;
         DECODERS[RANGE_NULL]             = NULL_CODEC;
-        DECODERS[RANGE_LINKED_HASHMAP]   = linkedHashMapCodec;
+
+        DECODERS[RANGE_LINKED_HASHMAP]       = linkedHashMapCodec;
+        DECODERS[RANGE_CONCURRENT_HASHMAP]   = concurentHashMapCodec;
+        DECODERS[RANGE_COPYONWRITE_ARRAYSET] = copyOnWriteArraySetCodec;
+        DECODERS[RANGE_HASH_SET]             = hashSetCodec;
+        DECODERS[RANGE_SQL_DATE]             = sqlDateCodec;
+        DECODERS[RANGE_SQL_TIMEATAMP]        = sqlTimestampCodec;
+
 
         // int的编码范围
         for (int i=RANGE_INT_START;i<RANGE_INT_END;i++) {
@@ -311,7 +343,13 @@ public class AnyCodec {
         FAST_DECODERS[RANGE_ARRAY_BOOL_OBJ]   = arrayBoolObjCodec;
         FAST_DECODERS[RANGE_ARRAY_OBJECT]     = arrayObjectCodec;
         FAST_DECODERS[RANGE_NULL]             = NULL_CODEC;
-        FAST_DECODERS[RANGE_LINKED_HASHMAP]   = linkedHashMapCodec;
+
+        FAST_DECODERS[RANGE_LINKED_HASHMAP]       = linkedHashMapCodec;
+        FAST_DECODERS[RANGE_CONCURRENT_HASHMAP]   = concurentHashMapCodec;
+        FAST_DECODERS[RANGE_COPYONWRITE_ARRAYSET] = copyOnWriteArraySetCodec;
+        FAST_DECODERS[RANGE_HASH_SET]             = hashSetCodec;
+        FAST_DECODERS[RANGE_SQL_DATE]             = sqlDateCodec;
+        FAST_DECODERS[RANGE_SQL_TIMEATAMP]        = sqlTimestampCodec;
 
     }
 

@@ -1,1 +1,0 @@
-typeSearchIndex = [{"l":"All Classes and Interfaces","u":"allclasses-index.html"},{"p":"io.edap.http","l":"HttpServer.DecoderType"},{"p":"io.edap.http","l":"HttpServer"},{"p":"io.edap.http","l":"HttpServerBuilder"}];updateSearchResults();

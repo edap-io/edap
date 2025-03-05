@@ -535,7 +535,7 @@ public class ByteArrayBuilder {
                 _bs[p++] = (byte) c;
             } else if (c < 0x800) {
                 _bs[p++] = (byte) ((0xF << 6) | (c >>> 6));
-                _bs[p++] = (byte) ( 0x80 | (0x3F & c));
+                _bs[p++] = (byte) ( 0x80      | (0x3F & c));
             } else if (Character.isHighSurrogate(c) && i+1<end
                     && Character.isLowSurrogate(v.charAt(i+1))) {
                 int codePoint = Character.toCodePoint((char) c, (char) v.charAt(i+1));

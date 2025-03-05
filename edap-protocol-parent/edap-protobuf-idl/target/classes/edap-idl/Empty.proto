@@ -1,9 +1,0 @@
-syntax = "proto3";
-
-
-package io.edap.protobuf.idl.proto;
-
-option java_package = "io.edap.protobuf.idl.proto";
-
-message Empty {
-}
