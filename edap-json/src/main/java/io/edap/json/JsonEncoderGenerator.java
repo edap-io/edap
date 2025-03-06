@@ -159,13 +159,13 @@ public class JsonEncoderGenerator {
                 AsmUtil.MapEntryTypeInfo info = getMapEntryTypeInfo(jfi.field.getGenericType());
                 String keySign = getDescriptor(info.getKeyType());
                 String valSign = getDescriptor(info.getValueType());
-                FieldVisitor fv = cw.visitField(ACC_PRIVATE, jfi.field.getName() + "MapEncoder",
+                FieldVisitor fv = cw.visitField(ACC_PRIVATE | ACC_STATIC, jfi.field.getName() + "MapEncoder",
                         "L" + MAP_ENCOER_NAME + ";",
                         "L" + MAP_ENCOER_NAME + "<" + keySign + valSign + ">;", null);
                 fv.visitEnd();
 
-                mv.visitVarInsn(ALOAD, 0);
-                mv.visitFieldInsn(GETFIELD, encoderName, jfi.field.getName() + "MapEncoder", "L" + MAP_ENCOER_NAME + ";");
+                //mv.visitVarInsn(ALOAD, 0);
+                mv.visitFieldInsn(GETSTATIC, encoderName, jfi.field.getName() + "MapEncoder", "L" + MAP_ENCOER_NAME + ";");
                 mv.visitVarInsn(ALOAD, 1);
                 mv.visitVarInsn(ALOAD, 2);
                 if (jfi.method != null) {
@@ -742,7 +742,7 @@ public class JsonEncoderGenerator {
             if (!isMap(jfi.field.getGenericType())) {
                 continue;
             }
-            mv.visitVarInsn(ALOAD, 0);
+            //mv.visitVarInsn(ALOAD, 0);
             mv.visitMethodInsn(INVOKESTATIC, REGISTER_NAME, "instance", "()L" + REGISTER_NAME + ";", false);
             mv.visitLdcInsn(org.objectweb.asm.Type.getType("L" + pojoName + ";"));
             mv.visitLdcInsn(jfi.field.getName());
@@ -752,7 +752,7 @@ public class JsonEncoderGenerator {
             mv.visitFieldInsn(GETSTATIC, "io/edap/json/enums/DataType", "BYTE_ARRAY", "Lio/edap/json/enums/DataType;");
             mv.visitMethodInsn(INVOKEVIRTUAL, REGISTER_NAME, "getMapEncoder", "" +
                     "(Ljava/lang/reflect/Type;Ljava/lang/Class;Lio/edap/json/enums/DataType;)L" + MAP_ENCOER_NAME + ";", false);
-            mv.visitFieldInsn(PUTFIELD, encoderName, jfi.field.getName() + "MapEncoder", "L" + MAP_ENCOER_NAME + ";");
+            mv.visitFieldInsn(PUTSTATIC, encoderName, jfi.field.getName() + "MapEncoder", "L" + MAP_ENCOER_NAME + ";");
         }
 
         mv.visitInsn(RETURN);

@@ -21,7 +21,9 @@ import io.edap.json.JsonEncoder;
 import io.edap.json.JsonWriter;
 import io.edap.json.MapEncoder;
 import io.edap.json.test.model.DemoOneString;
+import io.edap.util.CollectionUtils;
 
+import java.util.Iterator;
 import java.util.Map;
 
 public class MapEncoder_223 implements MapEncoder<String, DemoOneString> {
@@ -34,19 +36,26 @@ public class MapEncoder_223 implements MapEncoder<String, DemoOneString> {
 
     @Override
     public void encode(JsonWriter writer, Map<String, DemoOneString> map) {
+        if (map == null) {
+            return;
+        }
+        if (map.isEmpty()) {
+            writer.write((byte)'{', (byte)'}');
+            return;
+        }
         JsonEncoder<DemoOneString> encoder = valueEncoder;
-        boolean start = false;
-        for (Map.Entry<String, DemoOneString> entry : map.entrySet()) {
-            if (!start) {
-                writer.write((byte)'{');
-                start = true;
-            } else {
-                writer.write((byte)',');
-
-            }
-            writer.write(String.valueOf(entry.getKey()));
+        writer.write((byte)'{');
+        Iterator<Map.Entry<String, DemoOneString>> itr = map.entrySet().iterator();
+        Map.Entry<String, DemoOneString> first = itr.next();
+        writer.write(String.valueOf(first.getKey()));
+        writer.write((byte)':');
+        encoder.encode(writer, first.getValue());
+        while (itr.hasNext()) {
+            first = itr.next();
+            writer.write((byte)',');
+            writer.write(String.valueOf(first.getKey()));
             writer.write((byte)':');
-            encoder.encode(writer, entry.getValue());
+            encoder.encode(writer, first.getValue());
         }
         writer.write((byte)'}');
     }
