@@ -19,14 +19,10 @@ package io.edap.json.writer;
 import io.edap.buffer.FastBuf;
 import io.edap.io.BufOut;
 import io.edap.io.ByteArrayBufOut;
-import io.edap.json.Eson;
-import io.edap.json.JsonEncoder;
-import io.edap.json.JsonWriter;
-import io.edap.json.MapEncoder;
+import io.edap.json.*;
 import io.edap.util.Grisu;
 import io.edap.util.Grisu3;
 import io.edap.util.StringUtil;
-import io.edap.util.UnsafeUtil;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -42,18 +38,17 @@ import static io.edap.util.FastNum.uncheckWriteLong;
 import static io.edap.util.StringUtil.IS_BYTE_ARRAY;
 import static io.edap.util.StringUtil.isLatin1;
 import static io.edap.util.UnsafeUtil.writeByte;
-import static java.lang.Float.NEGATIVE_INFINITY;
 
 /**
  * 使用Byte数组作为输出对象的JsonWriter的实现
  */
 public class ByteArrayJsonWriter extends AbstractJsonWriter implements JsonWriter {
 
-    byte[] buf;
-    int pos;
+    byte[]          buf;
+    int             pos;
     BufOut.WriteBuf wbuf;
-    BufOut out;
-    int wpos;
+    BufOut          out;
+    int             wpos;
 
     Grisu3.FastDtoaBuilder builder = new Grisu3.FastDtoaBuilder();
 
@@ -214,7 +209,7 @@ public class ByteArrayJsonWriter extends AbstractJsonWriter implements JsonWrite
             buf[_pos++] = 'n';
             buf[_pos++] = 'u';
             buf[_pos++] = 'l';
-            buf[_pos++]   = 'l';
+            buf[_pos++] = 'l';
             pos = _pos;
             return;
         }
@@ -261,10 +256,13 @@ public class ByteArrayJsonWriter extends AbstractJsonWriter implements JsonWrite
 
     //@Override
     public void write(String s) {
-        if (IS_BYTE_ARRAY && s.length() > 5) {
-            if (isLatin1(s)) {
+        if (IS_BYTE_ARRAY) {
+            int slen = s.length();
+            if (isLatin1(s) && slen > 5) {
+                expand((slen << 2) + (slen << 1) + 2);
                 writeLatin1(StringUtil.getValue(s));
             } else {
+                expand((slen << 2) + (slen << 1) + 2);
                 writeString(s, 0, s.length());
             }
             return;
@@ -372,20 +370,9 @@ public class ByteArrayJsonWriter extends AbstractJsonWriter implements JsonWrite
         byte[] _buf = buf;
         int index = pos;
         writeByte(_buf, index++, (byte)'"');
-        pos= index;
         int i = 0;
-        //char[] cs = s.toCharArray();
         for (;i<slen;i++) {
             char c = chars[i];
-//            if (c >= 128 || !CAN_DIRECT_WRITE[c]) {
-//                break;
-//            }
-//            _buf[index++] = (byte) c;
-//            if (c < 128 && CAN_DIRECT_WRITE[c]) {
-//                _buf[index++] = (byte) c;
-//            } else {
-//                break;
-//            }
             if (c > 31 && c != '"' && c != '\\' && c < 126) {
                 writeByte(_buf, index++, (byte) c);
             } else {
@@ -402,18 +389,6 @@ public class ByteArrayJsonWriter extends AbstractJsonWriter implements JsonWrite
     public void writeField(byte[] bs, int offset, int end) {
         int len = end - offset;
         expand(len);
-        //UnsafeUtil.copyMemory(bs, offset, this.buf, pos, len);
-//        System.arraycopy(bs, offset, buf, pos, len);
-//        pos += len;
-//        int j = pos;
-//        int n = end;
-//        int i = offset;
-//        byte[] val = buf;   /* avoid getfield opcode */
-//
-//        while (i < n) {
-//            val[j++] = bs[i++];
-//        }
-//        pos = j;
         byte[] _buf = buf;
         int _pos = pos;
         while (offset < end) {
@@ -425,8 +400,6 @@ public class ByteArrayJsonWriter extends AbstractJsonWriter implements JsonWrite
     @Override
     public void write(byte[] bs, int offset, int length) {
         expand(length);
-//        System.arraycopy(bs, offset, buf, pos, length);
-//        pos += length;
 
         int j = pos;
         int n = offset + length;
@@ -437,12 +410,6 @@ public class ByteArrayJsonWriter extends AbstractJsonWriter implements JsonWrite
             val[j++] = bs[i++];
         }
         pos = j;
-//        byte[] _buf = buf;
-//        int cur = pos;
-//        for (int i=offset;i<offset+length;i++) {
-//            _buf[cur++] = bs[i];
-//        }
-//        pos = cur;
     }
 
     @Override
@@ -632,51 +599,6 @@ public class ByteArrayJsonWriter extends AbstractJsonWriter implements JsonWrite
             }
         }
         writeByte(_buf, cur++, (byte)'"');
-        pos = cur;
-    }
-
-    private void writeString2(char[] cs, int start, int end) {
-        byte[] _buf = buf;
-        char c;
-        int cur = pos;
-        for (int i=start;i<end;i++) {
-            c = cs[i];
-            if (c < 128) {
-                if (CAN_DIRECT_WRITE[c]) {
-                    _buf[cur++] = (byte) c;
-                } else if (c == '"') {
-                    _buf[cur++] = 92;
-                    _buf[cur++] = 34;
-                } else if (c == '\\') {
-                    _buf[cur++] = 92;
-                    _buf[cur++] = 92;
-                } else {
-                    byte[] tmp = REPLACEMENT_CHARS[c];
-                    for (int j = 0; j < tmp.length; j++) {
-                        _buf[cur++] = tmp[j];
-                    }
-                }
-            } else if (c == '\u2028') {
-                System.arraycopy(JS_REPLACEMENT_CHAR, 0, _buf, cur, 6);
-                cur += 6;
-            } else if (c == '\u2029') {
-                System.arraycopy(JS_REPLACEMENT_CHAR, 6, _buf, cur, 6);
-                cur += 6;
-            } else if (c < 0x800) {
-                _buf[cur++] = (byte) ((0xF << 6) | (c >>> 6));
-                _buf[cur++] = (byte) (0x80       | (0x3F & c));
-            } else if (c < Character.MIN_SURROGATE || Character.MAX_SURROGATE < c) {
-                _buf[cur++] = (byte) ((0xF << 5) | (        c >>> 12));
-                _buf[cur++] = (byte) (0x80       | (0x3F & (c >>> 6 )));
-                _buf[cur++] = (byte) (0x80       | (0x3F &  c       ));
-            } else {
-                _buf[cur++] = (byte) (0xF0 | ((c >> 18) & 0x07));
-                _buf[cur++] = (byte) (0x80 | ((c >> 12) & 0x3F));
-                _buf[cur++] = (byte) (0x80 | ((c >> 6)  & 0x3F));
-                _buf[cur++] = (byte) (0x80 | ( c        & 0x3F));
-            }
-        }
-        _buf[cur++] = '"';
         pos = cur;
     }
 
