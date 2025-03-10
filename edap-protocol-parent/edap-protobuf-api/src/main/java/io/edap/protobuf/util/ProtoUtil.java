@@ -677,14 +677,9 @@ public class ProtoUtil {
                 typeInfo.setProtoType(Type.BYTES);
                 break;
             case "java.io.Serializable":
-            case "java.lang.Object":
-                msgInfo = new MessageInfo();
-                msgInfo.setMessageName(Type.OBJECT.value());
-                msgInfo.setJavaType(javaType);
-                typeInfo.setMessageInfo(msgInfo);
-                typeInfo.setProtoType(Type.OBJECT);
-                break;
             case "java.math.BigDecimal":
+            case "java.lang.Number":
+            case "java.lang.Object":
                 msgInfo = new MessageInfo();
                 msgInfo.setMessageName(Type.OBJECT.value());
                 msgInfo.setJavaType(javaType);
@@ -741,7 +736,7 @@ public class ProtoUtil {
                 java.lang.reflect.Type[] types = pType.getActualTypeArguments();
                 if (types != null && types.length > 0) {
                     java.lang.reflect.Type itemType = types[0];
-                    if (itemType instanceof TypeVariable) {
+                    if (itemType instanceof TypeVariable || itemType instanceof WildcardType) {
                         typeInfo.setProtoType(Type.OBJECT);
                         typeInfo.setCardinality(Cardinality.REPEATED);
                         return typeInfo;
