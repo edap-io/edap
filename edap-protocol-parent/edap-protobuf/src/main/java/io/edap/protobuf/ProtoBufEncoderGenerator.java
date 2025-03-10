@@ -31,6 +31,7 @@ import org.objectweb.asm.*;
 import java.io.IOException;
 import java.lang.reflect.GenericArrayType;
 import java.lang.reflect.ParameterizedType;
+import java.lang.reflect.WildcardType;
 import java.util.*;
 
 import static io.edap.protobuf.util.ProtoUtil.*;
@@ -762,7 +763,7 @@ public class ProtoBufEncoderGenerator {
 
             return;
 
-        } else if (itemType instanceof ParameterizedType) {
+        } else if (itemType instanceof ParameterizedType || itemType instanceof WildcardType) {
             mv.visitVarInsn(ALOAD, 1);
             mv.visitFieldInsn(GETSTATIC, pojoCodecName, "tag" + pfi.protoField.tag(), "[B");
             rType = visitGetFieldValue(mv, pfi, pojoName, pojoCodecName, 2, rType);
@@ -1022,6 +1023,9 @@ public class ProtoBufEncoderGenerator {
         mv = cw.visitMethod(ACC_PRIVATE, name, "(L" + WRITER_NAME + ";Ljava/lang/Iterable;)V",
                 "(L" + WRITER_NAME + ";Ljava/lang/Iterable<" + itemDesc + ">;)V", null);
         mv.visitCode();
+        Label l1 = new Label();
+        mv.visitVarInsn(ALOAD, 2);
+        mv.visitJumpInsn(IFNULL, l1);
         mv.visitVarInsn(ALOAD, 2);
         mv.visitMethodInsn(INVOKEINTERFACE, "java/lang/Iterable", "iterator", "()Ljava/util/Iterator;", true);
         mv.visitVarInsn(ASTORE, 3);
@@ -1030,7 +1034,7 @@ public class ProtoBufEncoderGenerator {
         mv.visitFrame(Opcodes.F_APPEND,1, new Object[] {"java/util/Iterator"}, 0, null);
         mv.visitVarInsn(ALOAD, 3);
         mv.visitMethodInsn(INVOKEINTERFACE, "java/util/Iterator", "hasNext", "()Z", true);
-        Label l1 = new Label();
+
         mv.visitJumpInsn(IFEQ, l1);
         mv.visitVarInsn(ALOAD, 1);
         mv.visitFieldInsn(GETSTATIC, pojoCodecName, "tag" + pfi.protoField.tag(), "[B");

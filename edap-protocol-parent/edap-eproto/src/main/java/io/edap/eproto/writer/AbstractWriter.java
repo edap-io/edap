@@ -6,6 +6,7 @@ import io.edap.eproto.EprotoWriter;
 import io.edap.io.BufOut;
 import io.edap.protobuf.EncodeException;
 import io.edap.protobuf.ProtoBufEnum;
+import io.edap.protobuf.enums.ProtoBufStringCharset;
 import io.edap.protobuf.wire.Field;
 import io.edap.util.StringUtil;
 import io.edap.util.UnsafeUtil;
@@ -17,6 +18,7 @@ import java.util.List;
 
 import static io.edap.eproto.EprotoWriter.encodeZigZag32;
 import static io.edap.eproto.EprotoWriter.encodeZigZag64;
+import static io.edap.protobuf.util.ProtoUtil.makeStringLenTag;
 import static io.edap.protobuf.wire.WireFormat.*;
 import static io.edap.util.StringUtil.*;
 
@@ -26,6 +28,14 @@ public abstract class AbstractWriter implements EprotoWriter {
      * ZigZag32编码的0对应的byte
      */
     public static final byte ZIGZAG32_ZERO = 0;
+    /**
+     * 字符串为null的长度tag
+     */
+    public static final byte LEN_TAG_NULL = 0;
+    /**
+     * 空字符串的长度tag
+     */
+    public static final byte LEN_TAG_EMPTY = 5;
 
     /**
      * ZigZag32编码的1对应的byte
@@ -63,10 +73,10 @@ public abstract class AbstractWriter implements EprotoWriter {
     public void writeString(String s) {
         if (s == null) {
             expand(1);
-            bs[pos++] = ZIGZAG32_NEGATIVE_ONE;
+            bs[pos++] = LEN_TAG_NULL;
         } else if (s.isEmpty()) {
             expand(1);
-            bs[pos++] = ZIGZAG32_ZERO;
+            bs[pos++] = LEN_TAG_EMPTY;
         } else {
             writeString0(s);
         }
@@ -93,26 +103,23 @@ public abstract class AbstractWriter implements EprotoWriter {
 
     private void writeUtf16String(String v, int len) {
         expand(MAX_VARINT_SIZE + (len*2) + 1);
-        int _pos = pos;
-        byte[] _bs = bs;
-        bs[pos++] = ZIGZAG32_TWO;
-        writeUInt32_0(len);
-        UnsafeUtil.copyUtf16le(getCharValue(v), 0, _bs, _pos, len);
-        pos = _pos + len * 2;
+        writeUInt32_0(makeStringLenTag(len + 1, ProtoBufStringCharset.UTF8));
+        UnsafeUtil.copyUtf16le(getCharValue(v), 0, bs, pos, len);
+        pos += len * 2;
     }
 
     private void writeByteArrayString(String v) {
         byte[] data = StringUtil.getValue(v);
         int len = data.length;
-        expand(MAX_VARINT_SIZE + len + 1);
+        expand(MAX_VARINT_SIZE + len);
         // latin1编码的byte[]
+        int lenTag;
         if (isLatin1(v)) {
-            bs[pos++] = ZIGZAG32_ONE;
+            lenTag = makeStringLenTag(len + 1, ProtoBufStringCharset.LATIN1);
         } else {
-            // utf16编码的byte[]
-            bs[pos++] = ZIGZAG32_TWO;
+            lenTag = makeStringLenTag(len + 1, ProtoBufStringCharset.UTF16);
         }
-        writeUInt32_0(len);
+        writeUInt32_0(lenTag);
         System.arraycopy(data, 0, bs, pos, len);
         pos += len;
     }
@@ -123,8 +130,7 @@ public abstract class AbstractWriter implements EprotoWriter {
         // 如果所需最大字节数小于3k + 编码int最大字节数 则直接扩容所需最大字节数
         if (maxBytes <= 3072) {
             expand(MAX_VARINT_SIZE + maxBytes);
-            bs[pos++] = ZIGZAG32_TWO;
-            writeUInt32_0(encodeZigZag32(charLen));
+            writeUInt32_0(makeStringLenTag(charLen + 1, ProtoBufStringCharset.UTF8));
             if (charLen < 16) {
                 pos += writeChars(getCharValue(v), 0, charLen, pos);
             } else {
@@ -139,8 +145,7 @@ public abstract class AbstractWriter implements EprotoWriter {
         char[] cs = getCharValue(v);
 
         expand(maxBytes + MAX_VARINT_SIZE);
-        bs[pos++] = ZIGZAG32_TWO;
-        writeUInt32_0(encodeZigZag32(charLen));
+        writeUInt32_0(makeStringLenTag(charLen, ProtoBufStringCharset.UTF8));
         while (start < charLen) {
             expand(3072);
             pos += writeChars(cs, 0, end, pos);

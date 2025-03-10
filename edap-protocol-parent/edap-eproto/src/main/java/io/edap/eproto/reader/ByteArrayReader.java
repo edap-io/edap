@@ -3,15 +3,19 @@ package io.edap.eproto.reader;
 import io.edap.eproto.EprotoDecoder;
 import io.edap.eproto.EprotoReader;
 import io.edap.protobuf.ProtoException;
+import io.edap.protobuf.enums.ProtoBufStringCharset;
 import io.edap.protobuf.wire.Field;
 import io.edap.util.StringUtil;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
 import static io.edap.eproto.writer.AbstractWriter.*;
+import static io.edap.protobuf.util.ProtoUtil.getStringCharset;
+import static io.edap.protobuf.util.ProtoUtil.getStringLen;
 import static io.edap.protobuf.wire.WireFormat.FIXED_32_SIZE;
 import static io.edap.util.Constants.EMPTY_STRING;
 import static io.edap.util.StringUtil.IS_BYTE_ARRAY;
@@ -873,30 +877,59 @@ public class ByteArrayReader extends AbstractReader {
 
     @Override
     public String readString() throws ProtoException {
-        byte b = buf[pos++];
-        if (b == ZIGZAG32_NEGATIVE_ONE) {
+        int lenTag = readRawVarint32();
+        if (lenTag == 0) {
             return null;
-        } else if (b == ZIGZAG32_ZERO) {
-            return EMPTY_STRING;
-        } else if (b == ZIGZAG32_ONE) {
-            int len = readInt32();
-            byte[] data = new byte[len];
-            System.arraycopy(buf, pos, data, 0, len);
-            try {
-                return fastInstance(data, (byte)0);
-            } catch (InstantiationException e) {
-                throw new ProtoException(e);
-            }
-        } else if (b == ZIGZAG32_TWO) {
-            int len = readInt32();
-            byte[] data = new byte[len];
-            System.arraycopy(buf, pos, data, 0, len);
-            if (IS_BYTE_ARRAY) {
+        } else if (lenTag == 5) {
+            return "";
+        } else {
+            int len = getStringLen(lenTag) - 1;
+            ProtoBufStringCharset psc = ProtoBufStringCharset.fromValue(getStringCharset(lenTag));
+            if (psc == ProtoBufStringCharset.LATIN1) {
+                byte[] data = new byte[len];
+                System.arraycopy(buf, pos, data, 0, len);
                 try {
-                    return fastInstance(data, (byte)1);
+                    return fastInstance(data, (byte)0);
                 } catch (InstantiationException e) {
                     throw new ProtoException(e);
                 }
+            } else if (psc == ProtoBufStringCharset.UTF16) {
+                byte[] data = new byte[len];
+                System.arraycopy(buf, pos, data, 0, len);
+                if (IS_BYTE_ARRAY) {
+                    try {
+                        return fastInstance(data, (byte)1);
+                    } catch (InstantiationException e) {
+                        throw new ProtoException(e);
+                    }
+                } else {
+
+                }
+            } else {
+                int index = 0;
+                byte[] _buf = buf;
+                int    _pos = pos;
+                int    oPos = _pos;
+                while (index < len) {
+                    int b = _buf[_pos++];
+                    if ((b & 0x80) == 0) {
+                        index++;
+                    } else {
+                        _pos++;
+                        if ((b & 0xE0) == 0xC0) {
+                            index++;
+                        } else {
+                            _pos++;
+                            if ((b & 0xF0) == 0xE0) {
+                                index++;
+                            } else {
+                                _pos++;
+                                index++;
+                            }
+                        }
+                    }
+                }
+                return new String(_buf, oPos, _pos-oPos, StandardCharsets.UTF_8);
             }
         }
         return null;

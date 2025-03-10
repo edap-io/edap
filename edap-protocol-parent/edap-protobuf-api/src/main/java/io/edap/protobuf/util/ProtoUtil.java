@@ -23,6 +23,7 @@ import io.edap.protobuf.ProtoPersisterManager;
 import io.edap.protobuf.annotation.ProtoField;
 import io.edap.protobuf.builder.ProtoV2Builder;
 import io.edap.protobuf.builder.ProtoV3Builder;
+import io.edap.protobuf.enums.ProtoBufStringCharset;
 import io.edap.protobuf.model.MessageInfo;
 import io.edap.protobuf.model.ProtoBufOption;
 import io.edap.protobuf.model.ProtoTypeInfo;
@@ -54,7 +55,28 @@ public class ProtoUtil {
 
     static final String FIELD_TYPE_NAME  = toInternalName(io.edap.protobuf.wire.Field.Type.class.getName());
 
+    /**
+     * Tag的数据类型占用的bit个数
+     */
+    static final int LEN_TAG_TYPE_BITS = 2;
+    /**
+     * Tag类型的掩码
+     */
+    static final int LEN_TAG_TYPE_MASK = (1 << LEN_TAG_TYPE_BITS) - 1;
+
     private ProtoUtil() {}
+
+    public static int makeStringLenTag(int len, ProtoBufStringCharset charset) {
+        return (len << LEN_TAG_TYPE_BITS) | charset.getValue();
+    }
+
+    public static int getStringLen(int lenTag) {
+        return lenTag >>> LEN_TAG_TYPE_BITS;
+    }
+
+    public static int getStringCharset(int lenTag) {
+        return lenTag & LEN_TAG_TYPE_MASK;
+    }
 
     public static boolean implInterface(Class type, Class iface) {
         Class<?>[] ifaces = type.getInterfaces();
@@ -655,14 +677,9 @@ public class ProtoUtil {
                 typeInfo.setProtoType(Type.BYTES);
                 break;
             case "java.io.Serializable":
-            case "java.lang.Object":
-                msgInfo = new MessageInfo();
-                msgInfo.setMessageName(Type.OBJECT.value());
-                msgInfo.setJavaType(javaType);
-                typeInfo.setMessageInfo(msgInfo);
-                typeInfo.setProtoType(Type.OBJECT);
-                break;
             case "java.math.BigDecimal":
+            case "java.lang.Number":
+            case "java.lang.Object":
                 msgInfo = new MessageInfo();
                 msgInfo.setMessageName(Type.OBJECT.value());
                 msgInfo.setJavaType(javaType);
@@ -719,7 +736,7 @@ public class ProtoUtil {
                 java.lang.reflect.Type[] types = pType.getActualTypeArguments();
                 if (types != null && types.length > 0) {
                     java.lang.reflect.Type itemType = types[0];
-                    if (itemType instanceof TypeVariable) {
+                    if (itemType instanceof TypeVariable || itemType instanceof WildcardType) {
                         typeInfo.setProtoType(Type.OBJECT);
                         typeInfo.setCardinality(Cardinality.REPEATED);
                         return typeInfo;

@@ -2,22 +2,18 @@ package io.edap.eproto.test;
 
 import io.edap.eproto.EprotoWriter;
 import io.edap.protobuf.EncodeException;
+import io.edap.protobuf.enums.ProtoBufStringCharset;
 
 import java.util.List;
 
 import static io.edap.eproto.writer.AbstractWriter.ZIGZAG32_NEGATIVE_ONE;
 import static io.edap.eproto.writer.AbstractWriter.ZIGZAG32_ZERO;
+import static io.edap.protobuf.util.ProtoUtil.makeStringLenTag;
 
 public class T {
     public static void main(String[] args) {
-        byte b = '\0';
-        System.out.println(Integer.toBinaryString(b));
-
-        b = '0';
-        System.out.println(Integer.toBinaryString(b));
-
-        b = (byte)0;
-        System.out.println(Integer.toBinaryString(b));
+        System.out.println("lenTag1=" + makeStringLenTag(0, ProtoBufStringCharset.UTF8));
+        System.out.println("lenTag2=" + makeStringLenTag(1, ProtoBufStringCharset.LATIN1));
     }
 
     private void writeList_0(EprotoWriter var1, List<String> var2) throws EncodeException {
