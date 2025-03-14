@@ -151,6 +151,6 @@ public class UnsafeUtil {
     }
 
     public static void writeByte(byte[] bs, int offset, byte b) {
-        UNSAFE.putByte(bs, UNSAFE.ARRAY_BYTE_BASE_OFFSET + offset, b);
+        UNSAFE.putByte(bs, (long)(UNSAFE.ARRAY_BYTE_BASE_OFFSET + offset), b);
     }
 }
