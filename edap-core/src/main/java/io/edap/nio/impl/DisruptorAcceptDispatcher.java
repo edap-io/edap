@@ -39,11 +39,11 @@ public class DisruptorAcceptDispatcher implements AcceptDispatcher {
     private static final Logger LOG = LoggerManager.getLogger(DisruptorAcceptDispatcher.class);
 
     private RingBuffer<AcceptEvent> ringBuffer;
-    private Server server;
+    private Server                  server;
 
     public DisruptorAcceptDispatcher(Server server) {
-        this.server = server;
-        ringBuffer = buildRingBuffer();
+        this.server     = server;
+        this.ringBuffer = buildRingBuffer();
     }
 
     @Override
@@ -52,18 +52,14 @@ public class DisruptorAcceptDispatcher implements AcceptDispatcher {
         SocketChannel clientChan;
         try {
             clientChan = ((ServerSocketChannel)acceptKey.channel()).accept();
-            boolean published = ringBuffer.tryPublishEvent(
-                    (event, sequence) -> event.setChannel(clientChan)
-                            .setServerChannelCtx((ServerChannelContext) acceptKey.attachment()));
+            boolean published = ringBuffer.tryPublishEvent((event, sequence)
+                    -> event.setChannel(clientChan)
+                    .setServerChannelCtx((ServerChannelContext) acceptKey.attachment()));
             LOG.debug("published {}", l-> l.arg(published));
         } catch (IOException e) {
             e.printStackTrace();
         }
 
-    }
-
-    private RingBuffer<AcceptEvent> getRingBuffer(){
-        return null;
     }
 
     public RingBuffer<AcceptEvent> buildRingBuffer() {

@@ -89,7 +89,7 @@ public class ServerGroup {
     }
 
     public ServerGroup() {
-        servers = new ArrayList<>();
+        servers   = new ArrayList<>();
         acceptors = new ArrayList<>();
     }
 

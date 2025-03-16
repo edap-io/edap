@@ -32,34 +32,39 @@ public class AcceptEventHandler implements EventHandler<AcceptEvent> {
 
     static Logger LOG = LoggerManager.getLogger(AcceptEventHandler.class);
 
-    private Pool<NioSession> nioSessionPool;
+    private static Pool<NioSession> NIO_SESSION_POOL;
+    private static boolean          NIO_SESSION_POOLED;
 
     public AcceptEventHandler(Server server) {
         if (server.isNioSesionPooled()) {
             if (server.getNioSessionPool() == null) {
-                nioSessionPool = new ThreadLocalPool();
-                server.setNioSessionPool(nioSessionPool);
+                NIO_SESSION_POOL = new ThreadLocalPool();
+                server.setNioSessionPool(NIO_SESSION_POOL);
             } else {
-                nioSessionPool = server.getNioSessionPool();
+                NIO_SESSION_POOL = server.getNioSessionPool();
             }
+            NIO_SESSION_POOLED = true;
+        } else {
+            NIO_SESSION_POOLED = false;
         }
     }
 
     @Override
     public void onEvent(AcceptEvent event, long sequence, boolean endOfBatch) throws Exception {
-        LOG.debug("event:{}, sequence={}, endOfBatch={}",
+        LOG.trace("event:{}, sequence={}, endOfBatch={}",
                 l -> l.arg(event.getChannel()).arg(sequence).arg(endOfBatch));
         ServerChannelContext scc = event.getServerChannelCtx();
         SocketChannel sc = event.getChannel();
         sc.configureBlocking(false);
-        Server server = event.getServerChannelCtx().getServer();
         NioSession nioSession;
-        if (server.isNioSesionPooled()) {
-            nioSession = nioSessionPool.borrow();
+        if (NIO_SESSION_POOLED) {
+            nioSession = NIO_SESSION_POOL.borrow();
             if (nioSession == null) {
+                Server server = event.getServerChannelCtx().getServer();
                 nioSession = server.createNioSession();
             }
         } else {
+            Server server = event.getServerChannelCtx().getServer();
             nioSession = server.createNioSession();
         }
         nioSession.setSocketChannel(sc);
