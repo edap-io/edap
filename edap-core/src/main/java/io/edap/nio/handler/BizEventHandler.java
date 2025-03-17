@@ -38,7 +38,7 @@ public class BizEventHandler implements EventHandler<BizEvent>  {
     @Override
     public void onEvent(BizEvent event, long sequence, boolean endOfBatch) throws Exception {
         ParseResult pr = event.getBizData();
-        LOG.info("event bizData: {}", l -> l.arg(pr.getMessages().size()));
+        LOG.trace("event bizData: {}", l -> l.arg(pr.getMessages().size()));
         List<Object> objs = pr.getMessages();
         if (!CollectionUtils.isEmpty(objs)) {
             NioSession nioSession = event.getNioSession();

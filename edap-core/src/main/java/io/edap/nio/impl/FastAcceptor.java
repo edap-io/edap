@@ -91,12 +91,12 @@ public class FastAcceptor extends AbstractAcceptor {
     public void stop() {
         runningThread.interrupt();
         running = false;
-        LOG.info("select thread stopped!");
+        LOG.trace("select thread stopped!");
         if (!CollectionUtils.isEmpty(serverSocketChannelList)) {
             for (ServerSocketChannel ssc : serverSocketChannelList) {
                 try {
                     ssc.close();
-                    LOG.info("ServerSocketChannel {} closed", l -> l.arg(ssc));
+                    LOG.trace("ServerSocketChannel {} closed", l -> l.arg(ssc));
                 } catch (IOException e) {
                     LOG.error("ServerSocketChannel {} close error", l -> l.arg(ssc).arg(e));
                 }
@@ -106,9 +106,9 @@ public class FastAcceptor extends AbstractAcceptor {
         if (selector != null) {
             try {
                 selector.close();
-                LOG.info("Selector {} closed!", l -> l.arg(selector));
+                LOG.trace("Selector {} closed!", l -> l.arg(selector));
             } catch (IOException e) {
-                LOG.error("Selector {} close error", l -> l.arg(selector).arg(e));
+                LOG.trace("Selector {} close error", l -> l.arg(selector).arg(e));
             }
         }
 

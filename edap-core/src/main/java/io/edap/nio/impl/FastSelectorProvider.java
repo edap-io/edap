@@ -92,8 +92,7 @@ public class FastSelectorProvider implements SelectorProvider {
             info.setSelector(selector);
             return info;
         } catch (NoSuchFieldException | IllegalAccessException e) {
-            LOG.warn("Selector reflect selectedKeys error", e);
+            throw new RuntimeException(e);
         }
-        return null;
     }
 }

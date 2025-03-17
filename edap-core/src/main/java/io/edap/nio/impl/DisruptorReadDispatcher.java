@@ -47,6 +47,8 @@ public class DisruptorReadDispatcher implements ReadDispatcher {
 
     private int seq = 0;
 
+    private static boolean NIO_SESSION_POOLED;
+
 
     public DisruptorReadDispatcher(Server server, RingBuffer<BizEvent>[] ringBuffers) {
         this.server      = server;
@@ -54,6 +56,8 @@ public class DisruptorReadDispatcher implements ReadDispatcher {
         this.decoder     = server.getDecoder();
         this.ringBuffers = ringBuffers;
         this.queueSize   = ringBuffers.length;
+
+        NIO_SESSION_POOLED = server.isNioSesionPooled();
     }
 
     @Override
@@ -79,7 +83,7 @@ public class DisruptorReadDispatcher implements ReadDispatcher {
                                 event.setServerChannelContext(nioSession.getServerChannelContext());
                                 event.setBizData(pr);
                             });
-                    LOG.debug("ringbuffer:{} published {}", l-> l.arg(index).arg(published));
+                    LOG.trace("ringbuffer:{} published {}", l-> l.arg(index).arg(published));
                 }
             }
         } catch (IOException e) {
@@ -89,7 +93,6 @@ public class DisruptorReadDispatcher implements ReadDispatcher {
                 bbPool.requite(buf);
             }
         }
-        LOG.debug("SelectionKey {}", l -> l.arg(readKey));
     }
 
     private void closeChannel(SelectionKey readKey, NioSession nioSession) {
@@ -98,11 +101,11 @@ public class DisruptorReadDispatcher implements ReadDispatcher {
             String remoteAddr = channel.getRemoteAddress().toString();
             readKey.cancel();
             readKey.channel().close();
-            LOG.info("channel {} closed", l -> l.arg(remoteAddr));
+            LOG.trace("channel {} closed", l -> l.arg(remoteAddr));
         } catch (IOException e) {
-            LOG.info("channel {} close error", l -> l.arg(channel));
+            LOG.warn("channel {} close error", l -> l.arg(channel).threw(e));
         } finally {
-            if (nioSession != null && server != null && server.isNioSesionPooled()) {
+            if (nioSession != null && NIO_SESSION_POOLED) {
                 server.getNioSessionPool().requite(nioSession);
             }
         }
