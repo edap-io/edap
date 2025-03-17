@@ -23,6 +23,8 @@ import io.edap.protobuf.model.ProtoBufOption;
 import java.util.HashMap;
 import java.util.concurrent.CopyOnWriteArraySet;
 
+import static io.edap.util.AsmUtil.isList;
+
 /**
  * Any类型的编解码器
  * 当protobuf协议的wireType为6即为Any类型时，由该编解码器进行编解码。Any的组成为
@@ -99,9 +101,10 @@ public class AnyCodec {
     public static final int RANGE_COPYONWRITE_ARRAYSET = RANGE_HASH_SET + 1;             // 113 CopyOnWriteArraySet
     public static final int RANGE_SQL_DATE             = RANGE_COPYONWRITE_ARRAYSET + 1; // 114 java.sql.Date;
     public static final int RANGE_SQL_TIMEATAMP        = RANGE_SQL_DATE + 1;             // 115 java.sql.Timestamp;
+    public static final int RANGE_SHORT                = RANGE_SQL_TIMEATAMP + 1;
 
 
-    public static final int RANGE_MAX              = RANGE_SQL_TIMEATAMP + 1;
+    public static final int RANGE_MAX              = RANGE_SHORT + 1;
 
     static {
         MessageCodec msgCodec = new MessageCodec();
@@ -149,6 +152,7 @@ public class AnyCodec {
         SqlDateCodec             sqlDateCodec             = new SqlDateCodec();
         SqlTimestampCodec        sqlTimestampCodec        = new SqlTimestampCodec();
         HashSetCodec             hashSetCodec             = new HashSetCodec();
+        ShortCodec               shortCodec               = new ShortCodec();
 
 
         MSG_ENCODERS.put("java.lang.String",            stringCodec);
@@ -173,6 +177,7 @@ public class AnyCodec {
         MSG_ENCODERS.put("java.util.HashSet",           hashSetCodec);
         MSG_ENCODERS.put("java.sql.Date",               sqlDateCodec);
         MSG_ENCODERS.put("java.sql.Timestamp",          sqlTimestampCodec);
+        MSG_ENCODERS.put("java.lang.Short",             shortCodec);
 
         MSG_ENCODERS.put("[B",                          arrayByteCodec);
         MSG_ENCODERS.put("[C",                          arrayCharCodec);
@@ -212,6 +217,7 @@ public class AnyCodec {
         MSG_FAST_ENCODERS.put("java.util.HashSet",           hashSetCodec);
         MSG_FAST_ENCODERS.put("java.sql.Date",               sqlDateCodec);
         MSG_FAST_ENCODERS.put("java.sql.Timestamp",          sqlTimestampCodec);
+        MSG_FAST_ENCODERS.put("java.lang.Short",             shortCodec);
 
         MSG_FAST_ENCODERS.put("[B",                          arrayByteCodec);
         MSG_FAST_ENCODERS.put("[C",                          arrayCharCodec);
@@ -288,6 +294,7 @@ public class AnyCodec {
         DECODERS[RANGE_HASH_SET]             = hashSetCodec;
         DECODERS[RANGE_SQL_DATE]             = sqlDateCodec;
         DECODERS[RANGE_SQL_TIMEATAMP]        = sqlTimestampCodec;
+        DECODERS[RANGE_SHORT]                = shortCodec;
 
 
         // int的编码范围
@@ -350,6 +357,7 @@ public class AnyCodec {
         FAST_DECODERS[RANGE_HASH_SET]             = hashSetCodec;
         FAST_DECODERS[RANGE_SQL_DATE]             = sqlDateCodec;
         FAST_DECODERS[RANGE_SQL_TIMEATAMP]        = sqlTimestampCodec;
+        FAST_DECODERS[RANGE_SHORT]                = shortCodec;
 
     }
 
@@ -360,7 +368,11 @@ public class AnyCodec {
         }
         ProtoBufEncoder encoder = MSG_ENCODERS.get(v.getClass().getName());
         if (null == encoder) {
-            encoder = MSG_ENCODER;
+            if (isList(v.getClass())) {
+                encoder = MSG_ENCODERS.get("java.util.ArrayList");
+            } else {
+                encoder = MSG_ENCODER;
+            }
         }
         encoder.encode(writer, v);
     }
