@@ -1053,4 +1053,26 @@ public class TestFieldObject {
         assertEquals(nfo.getObj(), date);
 
     }
+
+    @ParameterizedTest
+    @ValueSource(ints = {
+            0,
+            1,
+            125,
+            128,
+            -1,
+            -129,
+            Short.MAX_VALUE,
+            Short.MIN_VALUE
+    })
+    void testShortCodec(int value) throws EncodeException, ProtoException {
+        FieldObject fo = new FieldObject();
+        fo.setObj((short)value);
+        byte[] epb = ProtoBuf.toByteArray(fo);
+        System.out.println(conver2HexStr(epb));
+
+        FieldObject nfo = ProtoBuf.toObject(epb, FieldObject.class);
+        System.out.println(((Short)nfo.getObj()).intValue());
+        assertEquals(((Short)nfo.getObj()).shortValue(), (short)value);
+    }
 }

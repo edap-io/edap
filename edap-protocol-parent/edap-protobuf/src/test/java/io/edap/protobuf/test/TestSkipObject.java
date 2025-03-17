@@ -1494,4 +1494,38 @@ public class TestSkipObject {
         assertEquals(dest.field19, str);
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {
+            Short.MIN_VALUE + ",-1,0,1," + Short.MAX_VALUE
+    })
+    public void testSkipShort(String valueStr) throws ParseException {
+        String str = new Random().nextDouble() + "";
+
+        String[] vs = valueStr.split(",");
+
+        for (int i=0;i<vs.length;i++) {
+            SkipSrc src = buildSkipSrc(str, Short.valueOf(vs[i]));
+
+            byte[] epb = ProtoBuf.toByteArray(src);
+            System.out.println("+-epb[" + epb.length + "]-------------------+");
+            System.out.println(conver2HexStr(epb));
+            System.out.println("+--------------------+");
+
+            SkipDest dest = ProtoBuf.toObject(epb, SkipDest.class);
+            assertNotNull(dest);
+            assertEquals(dest.field19, str);
+
+            ProtoBufOption option = new ProtoBufOption();
+            option.setCodecType(CodecType.FAST);
+            epb = ProtoBuf.toByteArray(src, option);
+            System.out.println("+-epbf[" + epb.length + "]-------------------+");
+            System.out.println(conver2HexStr(epb));
+            System.out.println("+--------------------+");
+
+            dest = ProtoBuf.toObject(epb, SkipDest.class, option);
+            assertNotNull(dest);
+            assertEquals(dest.field19, str);
+        }
+    }
+
 }
