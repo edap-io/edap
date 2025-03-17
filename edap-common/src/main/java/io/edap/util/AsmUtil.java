@@ -16,6 +16,8 @@
 
 package io.edap.util;
 
+import io.edap.log.Logger;
+import io.edap.log.LoggerManager;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Opcodes;
 
@@ -29,6 +31,8 @@ import static org.objectweb.asm.Opcodes.*;
 
 
 public class AsmUtil {
+
+    static Logger LOG = LoggerManager.getLogger(AsmUtil.class);
 
     private AsmUtil() {}
 
@@ -557,10 +561,28 @@ public class AsmUtil {
 
     public static Type getFieldType(Class cls, String fieldName) {
         try {
-            return cls.getDeclaredField(fieldName).getGenericType();
+            Field field;
+            try {
+                field = cls.getDeclaredField(fieldName);
+                return field.getGenericType();
+            } catch (NoSuchFieldException e) {
+                LOG.warn("cls {} has't field {}", l -> l.arg(cls.getName()).arg(fieldName));
+            }
+            Class pcls = cls.getSuperclass();
+            while (!pcls.getName().equals("java.lang.Object")) {
+                Class lpcls = pcls;
+                try {
+                    field = pcls.getDeclaredField(fieldName);
+                    return field.getGenericType();
+                } catch (NoSuchFieldException e) {
+                    LOG.warn("cls {} has't field {}", l -> l.arg(lpcls.getName()).arg(fieldName));
+                }
+                pcls = pcls.getSuperclass();
+            }
         } catch (Exception e) {
             throw new RuntimeException(e.getMessage(), e);
         }
+        return null;
     }
 
     public static Type getMapType(java.lang.reflect.Type type) {
