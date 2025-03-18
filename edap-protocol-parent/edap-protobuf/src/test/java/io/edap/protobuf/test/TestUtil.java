@@ -16,6 +16,8 @@
 
 package io.edap.protobuf.test;
 
+import java.util.Random;
+
 public class TestUtil {
 
     private TestUtil() {}
@@ -29,5 +31,24 @@ public class TestUtil {
             result.append(Long.toString(b[i] & 0xff, 16) + ",");
         }
         return result.toString().substring(0, result.length() - 1);
+    }
+
+    public static String randomStr(int count) {
+        int max = Byte.MAX_VALUE;
+        Random random = new Random();
+        StringBuilder sb = new StringBuilder();
+        for (int i=0;i<count;i++) {
+            String s;
+            while (true) {
+                try {
+                    s = new String(new byte[]{(byte)random.nextInt(max), (byte)random.nextInt(max)}, "utf-8");
+                    break;
+                } catch (Exception e) {
+
+                }
+            }
+            sb.append(s);
+        }
+        return sb.toString();
     }
 }

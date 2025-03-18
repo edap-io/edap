@@ -23,6 +23,7 @@ import io.edap.util.internal.GeneratorClassInfo;
 import org.objectweb.asm.*;
 
 import java.io.IOException;
+import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 
 import static io.edap.protobuf.util.ProtoUtil.*;
@@ -111,11 +112,16 @@ public class MapEntryEncoderGenerator {
     private void visitWriteCode(MethodVisitor mv, Type valueType) {
         String writeMethod = getWriteMethod(javaToProtoType(valueType).getProtoType());
         String rType = getDescriptor(valueType);
-        if (rType.startsWith("L")) {
-            rType = rType.substring(1, rType.length()-1);
-        }
+
         if (!rType.equals("java/lang/Object")) {
-            mv.visitTypeInsn(CHECKCAST, rType);
+            String typeName = rType;
+            if (rType.startsWith("L")) {
+                typeName = rType.substring(1, rType.length()-1);
+            }
+            if (typeName.indexOf("<") != -1) {
+                typeName = typeName.substring(0,  typeName.indexOf("<"));
+            }
+            mv.visitTypeInsn(CHECKCAST, typeName);
         }
 
         if (isPojo(valueType)) {
@@ -123,7 +129,10 @@ public class MapEntryEncoderGenerator {
             mv.visitMethodInsn(INVOKEINTERFACE, WRITER_NAME, "writeMessage",
                     "([BILjava/lang/Object;L" + PB_ENCODER_NAME + ";)V", true);
         } else {
-            if (valueType instanceof Class) {
+            if (valueType instanceof ParameterizedType) {
+                rType = "Ljava/lang/Object;";
+                writeMethod = "writeObject";
+            } else if (valueType instanceof Class) {
                 String typeName = ((Class)valueType).getName();
                 if (typeName.equals("byte") ||
                         typeName.equals("short") ||
@@ -131,17 +140,17 @@ public class MapEntryEncoderGenerator {
                     rType = "I";
                 } else if (typeName.equals("java.lang.Byte")) {
                     rType = "I";
-                    mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/Byte", "byteValue", "()B", false);
+                    mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/Byte", "intValue", "()I", false);
                 } else if (typeName.equals("java.lang.Short")) {
                     rType = "I";
-                    mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/Short", "shortValue", "()S", false);
+                    mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/Short", "intValue", "()I", false);
                 } else if (typeName.equals("java.lang.Character")) {
                     rType = "I";
                     mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/Character", "charValue", "()C", false);
                 }
             }
             visitMethod(mv, INVOKEINTERFACE, WRITER_NAME, writeMethod,
-                    "([BL" + rType + ";)V", true);
+                    "([B" + rType + ")V", true);
         }
     }
 
@@ -184,14 +193,7 @@ public class MapEntryEncoderGenerator {
         }
 
         mv.visitInsn(ICONST_1);
-        io.edap.protobuf.wire.Field.Type protoType = javaToProtoType(valueType).getProtoType();
-        if (isFast) {
-            if (protoType == Field.Type.MESSAGE) {
-                protoType = Field.Type.GROUP;
-            }
-        }
         String keyPbType = javaToProtoType(keyType).getProtoType().name();
-        String valPbType = protoType.name();
         mv.visitFieldInsn(GETSTATIC, PROTO_FIELD_NAME + "$Type", keyPbType,
                 "L" + PROTO_FIELD_NAME + "$Type;");
         mv.visitFieldInsn(GETSTATIC, PROTO_FIELD_NAME + "$Cardinality", "OPTIONAL",
@@ -203,6 +205,15 @@ public class MapEntryEncoderGenerator {
                 "(IL" + PROTO_FIELD_NAME + "$Type;L" + PROTO_FIELD_NAME + "$Cardinality;" +
                         "Lio/edap/protobuf/wire/Syntax;L" + PROTOBUF_OPTIION_NAME + ";)[B", false);
         mv.visitFieldInsn(PUTSTATIC, encoderName, "keyTag", "[B");
+
+        io.edap.protobuf.wire.Field.Type protoType = mapItemJavaToProtoType(valueType).getProtoType();
+        if (isFast) {
+            if (protoType == Field.Type.MESSAGE) {
+                protoType = Field.Type.GROUP;
+            }
+        }
+
+        String valPbType = protoType.name();
         mv.visitInsn(ICONST_2);
         mv.visitFieldInsn(GETSTATIC, PROTO_FIELD_NAME + "$Type", valPbType,
                 "L" + PROTO_FIELD_NAME + "$Type;");

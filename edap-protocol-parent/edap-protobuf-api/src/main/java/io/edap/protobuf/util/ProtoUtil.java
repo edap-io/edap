@@ -591,6 +591,20 @@ public class ProtoUtil {
         return buildProtoFieldAnnotation(tag, cardinality, type, opitons);
     }
 
+    public static ProtoField buildMapItemProtoFieldAnnotation(final int tag, java.lang.reflect.Type valuType) {
+        Cardinality cardinality = Cardinality.OPTIONAL;
+        if (AsmUtil.isList(valuType)
+                || AsmUtil.isSet(valuType)
+                || isRepeatedArray(valuType)
+                || isIterable(valuType)) {
+            String[] opitons = null;
+            return buildProtoFieldAnnotation(tag, cardinality, Type.OBJECT, opitons);
+        }
+        Type type = javaToProtoType(valuType).getProtoType();
+        String[] opitons = null;
+        return buildProtoFieldAnnotation(tag, cardinality, type, opitons);
+    }
+
     public static ProtoTypeInfo javaToProtoType(Class javaType) {
         ProtoTypeInfo typeInfo = new ProtoTypeInfo();
         if (javaType.isEnum()) {
@@ -705,6 +719,47 @@ public class ProtoUtil {
             return true;
         }
         return false;
+    }
+
+    public static ProtoTypeInfo mapItemJavaToProtoType(java.lang.reflect.Type javaType) {
+        Type type = Type.BYTES;
+        ProtoTypeInfo typeInfo = new ProtoTypeInfo();
+        if (javaType.getTypeName().equals("java.lang.Object") || javaType.getTypeName().startsWith("java.lang.Class")
+                || javaType instanceof TypeVariable) {
+            typeInfo.setProtoType(Type.OBJECT);
+            return typeInfo;
+        }
+        if (AsmUtil.isMap(javaType)) {
+            typeInfo.setProtoType(Type.OBJECT);
+            return typeInfo;
+        }
+        if (AsmUtil.isPojo(javaType)) {
+            typeInfo.setProtoType(Type.MESSAGE);
+            return typeInfo;
+        }
+        if (AsmUtil.isArray(javaType)) {
+            typeInfo.setProtoType(Type.OBJECT);
+            return typeInfo;
+        }
+        if (isList(javaType) || isSet(javaType) || isIterable(javaType)) {
+            typeInfo.setProtoType(Type.OBJECT);
+            return typeInfo;
+        }
+        if (javaType instanceof ParameterizedType) {
+            return typeInfo;
+        }
+        if (javaType instanceof GenericArrayType) {
+            GenericArrayType gat = (GenericArrayType)javaType;
+            if (gat.getGenericComponentType() instanceof ParameterizedType) {
+                ParameterizedType pType = (ParameterizedType)gat.getGenericComponentType();
+                java.lang.reflect.Type[] types = pType.getActualTypeArguments();
+                if (pType.getRawType() instanceof Class) {
+                    Class cls = (Class)pType.getRawType();
+                    return javaToProtoType(cls);
+                }
+            }
+        }
+        return javaToProtoType((Class)javaType);
     }
 
     public static ProtoTypeInfo javaToProtoType(java.lang.reflect.Type javaType) {
