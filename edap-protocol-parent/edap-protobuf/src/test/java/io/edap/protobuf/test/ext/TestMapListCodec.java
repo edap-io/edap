@@ -3,6 +3,7 @@ package io.edap.protobuf.test.ext;
 import io.edap.protobuf.*;
 import io.edap.protobuf.test.message.ext.MapAllTypeModel;
 import io.edap.protobuf.test.message.ext.MapBoolKeyModel;
+import io.edap.protobuf.test.message.ext.MapBoolValModel;
 import io.edap.protobuf.test.message.ext.MapListModel;
 import io.edap.protobuf.test.message.v3.Project;
 import org.junit.jupiter.api.Test;
@@ -56,20 +57,20 @@ public class TestMapListCodec {
 
     @Test
     public void testBoolKey() throws EncodeException, ProtoException {
-        MapBoolKeyModel model = new MapBoolKeyModel();
+        MapBoolValModel model = new MapBoolValModel();
         model.setPk(new Random().nextLong());
         byte[] data = ProtoBuf.ser(model);
-        MapBoolKeyModel nModel = (MapBoolKeyModel)ProtoBuf.der(data);
+        MapBoolValModel nModel = (MapBoolValModel)ProtoBuf.der(data);
         assertNotNull(nModel);
         assertEquals(nModel.getPk(), model.getPk());
 
-        Map<Long, Project> shortKeymap = buildLongKeyMap();
+        Map<String, Byte> shortKeymap = buildByteValMap();
         model.setBoolKey(shortKeymap);
         data = ProtoBuf.ser(model);
-        nModel = (MapBoolKeyModel)ProtoBuf.der(data);
+        nModel = (MapBoolValModel)ProtoBuf.der(data);
         assertNotNull(nModel);
         assertEquals(nModel.getPk(), model.getPk());
-        longKeyEquals(nModel.getBoolKey(), model.getBoolKey());
+        byteValEquals(nModel.getBoolKey(), model.getBoolKey());
     }
 
     @Test
@@ -120,6 +121,20 @@ public class TestMapListCodec {
         map.put((byte)(0), buildProject());
         for (int i=0;i<count;i++) {
             map.put((byte)(random.nextInt(Byte.MAX_VALUE)), buildProject());
+        }
+        return map;
+    }
+
+    private Map<String, Byte> buildByteValMap() {
+        Map<String, Byte> map = new HashMap<>();
+        int count = 5;
+        Random random = new Random();
+        for (int i=0;i<count;i++) {
+            map.put(randomStr(random.nextInt(15)), (byte)(random.nextInt(Byte.MAX_VALUE) - Byte.MAX_VALUE));
+        }
+        map.put(randomStr(random.nextInt(15)), (byte)(0));
+        for (int i=0;i<count;i++) {
+            map.put(randomStr(random.nextInt(15)), (byte)(random.nextInt(Byte.MAX_VALUE)));
         }
         return map;
     }
@@ -186,10 +201,45 @@ public class TestMapListCodec {
         return map;
     }
 
+    private Map<Float, Project> buildFloatKeyMap() {
+        Map<Float, Project> map = new HashMap<>();
+        int count = 5;
+        Random random = new Random();
+        for (int i=0;i<count;i++) {
+            map.put((random.nextFloat() - Float.MAX_VALUE), buildProject());
+        }
+        map.put((0F), buildProject());
+        for (int i=0;i<count;i++) {
+            map.put((random.nextFloat()), buildProject());
+        }
+        return map;
+    }
+
+    private Map<Double, Project> buildDoubleKeyMap() {
+        Map<Double, Project> map = new HashMap<>();
+        int count = 5;
+        Random random = new Random();
+        for (int i=0;i<count;i++) {
+            map.put((random.nextDouble() - Double.MAX_VALUE), buildProject());
+        }
+        map.put((0D), buildProject());
+        for (int i=0;i<count;i++) {
+            map.put((random.nextDouble()), buildProject());
+        }
+        return map;
+    }
+
     private void byteKeyEquals(Map<Byte, Project> one, Map<Byte, Project> other) {
         for (Map.Entry<Byte, Project> entry : one.entrySet()) {
             assertTrue(other.containsKey(entry.getKey()));
             projectEquals(entry.getValue(), other.get(entry.getKey()));
+        }
+    }
+
+    private void byteValEquals(Map<String, Byte> one, Map<String, Byte> other) {
+        for (Map.Entry<String, Byte> entry : one.entrySet()) {
+            assertTrue(other.containsKey(entry.getKey()));
+            assertEquals(entry.getValue(), other.get(entry.getKey()));
         }
     }
 
@@ -223,6 +273,20 @@ public class TestMapListCodec {
 
     private void longKeyEquals(Map<Long, Project> one, Map<Long, Project> other) {
         for (Map.Entry<Long, Project> entry : one.entrySet()) {
+            assertTrue(other.containsKey(entry.getKey()));
+            projectEquals(entry.getValue(), other.get(entry.getKey()));
+        }
+    }
+
+    private void floatKeyEquals(Map<Float, Project> one, Map<Float, Project> other) {
+        for (Map.Entry<Float, Project> entry : one.entrySet()) {
+            assertTrue(other.containsKey(entry.getKey()));
+            projectEquals(entry.getValue(), other.get(entry.getKey()));
+        }
+    }
+
+    private void doubleKeyEquals(Map<Double, Project> one, Map<Double, Project> other) {
+        for (Map.Entry<Double, Project> entry : one.entrySet()) {
             assertTrue(other.containsKey(entry.getKey()));
             projectEquals(entry.getValue(), other.get(entry.getKey()));
         }

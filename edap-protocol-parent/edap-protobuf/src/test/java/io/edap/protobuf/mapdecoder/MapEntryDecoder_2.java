@@ -18,25 +18,25 @@ import java.util.Map;
 
 import static io.edap.protobuf.wire.WireFormat.getTagFieldNumber;
 
-public class MapEntryDecoder_2 implements MapEntryDecoder<Long, Project> {
+public class MapEntryDecoder_2 implements MapEntryDecoder<String, Byte> {
     private static final ProtoBufOption PROTO_BUF_OPTION = new ProtoBufOption();
     private ProtoBufDecoder<Project> valueDecoder;
 
     public MapEntryDecoder_2() {
     }
 
-    public void decode(ProtoBufReader var1, Map<Long, Project> var2) throws ProtoException {
+    public void decode(ProtoBufReader var1, Map<String, Byte> var2) throws ProtoException {
         var1.readUInt32();
         int var3 = var1.readTag();
-        Long var4;
+        String var4;
         if (WireFormat.getTagFieldNumber(var3) == 1) {
-            var4 = var1.readInt64();
+            var4 = var1.readString();
             var1.readTag();
         } else {
-            var4 = 0L;
+            var4 = null;
         }
 
-        var2.put(var4, (Project)var1.readMessage(this.getValueDecoder()));
+        var2.put(var4, (byte)var1.readInt32());
     }
 
     private ProtoBufDecoder<Project> getValueDecoder() {

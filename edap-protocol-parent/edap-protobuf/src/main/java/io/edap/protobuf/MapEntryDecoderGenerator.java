@@ -178,7 +178,7 @@ public class MapEntryDecoderGenerator {
                 mv.visitVarInsn(ASTORE, varKey);
                 break;
             case "java.lang.Long":
-                mv.visitInsn(ICONST_0);
+                mv.visitInsn(LCONST_0);
                 mv.visitMethodInsn(INVOKESTATIC, "java/lang/Long", "valueOf", "(J)Ljava/lang/Long;", false);
                 mv.visitVarInsn(ASTORE, varKey);
                 break;
@@ -188,14 +188,27 @@ public class MapEntryDecoderGenerator {
                 mv.visitVarInsn(ASTORE, varKey);
                 break;
             case "java.lang.Float":
-
+                mv.visitInsn(FCONST_0);
+                mv.visitMethodInsn(INVOKESTATIC, "java/lang/Float", "valueOf", "(F)Ljava/lang/Float;", false);
+                mv.visitVarInsn(ASTORE, varKey);
                 break;
             case "java.lang.Double":
-
+                mv.visitInsn(DCONST_0);
+                mv.visitMethodInsn(INVOKESTATIC, "java/lang/Double", "valueOf", "(D)Ljava/lang/Double;", false);
+                mv.visitVarInsn(ASTORE, varKey);
                 break;
+            case "java.lang.String":
+                mv.visitLdcInsn("");
+                mv.visitVarInsn(ASTORE, varKey);
+                break;
+            default:
+                mv.visitInsn(ACONST_NULL);
+                mv.visitVarInsn(ASTORE, varKey);
         }
 
-
+        mv.visitLabel(lbReadValue);
+        mv.visitVarInsn(ALOAD, 2);
+        mv.visitVarInsn(ALOAD, varKey);
         if (isPojo(valueType)) {
             String getDecoderMethodName = "getValueDecoder";
             String fieldName = lowerCaseFirstChar(getDecoderMethodName.substring(3));
@@ -204,21 +217,72 @@ public class MapEntryDecoderGenerator {
             FieldVisitor valFv = cw.visitField(ACC_PRIVATE, fieldName, "L" + PB_DECODER_NAME + ";",
                     "L" + PB_DECODER_NAME + "<" + valTypeSingature + ">;", null);
             valFv.visitEnd();
-        }
 
-        mv.visitLabel(lbReadValue);
-        mv.visitVarInsn(ALOAD, 2);
-        mv.visitVarInsn(ALOAD, varKey);
-        mv.visitVarInsn(ALOAD, 1);
-        mv.visitVarInsn(ALOAD, 0);
-        mv.visitMethodInsn(INVOKESPECIAL, decoderName, "getValueDecoder",
-                "()L" + PB_DECODER_NAME + ";", false);
-        mv.visitMethodInsn(INVOKEINTERFACE, READER_NAME, "readMessage",
-                "(L" + PB_DECODER_NAME + ";)Ljava/lang/Object;", true);
-        mv.visitTypeInsn(CHECKCAST, "io/edap/protobuf/test/message/v3/Project");
+            mv.visitVarInsn(ALOAD, 1);
+            mv.visitVarInsn(ALOAD, 0);
+            mv.visitMethodInsn(INVOKEVIRTUAL, decoderName, getDecoderMethodName,
+                    "()L" + PB_DECODER_NAME + ";", false);
+            if (!isFast) {
+                mv.visitMethodInsn(INVOKEINTERFACE, READER_NAME, "readMessage",
+                        "(L" + PB_DECODER_NAME + ";)Ljava/lang/Object;", true);
+            } else {
+                mv.visitInsn(ICONST_2);
+                mv.visitFieldInsn(GETSTATIC, "io/edap/protobuf/wire/WireType", "END_GROUP",
+                        "Lio/edap/protobuf/wire/WireType;");
+                mv.visitMethodInsn(INVOKESTATIC, "io/edap/protobuf/wire/WireFormat", "makeTag",
+                        "(ILio/edap/protobuf/wire/WireType;)I", false);
+                mv.visitMethodInsn(INVOKEINTERFACE, READER_NAME, "readMessage",
+                        "(L" + PB_DECODER_NAME + ";I)Ljava/lang/Object;", true);
+            }
+            mv.visitTypeInsn(CHECKCAST, valTypeSingature.substring(1, valTypeSingature.length() - 1));
+        } else {
+            ReadMethodInfo valRmi = getReadMethod(valueType, 2);
+            mv.visitVarInsn(ALOAD, 1);
+            if ("readObject".equals(valRmi.getMethod())) {
+                String castType = valTypeSingature.substring(1, valTypeSingature.length() - 1);
+                int index = castType.indexOf("<");
+                if (index != -1) {
+                    castType = castType.substring(0, index);
+                }
+                mv.visitMethodInsn(INVOKEINTERFACE, READER_NAME, valRmi.getMethod(), "()Ljava/lang/Object;", true);
+                mv.visitTypeInsn(CHECKCAST, castType);
+            } else {
+                mv.visitMethodInsn(INVOKEINTERFACE, READER_NAME, valRmi.getMethod(), "()" + valRmi.getReturnType(), true);
+                switch (valueType.getTypeName()) {
+                    case "java.lang.Byte":
+                        mv.visitInsn(I2B);
+                        mv.visitMethodInsn(INVOKESTATIC, "java/lang/Byte", "valueOf", "(B)Ljava/lang/Byte;", false);
+                        break;
+                    case "java.lang.Boolean":
+                        mv.visitMethodInsn(INVOKESTATIC, "java/lang/Boolean", "valueOf", "(Z)Ljava/lang/Boolean;", false);
+                        break;
+                    case "java.lang.Character":
+                        mv.visitInsn(I2C);
+                        mv.visitMethodInsn(INVOKESTATIC, "java/lang/Character", "valueOf", "(C)Ljava/lang/Character;", false);
+                        break;
+                    case "java.lang.Short":
+                        mv.visitInsn(I2S);
+                        mv.visitMethodInsn(INVOKESTATIC, "java/lang/Short", "valueOf", "(S)Ljava/lang/Short;", false);
+                        break;
+                    case "java.lang.Long":
+                        mv.visitMethodInsn(INVOKESTATIC, "java/lang/Long", "valueOf", "(J)Ljava/lang/Long;", false);
+                        break;
+                    case "java.lang.Integer":
+                        mv.visitMethodInsn(INVOKESTATIC, "java/lang/Integer", "valueOf", "(I)Ljava/lang/Integer;", false);
+                        break;
+                    case "java.lang.Float":
+                        mv.visitMethodInsn(INVOKESTATIC, "java/lang/Float", "valueOf", "(F)Ljava/lang/Float;", false);
+                        break;
+                    case "java.lang.Double":
+                        mv.visitMethodInsn(INVOKESTATIC, "java/lang/Double", "valueOf", "(D)Ljava/lang/Double;", false);
+                        break;
+                }
+            }
+        }
         mv.visitMethodInsn(INVOKEINTERFACE, "java/util/Map", "put",
                 "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;", true);
         mv.visitInsn(POP);
+
 
         if (isFast) {
             mv.visitVarInsn(ALOAD, 1);

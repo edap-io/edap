@@ -4,17 +4,17 @@ import io.edap.protobuf.test.message.v3.Project;
 
 import java.util.Map;
 
-public class MapBoolKeyModel {
+public class MapBoolValModel {
 
     private long pk;
 
-    private Map<Double,   Project> boolKey;
+    private Map<String,   Byte> boolKey;
 
-    public Map<Double, Project> getBoolKey() {
+    public Map<String, Byte> getBoolKey() {
         return boolKey;
     }
 
-    public void setBoolKey(Map<Double, Project> boolKey) {
+    public void setBoolKey(Map<String, Byte> boolKey) {
         this.boolKey = boolKey;
     }
 
