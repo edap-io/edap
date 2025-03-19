@@ -25,18 +25,21 @@ public class MapEntryDecoder_2 implements MapEntryDecoder<String, Byte> {
     public MapEntryDecoder_2() {
     }
 
-    public void decode(ProtoBufReader var1, Map<String, Byte> var2) throws ProtoException {
-        var1.readUInt32();
-        int var3 = getTagFieldNumber(var1.readTag());
+    public void decode(ProtoBufReader reader, Map<String, Byte> var2) throws ProtoException {
+        int len = reader.readUInt32();
+        int oldPos = reader.getPos();
+        int var3 = WireFormat.getTagFieldNumber(reader.readTag());
         String var4;
         if (var3 == 1) {
-            var4 = var1.readString();
-            var3 = getTagFieldNumber(var1.readTag());
+            var4 = reader.readString();
         } else {
-            var4 = null;
+            var4 = "";
         }
         if (var3 == 2) {
-            var2.put(var4, (byte) var1.readInt32());
+            var2.put(var4, (byte)reader.readInt32());
+        } else if (reader.getPos() - oldPos < len) {
+            reader.readTag();
+            var2.put(var4, (byte)reader.readInt32());
         } else {
             var2.put(var4, (byte)0);
         }
