@@ -39,13 +39,6 @@ import static io.edap.util.StringUtil.*;
 
 
 public abstract class AbstractWriter implements ProtoBufWriter {
-    static final ThreadLocal<byte[]> LOCAL_TMP_BYTE_ARRAY =
-            new ThreadLocal<byte[]>() {
-                @Override
-                protected byte[] initialValue() {
-                    return new byte[1024];
-                }
-            };
 
     static final ThreadLocal<FastBuf> LOCAL_FAST_BUF =
             new ThreadLocal<FastBuf>() {

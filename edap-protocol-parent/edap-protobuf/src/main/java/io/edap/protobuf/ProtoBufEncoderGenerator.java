@@ -109,6 +109,7 @@ public class ProtoBufEncoderGenerator {
 
         List<ProtoFieldInfo> fields = ProtoUtil.getProtoFields(pojoCls);
         ProtoTagComparator ptc = new ProtoTagComparator();
+        Collections.sort(fields, ptc);
         List<java.lang.reflect.Type> pojoTypes = new ArrayList<>();
 
         for (ProtoFieldInfo pfi : fields) {

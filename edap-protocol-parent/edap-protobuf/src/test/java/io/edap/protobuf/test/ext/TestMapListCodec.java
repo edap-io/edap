@@ -74,7 +74,7 @@ public class TestMapListCodec {
     }
 
     @Test
-    public void testMapAllType() throws EncodeException, ProtoException {
+    public void testMapKeyAllType() throws EncodeException, ProtoException {
         MapAllTypeModel model = new MapAllTypeModel();
         model.setPk(new Random().nextLong());
 
@@ -109,7 +109,176 @@ public class TestMapListCodec {
         byteKeyEquals(nModel.getByteKey(), model.getByteKey());
         boolKeyEquals(nModel.getBoolKey(), model.getBoolKey());
         shortKeyEquals(nModel.getShortKey(), model.getShortKey());
+
+        Map<Character, Project> charKeymap = buildCharacterKeyMap();
+        model.setCharKey(charKeymap);
+        data = ProtoBuf.ser(model);
+        nModel = (MapAllTypeModel)ProtoBuf.der(data);
+        assertNotNull(nModel);
+        assertEquals(nModel.getPk(), model.getPk());
+        byteKeyEquals(nModel.getByteKey(), model.getByteKey());
+        boolKeyEquals(nModel.getBoolKey(), model.getBoolKey());
+        shortKeyEquals(nModel.getShortKey(), model.getShortKey());
+        characterKeyEquals(nModel.getCharKey(), model.getCharKey());
+
+        Map<Integer, Project> intKeymap = buildIntKeyMap();
+        model.setIntKey(intKeymap);
+        data = ProtoBuf.ser(model);
+        nModel = (MapAllTypeModel)ProtoBuf.der(data);
+        assertNotNull(nModel);
+        assertEquals(nModel.getPk(), model.getPk());
+        byteKeyEquals(nModel.getByteKey(), model.getByteKey());
+        boolKeyEquals(nModel.getBoolKey(), model.getBoolKey());
+        shortKeyEquals(nModel.getShortKey(), model.getShortKey());
+        characterKeyEquals(nModel.getCharKey(), model.getCharKey());
+        intKeyEquals(nModel.getIntKey(), model.getIntKey());
+
+        Map<Float, Project> floatKeymap = buildFloatKeyMap();
+        model.setFloatKey(floatKeymap);
+        data = ProtoBuf.ser(model);
+        nModel = (MapAllTypeModel)ProtoBuf.der(data);
+        assertNotNull(nModel);
+        assertEquals(nModel.getPk(), model.getPk());
+        byteKeyEquals(nModel.getByteKey(), model.getByteKey());
+        boolKeyEquals(nModel.getBoolKey(), model.getBoolKey());
+        shortKeyEquals(nModel.getShortKey(), model.getShortKey());
+        characterKeyEquals(nModel.getCharKey(), model.getCharKey());
+        intKeyEquals(nModel.getIntKey(), model.getIntKey());
+        floatKeyEquals(nModel.getFloatKey(), model.getFloatKey());
+
+        Map<Long, Project> longKeymap = buildLongKeyMap();
+        model.setLongKey(longKeymap);
+        data = ProtoBuf.ser(model);
+        nModel = (MapAllTypeModel)ProtoBuf.der(data);
+        assertNotNull(nModel);
+        assertEquals(nModel.getPk(), model.getPk());
+        byteKeyEquals(nModel.getByteKey(), model.getByteKey());
+        boolKeyEquals(nModel.getBoolKey(), model.getBoolKey());
+        shortKeyEquals(nModel.getShortKey(), model.getShortKey());
+        characterKeyEquals(nModel.getCharKey(), model.getCharKey());
+        intKeyEquals(nModel.getIntKey(), model.getIntKey());
+        floatKeyEquals(nModel.getFloatKey(), model.getFloatKey());
+        longKeyEquals(nModel.getLongKey(), model.getLongKey());
+
+        Map<Double, Project> doubleKeymap = buildDoubleKeyMap();
+        model.setDoubleKey(doubleKeymap);
+        data = ProtoBuf.ser(model);
+        nModel = (MapAllTypeModel)ProtoBuf.der(data);
+        assertNotNull(nModel);
+        assertEquals(nModel.getPk(), model.getPk());
+        byteKeyEquals(nModel.getByteKey(), model.getByteKey());
+        boolKeyEquals(nModel.getBoolKey(), model.getBoolKey());
+        shortKeyEquals(nModel.getShortKey(), model.getShortKey());
+        characterKeyEquals(nModel.getCharKey(), model.getCharKey());
+        intKeyEquals(nModel.getIntKey(), model.getIntKey());
+        floatKeyEquals(nModel.getFloatKey(), model.getFloatKey());
+        longKeyEquals(nModel.getLongKey(), model.getLongKey());
+        doubleKeyEquals(nModel.getDoubleKey(), model.getDoubleKey());
     }
+
+    @Test
+    public void testMapValueAllType() throws EncodeException, ProtoException {
+        MapAllTypeModel model = new MapAllTypeModel();
+        model.setPk(new Random().nextLong());
+
+        byte[] data = ProtoBuf.ser(model);
+        MapAllTypeModel nModel = (MapAllTypeModel) ProtoBuf.der(data);
+        assertNotNull(nModel);
+        assertEquals(nModel.getPk(), model.getPk());
+
+        Map<String, Byte> byteKeyMap = buildByteValMap();
+        model.setByteVal(byteKeyMap);
+        data = ProtoBuf.ser(model);
+        nModel = (MapAllTypeModel)ProtoBuf.der(data);
+        assertNotNull(nModel);
+        assertEquals(nModel.getPk(), model.getPk());
+        byteValEquals(nModel.getByteVal(), model.getByteVal());
+
+        Map<String, Boolean> boolValMap = buildBoolValMap();
+        model.setBoolVal(boolValMap);
+        data = ProtoBuf.ser(model);
+        nModel = (MapAllTypeModel)ProtoBuf.der(data);
+        assertNotNull(nModel);
+        assertEquals(nModel.getPk(), model.getPk());
+        byteValEquals(nModel.getByteVal(), model.getByteVal());
+        boolValEquals(nModel.getBoolVal(), model.getBoolVal());
+
+        Map<String, Character> charCharMap = buildCharacterValMap();
+        model.setCharVal(charCharMap);
+        data = ProtoBuf.ser(model);
+        nModel = (MapAllTypeModel)ProtoBuf.der(data);
+        assertNotNull(nModel);
+        assertEquals(nModel.getPk(), model.getPk());
+        byteValEquals(nModel.getByteVal(), model.getByteVal());
+        boolValEquals(nModel.getBoolVal(), model.getBoolVal());
+        charValEquals(nModel.getCharVal(), model.getCharVal());
+
+        Map<String, Short> shorValMap = buildShortValMap();
+        model.setShortVal(shorValMap);
+        data = ProtoBuf.ser(model);
+        nModel = (MapAllTypeModel)ProtoBuf.der(data);
+        assertNotNull(nModel);
+        assertEquals(nModel.getPk(), model.getPk());
+        byteValEquals(nModel.getByteVal(), model.getByteVal());
+        boolValEquals(nModel.getBoolVal(), model.getBoolVal());
+        charValEquals(nModel.getCharVal(), model.getCharVal());
+        shortValEquals(nModel.getShortVal(), model.getShortVal());
+
+        Map<String, Integer> intValMap = buildIntValMap();
+        model.setIntVal(intValMap);
+        data = ProtoBuf.ser(model);
+        nModel = (MapAllTypeModel)ProtoBuf.der(data);
+        assertNotNull(nModel);
+        assertEquals(nModel.getPk(), model.getPk());
+        byteValEquals(nModel.getByteVal(), model.getByteVal());
+        boolValEquals(nModel.getBoolVal(), model.getBoolVal());
+        charValEquals(nModel.getCharVal(), model.getCharVal());
+        shortValEquals(nModel.getShortVal(), model.getShortVal());
+        intValEquals(nModel.getIntVal(), model.getIntVal());
+
+        Map<String, Float> floatValMap = buildFloatValMap();
+        model.setFloatVal(floatValMap);
+        data = ProtoBuf.ser(model);
+        nModel = (MapAllTypeModel)ProtoBuf.der(data);
+        assertNotNull(nModel);
+        assertEquals(nModel.getPk(), model.getPk());
+        byteValEquals(nModel.getByteVal(), model.getByteVal());
+        boolValEquals(nModel.getBoolVal(), model.getBoolVal());
+        charValEquals(nModel.getCharVal(), model.getCharVal());
+        shortValEquals(nModel.getShortVal(), model.getShortVal());
+        intValEquals(nModel.getIntVal(), model.getIntVal());
+        floatValEquals(nModel.getFloatVal(), model.getFloatVal());
+
+        Map<String, Long> longValMap = buildLongValMap();
+        model.setLongVal(longValMap);
+        data = ProtoBuf.ser(model);
+        nModel = (MapAllTypeModel)ProtoBuf.der(data);
+        assertNotNull(nModel);
+        assertEquals(nModel.getPk(), model.getPk());
+        byteValEquals(nModel.getByteVal(), model.getByteVal());
+        boolValEquals(nModel.getBoolVal(), model.getBoolVal());
+        charValEquals(nModel.getCharVal(), model.getCharVal());
+        shortValEquals(nModel.getShortVal(), model.getShortVal());
+        intValEquals(nModel.getIntVal(), model.getIntVal());
+        floatValEquals(nModel.getFloatVal(), model.getFloatVal());
+        longValEquals(nModel.getLongVal(), model.getLongVal());
+
+        Map<String, Double> doubleValMap = buildDoubleValMap();
+        model.setDoubleVal(doubleValMap);
+        data = ProtoBuf.ser(model);
+        nModel = (MapAllTypeModel)ProtoBuf.der(data);
+        assertNotNull(nModel);
+        assertEquals(nModel.getPk(), model.getPk());
+        byteValEquals(nModel.getByteVal(), model.getByteVal());
+        boolValEquals(nModel.getBoolVal(), model.getBoolVal());
+        charValEquals(nModel.getCharVal(), model.getCharVal());
+        shortValEquals(nModel.getShortVal(), model.getShortVal());
+        intValEquals(nModel.getIntVal(), model.getIntVal());
+        floatValEquals(nModel.getFloatVal(), model.getFloatVal());
+        longValEquals(nModel.getLongVal(), model.getLongVal());
+        doubleValEquals(nModel.getDoubleVal(), model.getDoubleVal());
+    }
+
 
     private Map<Byte, Project> buildByteKeyMap() {
         Map<Byte, Project> map = new HashMap<>();
@@ -139,6 +308,20 @@ public class TestMapListCodec {
         return map;
     }
 
+    private Map<String, Boolean> buildBoolValMap() {
+        Map<String, Boolean> map = new HashMap<>();
+        int count = 5;
+        Random random = new Random();
+        for (int i=0;i<count;i++) {
+            map.put(randomStr(random.nextInt(15)), random.nextBoolean());
+        }
+        map.put(randomStr(random.nextInt(15)), false);
+        for (int i=0;i<count;i++) {
+            map.put(randomStr(random.nextInt(15)), random.nextBoolean());
+        }
+        return map;
+    }
+
     private Map<Short, Project> buildShortKeyMap() {
         Map<Short, Project> map = new HashMap<>();
         int count = 5;
@@ -148,6 +331,86 @@ public class TestMapListCodec {
         }
         for (int i=0;i<count;i++) {
             map.put((short)(random.nextInt(Short.MAX_VALUE)), buildProject());
+        }
+        return map;
+    }
+
+    private Map<String, Short> buildShortValMap() {
+        Map<String, Short> map = new HashMap<>();
+        int count = 5;
+        Random random = new Random();
+        for (int i=0;i<count;i++) {
+            int cCount = 1 + random.nextInt(20);
+            map.put(randomStr(cCount), (short)(random.nextInt(Short.MAX_VALUE) - Short.MAX_VALUE));
+        }
+        map.put("", (short)0);
+        for (int i=0;i<count;i++) {
+            int cCount = 1 + random.nextInt(20);
+            map.put(randomStr(cCount), (short)(random.nextInt(Short.MAX_VALUE)));
+        }
+        return map;
+    }
+
+    private Map<String, Integer> buildIntValMap() {
+        Map<String, Integer> map = new HashMap<>();
+        int count = 5;
+        Random random = new Random();
+        for (int i=0;i<count;i++) {
+            int cCount = 1 + random.nextInt(20);
+            map.put(randomStr(cCount), (random.nextInt(Integer.MAX_VALUE) - Integer.MAX_VALUE));
+        }
+        map.put("", 0);
+        for (int i=0;i<count;i++) {
+            int cCount = 1 + random.nextInt(20);
+            map.put(randomStr(cCount), (random.nextInt(Integer.MAX_VALUE)));
+        }
+        return map;
+    }
+
+    private Map<String, Float> buildFloatValMap() {
+        Map<String, Float> map = new HashMap<>();
+        int count = 5;
+        Random random = new Random();
+        for (int i=0;i<count;i++) {
+            int cCount = 1 + random.nextInt(20);
+            map.put(randomStr(cCount), (float)(random.nextFloat(Float.MAX_VALUE) - Float.MAX_VALUE));
+        }
+        map.put("", 0F);
+        for (int i=0;i<count;i++) {
+            int cCount = 1 + random.nextInt(20);
+            map.put(randomStr(cCount), (random.nextFloat(Float.MAX_VALUE)));
+        }
+        return map;
+    }
+
+    private Map<String, Long> buildLongValMap() {
+        Map<String, Long> map = new HashMap<>();
+        int count = 5;
+        Random random = new Random();
+        for (int i=0;i<count;i++) {
+            int cCount = 1 + random.nextInt(20);
+            map.put(randomStr(cCount), (random.nextLong(Long.MAX_VALUE) - Long.MAX_VALUE));
+        }
+        map.put("", 0L);
+        for (int i=0;i<count;i++) {
+            int cCount = 1 + random.nextInt(20);
+            map.put(randomStr(cCount), (random.nextLong(Long.MAX_VALUE)));
+        }
+        return map;
+    }
+
+    private Map<String, Double> buildDoubleValMap() {
+        Map<String, Double> map = new HashMap<>();
+        int count = 5;
+        Random random = new Random();
+        for (int i=0;i<count;i++) {
+            int cCount = 1 + random.nextInt(20);
+            map.put(randomStr(cCount), (random.nextDouble(Double.MAX_VALUE) - Double.MAX_VALUE));
+        }
+        map.put("", 0D);
+        for (int i=0;i<count;i++) {
+            int cCount = 1 + random.nextInt(20);
+            map.put(randomStr(cCount), (random.nextDouble(Double.MAX_VALUE)));
         }
         return map;
     }
@@ -169,6 +432,22 @@ public class TestMapListCodec {
         map.put((char)(0), buildProject());
         for (int i=0;i<count;i++) {
             map.put((char)(random.nextInt(Character.MAX_VALUE)), buildProject());
+        }
+        return map;
+    }
+
+    private Map<String, Character> buildCharacterValMap() {
+        Map<String, Character> map = new HashMap<>();
+        int count = 5;
+        Random random = new Random();
+        for (int i=0;i<count;i++) {
+            int cCount = 1 + random.nextInt(20);
+            map.put(randomStr(cCount), (char)(random.nextInt(Character.MAX_VALUE) - Character.MAX_VALUE));
+        }
+        map.put("", (char)0);
+        for (int i=0;i<count;i++) {
+            int cCount = 2 + random.nextInt(20);
+            map.put(randomStr(cCount), (char)(random.nextInt(Character.MAX_VALUE) - Character.MAX_VALUE));
         }
         return map;
     }
@@ -243,6 +522,34 @@ public class TestMapListCodec {
         }
     }
 
+    private void boolValEquals(Map<String, Boolean> one, Map<String, Boolean> other) {
+        for (Map.Entry<String, Boolean> entry : one.entrySet()) {
+            assertTrue(other.containsKey(entry.getKey()));
+            assertEquals(entry.getValue(), other.get(entry.getKey()));
+        }
+    }
+
+    private void intValEquals(Map<String, Integer> one, Map<String, Integer> other) {
+        for (Map.Entry<String, Integer> entry : one.entrySet()) {
+            assertTrue(other.containsKey(entry.getKey()));
+            assertEquals(entry.getValue(), other.get(entry.getKey()));
+        }
+    }
+
+    private void longValEquals(Map<String, Long> one, Map<String, Long> other) {
+        for (Map.Entry<String, Long> entry : one.entrySet()) {
+            assertTrue(other.containsKey(entry.getKey()));
+            assertEquals(entry.getValue(), other.get(entry.getKey()));
+        }
+    }
+
+    private void doubleValEquals(Map<String, Double> one, Map<String, Double> other) {
+        for (Map.Entry<String, Double> entry : one.entrySet()) {
+            assertTrue(other.containsKey(entry.getKey()));
+            assertEquals(entry.getValue(), other.get(entry.getKey()));
+        }
+    }
+
     private void boolKeyEquals(Map<Boolean, Project> one, Map<Boolean, Project> other) {
         for (Map.Entry<Boolean, Project> entry : one.entrySet()) {
             assertTrue(other.containsKey(entry.getKey()));
@@ -264,10 +571,31 @@ public class TestMapListCodec {
         }
     }
 
+    private void charValEquals(Map<String, Character> one, Map<String, Character> other) {
+        for (Map.Entry<String, Character> entry : one.entrySet()) {
+            assertTrue(other.containsKey(entry.getKey()));
+            assertEquals(entry.getValue(), other.get(entry.getKey()));
+        }
+    }
+
+    private void shortValEquals(Map<String, Short> one, Map<String, Short> other) {
+        for (Map.Entry<String, Short> entry : one.entrySet()) {
+            assertTrue(other.containsKey(entry.getKey()));
+            assertEquals(entry.getValue(), other.get(entry.getKey()));
+        }
+    }
+
     private void intKeyEquals(Map<Integer, Project> one, Map<Integer, Project> other) {
         for (Map.Entry<Integer, Project> entry : one.entrySet()) {
             assertTrue(other.containsKey(entry.getKey()));
             projectEquals(entry.getValue(), other.get(entry.getKey()));
+        }
+    }
+
+    private void floatValEquals(Map<String, Float> one, Map<String, Float> other) {
+        for (Map.Entry<String, Float> entry : one.entrySet()) {
+            assertTrue(other.containsKey(entry.getKey()));
+            assertEquals(entry.getValue(), other.get(entry.getKey()));
         }
     }
 
