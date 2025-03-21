@@ -634,7 +634,7 @@ public class ByteArrayReader extends AbstractReader {
     }
 
     @Override
-    public <K, V> Map<K, V> readMap(MapDecoder<K, V> mapDecoder) throws ProtoException {
+    public <K, V> Map<K, V> readMap(MapDecoder<K, V> mapDecoder, int tag) throws ProtoException {
         int len = readUInt32();
         int oldLimit = limit;
 

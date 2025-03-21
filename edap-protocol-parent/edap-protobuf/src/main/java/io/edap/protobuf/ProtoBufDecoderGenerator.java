@@ -547,45 +547,9 @@ public class ProtoBufDecoderGenerator {
                 mv.visitFieldInsn(GETFIELD, pojoCodecName, fieldName, "L" + MAP_ENTRY_DECODER_NAME +";");
                 mv.visitVarInsn(ALOAD, 1);
                 mv.visitVarInsn(ALOAD, aMapTag.get(pfi.protoField.tag()));
+                visitMethodVisitIntValue(mv, WireFormat.makeTag(pfi.protoField.tag(), WireType.END_GROUP));
                 mv.visitMethodInsn(INVOKEINTERFACE, MAP_ENTRY_DECODER_NAME, "decode",
-                        "(L" + READER_NAME +";Ljava/util/Map;)V", true);
-//                String keyTypeDesc = "Ljava/lang/Object;";
-//                String valTypeDesc = "Ljava/lang/Object;";
-//                if (pfi.field.getGenericType() instanceof ParameterizedType) {
-//                    ParameterizedType ptype = (ParameterizedType) pfi.field.getGenericType();
-//                    keyTypeDesc = getDescriptor(ptype.getActualTypeArguments()[0]);
-//                    valTypeDesc = getDescriptor(ptype.getActualTypeArguments()[1]);
-//                }
-//                Class mapEntryCls = ProtoBufCodecRegister.INSTANCE
-//                        .generateMapEntryClass(pfi.field.getGenericType(), null, pojoCls);
-//                String codecName = getMapCodecName(mapEntryCls);
-//                String mapTypeName = toInternalName(mapEntryCls.getName());
-//
-//                mv.visitVarInsn(ALOAD, 1);
-//                mv.visitVarInsn(ALOAD, 0);
-//                mv.visitFieldInsn(GETFIELD, pojoCodecName, codecName,
-//                        "L" + IFACE_NAME + ";");
-//                if (isFast) {
-//                    visitIntInsn(makeTag(pfi.protoField.tag(), WireType.END_GROUP), mv);
-//                    visitMethod(mv, INVOKEINTERFACE, READER_NAME, "readMessage",
-//                            "(L" + IFACE_NAME + ";I)Ljava/lang/Object;", true);
-//                } else {
-//                    visitMethod(mv, INVOKEINTERFACE, READER_NAME, "readMessage",
-//                            "(L" + IFACE_NAME + ";)Ljava/lang/Object;", true);
-//                }
-//                mv.visitTypeInsn(CHECKCAST, mapTypeName);
-//                varSwitchPre++;
-//                mv.visitVarInsn(ASTORE, varSwitchPre);
-//                mv.visitVarInsn(ALOAD, aMapTag.get(pfi.protoField.tag()));
-//                mv.visitVarInsn(ALOAD, varSwitchPre);
-//                mv.visitFieldInsn(GETFIELD, mapTypeName, "key", keyTypeDesc);
-//                mv.visitVarInsn(ALOAD, varSwitchPre);
-//                mv.visitFieldInsn(GETFIELD, mapTypeName, "value", valTypeDesc);
-//                visitMethod(mv, INVOKEINTERFACE, "java/util/Map", "put",
-//                        "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;",
-//                        true);
-//                mv.visitInsn(POP);
-
+                        "(L" + READER_NAME +";Ljava/util/Map;I)V", true);
             } else if (isList(pfi.field.getGenericType())) {
 
                 ParameterizedType ptype = (ParameterizedType)pfi.field.getGenericType();
@@ -621,8 +585,9 @@ public class ProtoBufDecoderGenerator {
                     mv.visitVarInsn(ALOAD, aListTag.get(pfi.protoField.tag()));
                     mv.visitVarInsn(ALOAD, 1);
                     mv.visitVarInsn(ALOAD, mapDecoderVars.get(mapDecoderFieldName));
+                    visitMethodVisitIntValue(mv, WireFormat.makeTag(1, WireType.END_GROUP));
                     mv.visitMethodInsn(INVOKEINTERFACE, READER_NAME, "readMap",
-                            "(Lio/edap/protobuf/MapDecoder;)Ljava/util/Map;", true);
+                            "(Lio/edap/protobuf/MapDecoder;I)Ljava/util/Map;", true);
                     mv.visitMethodInsn(INVOKEVIRTUAL, "java/util/ArrayList", "add",
                             "(Ljava/lang/Object;)Z", false);
                     mv.visitInsn(POP);

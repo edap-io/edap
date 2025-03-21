@@ -20,5 +20,5 @@ import java.util.Map;
 
 public interface MapEntryDecoder<K, V> {
 
-    void decode(ProtoBufReader reader, Map<K, V> map) throws ProtoException;
+    void decode(ProtoBufReader reader, Map<K, V> map, int tag) throws ProtoException;
 }

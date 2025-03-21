@@ -26,6 +26,7 @@ public class ByteArrayFastReader extends ByteArrayReader {
         return true;
     }
 
+
     @Override
     public String readString() throws ProtoException {
         int len = readRawVarint32();

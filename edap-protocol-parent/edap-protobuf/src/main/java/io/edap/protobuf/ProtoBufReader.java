@@ -241,7 +241,7 @@ public interface ProtoBufReader {
      */
     Object readObject() throws ProtoException;
 
-    <K, V> Map<K, V> readMap(MapDecoder<K, V> mapDecoder) throws ProtoException;
+    <K, V> Map<K, V> readMap(MapDecoder<K, V> mapDecoder, int tag) throws ProtoException;
 
     /**
      * 读取一个Message的对象
