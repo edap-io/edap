@@ -1494,7 +1494,9 @@ public class ProtoBufEncoderGenerator {
         if (pojoCls == null) {
             return "";
         }
-        StringBuilder sb = new StringBuilder("pbe");
+        StringBuilder sb = new StringBuilder();
+        sb.append(pojoCls.getName());
+        sb.append("Encoder");
         if (option != null && option.getCodecType() != null) {
             switch (option.getCodecType()) {
                 case FAST:
@@ -1504,9 +1506,6 @@ public class ProtoBufEncoderGenerator {
                     break;
             }
         }
-        sb.append('.');
-        sb.append(pojoCls.getName());
-        sb.append("Encoder");
         return sb.toString();
     }
 }

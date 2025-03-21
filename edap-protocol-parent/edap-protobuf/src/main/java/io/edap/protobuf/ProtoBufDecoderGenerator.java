@@ -1469,15 +1469,14 @@ public class ProtoBufDecoderGenerator {
         if (pojoCls == null) {
             return "";
         }
-        StringBuilder sb = new StringBuilder("pbd");
-        if (option != null && CodecType.FAST == option.getCodecType()) {
-            sb.append("f");
-        }
-        sb.append('.');
+        StringBuilder sb = new StringBuilder();
         if (pojoCls.getPackage() != null) {
             sb.append(pojoCls.getPackage().getName()).append(".");
         }
         sb.append(pojoCls.getSimpleName()).append("Decoder");
+        if (option != null && CodecType.FAST == option.getCodecType()) {
+            sb.append("f");
+        }
         return sb.toString();
     }
 }
