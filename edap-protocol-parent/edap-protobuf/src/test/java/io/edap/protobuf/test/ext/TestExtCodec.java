@@ -232,7 +232,7 @@ public class TestExtCodec {
 
         ProtoBufWriter writer = new StandardProtoBufWriter(new ProtoBufOut());
         ClassCodec codec = new ClassCodec();
-        byte[] clsNullData = new byte[]{-114};
+        byte[] clsNullData = new byte[]{109};
         ProtoBufOption option = new ProtoBufOption();
         AnyCodec.encode(writer, cls, option);
         byte[] data = writer.toByteArray();

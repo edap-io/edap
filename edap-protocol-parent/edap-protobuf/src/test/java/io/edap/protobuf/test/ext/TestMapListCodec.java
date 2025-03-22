@@ -373,12 +373,12 @@ public class TestMapListCodec {
         Random random = new Random();
         for (int i=0;i<count;i++) {
             int cCount = 1 + random.nextInt(20);
-            map.put(randomStr(cCount), (float)(random.nextFloat(Float.MAX_VALUE) - Float.MAX_VALUE));
+            map.put(randomStr(cCount), (float)(random.nextFloat() - Float.MAX_VALUE));
         }
         map.put("", 0F);
         for (int i=0;i<count;i++) {
             int cCount = 1 + random.nextInt(20);
-            map.put(randomStr(cCount), (random.nextFloat(Float.MAX_VALUE)));
+            map.put(randomStr(cCount), (random.nextFloat()));
         }
         return map;
     }
@@ -389,12 +389,12 @@ public class TestMapListCodec {
         Random random = new Random();
         for (int i=0;i<count;i++) {
             int cCount = 1 + random.nextInt(20);
-            map.put(randomStr(cCount), (random.nextLong(Long.MAX_VALUE) - Long.MAX_VALUE));
+            map.put(randomStr(cCount), (random.nextLong() - Long.MAX_VALUE));
         }
         map.put("", 0L);
         for (int i=0;i<count;i++) {
             int cCount = 1 + random.nextInt(20);
-            map.put(randomStr(cCount), (random.nextLong(Long.MAX_VALUE)));
+            map.put(randomStr(cCount), (random.nextLong()));
         }
         return map;
     }
@@ -405,12 +405,12 @@ public class TestMapListCodec {
         Random random = new Random();
         for (int i=0;i<count;i++) {
             int cCount = 1 + random.nextInt(20);
-            map.put(randomStr(cCount), (random.nextDouble(Double.MAX_VALUE) - Double.MAX_VALUE));
+            map.put(randomStr(cCount), (random.nextDouble() - Double.MAX_VALUE));
         }
         map.put("", 0D);
         for (int i=0;i<count;i++) {
             int cCount = 1 + random.nextInt(20);
-            map.put(randomStr(cCount), (random.nextDouble(Double.MAX_VALUE)));
+            map.put(randomStr(cCount), (random.nextDouble()));
         }
         return map;
     }

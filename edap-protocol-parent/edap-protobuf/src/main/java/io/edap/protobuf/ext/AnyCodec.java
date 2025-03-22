@@ -55,7 +55,7 @@ public class AnyCodec {
     public static final int RANGE_INT_END         = RANGE_INT_START + 15;
 
     public static final int RANGE_STRING_START    = RANGE_INT_END + 1;           //16;
-    public static final int RANGE_STRING_END      = RANGE_STRING_START + 64;     //47;
+    public static final int RANGE_STRING_END      = RANGE_STRING_START + 31;     //47;
 
     public static final int RANGE_HASHMAP_START   = RANGE_STRING_END + 1;         //48;
     public static final int RANGE_HASHMAP_END     = RANGE_HASHMAP_START + 15;     //63;

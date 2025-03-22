@@ -81,7 +81,7 @@ public class HashMapCodec implements ExtCodec<HashMap<Object, Object>> {
 
     @Override
     public void encode(ProtoBufWriter writer, HashMap<Object, Object> map) throws EncodeException {
-        if (map.size() > RANGE_HASHMAP_END - RANGE_HASHMAP_START) {
+        if (map.size() >= RANGE_HASHMAP_END - RANGE_HASHMAP_START) {
             writer.writeByte((byte)RANGE_HASHMAP_END);
             writer.writeInt32(map.size(), true);
         } else {

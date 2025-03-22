@@ -61,7 +61,10 @@ public class TestFieldObject {
             "a文c😁",
             "a😿文c😁",
             "abcdefgh，中文内容，a😁文c，a文c😁，abcdefgh，中文内容，a😁文c，a文c😁:" +
-                    "::abcdefgh，中文内容，a😁文c，a文c😁，abcdefgh，中文内容，a😁文c，a文c😁"
+                    "::abcdefgh，中文内容，a😁文c，a文c😁，abcdefgh，中文内容，a😁文c，a文c😁",
+            "1234567890" + "1234567890" + "1234567890",
+            "1234567890" + "1234567890" + "1234567890" + "1",
+            "1234567890" + "1234567890" + "1234567890" + "12",
     })
     void testStringCodec(String value) throws EncodeException, ProtoException {
         FieldObject fo = new FieldObject();
@@ -88,6 +91,22 @@ public class TestFieldObject {
     @ValueSource(ints = {
             0,
             1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
             125,
             128,
             -1,
@@ -742,6 +761,14 @@ public class TestFieldObject {
             "{\"name1\":\"louis\",\"name2\":\"louis\",\"name3\":\"louis\",\"name4\":\"louis\","
                     + "\"name5\":\"louis\",\"name6\":\"louis\",\"name7\":\"louis\",\"name8\":\"louis\","
                     + "\"name9\":\"louis\",\"name10\":\"louis\",\"name11\":\"louis\",\"name12\":\"louis\","
+                    + "\"name13\":\"louis\",\"name14\":\"louis\"}",
+            "{\"name1\":\"louis\",\"name2\":\"louis\",\"name3\":\"louis\",\"name4\":\"louis\","
+                    + "\"name5\":\"louis\",\"name6\":\"louis\",\"name7\":\"louis\",\"name8\":\"louis\","
+                    + "\"name9\":\"louis\",\"name10\":\"louis\",\"name11\":\"louis\",\"name12\":\"louis\","
+                    + "\"name13\":\"louis\",\"name14\":\"louis\",\"name15\":\"louis\"}",
+            "{\"name1\":\"louis\",\"name2\":\"louis\",\"name3\":\"louis\",\"name4\":\"louis\","
+                    + "\"name5\":\"louis\",\"name6\":\"louis\",\"name7\":\"louis\",\"name8\":\"louis\","
+                    + "\"name9\":\"louis\",\"name10\":\"louis\",\"name11\":\"louis\",\"name12\":\"louis\","
                     + "\"name13\":\"louis\",\"name14\":\"louis\",\"name15\":\"louis\",\"name16\":\"louis\"}"
     })
     void testMapCodec(String value) throws EncodeException, ProtoException {
@@ -879,6 +906,30 @@ public class TestFieldObject {
         nfo = ProtoBuf.toObject(epb, FieldObject.class);
         System.out.println(Eson.toJsonString(nfo.getObj()));
         assertEquals(nfo.getObj(), ilist);
+
+        List<Double> dlist = new ArrayList<>();
+        Random random = new Random();
+        for(int i=0;i<16;i++) {
+            dlist.add(random.nextDouble());
+        }
+
+        fo = new FieldObject();
+        fo.setObj(dlist);
+        epb = ProtoBuf.toByteArray(fo);
+        System.out.println(conver2HexStr(epb));
+
+        nfo = ProtoBuf.toObject(epb, FieldObject.class);
+        System.out.println(Eson.toJsonString(nfo.getObj()));
+        assertEquals(nfo.getObj(), dlist);
+
+        fo = new FieldObject();
+        fo.setObj(dlist);
+        epb = ProtoBuf.toByteArray(fo);
+        System.out.println(conver2HexStr(epb));
+
+        nfo = ProtoBuf.toObject(epb, FieldObject.class);
+        System.out.println(Eson.toJsonString(nfo.getObj()));
+        assertEquals(nfo.getObj(), dlist);
     }
 
     @Test

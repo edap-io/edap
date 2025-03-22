@@ -79,11 +79,11 @@ public class ArrayListCodec implements ExtCodec<ArrayList> {
     @Override
     public void encode(ProtoBufWriter writer, ArrayList arrayList) throws EncodeException {
         int len = arrayList.size();
-        if (len > RANGE_ARRAYLIST_END - RANGE_ARRAYLIST_START) {
+        if (len >= RANGE_ARRAYLIST_END - RANGE_ARRAYLIST_START) {
             writer.writeByte((byte)RANGE_ARRAYLIST_END);
             writer.writeInt32(len, true);
         } else {
-            writer.writeInt32(RANGE_ARRAYLIST_START + len);
+            writer.writeInt32(len + RANGE_ARRAYLIST_START);
         }
         for (int i=0;i<len;i++) {
             writer.writeObject(arrayList.get(i));
