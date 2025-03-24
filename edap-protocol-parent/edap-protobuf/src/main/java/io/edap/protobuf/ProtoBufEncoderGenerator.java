@@ -1293,7 +1293,9 @@ public class ProtoBufEncoderGenerator {
                 mv.visitVarInsn(ALOAD, 0);
                 mv.visitFieldInsn(GETSTATIC, REGISTER_NAME, "INSTANCE", "L" + REGISTER_NAME + ";");
                 mv.visitVarInsn(ALOAD, varMapEntry);
-                mv.visitInsn(ACONST_NULL);
+                mv.visitVarInsn(ALOAD, 0);
+                mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/Object", "getClass",
+                        "()Ljava/lang/Class;", false);
                 mv.visitTypeInsn(CHECKCAST, "java/lang/Class");
                 mv.visitFieldInsn(GETSTATIC, pojoCodecName, "PROTO_BUF_OPTION", "L" + PROTOBUF_OPTIION_NAME +";");
                 mv.visitMethodInsn(INVOKEVIRTUAL, REGISTER_NAME, "getMapEntryEncoder",
