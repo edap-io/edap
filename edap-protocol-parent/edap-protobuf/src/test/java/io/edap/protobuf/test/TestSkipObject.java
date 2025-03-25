@@ -1129,7 +1129,7 @@ public class TestSkipObject {
     @ValueSource(strings = {
             "byte",
     })
-    public void testSkipList(String value) throws UnsupportedEncodingException {
+    public void testSkipArrayList(String value) throws UnsupportedEncodingException {
         String str = new Random().nextDouble() + "";
 
         List<String> list = new ArrayList<>();
@@ -1162,6 +1162,82 @@ public class TestSkipObject {
 
 
         List<Integer> ilist = new ArrayList<>();
+        ilist.add(1);
+        ilist.add(3);
+        ilist.add(128);
+        ilist.add(-1);
+        ilist.add(-2);
+        ilist.add(-3);
+        ilist.add(-4);
+        ilist.add(-5);
+        ilist.add(-6);
+        ilist.add(-7);
+        ilist.add(128);
+        ilist.add(129);
+        ilist.add(130);
+        ilist.add(131);
+        ilist.add(132);
+        ilist.add(133);
+        ilist.add(134);
+
+        src = buildSkipSrc(str, ilist);
+
+        epb = ProtoBuf.toByteArray(src);
+        System.out.println("+-epb[" + epb.length + "]-------------------+");
+        System.out.println(conver2HexStr(epb));
+        System.out.println("+--------------------+");
+
+        dest = ProtoBuf.toObject(epb, SkipDest.class);
+        assertNotNull(dest);
+        assertEquals(dest.field19, str);
+
+        epb = ProtoBuf.toByteArray(src, option);
+        System.out.println("+-epbf[" + epb.length + "]-------------------+");
+        System.out.println(conver2HexStr(epb));
+        System.out.println("+--------------------+");
+
+        dest = ProtoBuf.toObject(epb, SkipDest.class, option);
+        assertNotNull(dest);
+        assertEquals(dest.field19, str);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "byte",
+    })
+    public void testSkipList(String value) throws UnsupportedEncodingException {
+        String str = new Random().nextDouble() + "";
+
+        List<String> list = new Vector<>();
+        list.add("1");
+        list.add("2");
+        list.add("3");
+        list.add("4");
+
+        SkipSrc src = buildSkipSrc(str, list);
+
+        byte[] epb = ProtoBuf.toByteArray(src);
+        System.out.println("+-epb[" + epb.length + "]-------------------+");
+        System.out.println(conver2HexStr(epb));
+        System.out.println("+--------------------+");
+
+        SkipDest dest = ProtoBuf.toObject(epb, SkipDest.class);
+        assertNotNull(dest);
+        assertEquals(dest.field19, str);
+
+        ProtoBufOption option = new ProtoBufOption();
+        option.setCodecType(CodecType.FAST);
+        epb = ProtoBuf.toByteArray(src, option);
+        System.out.println("+-epbf[" + epb.length + "]-------------------+");
+        System.out.println(conver2HexStr(epb));
+        System.out.println("+--------------------+");
+
+        dest = ProtoBuf.toObject(epb, SkipDest.class, option);
+        assertNotNull(dest);
+        assertEquals(dest.field19, str);
+
+
+        List<Integer> ilist = new Vector<>();
         ilist.add(1);
         ilist.add(3);
         ilist.add(128);

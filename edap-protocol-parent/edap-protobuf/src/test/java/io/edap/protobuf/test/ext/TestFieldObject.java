@@ -22,7 +22,10 @@ import io.edap.protobuf.CodecType;
 import io.edap.protobuf.EncodeException;
 import io.edap.protobuf.ProtoBuf;
 import io.edap.protobuf.ProtoException;
+import io.edap.protobuf.ext.AnyCodec;
+import io.edap.protobuf.ext.codec.ListCodec;
 import io.edap.protobuf.model.ProtoBufOption;
+import io.edap.protobuf.reader.ByteArrayReader;
 import io.edap.protobuf.test.message.ext.FieldObject;
 import io.edap.protobuf.test.message.v3.Project;
 import org.junit.jupiter.api.Test;
@@ -1125,5 +1128,53 @@ public class TestFieldObject {
         FieldObject nfo = ProtoBuf.toObject(epb, FieldObject.class);
         System.out.println(((Short)nfo.getObj()).intValue());
         assertEquals(((Short)nfo.getObj()).shortValue(), (short)value);
+    }
+
+    @Test
+    public void testListCodec() {
+        FieldObject fo = new FieldObject();
+        List<Integer> list = new Vector<>();
+        fo.setObj(list);
+        byte[] epb = ProtoBuf.toByteArray(fo);
+        System.out.println(conver2HexStr(epb));
+        FieldObject nfo = ProtoBuf.toObject(epb, FieldObject.class);
+        assertTrue(nfo.getObj().getClass().getName().equals("java.util.Vector"));
+
+        list = new Vector<>();
+        Random random = new Random();
+        int count = 1 + random.nextInt(24);
+        for (int i=0;i<count;i++) {
+            list.add(random.nextInt());
+        }
+        fo.setObj(list);
+        epb = ProtoBuf.toByteArray(fo);
+        System.out.println(conver2HexStr(epb));
+        nfo = ProtoBuf.toObject(epb, FieldObject.class);
+        assertTrue(nfo.getObj().getClass().getName().equals("java.util.Vector"));
+        assertEquals(nfo.getObj(), nfo.getObj());
+
+        RuntimeException thrown = assertThrows(RuntimeException.class,
+                () -> {
+                    ListCodec listCodec = new ListCodec();
+                    byte[] data = new byte[]{5, 'a', 'b', 'c', 'd', 'e', '0'};
+                    ByteArrayReader reader = new ByteArrayReader(data);
+                    listCodec.decode(reader);
+                });
+        assertEquals(thrown.getMessage(), "Cann't instance abcde");
+
+        thrown = assertThrows(RuntimeException.class,
+                () -> {
+                    ListCodec listCodec = new ListCodec();
+                    String name = DemoList.class.getName();
+                    int len = name.length();
+                    byte[] data = new byte[len+1];
+                    data[0] = (byte)len;
+                    for (int i=1;i<=len;i++) {
+                        data[i] = (byte)name.charAt(i-1);
+                    }
+                    ByteArrayReader reader = new ByteArrayReader(data);
+                    listCodec.decode(reader);
+                });
+        assertEquals(thrown.getMessage(), "io.edap.protobuf.test.ext.DemoList has't default Constructor");
     }
 }

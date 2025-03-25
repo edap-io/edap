@@ -101,10 +101,11 @@ public class AnyCodec {
     public static final int RANGE_COPYONWRITE_ARRAYSET = RANGE_HASH_SET + 1;             // 113 CopyOnWriteArraySet
     public static final int RANGE_SQL_DATE             = RANGE_COPYONWRITE_ARRAYSET + 1; // 114 java.sql.Date;
     public static final int RANGE_SQL_TIMEATAMP        = RANGE_SQL_DATE + 1;             // 115 java.sql.Timestamp;
-    public static final int RANGE_SHORT                = RANGE_SQL_TIMEATAMP + 1;
+    public static final int RANGE_SHORT                = RANGE_SQL_TIMEATAMP + 1;        // 116 short的数据类型
+    public static final int RANGE_LIST                 = RANGE_SHORT + 1;                // 117 list子类非ArrayList的数据类型
 
 
-    public static final int RANGE_MAX              = RANGE_SHORT + 1;
+    public static final int RANGE_MAX                  = RANGE_LIST + 1;
 
     static {
         MessageCodec msgCodec = new MessageCodec();
@@ -153,6 +154,7 @@ public class AnyCodec {
         SqlTimestampCodec        sqlTimestampCodec        = new SqlTimestampCodec();
         HashSetCodec             hashSetCodec             = new HashSetCodec();
         ShortCodec               shortCodec               = new ShortCodec();
+        ListCodec                listCodec                = new ListCodec();
 
 
         MSG_ENCODERS.put("java.lang.String",            stringCodec);
@@ -178,6 +180,7 @@ public class AnyCodec {
         MSG_ENCODERS.put("java.sql.Date",               sqlDateCodec);
         MSG_ENCODERS.put("java.sql.Timestamp",          sqlTimestampCodec);
         MSG_ENCODERS.put("java.lang.Short",             shortCodec);
+        MSG_ENCODERS.put("java.util.List",              listCodec);
 
         MSG_ENCODERS.put("[B",                          arrayByteCodec);
         MSG_ENCODERS.put("[C",                          arrayCharCodec);
@@ -218,6 +221,7 @@ public class AnyCodec {
         MSG_FAST_ENCODERS.put("java.sql.Date",               sqlDateCodec);
         MSG_FAST_ENCODERS.put("java.sql.Timestamp",          sqlTimestampCodec);
         MSG_FAST_ENCODERS.put("java.lang.Short",             shortCodec);
+        MSG_FAST_ENCODERS.put("java.util.List",              listCodec);
 
         MSG_FAST_ENCODERS.put("[B",                          arrayByteCodec);
         MSG_FAST_ENCODERS.put("[C",                          arrayCharCodec);
@@ -295,6 +299,7 @@ public class AnyCodec {
         DECODERS[RANGE_SQL_DATE]             = sqlDateCodec;
         DECODERS[RANGE_SQL_TIMEATAMP]        = sqlTimestampCodec;
         DECODERS[RANGE_SHORT]                = shortCodec;
+        DECODERS[RANGE_LIST]                 = listCodec;
 
 
         // int的编码范围
@@ -358,6 +363,7 @@ public class AnyCodec {
         FAST_DECODERS[RANGE_SQL_DATE]             = sqlDateCodec;
         FAST_DECODERS[RANGE_SQL_TIMEATAMP]        = sqlTimestampCodec;
         FAST_DECODERS[RANGE_SHORT]                = shortCodec;
+        FAST_DECODERS[RANGE_LIST]                 = listCodec;
 
     }
 
@@ -368,8 +374,10 @@ public class AnyCodec {
         }
         ProtoBufEncoder encoder = MSG_ENCODERS.get(v.getClass().getName());
         if (null == encoder) {
-            if (isList(v.getClass())) {
+            if ("java.util.ArrayList".equals(v.getClass().getName())) {
                 encoder = MSG_ENCODERS.get("java.util.ArrayList");
+            } else if (isList(v.getClass())) {
+                encoder = MSG_ENCODERS.get("java.util.List");
             } else {
                 encoder = MSG_ENCODER;
             }
@@ -388,7 +396,13 @@ public class AnyCodec {
         }
         ProtoBufEncoder encoder = MSG_FAST_ENCODERS.get(v.getClass().getName());
         if (null == encoder) {
-            encoder = MSG_FAST_ENCODER;
+            if ("java.util.ArrayList".equals(v.getClass().getName())) {
+                encoder = MSG_FAST_ENCODERS.get("java.util.ArrayList");
+            } else if (isList(v.getClass())) {
+                encoder = MSG_FAST_ENCODERS.get("java.util.List");
+            } else {
+                encoder = MSG_ENCODER;
+            }
         }
         encoder.encode(writer, v);
     }
