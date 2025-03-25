@@ -131,16 +131,12 @@ public class ProtoBuf {
     public static byte [] ser(Object obj) throws EncodeException {
         ProtoBufWriter writer = THREAD_WRITER.get();
         writer.reset();
-        BufOut out = writer.getBufOut();
-        out.reset();
+//        BufOut out = writer.getBufOut();
+//        out.reset();
         byte[] bs;
         try {
             AnyCodec.encode(writer, obj);
-            int len = writer.size();
-            bs = new byte[len];
-            System.arraycopy(out.getWriteBuf().bs, 0, bs, 0, len);
-            out.reset();
-            return bs;
+            return writer.toByteArray();
         } catch (EncodeException e) {
             throw e;
         } finally {
@@ -175,17 +171,13 @@ public class ProtoBuf {
     public static byte [] ser(Object obj, byte[] prefixData) throws EncodeException {
         ProtoBufWriter writer = THREAD_WRITER.get();
         writer.reset();
-        BufOut out = writer.getBufOut();
-        out.reset();
+//        BufOut out = writer.getBufOut();
+//        out.reset();
         byte[] bs;
         try {
             writer.writeBytes(prefixData);
             AnyCodec.encode(writer, obj);
-            int len = writer.size();
-            bs = new byte[len];
-            System.arraycopy(out.getWriteBuf().bs, 0, bs, 0, len);
-            out.reset();
-            return bs;
+            return writer.toByteArray();
         } catch (EncodeException e) {
             throw e;
         } finally {
