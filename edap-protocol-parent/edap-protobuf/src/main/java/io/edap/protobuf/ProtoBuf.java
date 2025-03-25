@@ -17,7 +17,6 @@
 package io.edap.protobuf;
 
 import io.edap.io.BufOut;
-import io.edap.protobuf.annotation.ProtoField;
 import io.edap.protobuf.ext.AnyCodec;
 import io.edap.protobuf.internal.ProtoBufOut;
 import io.edap.protobuf.model.ProtoBufOption;
@@ -28,8 +27,6 @@ import io.edap.protobuf.writer.StandardProtoBufWriter;
 
 import java.io.IOException;
 import java.io.OutputStream;
-import java.lang.reflect.Field;
-import java.lang.reflect.Method;
 
 public class ProtoBuf {
 
