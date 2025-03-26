@@ -427,6 +427,12 @@ public class AsmUtil {
             if (pCls.getName().equals("java.util.List")) {
                 return true;
             }
+            ifaces = pCls.getInterfaces();
+            for (Class c : ifaces) {
+                if (isListInterface(c)) {
+                    return true;
+                }
+            }
             pCls = pCls.getSuperclass();
         }
         return false;

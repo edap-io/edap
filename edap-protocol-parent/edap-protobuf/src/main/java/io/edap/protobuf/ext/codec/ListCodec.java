@@ -7,6 +7,8 @@ import io.edap.protobuf.ProtoException;
 import io.edap.protobuf.ext.ExtCodec;
 
 import java.lang.reflect.Constructor;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 import static io.edap.protobuf.ext.AnyCodec.*;
@@ -25,12 +27,23 @@ public class ListCodec implements ExtCodec<List>  {
 
     @Override
     public List decode(ProtoBufReader reader) throws ProtoException {
-        List list = makeList(reader.readString());
+        String listName = reader.readString();
         int size = reader.readInt32();
-        for (int i=0;i<size;i++) {
-            list.add(reader.readObject());
+        if ("java.util.Arrays$ArrayList".equals(listName)) {
+            Object[] objs = new Object[size];
+            for (int i = 0; i < size; i++) {
+                objs[i] = reader.readObject();
+            }
+            return Arrays.asList(objs);
+        } else if ("java.util.Collections$EmptyList".equals(listName)) {
+            return Collections.emptyList();
+        } else {
+            List list = makeList(listName);
+            for (int i = 0; i < size; i++) {
+                list.add(reader.readObject());
+            }
+            return list;
         }
-        return list;
     }
 
     @Override

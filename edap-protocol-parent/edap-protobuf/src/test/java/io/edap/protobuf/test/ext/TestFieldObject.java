@@ -1153,6 +1153,25 @@ public class TestFieldObject {
         assertTrue(nfo.getObj().getClass().getName().equals("java.util.Vector"));
         assertEquals(nfo.getObj(), nfo.getObj());
 
+        count = 1 + random.nextInt(24);
+        Integer[] as = new Integer[count];
+        for (int i=0;i<count;i++) {
+            as[i] = (random.nextInt());
+        }
+        fo.setObj(Arrays.asList(as));
+        epb = ProtoBuf.toByteArray(fo);
+        System.out.println(conver2HexStr(epb));
+        nfo = ProtoBuf.toObject(epb, FieldObject.class);
+        assertTrue(nfo.getObj().getClass().getName().equals("java.util.Arrays$ArrayList"));
+        assertEquals(nfo.getObj(), nfo.getObj());
+
+        fo.setObj(Collections.EMPTY_LIST);
+        epb = ProtoBuf.toByteArray(fo);
+        System.out.println(conver2HexStr(epb));
+        nfo = ProtoBuf.toObject(epb, FieldObject.class);
+        assertTrue(nfo.getObj().getClass().getName().equals("java.util.Collections$EmptyList"));
+        assertEquals(nfo.getObj(), nfo.getObj());
+
         RuntimeException thrown = assertThrows(RuntimeException.class,
                 () -> {
                     ListCodec listCodec = new ListCodec();
@@ -1167,11 +1186,13 @@ public class TestFieldObject {
                     ListCodec listCodec = new ListCodec();
                     String name = DemoList.class.getName();
                     int len = name.length();
-                    byte[] data = new byte[len+1];
+                    byte[] data = new byte[len+2];
                     data[0] = (byte)len;
                     for (int i=1;i<=len;i++) {
                         data[i] = (byte)name.charAt(i-1);
                     }
+                    data[len+1] = (byte)'0';
+
                     ByteArrayReader reader = new ByteArrayReader(data);
                     listCodec.decode(reader);
                 });
