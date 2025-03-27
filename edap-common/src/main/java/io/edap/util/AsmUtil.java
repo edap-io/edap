@@ -308,6 +308,12 @@ public class AsmUtil {
             if (pCls.getName().equals("java.lang.Iterable")) {
                 return true;
             }
+            ifaces = pCls.getInterfaces();
+            for (Class c : ifaces) {
+                if (isIterableInterface(c)) {
+                    return true;
+                }
+            }
             pCls = pCls.getSuperclass();
         }
         return false;
