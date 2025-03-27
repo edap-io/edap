@@ -231,6 +231,51 @@ public abstract class AbstractWriter implements ProtoBufWriter {
     }
 
     @Override
+    public final void writeSInt32(final byte[] fieldData, final Byte value) {
+        if (value == null) {
+            return;
+        }
+        expand(MAX_VARLONG_SIZE);
+        writeFieldData(fieldData);
+        writeUInt32_0(encodeZigZag32(value));
+    }
+
+    @Override
+    public final void writeSInt32(final byte[] fieldData, final byte value) {
+        writeSInt32(fieldData, (int)value);
+    }
+
+    @Override
+    public final void writeSInt32(final byte[] fieldData, final Short value) {
+        if (value == null) {
+            return;
+        }
+        expand(MAX_VARLONG_SIZE);
+        writeFieldData(fieldData);
+        writeUInt32_0(encodeZigZag32(value));
+    }
+
+    @Override
+    public final void writeSInt32(final byte[] fieldData, final short value) {
+        writeSInt32(fieldData, (int)value);
+    }
+
+    @Override
+    public final void writeSInt32(final byte[] fieldData, final Character value) {
+        if (value == null) {
+            return;
+        }
+        expand(MAX_VARLONG_SIZE);
+        writeFieldData(fieldData);
+        writeUInt32_0(encodeZigZag32(value));
+    }
+
+    @Override
+    public final void writeSInt32(final byte[] fieldData, final char value) {
+        writeSInt32(fieldData, (int)value);
+    }
+
+    @Override
     public final void writeSInt32(final byte[] fieldData, final Integer value) {
         if (value == null) {
             return;

@@ -798,10 +798,21 @@ public class StandardProtoBufWriter extends AbstractWriter {
         if (null == v) {
             return;
         }
-        int len;
-//        int oldPos = pos;
-//        pos += 5;
         AnyCodec.encode(this, v);
+    }
+
+    public void writeObjects(Iterator<Object> objects) throws EncodeException {
+        if (null == objects) {
+            return;
+        }
+        int oldPos = pos;
+        pos += 1;
+        int len = 0;
+        while (objects.hasNext()) {
+            len++;
+            AnyCodec.encode(this, objects.next());
+        }
+        pos += writeLenMoveBytes(bs, oldPos, len);
     }
 
     @Override

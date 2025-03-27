@@ -31,6 +31,7 @@ import org.objectweb.asm.*;
 import java.io.IOException;
 import java.lang.reflect.GenericArrayType;
 import java.lang.reflect.ParameterizedType;
+import java.lang.reflect.TypeVariable;
 import java.lang.reflect.WildcardType;
 import java.util.*;
 
@@ -252,20 +253,6 @@ public class ProtoBufEncoderGenerator {
                         if (writeMethod.equals("writeObject")) {
                             rType = "Ljava/lang/Object;";
                         }
-                        if (pfi.field.getType().getName().equals("byte") ||
-                                pfi.field.getType().getName().equals("short") ||
-                                pfi.field.getType().getName().equals("char")) {
-                            rType = "I";
-                        } else if (pfi.field.getType().getName().equals("java.lang.Byte")) {
-                            rType = "I";
-                            mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/Byte", "byteValue", "()B", false);
-                        } else if (pfi.field.getType().getName().equals("java.lang.Short")) {
-                            rType = "I";
-                            mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/Short", "shortValue", "()S", false);
-                        } else if (pfi.field.getType().getName().equals("java.lang.Character")) {
-                            rType = "I";
-                            mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/Character", "charValue", "()C", false);
-                        }
                         visitMethod(mv, INVOKEINTERFACE, WRITER_NAME, writeMethod,
                                 "([B" + rType + ")V", true);
                     }
@@ -408,10 +395,16 @@ public class ProtoBufEncoderGenerator {
             ParameterizedType ptype = (ParameterizedType)mapType;
             if (ptype.getActualTypeArguments() != null
                     && ptype.getActualTypeArguments().length == 2) {
-                keyTypeName = toInternalName(
-                        getTypeName(ptype.getActualTypeArguments()[0]));
-                valTypeName = toInternalName(
-                        getTypeName(ptype.getActualTypeArguments()[1]));
+                java.lang.reflect.Type keyType = ptype.getActualTypeArguments()[0];
+                if (keyType instanceof TypeVariable) {
+                    keyType = ((TypeVariable)keyType).getBounds()[0];
+                }
+                java.lang.reflect.Type valType = ptype.getActualTypeArguments()[1];
+                if (valType instanceof TypeVariable) {
+                    valType = ((TypeVariable)valType).getBounds()[0];
+                }
+                keyTypeName = toInternalName(getTypeName(keyType));
+                valTypeName = toInternalName(getTypeName(valType));
             }
         }
         MethodVisitor mv;

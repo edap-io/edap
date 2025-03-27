@@ -1093,7 +1093,7 @@ public class ProtoBufDecoderGenerator {
                         "(D)Ljava/lang/Double;", false);
                 break;
             case "java.lang.Short":
-                visitMethod(mv, INVOKESTATIC, "java/lang/Double", "valueOf",
+                visitMethod(mv, INVOKESTATIC, "java/lang/Short", "valueOf",
                         "(S)Ljava/lang/Short;", false);
                 break;
         }

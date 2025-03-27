@@ -27,6 +27,7 @@ import io.edap.protobuf.ext.codec.ListCodec;
 import io.edap.protobuf.model.ProtoBufOption;
 import io.edap.protobuf.reader.ByteArrayReader;
 import io.edap.protobuf.test.message.ext.FieldObject;
+import io.edap.protobuf.test.message.jtype.DemoIterable;
 import io.edap.protobuf.test.message.v3.Project;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -35,6 +36,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 import java.io.UnsupportedEncodingException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.sql.Timestamp;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.time.LocalDate;
@@ -1172,6 +1174,18 @@ public class TestFieldObject {
         assertTrue(nfo.getObj().getClass().getName().equals("java.util.Collections$EmptyList"));
         assertEquals(nfo.getObj(), nfo.getObj());
 
+        count = 1 + random.nextInt(24);
+        list = new LinkedList<>();
+        for (int i=0;i<count;i++) {
+            list.add(random.nextInt());
+        }
+        fo.setObj(list);
+        epb = ProtoBuf.toByteArray(fo);
+        System.out.println(conver2HexStr(epb));
+        nfo = ProtoBuf.toObject(epb, FieldObject.class);
+        assertTrue(nfo.getObj().getClass().getName().equals("java.util.LinkedList"));
+        assertEquals(nfo.getObj(), nfo.getObj());
+
         RuntimeException thrown = assertThrows(RuntimeException.class,
                 () -> {
                     ListCodec listCodec = new ListCodec();
@@ -1197,5 +1211,40 @@ public class TestFieldObject {
                     listCodec.decode(reader);
                 });
         assertEquals(thrown.getMessage(), "io.edap.protobuf.test.ext.DemoList has't default Constructor");
+    }
+
+    @Test
+    public void testIterableCodec() {
+        FieldObject fo = new FieldObject();
+        Map<String, Object> map = new HashMap<>();
+        map.put("key1", 1);
+        map.put("key2", "testValue");
+        map.put("key3", new Date());
+        map.put("key4", new Timestamp(new Date().getTime()));
+        fo.setObj(map.values());
+
+        byte[] epb = ProtoBuf.toByteArray(fo);
+        System.out.println(conver2HexStr(epb));
+        FieldObject nfo = ProtoBuf.toObject(epb, FieldObject.class);
+        assertTrue(nfo.getObj().getClass().getName().equals("java.util.ArrayList"));
+        Collection coll = (Collection)nfo.getObj();
+        Object[] oobjs = map.values().toArray();
+        Object[] nobjs = coll.toArray();
+        for (int i=0;i<coll.size();i++) {
+            assertEquals(oobjs[i], nobjs[i]);
+        }
+
+        fo.setObj(new DemoIterable(map.values().toArray()));
+
+        epb = ProtoBuf.toByteArray(fo);
+        System.out.println(conver2HexStr(epb));
+        nfo = ProtoBuf.toObject(epb, FieldObject.class);
+        assertTrue(nfo.getObj().getClass().getName().equals("java.util.ArrayList"));
+        coll = (Collection)nfo.getObj();
+        oobjs = map.values().toArray();
+        nobjs = coll.toArray();
+        for (int i=0;i<coll.size();i++) {
+            assertEquals(oobjs[i], nobjs[i]);
+        }
     }
 }

@@ -23,6 +23,7 @@ import io.edap.protobuf.model.ProtoBufOption;
 import java.util.HashMap;
 import java.util.concurrent.CopyOnWriteArraySet;
 
+import static io.edap.util.AsmUtil.isIterable;
 import static io.edap.util.AsmUtil.isList;
 
 /**
@@ -103,9 +104,10 @@ public class AnyCodec {
     public static final int RANGE_SQL_TIMEATAMP        = RANGE_SQL_DATE + 1;             // 115 java.sql.Timestamp;
     public static final int RANGE_SHORT                = RANGE_SQL_TIMEATAMP + 1;        // 116 short的数据类型
     public static final int RANGE_LIST                 = RANGE_SHORT + 1;                // 117 list子类非ArrayList的数据类型
+    public static final int RANGE_ITERABLE             = RANGE_LIST + 1;                 // 118 Iterable子类的数据类型
 
 
-    public static final int RANGE_MAX                  = RANGE_LIST + 1;
+    public static final int RANGE_MAX                  = RANGE_ITERABLE + 1;
 
     static {
         MessageCodec msgCodec = new MessageCodec();
@@ -155,6 +157,7 @@ public class AnyCodec {
         HashSetCodec             hashSetCodec             = new HashSetCodec();
         ShortCodec               shortCodec               = new ShortCodec();
         ListCodec                listCodec                = new ListCodec();
+        IterableCodec            iterableCodec            = new IterableCodec();
 
 
         MSG_ENCODERS.put("java.lang.String",            stringCodec);
@@ -181,6 +184,7 @@ public class AnyCodec {
         MSG_ENCODERS.put("java.sql.Timestamp",          sqlTimestampCodec);
         MSG_ENCODERS.put("java.lang.Short",             shortCodec);
         MSG_ENCODERS.put("java.util.List",              listCodec);
+        MSG_ENCODERS.put("java.util.Iterable",          iterableCodec);
 
         MSG_ENCODERS.put("[B",                          arrayByteCodec);
         MSG_ENCODERS.put("[C",                          arrayCharCodec);
@@ -222,6 +226,7 @@ public class AnyCodec {
         MSG_FAST_ENCODERS.put("java.sql.Timestamp",          sqlTimestampCodec);
         MSG_FAST_ENCODERS.put("java.lang.Short",             shortCodec);
         MSG_FAST_ENCODERS.put("java.util.List",              listCodec);
+        MSG_FAST_ENCODERS.put("java.util.Iterable",          iterableCodec);
 
         MSG_FAST_ENCODERS.put("[B",                          arrayByteCodec);
         MSG_FAST_ENCODERS.put("[C",                          arrayCharCodec);
@@ -300,6 +305,7 @@ public class AnyCodec {
         DECODERS[RANGE_SQL_TIMEATAMP]        = sqlTimestampCodec;
         DECODERS[RANGE_SHORT]                = shortCodec;
         DECODERS[RANGE_LIST]                 = listCodec;
+        DECODERS[RANGE_ITERABLE]             = iterableCodec;
 
 
         // int的编码范围
@@ -364,6 +370,7 @@ public class AnyCodec {
         FAST_DECODERS[RANGE_SQL_TIMEATAMP]        = sqlTimestampCodec;
         FAST_DECODERS[RANGE_SHORT]                = shortCodec;
         FAST_DECODERS[RANGE_LIST]                 = listCodec;
+        FAST_DECODERS[RANGE_ITERABLE]             = iterableCodec;
 
     }
 
@@ -378,6 +385,8 @@ public class AnyCodec {
                 encoder = MSG_ENCODERS.get("java.util.ArrayList");
             } else if (isList(v.getClass())) {
                 encoder = MSG_ENCODERS.get("java.util.List");
+            } else if (isIterable(v.getClass())) {
+                encoder = MSG_ENCODERS.get("java.util.Iterable");
             } else {
                 encoder = MSG_ENCODER;
             }
@@ -400,6 +409,8 @@ public class AnyCodec {
                 encoder = MSG_FAST_ENCODERS.get("java.util.ArrayList");
             } else if (isList(v.getClass())) {
                 encoder = MSG_FAST_ENCODERS.get("java.util.List");
+            } else if (isIterable(v.getClass())) {
+                encoder = MSG_FAST_ENCODERS.get("java.util.Iterable");
             } else {
                 encoder = MSG_ENCODER;
             }

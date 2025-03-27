@@ -636,6 +636,13 @@ public class ProtoUtil {
             case "java.lang.Character":
             case "short":
             case "java.lang.Short":
+                msgInfo = new MessageInfo();
+                msgInfo.setMessageName("SInt32Value");
+                msgInfo.setImpFile("edap-idl/wrappers.proto");
+                msgInfo.setJavaType(javaType);
+                typeInfo.setMessageInfo(msgInfo);
+                typeInfo.setProtoType(Type.SINT32);
+                break;
             case "int":
             case "java.lang.Integer":
                 msgInfo = new MessageInfo();

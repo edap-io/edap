@@ -25,6 +25,7 @@ import org.objectweb.asm.MethodVisitor;
 
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
+import java.lang.reflect.TypeVariable;
 
 import static io.edap.protobuf.util.ProtoUtil.javaToProtoType;
 import static io.edap.protobuf.wire.Field.Type.OBJECT;
@@ -101,6 +102,12 @@ public class MapEntryGenerator {
             }
             keyTypeStr = ClazzUtil.getDescriptor(itemParamType.getRawType());
             keyTypeDesc = ClazzUtil.getDescriptor(keyType);
+        } else if (keyType instanceof TypeVariable) {
+            TypeVariable tv = (TypeVariable)keyType;
+            Type[] ktvTypes = tv.getBounds();
+            keyProtoType = javaToProtoType(ktvTypes[0]).getProtoType().name();
+            keyTypeStr = ClazzUtil.getDescriptor(ktvTypes[0]);
+            keyTypeDesc = null;
         } else {
             keyProtoType = javaToProtoType(keyType).getProtoType().name();
             keyTypeStr = ClazzUtil.getDescriptor((Class)keyType);
@@ -122,6 +129,12 @@ public class MapEntryGenerator {
             }
             valTypeStr = ClazzUtil.getDescriptor(itemParamType.getRawType());
             valTypeDesc = ClazzUtil.getDescriptor(valType);
+        }  else if (valType instanceof TypeVariable) {
+            TypeVariable tv = (TypeVariable)valType;
+            Type[] vtvTypes = tv.getBounds();
+            valProtoType = javaToProtoType(vtvTypes[0]).getProtoType().name();
+            valTypeStr = ClazzUtil.getDescriptor(vtvTypes[0]);
+            valTypeDesc = null;
         } else {
             valProtoType = javaToProtoType(valType).getProtoType().name();
             valTypeStr = ClazzUtil.getDescriptor((Class)valType);

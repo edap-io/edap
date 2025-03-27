@@ -17,6 +17,10 @@ message Int32Value {
     int32 value = 1;
 }
 
+message SInt32Value {
+    sint32 value = 1;
+}
+
 message Int64Value {
     int64 value = 1;
 }

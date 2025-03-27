@@ -21,6 +21,7 @@ import io.edap.io.BufWriter;
 import io.edap.protobuf.wire.Field.Type;
 
 import java.util.Collection;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -41,6 +42,13 @@ public interface ProtoBufWriter extends BufWriter {
     void writeBool(byte[] fieldData, boolean value);
     void writePackedBools(byte[] fieldData, List<Boolean> values);
     void writePackedBools(byte[] fieldData, Iterable<Boolean> values);
+
+    void writeSInt32(byte[] fieldData, Byte b);
+    void writeSInt32(byte[] fieldData, byte b);
+    void writeSInt32(byte[] fieldData, Short s);
+    void writeSInt32(byte[] fieldData, short s);
+    void writeSInt32(byte[] fieldData, Character c);
+    void writeSInt32(byte[] fieldData, char c);
 
     void writeInt32(byte[] fieldData, Integer value);
     void writeInt32(byte[] fieldData, int value);
@@ -118,6 +126,7 @@ public interface ProtoBufWriter extends BufWriter {
 
     void writeObject(byte[] fieldData, Object v) throws EncodeException;
     void writeObject(Object v) throws EncodeException;
+    void writeObjects(Iterator<Object> objects) throws EncodeException;
 
     <K,V> void writeMap(byte[] fieldData, int tag, Map<K, V> map, MapEntryEncoder<K, V> mapEncoder) throws EncodeException;
     <K,V> void writeMapMessage(byte[] fieldData, int tag, Map<K, V> map, MapEntryEncoder<K, V> mapEncoder) throws EncodeException;
