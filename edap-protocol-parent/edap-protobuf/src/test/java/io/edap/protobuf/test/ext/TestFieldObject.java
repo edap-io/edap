@@ -24,6 +24,7 @@ import io.edap.protobuf.ProtoBuf;
 import io.edap.protobuf.ProtoException;
 import io.edap.protobuf.ext.AnyCodec;
 import io.edap.protobuf.ext.codec.ListCodec;
+import io.edap.protobuf.ext.codec.MapCodec;
 import io.edap.protobuf.model.ProtoBufOption;
 import io.edap.protobuf.reader.ByteArrayReader;
 import io.edap.protobuf.test.message.ext.FieldObject;
@@ -1246,5 +1247,63 @@ public class TestFieldObject {
         for (int i=0;i<coll.size();i++) {
             assertEquals(oobjs[i], nobjs[i]);
         }
+    }
+
+    @Test
+    public void testMapCodec() {
+        FieldObject fo = new FieldObject();
+        fo.setObj(Collections.EMPTY_MAP);
+        byte[] epb = ProtoBuf.toByteArray(fo);
+        System.out.println(conver2HexStr(epb));
+        FieldObject nfo = ProtoBuf.toObject(epb, FieldObject.class);
+        assertNotNull(nfo);
+        assertEquals(nfo.getObj().getClass().getName(), Collections.EMPTY_MAP.getClass().getName());
+
+
+        Map<Object, Object> map = new TreeMap<>();
+        map.put("key1", 1);
+        map.put("key2", "testValue");
+        map.put("key3", new Date());
+        map.put("key4", new Timestamp(new Date().getTime()));
+        fo.setObj(map);
+        epb = ProtoBuf.toByteArray(fo);
+        System.out.println(conver2HexStr(epb));
+        nfo = ProtoBuf.toObject(epb, FieldObject.class);
+        assertNotNull(nfo);
+        assertEquals(nfo.getObj().getClass().getName(), TreeMap.class.getName());
+        assertEquals(((Map)nfo.getObj()).size(), map.size());
+
+        Map<Object, Object> nmap = (Map<Object, Object>) nfo.getObj();
+        for (Map.Entry<Object, Object> entry : map.entrySet()) {
+            assertEquals(nmap.containsKey(entry.getKey()), true);
+            assertEquals(nmap.get(entry.getKey()), entry.getValue());
+        }
+
+
+        RuntimeException thrown = assertThrows(RuntimeException.class,
+                () -> {
+                    MapCodec mapCodec = new MapCodec();
+                    byte[] data = new byte[]{5, 'a', 'b', 'c', 'd', 'e', '0'};
+                    ByteArrayReader reader = new ByteArrayReader(data);
+                    mapCodec.decode(reader);
+                });
+        assertEquals(thrown.getMessage(), "Cann't instance abcde");
+
+        thrown = assertThrows(RuntimeException.class,
+                () -> {
+                    MapCodec mapCodec = new MapCodec();
+                    String name = DemoMap.class.getName();
+                    int len = name.length();
+                    byte[] data = new byte[len+2];
+                    data[0] = (byte)len;
+                    for (int i=1;i<=len;i++) {
+                        data[i] = (byte)name.charAt(i-1);
+                    }
+                    data[len+1] = (byte)'0';
+
+                    ByteArrayReader reader = new ByteArrayReader(data);
+                    mapCodec.decode(reader);
+                });
+        assertEquals(thrown.getMessage(), "io.edap.protobuf.test.ext.DemoMap has't default Constructor");
     }
 }

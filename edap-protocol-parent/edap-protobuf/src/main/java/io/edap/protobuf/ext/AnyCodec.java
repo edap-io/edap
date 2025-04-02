@@ -23,8 +23,7 @@ import io.edap.protobuf.model.ProtoBufOption;
 import java.util.HashMap;
 import java.util.concurrent.CopyOnWriteArraySet;
 
-import static io.edap.util.AsmUtil.isIterable;
-import static io.edap.util.AsmUtil.isList;
+import static io.edap.util.AsmUtil.*;
 
 /**
  * Any类型的编解码器
@@ -105,9 +104,10 @@ public class AnyCodec {
     public static final int RANGE_SHORT                = RANGE_SQL_TIMEATAMP + 1;        // 116 short的数据类型
     public static final int RANGE_LIST                 = RANGE_SHORT + 1;                // 117 list子类非ArrayList的数据类型
     public static final int RANGE_ITERABLE             = RANGE_LIST + 1;                 // 118 Iterable子类的数据类型
+    public static final int RANGE_MAP                  = RANGE_ITERABLE + 1;             // 119 非特化的Map数据类型的编解码
 
 
-    public static final int RANGE_MAX                  = RANGE_ITERABLE + 1;
+    public static final int RANGE_MAX                  = RANGE_MAP + 1;
 
     static {
         MessageCodec msgCodec = new MessageCodec();
@@ -158,6 +158,7 @@ public class AnyCodec {
         ShortCodec               shortCodec               = new ShortCodec();
         ListCodec                listCodec                = new ListCodec();
         IterableCodec            iterableCodec            = new IterableCodec();
+        MapCodec                 mapCodec                 = new MapCodec();
 
 
         MSG_ENCODERS.put("java.lang.String",            stringCodec);
@@ -185,6 +186,7 @@ public class AnyCodec {
         MSG_ENCODERS.put("java.lang.Short",             shortCodec);
         MSG_ENCODERS.put("java.util.List",              listCodec);
         MSG_ENCODERS.put("java.util.Iterable",          iterableCodec);
+        MSG_ENCODERS.put("java.util.Map",               mapCodec);
 
         MSG_ENCODERS.put("[B",                          arrayByteCodec);
         MSG_ENCODERS.put("[C",                          arrayCharCodec);
@@ -218,6 +220,7 @@ public class AnyCodec {
         MSG_FAST_ENCODERS.put("java.util.HashMap",           hashMapCodec);
         MSG_FAST_ENCODERS.put("java.util.ArrayList",         arrayListCodec);
 
+
         MSG_FAST_ENCODERS.put("java.util.LinkedHashMap",                  linkedHashMapCodec);
         MSG_FAST_ENCODERS.put("java.util.concurrent.ConcurrentHashMap",   concurentHashMapCodec);
         MSG_FAST_ENCODERS.put("java.util.concurrent.CopyOnWriteArraySet", copyOnWriteArraySetCodec);
@@ -227,6 +230,7 @@ public class AnyCodec {
         MSG_FAST_ENCODERS.put("java.lang.Short",             shortCodec);
         MSG_FAST_ENCODERS.put("java.util.List",              listCodec);
         MSG_FAST_ENCODERS.put("java.util.Iterable",          iterableCodec);
+        MSG_FAST_ENCODERS.put("java.util.Map",               mapCodec);
 
         MSG_FAST_ENCODERS.put("[B",                          arrayByteCodec);
         MSG_FAST_ENCODERS.put("[C",                          arrayCharCodec);
@@ -306,6 +310,7 @@ public class AnyCodec {
         DECODERS[RANGE_SHORT]                = shortCodec;
         DECODERS[RANGE_LIST]                 = listCodec;
         DECODERS[RANGE_ITERABLE]             = iterableCodec;
+        DECODERS[RANGE_MAP]                  = mapCodec;
 
 
         // int的编码范围
@@ -371,6 +376,7 @@ public class AnyCodec {
         FAST_DECODERS[RANGE_SHORT]                = shortCodec;
         FAST_DECODERS[RANGE_LIST]                 = listCodec;
         FAST_DECODERS[RANGE_ITERABLE]             = iterableCodec;
+        FAST_DECODERS[RANGE_MAP]                  = mapCodec;
 
     }
 
@@ -379,14 +385,17 @@ public class AnyCodec {
             NULL_CODEC.encode(writer, v);
             return;
         }
-        ProtoBufEncoder encoder = MSG_ENCODERS.get(v.getClass().getName());
+        Class cls = v.getClass();
+        ProtoBufEncoder encoder = MSG_ENCODERS.get(cls.getName());
         if (null == encoder) {
-            if ("java.util.ArrayList".equals(v.getClass().getName())) {
+            if ("java.util.ArrayList".equals(cls.getName())) {
                 encoder = MSG_ENCODERS.get("java.util.ArrayList");
-            } else if (isList(v.getClass())) {
+            } else if (isList(cls)) {
                 encoder = MSG_ENCODERS.get("java.util.List");
-            } else if (isIterable(v.getClass())) {
+            } else if (isIterable(cls)) {
                 encoder = MSG_ENCODERS.get("java.util.Iterable");
+            } else if (isMap(cls)) {
+                encoder = MSG_ENCODERS.get("java.util.Map");
             } else {
                 encoder = MSG_ENCODER;
             }
@@ -403,14 +412,17 @@ public class AnyCodec {
             NULL_CODEC.encode(writer, v);
             return;
         }
-        ProtoBufEncoder encoder = MSG_FAST_ENCODERS.get(v.getClass().getName());
+        Class cls = v.getClass();
+        ProtoBufEncoder encoder = MSG_FAST_ENCODERS.get(cls.getName());
         if (null == encoder) {
-            if ("java.util.ArrayList".equals(v.getClass().getName())) {
+            if ("java.util.ArrayList".equals(cls.getName())) {
                 encoder = MSG_FAST_ENCODERS.get("java.util.ArrayList");
-            } else if (isList(v.getClass())) {
+            } else if (isList(cls)) {
                 encoder = MSG_FAST_ENCODERS.get("java.util.List");
-            } else if (isIterable(v.getClass())) {
+            } else if (isIterable(cls)) {
                 encoder = MSG_FAST_ENCODERS.get("java.util.Iterable");
+            } else if (isMap(cls)) {
+                encoder = MSG_FAST_ENCODERS.get("java.util.Map");
             } else {
                 encoder = MSG_ENCODER;
             }

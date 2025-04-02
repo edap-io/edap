@@ -491,6 +491,9 @@ public class AsmUtil {
             if ("java.util.Map".equals(cls.getName())) {
                 return true;
             }
+            if (isMapInterface(pCls)) {
+                return true;
+            }
             pCls = pCls.getSuperclass();
         }
         return false;

@@ -1636,4 +1636,58 @@ public class TestSkipObject {
             assertNotNull(dest);
             assertEquals(dest.field19, str);
     }
+
+    @Test
+    public void testSkipMap() {
+        Random random = new Random();
+        String str = random.nextDouble() + "";
+
+        Map empty = Collections.EMPTY_MAP;
+
+        SkipSrc src = buildSkipSrc(str, empty);
+
+        byte[] epb = ProtoBuf.toByteArray(src);
+        System.out.println("+-epb[" + epb.length + "]-------------------+");
+        System.out.println(conver2HexStr(epb));
+        System.out.println("+--------------------+");
+
+        SkipDest dest = ProtoBuf.toObject(epb, SkipDest.class);
+        assertNotNull(dest);
+        assertEquals(dest.field19, str);
+
+        ProtoBufOption option = new ProtoBufOption();
+        option.setCodecType(CodecType.FAST);
+        epb = ProtoBuf.toByteArray(src, option);
+        System.out.println("+-epbf[" + epb.length + "]-------------------+");
+        System.out.println(conver2HexStr(epb));
+        System.out.println("+--------------------+");
+
+        dest = ProtoBuf.toObject(epb, SkipDest.class, option);
+        assertNotNull(dest);
+        assertEquals(dest.field19, str);
+
+        TreeMap treeMap = new TreeMap();
+        treeMap.put("key1", new Random().nextDouble());
+        src = buildSkipSrc(str, treeMap);
+
+        epb = ProtoBuf.toByteArray(src);
+        System.out.println("+-epb[" + epb.length + "]-------------------+");
+        System.out.println(conver2HexStr(epb));
+        System.out.println("+--------------------+");
+
+        dest = ProtoBuf.toObject(epb, SkipDest.class);
+        assertNotNull(dest);
+        assertEquals(dest.field19, str);
+
+        option = new ProtoBufOption();
+        option.setCodecType(CodecType.FAST);
+        epb = ProtoBuf.toByteArray(src, option);
+        System.out.println("+-epbf[" + epb.length + "]-------------------+");
+        System.out.println(conver2HexStr(epb));
+        System.out.println("+--------------------+");
+
+        dest = ProtoBuf.toObject(epb, SkipDest.class, option);
+        assertNotNull(dest);
+        assertEquals(dest.field19, str);
+    }
 }
