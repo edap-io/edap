@@ -149,6 +149,10 @@ public class MapEntryEncoderGenerator {
                     mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/Character", "charValue", "()C", false);
                 }
             }
+            if ("writeString".equals(writeMethod)) {
+                mv.visitMethodInsn(INVOKESTATIC, "java/lang/String", "valueOf",
+                        "(Ljava/lang/Object;)Ljava/lang/String;", false);
+            }
             visitMethod(mv, INVOKEINTERFACE, WRITER_NAME, writeMethod,
                     "([B" + rType + ")V", true);
         }
