@@ -37,6 +37,8 @@ public class ListCodec implements ExtCodec<List>  {
             return Arrays.asList(objs);
         } else if ("java.util.Collections$EmptyList".equals(listName)) {
             return Collections.emptyList();
+        } else if ("java.util.Collections$SingletonList".equals(listName)) {
+            return Collections.singletonList(reader.readObject());
         } else {
             List list = makeList(listName);
             for (int i = 0; i < size; i++) {
