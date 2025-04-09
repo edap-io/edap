@@ -22,9 +22,11 @@ import io.edap.util.internal.GeneratorClassInfo;
 
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -33,6 +35,7 @@ import static io.edap.protobuf.ProtoBufDecoderGenerator.getDecoderName;
 import static io.edap.protobuf.ProtoBufEncoderGenerator.getEncoderName;
 import static io.edap.protobuf.util.ProtoUtil.*;
 import static io.edap.util.AsmUtil.*;
+import static io.edap.util.ClazzUtil.getClassMethods;
 import static io.edap.util.CollectionUtils.isEmpty;
 
 /**
@@ -57,7 +60,7 @@ public enum ProtoBufCodecRegister {
     private final Map<Type, MapDecoder> mapFastDecoders = new HashMap<>();
 
     private final Map<Type, Class> fmapEncoders     = new HashMap<>();
-    private final Map<ClassLoader, ProtoCodecLoader> encoderLoaders   = new HashMap<>();
+    private final Map<ClassLoader, ClassDefiner> encoderLoaders   = new HashMap<>();
     private final Map<Type, ReentrantLock>   locks = new HashMap<>();
     private final Map<Type, ReentrantLock>   mapEntryLocks = new HashMap<>();
     private final Map<Type, ReentrantLock>   mapDecoderLocks = new HashMap<>();
@@ -218,16 +221,16 @@ public enum ProtoBufCodecRegister {
         }
         lock.lock();
         try {
-            ProtoCodecLoader loader;
+            ClassDefiner definer;
             if (ownerCls != null) {
-                loader = getCodecLoader(ownerCls);
+                definer = getCodecDefiner(ownerCls);
             } else {
-                loader = getCodecLoader(ProtoBufCodecRegister.class);
+                definer = getCodecDefiner(ProtoBufCodecRegister.class);
             }
             String decoderName = buildMapDecoderName(mapType, option);
             Class decoderCls = null;
             try {
-                decoderCls = loader.loadClass(decoderName);
+                decoderCls = definer.loadClass(decoderName);
             } catch (ClassNotFoundException e) {
             }
             if (decoderCls == null) {
@@ -235,10 +238,10 @@ public enum ProtoBufCodecRegister {
                 GeneratorClassInfo gci = mdeg.getClassInfo();
                 saveJavaFile("./" + toInternalName(gci.clazzName) + ".class", gci.clazzBytes);
                 try {
-                    decoderCls = loader.define(decoderName, gci.clazzBytes, 0, gci.clazzBytes.length);
+                    decoderCls = definer.define(decoderName, gci.clazzBytes, 0, gci.clazzBytes.length);
                 } catch (Throwable e) {
                     try {
-                        decoderCls = loader.loadClass(decoderName);
+                        decoderCls = definer.loadClass(decoderName);
                     } catch (ClassNotFoundException ex) {
 
                     }
@@ -287,16 +290,16 @@ public enum ProtoBufCodecRegister {
         }
         mapEntryLock.lock();
         try {
-            ProtoCodecLoader decoderLoader;
+            ClassDefiner definer;
             if (ownerCls != null) {
-                decoderLoader = getCodecLoader(ownerCls);
+                definer = getCodecDefiner(ownerCls);
             } else {
-                decoderLoader = getCodecLoader(ProtoBufCodecRegister.class);
+                definer = getCodecDefiner(ProtoBufCodecRegister.class);
             }
             String decoderName = buildMapEntryDecoderName(mapType, option);
             Class encoderCls = null;
             try {
-                encoderCls = decoderLoader.loadClass(decoderName);
+                encoderCls = definer.loadClass(decoderName);
             } catch (ClassNotFoundException e) {
             }
             if (encoderCls == null) {
@@ -304,10 +307,10 @@ public enum ProtoBufCodecRegister {
                 GeneratorClassInfo gci = meeg.getClassInfo();
                 saveJavaFile("./" + toInternalName(gci.clazzName) + ".class", gci.clazzBytes);
                 try {
-                    encoderCls = decoderLoader.define(decoderName, gci.clazzBytes, 0, gci.clazzBytes.length);
+                    encoderCls = definer.define(decoderName, gci.clazzBytes, 0, gci.clazzBytes.length);
                 } catch (Throwable e) {
                     try {
-                        encoderCls = decoderLoader.loadClass(decoderName);
+                        encoderCls = definer.loadClass(decoderName);
                     } catch (ClassNotFoundException ex) {
 
                     }
@@ -355,16 +358,16 @@ public enum ProtoBufCodecRegister {
         }
         mapEntryLock.lock();
         try {
-            ProtoCodecLoader encoderLoader;
+            ClassDefiner definer;
             if (ownerCls != null) {
-                encoderLoader = getCodecLoader(ownerCls);
+                definer = getCodecDefiner(ownerCls);
             } else {
-                encoderLoader = getCodecLoader(ProtoBufCodecRegister.class);
+                definer = getCodecDefiner(ProtoBufCodecRegister.class);
             }
             String encoderName = buildMapEntryEncoderName(mapType, option);
             Class encoderCls = null;
             try {
-                encoderCls = encoderLoader.loadClass(encoderName);
+                encoderCls = definer.loadClass(encoderName);
             } catch (ClassNotFoundException e) {
             }
             if (encoderCls == null) {
@@ -372,10 +375,10 @@ public enum ProtoBufCodecRegister {
                 GeneratorClassInfo gci = meeg.getClassInfo();
                 saveJavaFile("./" + toInternalName(gci.clazzName) + ".class", gci.clazzBytes);
                 try {
-                    encoderCls = encoderLoader.define(encoderName, gci.clazzBytes, 0, gci.clazzBytes.length);
+                    encoderCls = definer.define(encoderName, gci.clazzBytes, 0, gci.clazzBytes.length);
                 } catch (Throwable e) {
                     try {
-                        encoderCls = encoderLoader.loadClass(encoderName);
+                        encoderCls = definer.loadClass(encoderName);
                     } catch (ClassNotFoundException ex) {
 
                     }
@@ -408,7 +411,7 @@ public enum ProtoBufCodecRegister {
             return mapEntryCls;
         }
         String mapEntryName = "";
-        ProtoCodecLoader encoderLoader = getCodecLoader(ownerCls);
+        ClassDefiner definer = getCodecDefiner(ownerCls);
         ReentrantLock lock = getLock(mapType);
         try {
             lock.lock();
@@ -417,13 +420,13 @@ public enum ProtoBufCodecRegister {
                     toInternalName(mapEntryName), mapType);
             byte[] bs = meg.getEntryBytes();
             saveJavaFile("./" + toInternalName(mapEntryName) + ".class", bs);
-            mapEntryCls = encoderLoader.define(mapEntryName, bs, 0, bs.length);
+            mapEntryCls = definer.define(mapEntryName, bs, 0, bs.length);
             if (mapEntryCls != null) {
                 mapEncoders.put(ownerCls, mapEntryCls);
             }
         } catch (Throwable e) {
             try {
-                mapEntryCls = encoderLoader.loadClass(mapEntryName);
+                mapEntryCls = definer.loadClass(mapEntryName);
                 if (mapEntryCls != null) {
                     mapEncoders.put(ownerCls, mapEntryCls);
                     return mapEntryCls;
@@ -449,7 +452,7 @@ public enum ProtoBufCodecRegister {
             return mapEntryCls;
         }
         String mapEntryName = "";
-        ProtoCodecLoader encoderLoader = getCodecLoader(ownerCls);
+        ClassDefiner definer = getCodecDefiner(ownerCls);
         ReentrantLock lock = getLock(mapType);
         try {
             lock.lock();
@@ -458,13 +461,13 @@ public enum ProtoBufCodecRegister {
                     toInternalName(mapEntryName), mapType);
             byte[] bs = meg.getEntryBytes();
             saveJavaFile("./" + toInternalName(mapEntryName) + ".class", bs);
-            mapEntryCls = encoderLoader.define(mapEntryName, bs, 0, bs.length);
+            mapEntryCls = definer.define(mapEntryName, bs, 0, bs.length);
             if (mapEntryCls != null) {
                 fmapEncoders.put(mapType, mapEntryCls);
             }
         } catch (Throwable e) {
             try {
-                mapEntryCls = encoderLoader.loadClass(mapEntryName);
+                mapEntryCls = definer.loadClass(mapEntryName);
                 if (mapEntryCls != null) {
                     mapEncoders.put(mapType, mapEntryCls);
                     return mapEntryCls;
@@ -486,8 +489,8 @@ public enum ProtoBufCodecRegister {
         ProtoBufEncoder codec = null;
         Class encoderCls = null;
         try {
-            ProtoCodecLoader encoderLoader = getCodecLoader(cls);
-            encoderCls = encoderLoader.loadClass(getEncoderName(cls, option));
+            ClassDefiner definer = getCodecDefiner(cls);
+            encoderCls = definer.loadClass(getEncoderName(cls, option));
         } catch (Throwable t) {
             encoderCls = generateEncoderClass(cls, option);
         }
@@ -506,8 +509,8 @@ public enum ProtoBufCodecRegister {
         ProtoBufDecoder codec = null;
         Class decoderCls = null;
         try {
-            ProtoCodecLoader encoderLoader = getCodecLoader(cls);
-            decoderCls = encoderLoader.loadClass(getDecoderName(cls, option));
+            ClassDefiner definer = getCodecDefiner(cls);
+            decoderCls = definer.loadClass(getDecoderName(cls, option));
         } catch (Throwable t) {
             decoderCls = generateDecoderClass(cls, option);
         }
@@ -525,24 +528,24 @@ public enum ProtoBufCodecRegister {
     private Class generateEncoderClass(Class cls, ProtoBufOption otpion) {
         Class encoderCls;
         String encoderName = getEncoderName(cls, otpion);
-        ProtoCodecLoader encoderLoader = getCodecLoader(cls);
+        ClassDefiner definer = getCodecDefiner(cls);
         try {
             ProtoBufEncoderGenerator generator = new ProtoBufEncoderGenerator(cls, otpion);
             GeneratorClassInfo gci = generator.getClassInfo();
             byte[] bs = gci.clazzBytes;
             saveJavaFile("./" + gci.clazzName + ".class", bs);
-            encoderCls = encoderLoader.define(encoderName, bs, 0, bs.length);
+            encoderCls = definer.define(encoderName, bs, 0, bs.length);
             if (!CollectionUtils.isEmpty(gci.inners)) {
                 for (GeneratorClassInfo inner : gci.inners) {
                     bs = inner.clazzBytes;
                     String innerName = toLangName(inner.clazzName);
-                    encoderLoader.define(innerName, bs, 0, bs.length);
+                    definer.define(innerName, bs, 0, bs.length);
                 }
             }
         } catch (Throwable e) {
             try {
-                if (encoderLoader.loadClass(encoderName) != null) {
-                    return encoderLoader.loadClass(encoderName);
+                if (definer.loadClass(encoderName) != null) {
+                    return definer.loadClass(encoderName);
                 }
             } catch (ClassNotFoundException ex) {
                 throw new RuntimeException("generateEncoder "
@@ -554,28 +557,51 @@ public enum ProtoBufCodecRegister {
         return encoderCls;
     }
 
+    private Class defineClass(ClassLoader loader, String name, byte[] bs, int start, int len) {
+        List<Method> methods = getClassMethods(loader.getClass());
+        if (CollectionUtils.isEmpty(methods)) {
+            throw new RuntimeException(loader + " hasn't define method");
+        }
+        for (Method m : methods) {
+            if ("defineClass".equals(m.getName())) {
+                Class<?>[] types = m.getParameterTypes();
+                if (types.length == 4 && types[0].getName().equals("java.lang.String")
+                        && types[1].getName().equals("[B") && types[2].getName().equals("int")
+                        && types[3].getName().equals("int")) {
+                    m.setAccessible(true);
+                    try {
+                        return (Class)m.invoke(loader, name, bs, start, len);
+                    } catch (Throwable e) {
+                        throw new RuntimeException(e);
+                    }
+                }
+            }
+        }
+        throw new RuntimeException(loader + " hasn't define method");
+    }
+
     private Class generateDecoderClass(Class cls, ProtoBufOption option) {
         Class decoderCls;
         String decoderName = getDecoderName(cls, option);
-        ProtoCodecLoader encoderLoader = getCodecLoader(cls);
+        ClassDefiner definer = getCodecDefiner(cls);
         try {
             ProtoBufDecoderGenerator generator = new ProtoBufDecoderGenerator(cls, option);
             GeneratorClassInfo gci = generator.getClassInfo();
             byte[] bs = gci.clazzBytes;
             saveJavaFile("./" + gci.clazzName + ".class", bs);
-            decoderCls = encoderLoader.define(decoderName, bs, 0, bs.length);
+            decoderCls = definer.define(decoderName, bs, 0, bs.length);
             if (!isEmpty(gci.inners)) {
                 for (GeneratorClassInfo inner : gci.inners) {
                     bs = inner.clazzBytes;
                     String innerName = toLangName(inner.clazzName);
                     saveJavaFile("./" + inner.clazzName + ".class", bs);
-                    encoderLoader.define(innerName, bs, 0, bs.length);
+                    definer.define(innerName, bs, 0, bs.length);
                 }
             }
         } catch (Throwable e) {
             try {
-                if (encoderLoader.loadClass(decoderName) != null) {
-                    return encoderLoader.loadClass(decoderName);
+                if (definer.loadClass(decoderName) != null) {
+                    return definer.loadClass(decoderName);
                 }
             } catch (ClassNotFoundException ex) {
                 throw new RuntimeException("generateDecoder "
@@ -587,7 +613,7 @@ public enum ProtoBufCodecRegister {
         return decoderCls;
     }
 
-    private ProtoCodecLoader getCodecLoader(Type type) {
+    private ClassDefiner getCodecDefiner(Type type) {
         Class cls;
         if (type instanceof ParameterizedType) {
             ParameterizedType ptype = (ParameterizedType) type;
@@ -596,22 +622,60 @@ public enum ProtoBufCodecRegister {
             cls = (Class)type;
         }
         ClassLoader cl = cls.getClassLoader();
-        ProtoCodecLoader loader = encoderLoaders.get(cl);
-        if (loader == null) {
-            loader = new ProtoCodecLoader(cl);
-            encoderLoaders.put(cl, loader);
+        ClassDefiner definer = encoderLoaders.get(cl);
+        if (definer == null) {
+            definer = new ClassDefiner(cl);
+            encoderLoaders.put(cl, definer);
         }
-        return loader;
+        return definer;
     }
 
-    class ProtoCodecLoader extends ClassLoader {
+    class ClassDefiner {
 
-        public ProtoCodecLoader(ClassLoader parent) {
-            super(parent);
+        private ClassLoader loader;
+        private Method defineMethod;
+
+        public ClassDefiner(ClassLoader cl) {
+            this.loader = cl;
+            this.defineMethod = getClassDefineMethod(cl);
         }
 
         public Class define(String className, byte[] bs, int offset, int len) {
-            return super.defineClass(className, bs, offset, len);
+            if (defineMethod == null) {
+                throw  new RuntimeException(loader + " hasn't defineClass(String name, byte[] bs, int start, int len)");
+            }
+            try {
+                return (Class)defineMethod.invoke(loader, className, bs, offset, len);
+            } catch (Throwable t) {
+                throw new RuntimeException(loader + " define class " + className + " error", t);
+            }
+        }
+
+        public Class loadClass(String name) throws ClassNotFoundException {
+            return loader.loadClass(name);
+        }
+
+        private Method getClassDefineMethod(ClassLoader loader) {
+            List<Method> methods = getClassMethods(loader.getClass());
+            if (CollectionUtils.isEmpty(methods)) {
+                return null;
+            }
+            for (Method m : methods) {
+                if ("defineClass".equals(m.getName())) {
+                    Class<?>[] types = m.getParameterTypes();
+                    if (types.length == 4 && types[0].getName().equals("java.lang.String")
+                            && types[1].getName().equals("[B") && types[2].getName().equals("int")
+                            && types[3].getName().equals("int")) {
+                        m.setAccessible(true);
+                        try {
+                            return m;
+                        } catch (Throwable e) {
+                            throw new RuntimeException(e);
+                        }
+                    }
+                }
+            }
+            return null;
         }
     }
 }

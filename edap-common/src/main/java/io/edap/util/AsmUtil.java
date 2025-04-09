@@ -42,7 +42,7 @@ public class AsmUtil {
         if (StringUtil.isEmpty(saveClassFile)) {
             saveClassFile = System.getenv("edap.debug.saveClassFile");
         }
-        saveClassFile = "true";
+        //saveClassFile = "true";
         if ("true".equalsIgnoreCase(saveClassFile) || "t".equalsIgnoreCase(saveClassFile)
                 || "1".equalsIgnoreCase(saveClassFile)) {
             File f = new File(javaFilePath);
@@ -98,8 +98,12 @@ public class AsmUtil {
         if (tClass.isArray()) {
             return false;
         }
-        return !tClass.getName().startsWith("java.")
-                && !tClass.getName().startsWith("javax.");
+        return !isJvmType(tClass);
+    }
+
+    public static boolean isJvmType(Class type) {
+        return type.getName().startsWith("java.")
+                || type.getName().startsWith("javax.");
     }
 
     public static boolean isEnum(Type type) {
@@ -362,6 +366,9 @@ public class AsmUtil {
         while (pCls != null) {
             //System.out.println("pCls=" + pCls.getName());
             if (pCls.getName().equals("java.util.Set")) {
+                return true;
+            }
+            if (isSetInterface(pCls)) {
                 return true;
             }
             pCls = pCls.getSuperclass();

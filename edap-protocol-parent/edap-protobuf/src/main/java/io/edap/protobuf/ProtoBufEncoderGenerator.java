@@ -785,6 +785,7 @@ public class ProtoBufEncoderGenerator {
             }
         }
         String rType = getDescriptor(pfi.field.getType());
+        rType = "Ljava/lang/Iterable;";
         if (isPojo(itemType)) {
             String codecName = getPojoEncoderName(itemType);
             mv.visitVarInsn(ALOAD, 1);
@@ -802,7 +803,7 @@ public class ProtoBufEncoderGenerator {
                 mv.visitMethodInsn(INVOKESPECIAL, pojoCodecName, getEncoderName, "()L" + IFACE_NAME + ";", false);
             }
             visitMethod(mv, INVOKEINTERFACE, WRITER_NAME, "writeMessages",
-                    "([BI" + listDescriptor
+                    "([BI" + rType
                             + "L" + IFACE_NAME + ";)V",
                     true);
             return;

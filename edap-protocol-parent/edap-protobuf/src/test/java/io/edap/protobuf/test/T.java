@@ -6,6 +6,7 @@ import io.edap.protobuf.test.message.ext.MapAllTypeModel;
 import io.edap.protobuf.test.message.ext.MapBoolKeyModel;
 import io.edap.protobuf.test.message.ext.MultiLangMap;
 import io.edap.protobuf.test.message.v3.OneMap;
+import io.edap.protobuf.test.message.v3.OneSet;
 import io.edap.protobuf.test.message.v3.Project;
 import io.edap.util.internal.GeneratorClassInfo;
 
@@ -16,7 +17,7 @@ import java.util.*;
 import static io.edap.util.AsmUtil.saveJavaFile;
 
 public class T {
-    public static void main(String[] args) throws NoSuchFieldException, IOException {
+    public static void main(String[] args) throws NoSuchFieldException, IOException, EncodeException {
 
         ProtoBufEncoder<MultiLangMap> encoder = ProtoBufCodecRegister.INSTANCE.getEncoder(MultiLangMap.class);
 
@@ -36,5 +37,20 @@ public class T {
         Object nobj = (Collection)list;
 
         System.out.println(obj);
+
+        Random random = new Random();
+        OneSet oneSet = new OneSet();
+        Set<Long> set = new HashSet<>();
+        set.add(random.nextLong());
+        set.add(random.nextLong());
+        set.add(random.nextLong());
+        set.add(random.nextLong());
+        set.add(random.nextLong());
+        oneSet.setValues(set);
+
+        ProtoBufEncoder<OneSet> oneSetEncoder = ProtoBufCodecRegister.INSTANCE.getEncoder(OneSet.class);
+
+        ProtoBuf.ser(oneSet);
+
     }
 }

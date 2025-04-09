@@ -395,7 +395,11 @@ public class AnyCodec {
             } else if (isIterable(cls)) {
                 encoder = MSG_ENCODERS.get("java.util.Iterable");
             } else if (isMap(cls)) {
-                encoder = MSG_ENCODERS.get("java.util.Map");
+                if (isJvmType(cls)) {
+                    encoder = MSG_ENCODERS.get("java.util.Map");
+                } else {
+                    encoder = MSG_ENCODER;
+                }
             } else {
                 encoder = MSG_ENCODER;
             }
@@ -422,7 +426,11 @@ public class AnyCodec {
             } else if (isIterable(cls)) {
                 encoder = MSG_FAST_ENCODERS.get("java.util.Iterable");
             } else if (isMap(cls)) {
-                encoder = MSG_FAST_ENCODERS.get("java.util.Map");
+                if (isJvmType(cls)) {
+                    encoder = MSG_FAST_ENCODERS.get("java.util.Map");
+                } else {
+                    encoder = MSG_ENCODER;
+                }
             } else {
                 encoder = MSG_ENCODER;
             }
