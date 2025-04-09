@@ -785,7 +785,6 @@ public class ProtoBufEncoderGenerator {
             }
         }
         String rType = getDescriptor(pfi.field.getType());
-        rType = "Ljava/lang/Iterable;";
         if (isPojo(itemType)) {
             String codecName = getPojoEncoderName(itemType);
             mv.visitVarInsn(ALOAD, 1);
@@ -802,8 +801,9 @@ public class ProtoBufEncoderGenerator {
                 String getEncoderName = "get" + itemCodecName.substring(0, 1).toUpperCase(Locale.ENGLISH) + itemCodecName.substring(1);
                 mv.visitMethodInsn(INVOKESPECIAL, pojoCodecName, getEncoderName, "()L" + IFACE_NAME + ";", false);
             }
+            String writeRType = "Ljava/lang/Iterable;";
             visitMethod(mv, INVOKEINTERFACE, WRITER_NAME, "writeMessages",
-                    "([BI" + rType
+                    "([BI" + writeRType
                             + "L" + IFACE_NAME + ";)V",
                     true);
             return;
@@ -811,8 +811,9 @@ public class ProtoBufEncoderGenerator {
             mv.visitVarInsn(ALOAD, 1);
             mv.visitFieldInsn(GETSTATIC, pojoCodecName, "tag" + pfi.protoField.tag(), "[B");
             rType = visitGetFieldValue(mv, pfi, pojoName, pojoCodecName, 2, rType);
+            String writeRType = "Ljava/lang/Iterable;";
             visitMethod(mv, INVOKEINTERFACE, WRITER_NAME, "writePackedBools",
-                    "([B" + rType + ")V",
+                    "([B" + writeRType + ")V",
                     true);
             return;
         } else if (pfi.protoField.type() == Type.INT32
@@ -837,13 +838,14 @@ public class ProtoBufEncoderGenerator {
             mv.visitVarInsn(ALOAD, 1);
             mv.visitFieldInsn(GETSTATIC, pojoCodecName, "tag" + pfi.protoField.tag(), "[B");
             rType = visitGetFieldValue(mv, pfi, pojoName, pojoCodecName, 2, rType);
+            String writeRType = "Ljava/lang/Iterable;";
             if (!implInterface((Class)itemType, ProtoBufEnum.class)) {
                 visitMethod(mv, INVOKEINTERFACE, WRITER_NAME, "writeListEnum",
-                        "([B" + rType + ")V",
+                        "([B" + writeRType + ")V",
                         true);
             } else {
                 visitMethod(mv, INVOKEINTERFACE, WRITER_NAME, "writeListProtoEnum",
-                        "([B" + rType + ")V",
+                        "([B" + writeRType + ")V",
                         true);
             }
             return;
@@ -856,8 +858,9 @@ public class ProtoBufEncoderGenerator {
             mv.visitFieldInsn(GETSTATIC, pojoCodecName, "tag" + pfi.protoField.tag(), "[B");
             rType = visitGetFieldValue(mv, pfi, pojoName, pojoCodecName, 2, rType);
             mv.visitFieldInsn(GETSTATIC, FIELD_TYPE_NAME, pfi.protoField.type().name(), "L" + FIELD_TYPE_NAME + ";");
+            String writeRType = "Ljava/lang/Iterable;";
             visitMethod(mv, INVOKEINTERFACE, WRITER_NAME, "writePackedLongs",
-                    "([B" + rType
+                    "([B" + writeRType
                             + "L" + FIELD_TYPE_NAME + ";)V",
                     true);
             return;
@@ -865,16 +868,18 @@ public class ProtoBufEncoderGenerator {
             mv.visitVarInsn(ALOAD, 1);
             mv.visitFieldInsn(GETSTATIC, pojoCodecName, "tag" + pfi.protoField.tag(), "[B");
             rType = visitGetFieldValue(mv, pfi, pojoName, pojoCodecName, 2, rType);
+            String writeRType = "Ljava/lang/Iterable;";
             visitMethod(mv, INVOKEINTERFACE, WRITER_NAME, "writePackedDoubles",
-                    "([B" + rType + ")V",
+                    "([B" + writeRType + ")V",
                     true);
             return;
         } else if (pfi.protoField.type() == Type.FLOAT) {
             mv.visitVarInsn(ALOAD, 1);
             mv.visitFieldInsn(GETSTATIC, pojoCodecName, "tag" + pfi.protoField.tag(), "[B");
             rType = visitGetFieldValue(mv, pfi, pojoName, pojoCodecName, 2, rType);
+            String writeRType = "Ljava/lang/Iterable;";
             visitMethod(mv, INVOKEINTERFACE, WRITER_NAME, "writePackedFloats",
-                    "([B" + rType + ")V",
+                    "([B" + writeRType + ")V",
                     true);
             return;
         }
