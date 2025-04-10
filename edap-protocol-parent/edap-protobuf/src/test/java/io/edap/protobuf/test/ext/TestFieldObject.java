@@ -1135,12 +1135,19 @@ public class TestFieldObject {
 
     @Test
     public void testListCodec() {
+        ProtoBufOption option = new ProtoBufOption();
+        option.setCodecType(CodecType.FAST);
         FieldObject fo = new FieldObject();
         List<Integer> list = new Vector<>();
         fo.setObj(list);
         byte[] epb = ProtoBuf.toByteArray(fo);
         System.out.println(conver2HexStr(epb));
         FieldObject nfo = ProtoBuf.toObject(epb, FieldObject.class);
+        assertTrue(nfo.getObj().getClass().getName().equals("java.util.Vector"));
+
+        epb = ProtoBuf.toByteArray(fo, option);
+        System.out.println(conver2HexStr(epb));
+        nfo = ProtoBuf.toObject(epb, FieldObject.class, option);
         assertTrue(nfo.getObj().getClass().getName().equals("java.util.Vector"));
 
         list = new Vector<>();
@@ -1173,6 +1180,13 @@ public class TestFieldObject {
         System.out.println(conver2HexStr(epb));
         nfo = ProtoBuf.toObject(epb, FieldObject.class);
         assertTrue(nfo.getObj().getClass().getName().equals("java.util.Collections$EmptyList"));
+        assertEquals(nfo.getObj(), nfo.getObj());
+
+        fo.setObj(Collections.singletonList(new Random().nextLong()));
+        epb = ProtoBuf.toByteArray(fo);
+        System.out.println(conver2HexStr(epb));
+        nfo = ProtoBuf.toObject(epb, FieldObject.class);
+        assertTrue(nfo.getObj().getClass().getName().equals("java.util.Collections$SingletonList"));
         assertEquals(nfo.getObj(), nfo.getObj());
 
         count = 1 + random.nextInt(24);

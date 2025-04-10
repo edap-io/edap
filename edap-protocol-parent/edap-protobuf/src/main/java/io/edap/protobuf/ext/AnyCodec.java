@@ -388,9 +388,7 @@ public class AnyCodec {
         Class cls = v.getClass();
         ProtoBufEncoder encoder = MSG_ENCODERS.get(cls.getName());
         if (null == encoder) {
-            if ("java.util.ArrayList".equals(cls.getName())) {
-                encoder = MSG_ENCODERS.get("java.util.ArrayList");
-            } else if (isList(cls)) {
+            if (isList(cls)) {
                 encoder = MSG_ENCODERS.get("java.util.List");
             } else if (isIterable(cls)) {
                 encoder = MSG_ENCODERS.get("java.util.Iterable");
@@ -419,9 +417,7 @@ public class AnyCodec {
         Class cls = v.getClass();
         ProtoBufEncoder encoder = MSG_FAST_ENCODERS.get(cls.getName());
         if (null == encoder) {
-            if ("java.util.ArrayList".equals(cls.getName())) {
-                encoder = MSG_FAST_ENCODERS.get("java.util.ArrayList");
-            } else if (isList(cls)) {
+            if (isList(cls)) {
                 encoder = MSG_FAST_ENCODERS.get("java.util.List");
             } else if (isIterable(cls)) {
                 encoder = MSG_FAST_ENCODERS.get("java.util.Iterable");
@@ -429,10 +425,10 @@ public class AnyCodec {
                 if (isJvmType(cls)) {
                     encoder = MSG_FAST_ENCODERS.get("java.util.Map");
                 } else {
-                    encoder = MSG_ENCODER;
+                    encoder = MSG_FAST_DECODER;
                 }
             } else {
-                encoder = MSG_ENCODER;
+                encoder = MSG_FAST_DECODER;
             }
         }
         encoder.encode(writer, v);

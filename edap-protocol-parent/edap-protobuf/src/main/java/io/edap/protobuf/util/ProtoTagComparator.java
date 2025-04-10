@@ -1,6 +1,5 @@
 package io.edap.protobuf.util;
 
-import io.edap.protobuf.ProtoBuf;
 import io.edap.protobuf.ProtoFieldInfo;
 
 import java.util.Comparator;

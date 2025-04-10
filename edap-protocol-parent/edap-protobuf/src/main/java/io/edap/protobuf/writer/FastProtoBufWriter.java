@@ -21,6 +21,8 @@ import io.edap.protobuf.EncodeException;
 import io.edap.protobuf.MapEntryEncoder;
 import io.edap.protobuf.ProtoBufEncoder;
 import io.edap.protobuf.ProtoBufWriter;
+import io.edap.protobuf.ext.AnyCodec;
+import io.edap.protobuf.model.ProtoBufOption;
 import io.edap.protobuf.wire.Field;
 import io.edap.protobuf.wire.WireFormat;
 import io.edap.protobuf.wire.WireType;
@@ -248,5 +250,12 @@ public class FastProtoBufWriter extends StandardProtoBufWriter {
         writeFieldData(fieldData);
         codec.encode(this, v);
         writeUInt32(end);
+    }
+
+    @Override
+    public void writeObject(byte[] fieldData, Object v, ProtoBufOption option) throws EncodeException {
+        expand(MAX_VARINT_SIZE);
+        writeFieldData(fieldData);
+        AnyCodec.encode(this, v, option);
     }
 }

@@ -1,7 +1,10 @@
 package io.edap.protobuf.reader;
 
+import io.edap.protobuf.CodecType;
 import io.edap.protobuf.ProtoBufDecoder;
 import io.edap.protobuf.ProtoException;
+import io.edap.protobuf.ext.AnyCodec;
+import io.edap.protobuf.model.ProtoBufOption;
 import io.edap.protobuf.wire.Field;
 
 import java.util.ArrayList;
@@ -12,6 +15,13 @@ import static io.edap.protobuf.wire.WireFormat.*;
 import static io.edap.protobuf.wire.WireType.END_GROUP;
 
 public class ByteArrayFastReader extends ByteArrayReader {
+
+    static ProtoBufOption PROTO_BUF_OPTION = new ProtoBufOption();
+
+    static {
+        PROTO_BUF_OPTION.setCodecType(CodecType.FAST);
+    }
+
     public ByteArrayFastReader(byte[] buf) {
         super(buf);
     }
@@ -163,5 +173,10 @@ public class ByteArrayFastReader extends ByteArrayReader {
         int len = readRawVarint32();
         readString(len);
         return true;
+    }
+
+    @Override
+    public Object readObject() throws ProtoException {
+        return AnyCodec.decode(this, PROTO_BUF_OPTION);
     }
 }

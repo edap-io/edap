@@ -207,7 +207,7 @@ public class ProtoBuf {
 
 
     public static Object der(byte[] data, ProtoBufOption option) throws io.edap.protobuf.ProtoException {
-        ByteArrayReader reader = new ByteArrayReader(data);
+        ByteArrayReader reader;
         if (option != null && CodecType.FAST == option.getCodecType()) {
             reader = new ByteArrayFastReader(data);
         } else {

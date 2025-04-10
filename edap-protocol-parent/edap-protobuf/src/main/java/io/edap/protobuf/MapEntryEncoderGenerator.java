@@ -153,8 +153,15 @@ public class MapEntryEncoderGenerator {
                 mv.visitMethodInsn(INVOKESTATIC, "java/lang/String", "valueOf",
                         "(Ljava/lang/Object;)Ljava/lang/String;", false);
             }
-            visitMethod(mv, INVOKEINTERFACE, WRITER_NAME, writeMethod,
-                    "([B" + rType + ")V", true);
+            if (writeMethod.equals("writeObject")) {
+                mv.visitFieldInsn(GETSTATIC, encoderName, "PROTO_BUF_OPTION",
+                        "L" + PROTOBUF_OPTIION_NAME + ";");
+                visitMethod(mv, INVOKEINTERFACE, WRITER_NAME, writeMethod,
+                        "([B" + rType + "L" + PROTOBUF_OPTIION_NAME + ";)V", true);
+            } else {
+                visitMethod(mv, INVOKEINTERFACE, WRITER_NAME, writeMethod,
+                        "([B" + rType + ")V", true);
+            }
         }
     }
 

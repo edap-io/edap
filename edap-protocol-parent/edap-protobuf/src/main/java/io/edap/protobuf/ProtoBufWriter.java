@@ -18,6 +18,7 @@ package io.edap.protobuf;
 
 import io.edap.io.BufOut;
 import io.edap.io.BufWriter;
+import io.edap.protobuf.model.ProtoBufOption;
 import io.edap.protobuf.wire.Field.Type;
 
 import java.util.Collection;
@@ -124,7 +125,7 @@ public interface ProtoBufWriter extends BufWriter {
     void writeFixed64(long value);
     void writeUInt64(long value);
 
-    void writeObject(byte[] fieldData, Object v) throws EncodeException;
+    void writeObject(byte[] fieldData, Object v, ProtoBufOption option) throws EncodeException;
     void writeObject(Object v) throws EncodeException;
     void writeObjects(Iterator<Object> objects) throws EncodeException;
 

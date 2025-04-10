@@ -252,9 +252,15 @@ public class ProtoBufEncoderGenerator {
                         rType = visitGetFieldValue(mv, pfi, pojoName, pojoCodecName, 2, rType);
                         if (writeMethod.equals("writeObject")) {
                             rType = "Ljava/lang/Object;";
+                            mv.visitFieldInsn(GETSTATIC, pojoCodecName, "PROTO_BUF_OPTION",
+                                    "L" + PROTOBUF_OPTIION_NAME + ";");
+                            visitMethod(mv, INVOKEINTERFACE, WRITER_NAME, writeMethod,
+                                    "([B" + rType + "L" + PROTOBUF_OPTIION_NAME + ";)V", true);
+                        } else {
+
+                            visitMethod(mv, INVOKEINTERFACE, WRITER_NAME, writeMethod,
+                                    "([B" + rType + ")V", true);
                         }
-                        visitMethod(mv, INVOKEINTERFACE, WRITER_NAME, writeMethod,
-                                "([B" + rType + ")V", true);
                     }
                 }
             }
@@ -964,10 +970,16 @@ public class ProtoBufEncoderGenerator {
         mv.visitTypeInsn(CHECKCAST, itemName);
 
         String writeMethod = getWriteMethod(pfi.protoField.type());
-
-        visitMethod(mv, INVOKEINTERFACE, WRITER_NAME, writeMethod,
-                "([B" + itemDesc + ")V",
-                true);
+        if (writeMethod.equals("writeObject")) {
+            mv.visitFieldInsn(GETSTATIC, pojoCodecName, "PROTO_BUF_OPTION",
+                    "L" + PROTOBUF_OPTIION_NAME + ";");
+            visitMethod(mv, INVOKEINTERFACE, WRITER_NAME, writeMethod,
+                    "([B" + itemDesc + "L" + PROTOBUF_OPTIION_NAME + ";)V", true);
+        } else {
+            visitMethod(mv, INVOKEINTERFACE, WRITER_NAME, writeMethod,
+                    "([B" + itemDesc + ")V",
+                    true);
+        }
 
         mv.visitIincInsn(4, 1);
 
