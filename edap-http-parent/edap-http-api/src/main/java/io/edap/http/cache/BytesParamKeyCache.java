@@ -16,7 +16,7 @@
 
 package io.edap.http.cache;
 
-import io.edap.codec.BytesDataRange;
+import io.edap.nio.codec.BytesDataRange;
 
 import java.util.HashMap;
 import java.util.Map;

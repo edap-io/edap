@@ -1,7 +1,7 @@
 package io.edap.http.codec;
 
 import io.edap.buffer.FastBuf;
-import io.edap.codec.FastBufDataRange;
+import io.edap.nio.codec.FastBufDataRange;
 import io.edap.util.StringUtil;
 
 import static io.edap.util.Constants.*;

@@ -16,7 +16,7 @@
 
 package io.edap.http.cache;
 
-import io.edap.codec.FastBufDataRange;
+import io.edap.nio.codec.FastBufDataRange;
 import io.edap.http.HeaderValue;
 import io.edap.util.StringUtil;
 
