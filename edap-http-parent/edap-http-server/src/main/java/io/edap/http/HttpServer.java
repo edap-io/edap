@@ -17,7 +17,7 @@
 package io.edap.http;
 
 import io.edap.Decoder;
-import io.edap.NioSession;
+import io.edap.NioServerSession;
 import io.edap.Server;
 
 /**
@@ -44,7 +44,7 @@ public class HttpServer extends Server {
     }
 
     @Override
-    public NioSession createNioSession() {
+    public NioServerSession createNioSession() {
         HttpNioSession nioSession = new HttpNioSession();
         nioSession.setServer(this);
             nioSession.setDecoder(VALUE_DECODER);

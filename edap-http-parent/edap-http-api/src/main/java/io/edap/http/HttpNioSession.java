@@ -16,7 +16,7 @@
 
 package io.edap.http;
 
-import io.edap.NioSession;
+import io.edap.NioServerSession;
 import io.edap.ParseResult;
 import io.edap.nio.codec.BytesDataRange;
 import io.edap.http.codec.HttpFastBufDataRange;
@@ -33,7 +33,7 @@ import java.util.List;
  * @author: louis.lu
  * @date : 2019-07-17 15:42
  */
-public class HttpNioSession extends NioSession<HttpRequest> {
+public class HttpNioSession extends NioServerSession<HttpRequest> {
 
     static Logger LOG = LoggerManager.getLogger(HttpNioSession.class);
 
