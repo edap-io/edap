@@ -701,6 +701,7 @@ public class ProtoUtil {
             case "java.math.BigDecimal":
             case "java.lang.Number":
             case "java.lang.Object":
+            case "java.sql.Timestamp":
                 msgInfo = new MessageInfo();
                 msgInfo.setMessageName(Type.OBJECT.value());
                 msgInfo.setJavaType(javaType);
