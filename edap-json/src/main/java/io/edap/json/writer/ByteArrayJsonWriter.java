@@ -63,18 +63,21 @@ public class ByteArrayJsonWriter extends AbstractJsonWriter implements JsonWrite
     @Override
     public void write(boolean bool) {
         expand(5);
+        int _pos = pos;
+        byte[] _buf = buf;
         if (bool) {
-            buf[pos++] = 't';
-            buf[pos++] = 'r';
-            buf[pos++] = 'u';
-            buf[pos++] = 'e';
+            _buf[_pos++] = 't';
+            _buf[_pos++] = 'r';
+            _buf[_pos++] = 'u';
+            _buf[_pos++] = 'e';
         } else {
-            buf[pos++] = 'f';
-            buf[pos++] = 'a';
-            buf[pos++] = 'l';
-            buf[pos++] = 's';
-            buf[pos++] = 'e';
+            _buf[_pos++] = 'f';
+            _buf[_pos++] = 'a';
+            _buf[_pos++] = 'l';
+            _buf[_pos++] = 's';
+            _buf[_pos++] = 'e';
         }
+        pos = _pos;
     }
 
     @Override
@@ -102,9 +105,12 @@ public class ByteArrayJsonWriter extends AbstractJsonWriter implements JsonWrite
     @Override
     public void write(byte b1, byte b2, byte b3) {
         expand(3);
-        buf[pos++] = b1;
-        buf[pos++] = b2;
-        buf[pos++] = b3;
+        byte[] _buf = buf;
+        int _pos = pos;
+        _buf[_pos++] = b1;
+        _buf[_pos++] = b2;
+        _buf[_pos++] = b3;
+        pos = _pos;
     }
 
     @Override
@@ -205,11 +211,12 @@ public class ByteArrayJsonWriter extends AbstractJsonWriter implements JsonWrite
         if (i == null) {
             expand(5);
             int _pos = pos;
-            buf[_pos++] = b;
-            buf[_pos++] = 'n';
-            buf[_pos++] = 'u';
-            buf[_pos++] = 'l';
-            buf[_pos++] = 'l';
+            byte[] _buf = buf;
+            _buf[_pos++] = b;
+            _buf[_pos++] = 'n';
+            _buf[_pos++] = 'u';
+            _buf[_pos++] = 'l';
+            _buf[_pos++] = 'l';
             pos = _pos;
             return;
         }
@@ -227,30 +234,33 @@ public class ByteArrayJsonWriter extends AbstractJsonWriter implements JsonWrite
 
     @Override
     public void write(byte b, Long l) {
+        int _pos = pos;
+        byte[] _buf = buf;
         if (l == null) {
             expand(5);
-            int _pos = pos;
-            buf[_pos++] = b;
-            buf[_pos++] = 'n';
-            buf[_pos++] = 'u';
-            buf[_pos++] = 'l';
-            buf[_pos++] = 'l';
+
+            _buf[_pos++] = b;
+            _buf[_pos++] = 'n';
+            _buf[_pos++] = 'u';
+            _buf[_pos++] = 'l';
+            _buf[_pos++] = 'l';
             pos = _pos;
             return;
         }
         expand(21);
-        buf[pos++] = b;
-        pos = uncheckWriteLong(buf, pos, l);
+        _buf[_pos++] = b;
+        pos = uncheckWriteLong(buf, _pos, l);
     }
 
     @Override
     public void writeNull() {
         expand(4);
         int _pos = pos;
-        buf[_pos++] = 'n';
-        buf[_pos++] = 'n';
-        buf[_pos++] = 'l';
-        buf[_pos++] = 'l';
+        byte[] _buf = buf;
+        _buf[_pos++] = 'n';
+        _buf[_pos++] = 'n';
+        _buf[_pos++] = 'l';
+        _buf[_pos++] = 'l';
         pos = _pos;
     }
 
