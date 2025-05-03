@@ -35,7 +35,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public abstract class Server<T, S extends NioServerSession> {
 
-    Logger log = LoggerManager.getLogger(this.getClass());
+    protected Logger log = LoggerManager.getLogger(this.getClass());
     /**
      * 服务器允许最大连接数
      */

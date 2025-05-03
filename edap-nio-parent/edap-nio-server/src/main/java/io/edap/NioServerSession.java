@@ -121,7 +121,7 @@ public abstract class NioServerSession<T> extends NioSession {
                 write0Mh2 = MethodHandles.lookup().unreflect(write0);
             }
 
-            WRITE0_MH = write0Mh;
+            WRITE0_MH  = write0Mh;
             WRITE0_MH2 = write0Mh2;
         } catch (ClassNotFoundException | IllegalAccessException e) {
             throw new AssertionError(e);
@@ -163,11 +163,13 @@ public abstract class NioServerSession<T> extends NioSession {
             Class superclass = clazz.getSuperclass();
             if (superclass != null) {
                 Field field = getField0(superclass, name, false);
-                if (field != null)
+                if (field != null) {
                     return field;
+                }
             }
-            if (error)
+            if (error) {
                 throw new AssertionError(e);
+            }
             return null;
         }
     }
@@ -185,12 +187,14 @@ public abstract class NioServerSession<T> extends NioSession {
             if (superclass != null)
                 try {
                     Method m = getMethod0(superclass, name, args, false);
-                    if (m != null)
+                    if (m != null) {
                         return m;
+                    }
                 } catch (Exception ignored) {
                 }
-            if (first)
+            if (first) {
                 throw new AssertionError(e);
+            }
             return null;
         }
     }
@@ -380,8 +384,9 @@ public abstract class NioServerSession<T> extends NioSession {
         if (res < 0) {
 
         }
-        if (res <= 0 && !socketChannel.isOpen())
+        if (res <= 0 && !socketChannel.isOpen()) {
             throw new AsynchronousCloseException();
+        }
 
         return res;
     }

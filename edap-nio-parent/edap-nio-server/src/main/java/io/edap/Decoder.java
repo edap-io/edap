@@ -1,6 +1,7 @@
 package io.edap;
 
 import io.edap.buffer.FastBuf;
+import io.edap.nio.ParseResult;
 
 /**
  * Socket数据解码器接口

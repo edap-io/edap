@@ -81,7 +81,7 @@ public class FastAcceptor extends AbstractAcceptor {
                 }
             }
         );
-        runningThread.setName("edap-accept-select-" + THREAD_SEQ.getAndAdd(1));
+        runningThread.setName("e-acpt-s-" + THREAD_SEQ.getAndAdd(1));
         runningThread.start();
     }
 

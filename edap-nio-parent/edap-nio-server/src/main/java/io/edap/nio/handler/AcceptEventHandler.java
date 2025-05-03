@@ -28,27 +28,40 @@ import io.edap.pool.impl.ThreadLocalPool;
 
 import java.nio.channels.SocketChannel;
 
+/**
+ * Accept事件的处理器，主要逻辑是获取NioSession，并把SocketChanner和NioSession做关联后，将NioSession注册到IoSelectorManager中。
+ */
 public class AcceptEventHandler implements EventHandler<AcceptEvent> {
 
     static Logger LOG = LoggerManager.getLogger(AcceptEventHandler.class);
 
-    private static Pool<NioServerSession> NIO_SESSION_POOL;
-    private static boolean          NIO_SESSION_POOLED;
+    private Server                 server;
+    private boolean                nioSessionPooled;
+    private Pool<NioServerSession> nioSessionPool;
 
     public AcceptEventHandler(Server server) {
+        this.server = server;
         if (server.isNioSesionPooled()) {
             if (server.getNioSessionPool() == null) {
-                NIO_SESSION_POOL = new ThreadLocalPool();
-                server.setNioSessionPool(NIO_SESSION_POOL);
+                nioSessionPool = new ThreadLocalPool();
+                server.setNioSessionPool(nioSessionPool);
             } else {
-                NIO_SESSION_POOL = server.getNioSessionPool();
+                nioSessionPool = server.getNioSessionPool();
             }
-            NIO_SESSION_POOLED = true;
+            nioSessionPooled = true;
         } else {
-            NIO_SESSION_POOLED = false;
+            nioSessionPooled = false;
         }
     }
 
+    /**
+     * 处理AcceptEvent事件,获取NioSession，并且关联SocketChannel和NioSession并且尝试获取SocketChannel中的文件描述符，
+     * 方便NioSession进行快速读写。
+     * @param event 事件实例
+     * @param sequence disruptor的序号
+     * @param endOfBatch 是否为本批次的最后一个事件
+     * @throws Exception 处理网络连接时的异常
+     */
     @Override
     public void onEvent(AcceptEvent event, long sequence, boolean endOfBatch) throws Exception {
         LOG.trace("event:{}, sequence={}, endOfBatch={}",
@@ -57,14 +70,12 @@ public class AcceptEventHandler implements EventHandler<AcceptEvent> {
         SocketChannel sc = event.getChannel();
         sc.configureBlocking(false);
         NioServerSession nioSession;
-        if (NIO_SESSION_POOLED) {
-            nioSession = NIO_SESSION_POOL.borrow();
+        if (nioSessionPooled) {
+            nioSession = nioSessionPool.borrow();
             if (nioSession == null) {
-                Server server = event.getServerChannelCtx().getServer();
                 nioSession = server.createNioSession();
             }
         } else {
-            Server server = event.getServerChannelCtx().getServer();
             nioSession = server.createNioSession();
         }
         nioSession.setSocketChannel(sc);

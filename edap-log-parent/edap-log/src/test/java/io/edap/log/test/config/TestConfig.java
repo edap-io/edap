@@ -56,7 +56,7 @@ public class TestConfig {
         LoggerConfig rootLoggerConfig = loggerSection.getRootLoggerConfig();
         assertNotNull(rootLoggerConfig);
         assertEquals(rootLoggerConfig.getName(), "ROOT");
-        assertEquals(rootLoggerConfig.getLevel(), "INFO");
+        assertEquals(rootLoggerConfig.getLevel(), "DEBUG");
         assertEquals(rootLoggerConfig.getAppenderRefs().size(), 2);
         assertEquals(rootLoggerConfig.getAppenderRefs().get(0), DEFAULT_CONSOLE_APPENDER_NAME);
         assertEquals(rootLoggerConfig.getAppenderRefs().get(1), DEFAULT_FILE_APPENDER_NAME);

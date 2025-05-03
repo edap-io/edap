@@ -64,7 +64,7 @@ public class LogEncoderRegister {
             encoderCls = Class.forName(encoderName);
             return encoderCls;
         } catch (ClassNotFoundException e) {
-            System.err.println(e.getMessage());
+            //System.err.println(e.getMessage());
         }
         try {
             EncoderGenerator generator = new EncoderGenerator(format);

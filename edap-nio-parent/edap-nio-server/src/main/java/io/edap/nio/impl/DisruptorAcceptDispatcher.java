@@ -16,34 +16,29 @@
 
 package io.edap.nio.impl;
 
-import com.lmax.disruptor.*;
-import com.lmax.disruptor.dsl.Disruptor;
-import com.lmax.disruptor.dsl.ProducerType;
 import io.edap.Server;
 import io.edap.ServerChannelContext;
 import io.edap.log.Logger;
 import io.edap.log.LoggerManager;
 import io.edap.nio.AcceptDispatcher;
+import io.edap.nio.DisruptorManager;
 import io.edap.nio.event.AcceptEvent;
-import io.edap.nio.handler.AcceptEventHandler;
 
 import java.io.IOException;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 
-import static io.edap.nio.AbstractAcceptor.ACCEPT_THREAD_FACTORY;
-
 public class DisruptorAcceptDispatcher implements AcceptDispatcher {
 
     private static final Logger LOG = LoggerManager.getLogger(DisruptorAcceptDispatcher.class);
 
-    private RingBuffer<AcceptEvent> ringBuffer;
-    private Server                  server;
+    private DisruptorManager<AcceptEvent> disruptorManager;
+    private Server                        server;
 
-    public DisruptorAcceptDispatcher(Server server) {
-        this.server     = server;
-        this.ringBuffer = buildRingBuffer();
+    public DisruptorAcceptDispatcher(Server server, DisruptorManager<AcceptEvent> disruptorManager) {
+        this.server           = server;
+        this.disruptorManager = disruptorManager;
     }
 
     @Override
@@ -52,28 +47,14 @@ public class DisruptorAcceptDispatcher implements AcceptDispatcher {
         SocketChannel clientChan;
         try {
             clientChan = ((ServerSocketChannel)acceptKey.channel()).accept();
-            boolean published = ringBuffer.tryPublishEvent((event, sequence)
+            boolean published = disruptorManager.publishEvent((event, sequence)
                     -> event.setChannel(clientChan)
                     .setServerChannelCtx((ServerChannelContext) acceptKey.attachment()));
             LOG.debug("published {}", l-> l.arg(published));
         } catch (IOException e) {
-            e.printStackTrace();
+            LOG.warn("accept error", e);
         }
 
     }
 
-    public RingBuffer<AcceptEvent> buildRingBuffer() {
-        EventFactory<AcceptEvent> eventFactory = AcceptEvent::new;
-        int bufferSize = 1024;
-        WaitStrategy waitStrategy = new YieldingWaitStrategy();
-        EventHandler<AcceptEvent> handler = new AcceptEventHandler(server);
-        Disruptor<AcceptEvent> disruptor = new Disruptor<>(
-                eventFactory,
-                bufferSize,
-                ACCEPT_THREAD_FACTORY,
-                ProducerType.MULTI,
-                waitStrategy);
-        disruptor.handleEventsWith(handler);
-        return disruptor.start();
-    }
 }

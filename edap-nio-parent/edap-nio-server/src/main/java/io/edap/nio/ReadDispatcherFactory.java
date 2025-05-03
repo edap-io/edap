@@ -31,9 +31,9 @@ public class ReadDispatcherFactory {
         this.threadType = threadType;
     }
 
-    public ReadDispatcher createReadDispatcher(Server server, RingBuffer<BizEvent>[] ringBuffers) {
+    public ReadDispatcher createReadDispatcher(Server server, DisruptorManager<BizEvent> disruptorManager) {
         if (threadType == ThreadType.EDAP) {
-            return new DisruptorReadDispatcher(server, ringBuffers);
+            return new DisruptorReadDispatcher(server, disruptorManager);
         } else {
             return new ThreadPoolReadDispatcher();
         }

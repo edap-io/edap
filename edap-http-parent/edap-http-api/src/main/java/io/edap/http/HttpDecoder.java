@@ -17,7 +17,7 @@
 package io.edap.http;
 
 import io.edap.Decoder;
-import io.edap.ParseResult;
+import io.edap.nio.ParseResult;
 import io.edap.buffer.FastBuf;
 import io.edap.http.cache.HeaderNameCache;
 import io.edap.http.codec.HttpFastBufDataRange;

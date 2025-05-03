@@ -16,14 +16,14 @@
 
 package io.edap.nio.impl;
 
-import com.lmax.disruptor.*;
 import io.edap.Decoder;
 import io.edap.NioServerSession;
-import io.edap.ParseResult;
+import io.edap.nio.ParseResult;
 import io.edap.Server;
 import io.edap.buffer.FastBuf;
 import io.edap.log.Logger;
 import io.edap.log.LoggerManager;
+import io.edap.nio.DisruptorManager;
 import io.edap.nio.ReadDispatcher;
 import io.edap.nio.event.BizEvent;
 import io.edap.pool.Pool;
@@ -41,24 +41,19 @@ public class DisruptorReadDispatcher implements ReadDispatcher {
 
     private Pool<FastBuf> bbPool;
 
-    private Decoder decoder;
-    private Server server;
+    private Decoder       decoder;
+    private Server        server;
 
-    private RingBuffer<BizEvent>[] ringBuffers;
-
-    private volatile int queueSize;
-
-    private int seq = 0;
+    private DisruptorManager<BizEvent> disruptorManager;
 
     private static boolean NIO_SESSION_POOLED;
 
 
-    public DisruptorReadDispatcher(Server server, RingBuffer<BizEvent>[] ringBuffers) {
-        this.server      = server;
-        this.bbPool      = new ThreadLocalPool<>();
-        this.decoder     = server.getDecoder();
-        this.ringBuffers = ringBuffers;
-        this.queueSize   = ringBuffers.length;
+    public DisruptorReadDispatcher(Server server, DisruptorManager<BizEvent> disruptorManager) {
+        this.server           = server;
+        this.bbPool           = new ThreadLocalPool<>();
+        this.decoder          = server.getDecoder();
+        this.disruptorManager = disruptorManager;
 
         NIO_SESSION_POOLED = server.isNioSesionPooled();
     }
@@ -79,14 +74,12 @@ public class DisruptorReadDispatcher implements ReadDispatcher {
             } else {
                 pr = decoder.decode(buf, nioSession);
                 if (pr.isFinished()) {
-                    int index = seq++%queueSize;
-                    boolean published = ringBuffers[index].tryPublishEvent(
-                            (event, sequence) -> {
+                    boolean published = disruptorManager.publishEvent((event, sequence) -> {
                                 event.setNioSession(nioSession);
                                 event.setServerChannelContext(nioSession.getServerChannelContext());
                                 event.setBizData(pr);
                             });
-                    LOG.trace("ringbuffer:{} published {}", l-> l.arg(index).arg(published));
+                    LOG.trace("DisruptorManager published {}", l-> l.arg(published));
                 }
             }
         } catch (IOException e) {

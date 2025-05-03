@@ -17,7 +17,7 @@
 package io.edap.nio.event;
 
 import io.edap.NioServerSession;
-import io.edap.ParseResult;
+import io.edap.nio.ParseResult;
 import io.edap.ServerChannelContext;
 
 /**
@@ -26,7 +26,7 @@ import io.edap.ServerChannelContext;
 public class BizEvent {
 
     private ParseResult          bizData;
-    private NioServerSession nioSession;
+    private NioServerSession     nioSession;
     private ServerChannelContext serverChannelContext;
 
     public ParseResult getBizData() {

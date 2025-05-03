@@ -26,6 +26,7 @@ import io.edap.log.Logger;
 import io.edap.log.LoggerManager;
 import io.edap.nio.event.BizEvent;
 import io.edap.nio.handler.BizEventHandler;
+import io.edap.nio.impl.RoundRobinDisruptorManager;
 import io.edap.nio.util.EventHandleThreadFactory;
 import io.edap.util.SystemUtil;
 
@@ -41,24 +42,24 @@ public class IoSelectorManager {
 
     private Server                server;
     private SelectorProvider      selectorProvider;
-    private ReadDispatcherFactory readDispatcherFactory;
+    private ReadDispatcherFactory dispatcherFactory;
     private IoWorker[]            ioWorkers;
     private int                   ioThreadCount;
     private int                   bizThreadCount;
-    private volatile int ioWorkerIndex;
+    private volatile int          ioWorkerIndex;
 
     private static final AtomicInteger THREAD_SEQ = new AtomicInteger();
 
     public static final EventHandleThreadFactory BIZ_THREAD_FACTORY;
 
     static {
-        BIZ_THREAD_FACTORY = new EventHandleThreadFactory("edap-biz-handle");
+        BIZ_THREAD_FACTORY = new EventHandleThreadFactory("e-biz-h");
     }
 
     public IoSelectorManager(ServerChannelContext scc) {
-        this.server                = scc.getServer();
-        this.selectorProvider      = scc.getSelectorProvider();
-        this.readDispatcherFactory = scc.getReadDispatcherFactory();
+        this.server            = scc.getServer();
+        this.selectorProvider  = scc.getSelectorProvider();
+        this.dispatcherFactory = scc.getReadDispatcherFactory();
         if (scc.getServer().getIoThreadCount() < 1) {
             ioThreadCount = SystemUtil.getCpuCount();
         }
@@ -66,20 +67,19 @@ public class IoSelectorManager {
             bizThreadCount = 256;
         }
 
-        RingBuffer<BizEvent>[] ringBuffers = new RingBuffer[bizThreadCount];
-        for (int i=0;i<bizThreadCount;i++) {
-            ringBuffers[i] = buildRingBuffer();
-        }
-
         ioWorkers = new IoWorker[ioThreadCount];
         for (int i=0;i<ioThreadCount;i++) {
             IoWorker ioWorker = new IoWorker();
-            EventDispatcherSet eventDispatcherSet;
-            Selector selector;
+            EventDispatcherSet         eventDispatcherSet;
+            Selector                   selector;
+            ReadDispatcher             readDispatcher;
+            EdapSelectorInfo           info;
+            DisruptorManager<BizEvent> disruptorManager;
             try {
-                EdapSelectorInfo info = selectorProvider.openSelector(
-                        readDispatcherFactory.createReadDispatcher(scc.getServer(), ringBuffers));
-                selector = info.getSelector();
+                disruptorManager   = createDisruptorManager();
+                readDispatcher     = dispatcherFactory.createReadDispatcher(scc.getServer(), disruptorManager);
+                info               = selectorProvider.openSelector(readDispatcher);
+                selector           = info.getSelector();
                 eventDispatcherSet = info.getEventDispatcherSet();
                 ioWorker.selector = selector;
             } catch (IOException e) {
@@ -99,11 +99,20 @@ public class IoSelectorManager {
                     }
                 }
             );
-            runningThread.setName("edap-io-select-" + THREAD_SEQ.addAndGet(1));
+            runningThread.setName("e-ioe-s-" + THREAD_SEQ.addAndGet(1));
             runningThread.setDaemon(true);
             ioWorker.ioThread = runningThread;
             ioWorkers[i] = ioWorker;
         }
+    }
+
+    private DisruptorManager<BizEvent> createDisruptorManager() {
+        DisruptorManager<BizEvent> manager = new RoundRobinDisruptorManager<>(
+                BizEvent::new, new BizEventHandler(server), BIZ_THREAD_FACTORY, 32,
+                ProducerType.SINGLE, new BlockingWaitStrategy()
+        );
+
+        return manager;
     }
 
     public void registerNioSession(NioServerSession nioSession) {
@@ -126,22 +135,8 @@ public class IoSelectorManager {
 
     class IoWorker {
         private Selector selector;
-        private boolean running;
-        private Thread ioThread;
+        private boolean  running;
+        private Thread   ioThread;
     }
 
-    private RingBuffer<BizEvent> buildRingBuffer() {
-        EventFactory<BizEvent> eventFactory = BizEvent::new;
-        int bufferSize = 1024;
-        WaitStrategy waitStrategy = new BlockingWaitStrategy();
-        EventHandler<BizEvent> handler = new BizEventHandler(server);
-        Disruptor<BizEvent> disruptor = new Disruptor<>(
-                eventFactory,
-                bufferSize,
-                BIZ_THREAD_FACTORY,
-                ProducerType.MULTI,
-                waitStrategy);
-        disruptor.handleEventsWith(handler);
-        return disruptor.start();
-    }
 }

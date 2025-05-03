@@ -26,11 +26,11 @@
     </scm>
 
     <properties>
-        <java.version>8</java.version>
+        <java.version>1.8</java.version>
         <edap.version>0.1.8-RELEASE</edap.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <maven.compiler.source>8</maven.compiler.source>
-        <maven.compiler.target>8</maven.compiler.target>
+        <maven.compiler.source>17</maven.compiler.source>
+        <maven.compiler.target>17</maven.compiler.target>
         <junit.jupiter.version>5.12.0</junit.jupiter.version>
         <asm.version>9.7.1</asm.version>
         <protobuf.java.verson>4.29.3</protobuf.java.verson>
@@ -53,14 +53,27 @@
         <module>edap-http-parent</module>
         <module>edap-protocol-parent</module>
         <module>edap-log-parent</module>
-        <module>edap-container</module>
+        <module>edap-container-parent</module>
         <module>edap-nio-parent</module>
+        <module>edap-codec</module>
 
     </modules>
 
 
     <dependencyManagement>
         <dependencies>
+            <!-- telnet -->
+            <dependency>
+                <groupId>io.edap</groupId>
+                <artifactId>edap-telnet-common</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.edap</groupId>
+                <artifactId>edap-telnet-server</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
             <dependency>
                 <groupId>io.edap</groupId>
                 <artifactId>edap-common</artifactId>

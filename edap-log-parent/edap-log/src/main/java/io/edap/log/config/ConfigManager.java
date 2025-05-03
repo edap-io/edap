@@ -273,9 +273,11 @@ public class ConfigManager {
         }
         try {
             configInStream = ConfigManager.class.getResourceAsStream("/edap-log.xml");
-            logConfig = parseXmlConfig(configInStream, lastUpdateTime);
-            if (logConfig != null) {
-                return logConfig;
+            if (configInStream != null) {
+                logConfig = parseXmlConfig(configInStream, lastUpdateTime);
+                if (logConfig != null) {
+                    return logConfig;
+                }
             }
         } catch (Throwable t) {
             System.err.println("findEdapLogConfig \"edap-log.xml\" error " + t.getMessage() + "\n");

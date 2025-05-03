@@ -148,7 +148,6 @@ public class ConcurrentPool<T extends ConcurrentPool.PoolEntry> implements AutoC
     public ConcurrentPool(final PoolStateListener listener) {
         this.listener = listener;
         this.weakThreadLocals = useWeakThreadLocals();
-        System.out.println("weakThreadLocals=" + weakThreadLocals);
 
         this.handoffQueue = new SynchronousQueue<>(true);
         this.waiters = new AtomicInteger();

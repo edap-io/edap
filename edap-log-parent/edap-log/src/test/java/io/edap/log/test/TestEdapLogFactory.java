@@ -27,6 +27,7 @@ import org.junit.jupiter.api.Test;
 import java.util.ArrayList;
 import java.util.Arrays;
 
+import static io.edap.log.LogLevel.DEBUG;
 import static io.edap.log.LogLevel.INFO;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -59,7 +60,7 @@ public class TestEdapLogFactory {
         assertEquals(logger instanceof LoggerImpl, true);
         LoggerImpl loggerImpl = (LoggerImpl)logger;
         System.out.println(loggerImpl.level());
-        assertEquals(loggerImpl.level(), INFO);
+        assertEquals(loggerImpl.level(), DEBUG);
 
         LoggerConfigSection loggerConfigSection = new LoggerConfigSection();
         loggerConfigSection.setNeedReload(true);

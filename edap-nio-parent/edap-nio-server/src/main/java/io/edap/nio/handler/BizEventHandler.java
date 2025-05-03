@@ -18,7 +18,7 @@ package io.edap.nio.handler;
 
 import com.lmax.disruptor.EventHandler;
 import io.edap.NioServerSession;
-import io.edap.ParseResult;
+import io.edap.nio.ParseResult;
 import io.edap.Server;
 import io.edap.log.Logger;
 import io.edap.log.LoggerManager;

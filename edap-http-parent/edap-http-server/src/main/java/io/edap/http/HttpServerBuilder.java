@@ -14,8 +14,14 @@ public class HttpServerBuilder {
 
     HttpServer.DecoderType decoderType;
 
-    public HttpServerBuilder listen(int port) {
-        return listen("", port);
+    public HttpServerBuilder listen(int... ports) {
+        if (ports == null) {
+            throw new RuntimeException("listen must not null");
+        }
+        for (int i=0;i<ports.length;i++) {
+            listen("", ports[i]);
+        }
+        return this;
     }
 
     public HttpServerBuilder listen(String address, int port) {

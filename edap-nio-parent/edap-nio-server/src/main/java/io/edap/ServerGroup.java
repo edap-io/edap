@@ -210,8 +210,6 @@ public class ServerGroup {
         LOG.info("serverGroup {} acceptorName {} selectorProvider name {}",
                 l -> l.arg(name).arg(fAcceptor.getClass().getName()).arg(provider.getClass().getName()));
 
-        AcceptDispatcherFactory acceptDispatcherFactory;
-        ReadDispatcherFactory readDispatcherFactory;
         for (Server s : servers) {
             s.init();
             s.setServerGroup(this);

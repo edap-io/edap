@@ -17,7 +17,7 @@
 package io.edap.http;
 
 import io.edap.NioServerSession;
-import io.edap.ParseResult;
+import io.edap.nio.ParseResult;
 import io.edap.nio.codec.BytesDataRange;
 import io.edap.http.codec.HttpFastBufDataRange;
 import io.edap.http.handler.NotFoundHandler;

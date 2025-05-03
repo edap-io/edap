@@ -32,8 +32,6 @@ import static org.objectweb.asm.Opcodes.*;
 
 public class AsmUtil {
 
-    static Logger LOG = LoggerManager.getLogger(AsmUtil.class);
-
     private AsmUtil() {}
 
     public static void saveJavaFile(String javaFilePath, byte[] data)
@@ -588,7 +586,7 @@ public class AsmUtil {
                 field = cls.getDeclaredField(fieldName);
                 return field.getGenericType();
             } catch (NoSuchFieldException e) {
-                LOG.warn("cls {} has't field {}", l -> l.arg(cls.getName()).arg(fieldName));
+                System.err.println(e);
             }
             Class pcls = cls.getSuperclass();
             while (!pcls.getName().equals("java.lang.Object")) {
@@ -597,7 +595,7 @@ public class AsmUtil {
                     field = pcls.getDeclaredField(fieldName);
                     return field.getGenericType();
                 } catch (NoSuchFieldException e) {
-                    LOG.warn("cls {} has't field {}", l -> l.arg(lpcls.getName()).arg(fieldName));
+                    System.err.println(e);
                 }
                 pcls = pcls.getSuperclass();
             }
