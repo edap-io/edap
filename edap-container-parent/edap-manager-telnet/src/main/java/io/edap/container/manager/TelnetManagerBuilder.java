@@ -29,6 +29,7 @@ public class TelnetManagerBuilder {
 
     public TelnetServer build() {
         TelnetServer server = new TelnetServer();
+        server.name("edapMgrTelnet");
         server.registerShellCmdHandler("ct", new ClientTotalHandler());
         int index;
         for (String addr : addrs) {
