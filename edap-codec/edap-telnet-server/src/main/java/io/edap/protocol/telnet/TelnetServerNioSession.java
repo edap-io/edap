@@ -23,7 +23,6 @@ import io.edap.log.LoggerManager;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.Date;
 import java.util.Map;
 import java.util.concurrent.*;
 
@@ -61,8 +60,8 @@ public class TelnetServerNioSession extends NioServerSession {
     }
 
     private void interruptProcess() {
-        if (scheduledFuture != null) {
-            scheduledFuture.cancel(true);
+        if (getScheduledFuture() != null) {
+            getScheduledFuture().cancel(true);
         }
         if (taskRunning) {
             taskRunning = false;
@@ -96,5 +95,21 @@ public class TelnetServerNioSession extends NioServerSession {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    public ScheduledExecutorService getScheduledExecutorService() {
+        return scheduledExecutorService;
+    }
+
+    public void setScheduledExecutorService(ScheduledExecutorService scheduledExecutorService) {
+        this.scheduledExecutorService = scheduledExecutorService;
+    }
+
+    public ScheduledFuture<?> getScheduledFuture() {
+        return scheduledFuture;
+    }
+
+    public void setScheduledFuture(ScheduledFuture<?> scheduledFuture) {
+        this.scheduledFuture = scheduledFuture;
     }
 }

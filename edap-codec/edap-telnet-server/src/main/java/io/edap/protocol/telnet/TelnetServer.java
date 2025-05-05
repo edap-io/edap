@@ -43,6 +43,7 @@ public class TelnetServer extends Server {
         TelnetServerNioSession session = new TelnetServerNioSession();
         session.setServer(this);
         session.setDecoder(DECODER);
+        session.setScheduledExecutorService(scheduledExecutorService);
         return session;
     }
 
@@ -70,4 +71,5 @@ public class TelnetServer extends Server {
     public Map<String, ShellCmdHandler> getShellCmdHandlerMap() {
         return shellCmdHandlerMap;
     }
+
 }
