@@ -100,7 +100,7 @@ public class TelnetDecoder implements Decoder<TelnetRequest, TelnetServerNioSess
         int index = argStr.indexOf(' ', start);
         while (index != -1) {
             args.add(argStr.substring(start, index));
-            start = index++;
+            start = index;
             while (argStr.charAt(start) == ' ') {
                 start++;
             }
@@ -108,7 +108,7 @@ public class TelnetDecoder implements Decoder<TelnetRequest, TelnetServerNioSess
         }
         args.add(argStr.substring(start));
 
-        return args.toArray(new String[args.size()]);
+        return args.toArray(new String[0]);
     }
 
     private int indexOfBackslash(BytesBuilder bb) {
@@ -117,10 +117,10 @@ public class TelnetDecoder implements Decoder<TelnetRequest, TelnetServerNioSess
         }
         for (int i=bb.length()-1;i>=0;i--) {
             byte b = bb.get(i);
-            if (b != '\r' && b != ' ' && b != '\t') {
-                return -1;
-            } else if (b == '\\') {
+            if (b == '\\') {
                 return i;
+            } else if (b != '\r' && b != ' ' && b != '\t') {
+                return -1;
             }
         }
         return -1;
