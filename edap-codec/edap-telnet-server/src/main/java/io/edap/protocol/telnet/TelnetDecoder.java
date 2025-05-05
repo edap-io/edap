@@ -64,7 +64,8 @@ public class TelnetDecoder implements Decoder<TelnetRequest, TelnetServerNioSess
                     b = _buf.get(pos++);
                     if (b == '\n') {
                         // 该行有"\\" 结尾则命令行不结束，将"\\"以及以后的部分替换为空格接续解析
-                        if (indexOfBackslash(bytes) == -1) {
+                        int lastIndexBackslash = lastIndexOfBackslash(bytes);
+                        if (lastIndexBackslash == -1) {
                             String commandLine = bytes.toString(StandardCharsets.UTF_8);
                             ShellCommand command = new ShellCommand();
                             int spaceIndex = commandLine.indexOf(" ");
@@ -78,10 +79,10 @@ public class TelnetDecoder implements Decoder<TelnetRequest, TelnetServerNioSess
                             result.setMessages(reqs);
                             result.setFinished(true);
                             return result;
+                        } else {
+                            bytes.setPos(lastIndexBackslash);
                         }
-                    } else if (b == '\r') {
-
-                    } else {
+                    } else if (b != '\r') {
                         bytes.write(b);
                     }
                 }
@@ -111,7 +112,7 @@ public class TelnetDecoder implements Decoder<TelnetRequest, TelnetServerNioSess
         return args.toArray(new String[0]);
     }
 
-    private int indexOfBackslash(BytesBuilder bb) {
+    private int lastIndexOfBackslash(BytesBuilder bb) {
         if (bb.length() == 0) {
             return -1;
         }
