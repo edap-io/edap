@@ -57,11 +57,9 @@ public class FastAcceptor extends AbstractAcceptor {
 
         try {
             serverSocketChannelList = new ArrayList<>();
-            for (Server.Addr addr : addrs) {
-                ServerSocketChannel ssc = bind(serverGroup, addr);
-                serverSocketChannelList.add(ssc);
-                ssc.register(selector, OP_ACCEPT, serverChannelContext);
-            }
+            ServerSocketChannel ssc = bind(serverGroup, addr);
+            serverSocketChannelList.add(ssc);
+            ssc.register(selector, OP_ACCEPT, serverChannelContext);
         } catch (ClosedChannelException e) {
             throw new RuntimeException(e);
         }

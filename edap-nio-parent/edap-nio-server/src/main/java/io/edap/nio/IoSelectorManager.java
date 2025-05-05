@@ -45,8 +45,8 @@ public class IoSelectorManager {
     private ReadDispatcherFactory dispatcherFactory;
     private IoWorker[]            ioWorkers;
     private int                   ioThreadCount;
-    private int                   bizThreadCount;
     private volatile int          ioWorkerIndex;
+    private Server.Addr           addr;
 
     private static final AtomicInteger THREAD_SEQ = new AtomicInteger();
 
@@ -56,15 +56,13 @@ public class IoSelectorManager {
         BIZ_THREAD_FACTORY = new EventHandleThreadFactory("e-biz-h");
     }
 
-    public IoSelectorManager(ServerChannelContext scc) {
-        this.server            = scc.getServer();
-        this.selectorProvider  = scc.getSelectorProvider();
-        this.dispatcherFactory = scc.getReadDispatcherFactory();
-        if (scc.getServer().getIoThreadCount() < 1) {
+    public IoSelectorManager(Server server, Server.Addr addr) {
+        this.server            = server;
+        this.addr              = addr;
+        this.selectorProvider  = server.getSelectorProvider();
+        this.dispatcherFactory = server.getReadDispatcherFactory();
+        if (server.getIoThreadCount() < 1) {
             ioThreadCount = SystemUtil.getCpuCount();
-        }
-        if (bizThreadCount < 1) {
-            bizThreadCount = 256;
         }
 
         ioWorkers = new IoWorker[ioThreadCount];
@@ -77,11 +75,11 @@ public class IoSelectorManager {
             DisruptorManager<BizEvent> disruptorManager;
             try {
                 disruptorManager   = createDisruptorManager();
-                readDispatcher     = dispatcherFactory.createReadDispatcher(scc.getServer(), disruptorManager);
+                readDispatcher     = dispatcherFactory.createReadDispatcher(server, disruptorManager);
                 info               = selectorProvider.openSelector(readDispatcher);
                 selector           = info.getSelector();
                 eventDispatcherSet = info.getEventDispatcherSet();
-                ioWorker.selector = selector;
+                ioWorker.selector  = selector;
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
@@ -102,8 +100,16 @@ public class IoSelectorManager {
             runningThread.setName("e-ioe-s-" + THREAD_SEQ.addAndGet(1));
             runningThread.setDaemon(true);
             ioWorker.ioThread = runningThread;
-            ioWorkers[i] = ioWorker;
+            ioWorkers[i]      = ioWorker;
         }
+    }
+
+    public int getClientCount() {
+        int total = 0;
+        for (int i=0;i<ioThreadCount;i++) {
+            total += ioWorkers[i].selector.keys().size();
+        }
+        return total;
     }
 
     private DisruptorManager<BizEvent> createDisruptorManager() {

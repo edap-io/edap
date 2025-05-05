@@ -18,13 +18,16 @@ package io.edap;
 
 import io.edap.log.Logger;
 import io.edap.log.LoggerManager;
+import io.edap.nio.AcceptDispatcherFactory;
+import io.edap.nio.IoSelectorManager;
+import io.edap.nio.ReadDispatcherFactory;
+import io.edap.nio.SelectorProvider;
+import io.edap.nio.enums.ThreadType;
 import io.edap.pool.Pool;
 import io.edap.pool.SimpleFastBufPool;
 import io.edap.util.StringUtil;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -68,13 +71,21 @@ public abstract class Server<T, S extends NioServerSession> {
      */
     private boolean nioSesionPooled;
 
+    private ThreadType threadType;
+
     private Pool<NioServerSession> nioSessionPool;
 
+    private SelectorProvider        selectorProvider;
+    private ReadDispatcherFactory   readDispatcherFactory;
+    private AcceptDispatcherFactory acceptDispatcherFactory;
+    private Map<Addr, IoSelectorManager> ioSelectorManagerMap;
+
     public Server() {
-        curClientCount = new AtomicInteger(0);
-        addrs = new ArrayList<>();
-        maxClientCount = 256000;
-        backLog = 1024;
+        addrs                = new ArrayList<>();
+        maxClientCount       = 256000;
+        backLog              = 1024;
+        curClientCount       = new AtomicInteger(0);
+        ioSelectorManagerMap = new HashMap<>();
         setBufPool(new SimpleFastBufPool());
     }
 
@@ -121,6 +132,18 @@ public abstract class Server<T, S extends NioServerSession> {
             }
         }
         return this;
+    }
+
+    public Map<Addr, IoSelectorManager> getIoSelectorManagerMap() {
+        return ioSelectorManagerMap;
+    }
+
+    public void setIoSelectorManagerMap(Map<Addr, IoSelectorManager> ioSelectorManagerMap) {
+        this.ioSelectorManagerMap.putAll(ioSelectorManagerMap);
+    }
+
+    public void addIoSelectorManager(Addr addr, IoSelectorManager ioSelectorManager) {
+        ioSelectorManagerMap.put(addr, ioSelectorManager);
     }
 
     /**
@@ -266,6 +289,42 @@ public abstract class Server<T, S extends NioServerSession> {
 
     public void setNioSessionPool(Pool<NioServerSession> nioSessionPool) {
         this.nioSessionPool = nioSessionPool;
+    }
+
+    public ThreadType getThreadType() {
+        return threadType;
+    }
+
+    public void setThreadType(ThreadType threadType) {
+        this.threadType = threadType;
+    }
+
+    public SelectorProvider getSelectorProvider() {
+        if (selectorProvider == null) {
+            throw new RuntimeException("Server havn't set SelectorProvider!");
+        }
+        return selectorProvider;
+    }
+
+    public void setSelectorProvider(SelectorProvider selectorProvider) {
+        this.selectorProvider = selectorProvider;
+    }
+
+    public ReadDispatcherFactory getReadDispatcherFactory() {
+        if (threadType == null) {
+            throw new RuntimeException("Server havn't set ThreadType!");
+        }
+        readDispatcherFactory = new ReadDispatcherFactory(threadType);
+        return readDispatcherFactory;
+    }
+
+    public AcceptDispatcherFactory getAcceptDispatcherFactor() {
+        if (threadType == null) {
+            throw new RuntimeException("Server havn't set ThreadType!");
+        }
+        acceptDispatcherFactory = new AcceptDispatcherFactory(threadType);
+
+        return acceptDispatcherFactory;
     }
 
     public static class Addr {

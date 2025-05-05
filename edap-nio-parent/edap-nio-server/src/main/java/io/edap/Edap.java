@@ -18,6 +18,7 @@ package io.edap;
 
 import io.edap.config.EdapConfig;
 import io.edap.nio.SelectorProvider;
+import io.edap.nio.enums.ThreadType;
 import io.edap.util.CollectionUtils;
 
 import java.io.IOException;
@@ -37,6 +38,10 @@ public class Edap {
 
     private static final List<SelectorProvider> SELECTOR_PROVIDERS = new CopyOnWriteArrayList<>();
 
+    private int monitIndex = 0;
+    private Map<String, Integer> monitorIndexs = new HashMap<>();
+    private ThreadType           threadType;
+
     public Edap() {
         serverGroups = new HashMap<>();
         init();
@@ -52,6 +57,16 @@ public class Edap {
             if (provider != null && !exits(provider)) {
                 SELECTOR_PROVIDERS.add(provider);
             }
+        }
+    }
+
+    public synchronized int getMonitorIndex(String key) {
+        Integer v = monitorIndexs.get(key);
+        if (v == null) {
+            monitorIndexs.put(key, monitIndex++);
+            return monitIndex;
+        } else {
+            return v;
         }
     }
 
@@ -128,6 +143,7 @@ public class Edap {
         if (CollectionUtils.isEmpty(serverGroups)) {
             return;
         }
+
         Runtime.getRuntime().addShutdownHook(shutdownThread(serverGroups));
         serverGroups.forEach((k, v) -> {
             System.out.println("ServerGroup [" + k + "] start");
@@ -137,6 +153,7 @@ public class Edap {
 
         //int read = System.in.read();
     }
+
 
     public EdapConfig getConfig() {
         return null;

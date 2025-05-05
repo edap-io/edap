@@ -127,6 +127,7 @@ public class ServerGroup {
         try {
             LOCK.lock();
             if (!servers.contains(server)) {
+                server.setServerGroup(this);
                 servers.add(server);
             }
         } finally {
@@ -144,6 +145,7 @@ public class ServerGroup {
             LOCK.lock();
             for (Server server : servers) {
                 if (!this.servers.contains(servers)) {
+                    server.setServerGroup(this);
                     this.servers.add(server);
                 }
             }
@@ -213,25 +215,35 @@ public class ServerGroup {
         for (Server s : servers) {
             s.init();
             s.setServerGroup(this);
-            ServerChannelContext scc = new ServerChannelContext();
+            s.setSelectorProvider(provider);
+            s.setThreadType(threadType);
             List<Server.Addr> addrs = s.getListenAddrs();
-            Acceptor acpt;
-            if (fAcceptor instanceof FastAcceptor) {
-                acpt = new FastAcceptor();
-            } else {
-                acpt = new NormalAcceptor();
+            Edap edap = getEdap();
+            for (Server.Addr addr : addrs) {
+                ServerChannelContext scc = new ServerChannelContext();
+                Acceptor acpt;
+                if (fAcceptor instanceof FastAcceptor) {
+                    acpt = new FastAcceptor();
+                } else {
+                    acpt = new NormalAcceptor();
+                }
+                scc.setServer(s);
+                scc.setSelectorProvider(provider);
+                scc.setAcceptDispatcherFactory(s.getAcceptDispatcherFactor());
+                scc.setReadDispatcherFactory(s.getReadDispatcherFactory());
+                IoSelectorManager ioSelectorManager = new IoSelectorManager(s, addr);
+                scc.setIoSelectorManager(ioSelectorManager);
+                s.addIoSelectorManager(addr, ioSelectorManager);
+                scc.setEdap(edap);
+                String key = s.getServerGroup().getName() + "->" + s.name() + "->" + addr;
+                scc.setMonitorIndex(edap.getMonitorIndex(key));
+
+                acpt.setServerChannelContext(scc);
+                acpt.listen(addr);
+
+                acceptors.add(acpt);
+                acpt.accept();
             }
-            scc.setServer(s);
-            scc.setSelectorProvider(provider);
-            scc.setAcceptDispatcherFactory(new AcceptDispatcherFactory(threadType));
-            scc.setReadDispatcherFactory(new ReadDispatcherFactory(threadType));
-            scc.setIoSelectorManager(new IoSelectorManager(scc));
-
-            acpt.setServerChannelContext(scc);
-            acpt.addAddrs(addrs);
-
-            acceptors.add(acpt);
-            acpt.accept();
         }
         LOG.info("{}",  l -> l.arg(providers));
     }

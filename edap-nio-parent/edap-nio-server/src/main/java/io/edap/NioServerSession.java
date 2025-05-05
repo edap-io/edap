@@ -52,6 +52,7 @@ public abstract class NioServerSession<T> extends NioSession {
     private Edap edap;
     private Decoder<T, ? extends NioServerSession> decoder;
     private BufPool bufPool;
+    private int monitorIndex;
 
     private static int INTERRUPTED = -3;
 
@@ -450,4 +451,11 @@ public abstract class NioServerSession<T> extends NioSession {
         this.theadTag = theadTag;
     }
 
+    public int getMonitorIndex() {
+        return monitorIndex;
+    }
+
+    public void setMonitorIndex(int monitorIndex) {
+        this.monitorIndex = monitorIndex;
+    }
 }

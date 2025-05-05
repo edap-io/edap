@@ -25,7 +25,7 @@ public class EventHandleThreadFactory implements ThreadFactory {
 
     private String threadName;
 
-    private static final Map<String, AtomicInteger> THREAD_SEQ_MAP = new ConcurrentHashMap<>();
+    private final Map<String, AtomicInteger> threadSeqMap = new ConcurrentHashMap<>();
 
     public EventHandleThreadFactory(String threadName) {
         this.threadName = threadName;
@@ -33,10 +33,10 @@ public class EventHandleThreadFactory implements ThreadFactory {
 
     @Override
     public Thread newThread(Runnable r) {
-        AtomicInteger threadSeq = THREAD_SEQ_MAP.get(threadName);
+        AtomicInteger threadSeq = threadSeqMap.get(threadName);
         if (threadSeq == null) {
             threadSeq = new AtomicInteger();
-            AtomicInteger oldSeq = THREAD_SEQ_MAP.putIfAbsent(threadName, threadSeq);
+            AtomicInteger oldSeq = threadSeqMap.putIfAbsent(threadName, threadSeq);
             if (oldSeq != null) {
                 threadSeq = oldSeq;
             }

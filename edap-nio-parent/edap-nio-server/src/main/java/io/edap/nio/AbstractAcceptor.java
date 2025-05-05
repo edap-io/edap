@@ -38,7 +38,7 @@ public abstract class AbstractAcceptor implements Acceptor {
 
     protected Server server;
 
-    protected List<Server.Addr> addrs;
+    protected Server.Addr addr;
 
     protected SelectorProvider selectorProvider;
 
@@ -55,18 +55,11 @@ public abstract class AbstractAcceptor implements Acceptor {
     }
 
     @Override
-    public void addAddrs(List<Server.Addr> addrs) {
-        if (CollectionUtils.isEmpty(addrs)) {
-            return;
+    public void listen(Server.Addr addr) {
+        if (addr == null) {
+            throw new RuntimeException("Accptor havn't set listen Addr");
         }
-        if (this.addrs == null) {
-            this.addrs = new ArrayList<>();
-        }
-        for (Server.Addr addr : addrs) {
-            if (!this.addrs.contains(addr)) {
-                this.addrs.add(addr);
-            }
-        }
+        this.addr = addr;
     }
 
 
@@ -112,15 +105,8 @@ public abstract class AbstractAcceptor implements Acceptor {
     public String toString() {
         StringBuilder id = new StringBuilder();
         id.append(server.name()).append("::");
-        if (!CollectionUtils.isEmpty(addrs)) {
-            int i = 0;
-            for (Server.Addr addr : addrs) {
-                if (i > 0) {
-                    id.append("/");
-                }
-                id.append(addr.host).append(':').append(addr.port);
-                i++;
-            }
+        if (addr != null) {
+            id.append(addr.host).append(':').append(addr.port);
         }
 
         return id.toString();

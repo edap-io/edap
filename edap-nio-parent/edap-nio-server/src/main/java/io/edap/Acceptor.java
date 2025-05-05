@@ -45,7 +45,7 @@ public interface Acceptor {
     /**
      * 添加监听的列表
      */
-    void addAddrs(List<Server.Addr> addrs);
+    void listen(Server.Addr addr);
 
     void stop();
 }

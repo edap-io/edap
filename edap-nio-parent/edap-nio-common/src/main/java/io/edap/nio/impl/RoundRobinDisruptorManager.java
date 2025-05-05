@@ -60,6 +60,9 @@ public class RoundRobinDisruptorManager<E> implements DisruptorManager<E> {
         int             _queueCount  = queueCount;
         RingBuffer<E>[] _ringBuffers = ringBuffers;
 
+        if (_seq == _queueCount) {
+            _seq = 0;
+        }
         boolean isPublished = _ringBuffers[_seq++].tryPublishEvent(translator);
         if (isPublished) {
             this.seq = _seq;

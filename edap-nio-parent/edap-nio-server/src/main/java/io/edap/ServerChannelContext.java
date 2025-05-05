@@ -29,10 +29,12 @@ import io.edap.nio.SelectorProvider;
  */
 public class ServerChannelContext {
 
+    private Edap                    edap;
     private Server                  server;
-    private IoSelectorManager ioSelectorManager;
-    private ReadDispatcherFactory readDispatcherFactory;
-    private SelectorProvider selectorProvider;
+    private int                     monitorIndex;
+    private IoSelectorManager       ioSelectorManager;
+    private ReadDispatcherFactory   readDispatcherFactory;
+    private SelectorProvider        selectorProvider;
     private AcceptDispatcherFactory acceptDispatcherFactory;
 
     public Server getServer() {
@@ -73,6 +75,22 @@ public class ServerChannelContext {
 
     public void setReadDispatcherFactory(ReadDispatcherFactory readDispatcherFactory) {
         this.readDispatcherFactory = readDispatcherFactory;
+    }
+
+    public Edap getEdap() {
+        return edap;
+    }
+
+    public void setEdap(Edap edap) {
+        this.edap = edap;
+    }
+
+    public int getMonitorIndex() {
+        return monitorIndex;
+    }
+
+    public void setMonitorIndex(int monitorIndex) {
+        this.monitorIndex = monitorIndex;
     }
 }
 

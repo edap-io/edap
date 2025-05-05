@@ -35,9 +35,9 @@ public class AcceptEventHandler implements EventHandler<AcceptEvent> {
 
     static Logger LOG = LoggerManager.getLogger(AcceptEventHandler.class);
 
-    private Server                 server;
-    private boolean                nioSessionPooled;
-    private Pool<NioServerSession> nioSessionPool;
+    private Server                    server;
+    private boolean                   nioSessionPooled;
+    private Pool<NioServerSession<?>> nioSessionPool;
 
     public AcceptEventHandler(Server server) {
         this.server = server;
@@ -69,7 +69,7 @@ public class AcceptEventHandler implements EventHandler<AcceptEvent> {
         ServerChannelContext scc = event.getServerChannelCtx();
         SocketChannel sc = event.getChannel();
         sc.configureBlocking(false);
-        NioServerSession nioSession;
+        NioServerSession<?> nioSession;
         if (nioSessionPooled) {
             nioSession = nioSessionPool.borrow();
             if (nioSession == null) {
@@ -80,6 +80,9 @@ public class AcceptEventHandler implements EventHandler<AcceptEvent> {
         }
         nioSession.setSocketChannel(sc);
         nioSession.setChannelFd(NioServerSession.getValue(sc, "fd"));
+        nioSession.setEdap(scc.getEdap());
+        nioSession.setMonitorIndex(scc.getMonitorIndex());
+
         scc.getIoSelectorManager().registerNioSession(nioSession);
     }
 }
