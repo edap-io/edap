@@ -34,7 +34,7 @@ public class TelnetDecoder implements Decoder<TelnetRequest, TelnetServerNioSess
     public ParseResult<TelnetRequest> decode(FastBuf bufIn, TelnetServerNioSession nioSession) {
         ParseResult<TelnetRequest> result = new ParseResult<>();
         FastBuf _buf   = bufIn;
-        int     remain = (int)(_buf.wpos() - _buf.rpos());
+        int     remain = _buf.remain();
         long    pos    = _buf.rpos();
         BytesBuilder bytes = new BytesBuilder();
         if (remain > 0) {
@@ -99,14 +99,18 @@ public class TelnetDecoder implements Decoder<TelnetRequest, TelnetServerNioSess
         int index = argStr.indexOf(' ', start);
         while (index != -1) {
             args.add(argStr.substring(start, index));
-            start = index;
-            while (argStr.charAt(start) == ' ') {
-                start++;
+            start = index + 1;
+            for (;start<argStr.length();start++) {
+                char c = argStr.charAt(start);
+                if (c != ' ' && c != '\r' && c != '\t') {
+                    break;
+                }
             }
             index = argStr.indexOf(' ', start);
         }
-        args.add(argStr.substring(start));
-
+        if (start < argStr.length()) {
+            args.add(argStr.substring(start));
+        }
         return args.toArray(new String[0]);
     }
 
