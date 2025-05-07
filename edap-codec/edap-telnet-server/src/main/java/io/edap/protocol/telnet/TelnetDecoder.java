@@ -20,7 +20,6 @@ import io.edap.Decoder;
 import io.edap.buffer.FastBuf;
 import io.edap.nio.ParseResult;
 import io.edap.nio.util.BytesBuilder;
-import io.edap.util.FastList;
 import io.edap.util.StringUtil;
 
 import java.nio.charset.StandardCharsets;
@@ -37,7 +36,6 @@ public class TelnetDecoder implements Decoder<TelnetRequest, TelnetServerNioSess
         FastBuf _buf   = bufIn;
         int     remain = (int)(_buf.wpos() - _buf.rpos());
         long    pos    = _buf.rpos();
-        List<TelnetRequest> reqs = new FastList<>();
         BytesBuilder bytes = new BytesBuilder();
         if (remain > 0) {
             byte b = _buf.get(pos);
@@ -55,9 +53,8 @@ public class TelnetDecoder implements Decoder<TelnetRequest, TelnetServerNioSess
                     iacCommand.setIac(parseIacCommand(_buf.get(pos++)));
                     iacCommand.setOption(_buf.get(pos++) & 0xFF);
 
-                    reqs.add(iacCommand);
                     result.setFinished(true);
-                    result.setMessages(reqs);
+                    result.setMessage(iacCommand);
                 }
             } else {
                 for (int i=0;i<remain;i++) {
@@ -75,8 +72,7 @@ public class TelnetDecoder implements Decoder<TelnetRequest, TelnetServerNioSess
                                 command.setCommand(commandLine.substring(0, spaceIndex));
                                 command.setArgs(parseArgs(commandLine.substring(spaceIndex + 1)));
                             }
-                            reqs.add(command);
-                            result.setMessages(reqs);
+                            result.setMessage(command);
                             result.setFinished(true);
                             return result;
                         } else {

@@ -72,6 +72,9 @@ public class ClientTotalHandler implements ShellCmdHandler {
                     row.getAndSet(0);
                     result.append('\n').append(header);
                 }
+                result.append("\033[2J");   // 刷屏
+                result.append("\033[1;1H"); // 移动光标
+                result.append(header);
                 result.append(sepStr);
                 row.getAndSet(row.get() + 1);
                 for (Map.Entry<String, ServerGroup> entry : sgs.entrySet()) {
