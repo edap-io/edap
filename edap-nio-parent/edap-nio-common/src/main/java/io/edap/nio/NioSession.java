@@ -8,7 +8,7 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.nio.channels.SocketChannel;
 
-public abstract class NioSession {
+public abstract class NioSession implements AffinityThread {
 
     /**
      * 最后读取到数据的时间
@@ -29,7 +29,12 @@ public abstract class NioSession {
     /**
      * 已经在处理该连接的线程标记，如果分配线程可以指定线程则将该连接分配到指定线程进行处理
      */
-    private String theadTag;
+    private int threadIndex;
+    /**
+     * 该会话最新的分配序号，方便处理完成后确认是否是队列中最后一个请求
+     */
+    private volatile long lastSequence;
+    private boolean affinityThread;
 
     private static final MethodHandle READ0_MH;
     private static final MethodHandle WRITE0_MH;
@@ -88,5 +93,33 @@ public abstract class NioSession {
 
     public static void setAccessible(AccessibleObject h) {
         h.setAccessible(true);
+    }
+
+    /**
+     * 已经在处理该连接的线程标记，如果分配线程可以指定线程则将该连接分配到指定线程进行处理
+     */
+    public int getThreadIndex() {
+        return threadIndex;
+    }
+
+    public void setThreadIndex(int theadIndex) {
+        this.threadIndex = theadIndex;
+    }
+
+    public long getLastSequence() {
+        return lastSequence;
+    }
+
+    @Override
+    public synchronized void setLastSequence(long lastSequence) {
+        this.lastSequence = lastSequence;
+    }
+
+    public boolean isAffinityThread() {
+        return affinityThread;
+    }
+
+    public void setAffinityThread(boolean affinityThread) {
+        this.affinityThread = affinityThread;
     }
 }

@@ -28,5 +28,5 @@ public interface DisruptorManager<E> {
      * @param translator 事件转换器
      * @return 事件是否发送成功
      */
-    boolean publishEvent(EventTranslator<E> translator);
+    boolean publishEvent(AffinityThread affinityThread, EventTranslator<E> translator);
 }

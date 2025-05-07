@@ -14,7 +14,7 @@ public class ParseResult<T> {
     /**
      * 解析出的消息体列表
      */
-    private List<T> messages;
+    private T message;
 
     private int code;
     private String error;
@@ -27,12 +27,12 @@ public class ParseResult<T> {
         this.finished = finished;
     }
 
-    public List<T> getMessages() {
-        return messages;
+    public T getMessage() {
+        return message;
     }
 
-    public void setMessages(List<T> messages) {
-        this.messages = messages;
+    public void setMessage(T message) {
+        this.message = message;
     }
 
     public int getCode() {

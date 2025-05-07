@@ -19,7 +19,9 @@ package io.edap.nio.impl;
 import com.lmax.disruptor.*;
 import com.lmax.disruptor.dsl.Disruptor;
 import com.lmax.disruptor.dsl.ProducerType;
+import io.edap.nio.AffinityThread;
 import io.edap.nio.DisruptorManager;
+import io.edap.nio.NioSession;
 
 import java.util.concurrent.ThreadFactory;
 
@@ -55,7 +57,15 @@ public class RoundRobinDisruptorManager<E> implements DisruptorManager<E> {
      * @return 成功发布返回true否则返回false
      */
     @Override
-    public boolean publishEvent(EventTranslator<E> translator) {
+    public boolean publishEvent(AffinityThread affinityThread, EventTranslator<E> translator) {
+        if (affinityThread != null && affinityThread.isAffinityThread()) {
+            return affinityThreadPublish(affinityThread, translator);
+        } else {
+            return normalPublish(translator);
+        }
+    }
+
+    private boolean normalPublish(EventTranslator<E> translator) {
         int             _seq         = seq;
         int             _queueCount  = queueCount;
         RingBuffer<E>[] _ringBuffers = ringBuffers;
@@ -81,6 +91,57 @@ public class RoundRobinDisruptorManager<E> implements DisruptorManager<E> {
             }
         }
         this.seq = _seq;
+        return false;
+    }
+
+    private boolean affinityThreadPublish(AffinityThread affinityThread, EventTranslator<E> translator) {
+        int             _seq;
+        int             _queueCount  = queueCount;
+        RingBuffer<E>[] _ringBuffers = ringBuffers;
+        if (affinityThread.getThreadIndex() >= 0) {
+            _seq = affinityThread.getThreadIndex();
+            try {
+                _ringBuffers[_seq].publishEvent(translator);
+                return true;
+            } catch (Throwable e) {
+                return false;
+            }
+        } else {
+            _seq = seq;
+        }
+
+        boolean isPublished = _ringBuffers[_seq].tryPublishEvent(translator);
+        if (isPublished) {
+            affinityThread.setThreadIndex(_seq);
+            _seq++;
+            if (_seq >= _queueCount) {
+                this.seq = 0;
+            } else {
+                this.seq = _seq;
+            }
+            return isPublished;
+        }
+        for (int i=1;i<_queueCount;i++) {
+            isPublished = _ringBuffers[_seq].tryPublishEvent(translator);
+            if (isPublished) {
+                affinityThread.setThreadIndex(_seq);
+                _seq++;
+                if (_seq >= _queueCount) {
+                    this.seq = 0;
+                } else {
+                    this.seq = _seq;
+                }
+
+                return true;
+            } else {
+                _seq++;
+            }
+        }
+        if (_seq >= _queueCount) {
+            this.seq = 0;
+        } else {
+            this.seq = _seq;
+        }
         return false;
     }
 }
