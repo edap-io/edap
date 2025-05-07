@@ -65,15 +65,17 @@ public class DisruptorReadDispatcher implements ReadDispatcher {
         if (buf == null) {
             buf = new FastBuf(4096);
         }
-        ParseResult pr;
         try {
             buf.reset();
             int len = nioSession.fastRead(buf);
             if (len < 0) {
                 closeChannel(readKey, nioSession);
             } else {
-                pr = decoder.decode(buf, nioSession);
-                if (pr.isFinished()) {
+                while (buf.remain() > 0) {
+                    ParseResult pr = decoder.decode(buf, nioSession);
+                    if (!pr.isFinished()) {
+                        break;
+                    }
                     boolean published;
                     if (nioSession.isAffinityThread()) {
                         published = disruptorManager.publishEvent(nioSession, (event, sequence) -> {
