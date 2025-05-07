@@ -37,13 +37,17 @@ public class BizEventHandler implements EventHandler<BizEvent>  {
 
     @Override
     public void onEvent(BizEvent event, long sequence, boolean endOfBatch) throws Exception {
-        ParseResult pr = event.getBizData();
-        LOG.trace("event bizData: {}", l -> l.arg(pr.getMessages().size()));
-        List<Object> objs = pr.getMessages();
-        if (!CollectionUtils.isEmpty(objs)) {
-            NioServerSession nioSession = event.getNioSession();
-            for (int i=0;i<objs.size();i++) {
-                nioSession.handle(objs.get(i));
+        NioServerSession nioSession = event.getNioSession();
+        try {
+            ParseResult pr = event.getBizData();
+            LOG.trace("event bizData: {}", l -> l.arg(pr.getMessage()));
+            Object obj = pr.getMessage();
+            if (obj != null) {
+                nioSession.handle(obj);
+            }
+        } finally {
+            if (nioSession.isAffinityThread() && sequence == nioSession.getLastSequence()) {
+                nioSession.setThreadIndex(-1);
             }
         }
     }

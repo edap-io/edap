@@ -99,25 +99,13 @@ public class HttpDecoder extends AbstractHttpDecoder implements Decoder<HttpRequ
         }
         request.reset();
         Result res = parseHttpRequest(buf, state, dataRange, request, httpNioSession);
-        List<HttpRequest> reqs = httpNioSession.getReqeustList();
-        reqs.clear();
-        while (res.finish) {
-            reqs.add(request);
-            if (buf.remain() > 0) {
-                request = requests.get(index++);
-                request.reset();
-                state = State.SKIP_CONTROL_CHARS;
-                res = parseHttpRequest(buf, state, dataRange, request, httpNioSession);
-            } else {
-                break;
-            }
-        }
-        if (!CollectionUtils.isEmpty(reqs)) {
-            result.setMessages(reqs);
+        if (res.finish) {
+            result.setMessage(request);
             result.setFinished(true);
         } else {
             result.setFinished(false);
         }
+
         return result;
     }
 

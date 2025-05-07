@@ -40,7 +40,6 @@ public class Edap {
 
     private int monitIndex = 0;
     private Map<String, Integer> monitorIndexs = new HashMap<>();
-    private ThreadType           threadType;
 
     public Edap() {
         serverGroups = new HashMap<>();

@@ -47,7 +47,7 @@ public class DisruptorAcceptDispatcher implements AcceptDispatcher {
         SocketChannel clientChan;
         try {
             clientChan = ((ServerSocketChannel)acceptKey.channel()).accept();
-            boolean published = disruptorManager.publishEvent((event, sequence)
+            boolean published = disruptorManager.publishEvent(null, (event, sequence)
                     -> event.setChannel(clientChan)
                     .setServerChannelCtx((ServerChannelContext) acceptKey.attachment()));
             LOG.debug("published {}", l-> l.arg(published));

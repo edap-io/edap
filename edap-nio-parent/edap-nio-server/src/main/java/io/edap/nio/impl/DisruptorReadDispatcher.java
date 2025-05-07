@@ -74,11 +74,21 @@ public class DisruptorReadDispatcher implements ReadDispatcher {
             } else {
                 pr = decoder.decode(buf, nioSession);
                 if (pr.isFinished()) {
-                    boolean published = disruptorManager.publishEvent((event, sequence) -> {
-                                event.setNioSession(nioSession);
-                                event.setServerChannelContext(nioSession.getServerChannelContext());
-                                event.setBizData(pr);
-                            });
+                    boolean published;
+                    if (nioSession.isAffinityThread()) {
+                        published = disruptorManager.publishEvent(nioSession, (event, sequence) -> {
+                            event.setNioSession(nioSession);
+                            event.setServerChannelContext(nioSession.getServerChannelContext());
+                            event.setBizData(pr);
+                            nioSession.setLastSequence(sequence);
+                        });
+                    } else {
+                        published = disruptorManager.publishEvent(null, (event, sequence) -> {
+                            event.setNioSession(nioSession);
+                            event.setServerChannelContext(nioSession.getServerChannelContext());
+                            event.setBizData(pr);
+                        });
+                    }
                     LOG.trace("DisruptorManager published {}", l-> l.arg(published));
                 }
             }
