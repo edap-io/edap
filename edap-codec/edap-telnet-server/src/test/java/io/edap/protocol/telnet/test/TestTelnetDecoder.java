@@ -16,19 +16,76 @@
 
 package io.edap.protocol.telnet.test;
 
+import io.edap.buffer.FastBuf;
+import io.edap.nio.ParseResult;
 import io.edap.nio.util.BytesBuilder;
-import io.edap.protocol.telnet.IAC;
-import io.edap.protocol.telnet.IACCommand;
-import io.edap.protocol.telnet.TelnetDecoder;
+import io.edap.protocol.telnet.*;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 
+import static io.edap.protocol.telnet.consts.IacConsts.*;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class TestTelnetDecoder {
+
+    @Test
+    public void testDecode() {
+        TelnetDecoder decoder = new TelnetDecoder();
+        TelnetServerNioSession nioSession = new TelnetServerNioSession();
+        FastBuf buf = new FastBuf(4096);
+        buf.write(new byte[]{(byte)IAC_VAL, (byte)IP_VAL, (byte)IAC_VAL, (byte)DO_VAL, (byte)6}, 0, 5);
+        ParseResult<TelnetRequest> result = decoder.decode(buf, nioSession);
+        assertNotNull(result);
+        assertTrue(result.isFinished());
+        assertTrue(result.getMessage() instanceof IACCommand);
+        assertEquals(IAC.IP, ((IACCommand) result.getMessage()).getCommand());
+        assertEquals(IAC.DO, ((IACCommand) result.getMessage()).getIac());
+        assertEquals(6, ((IACCommand) result.getMessage()).getOption());
+
+        RuntimeException thrown = assertThrows(RuntimeException.class,
+                () -> {
+                    buf.reset();
+                    buf.write(new byte[]{(byte)IAC_VAL, (byte)IP_VAL, (byte)239, (byte)243, (byte)6}, 0, 5);
+                    decoder.decode(buf, nioSession);
+                });
+        assertTrue(thrown.getMessage().contains("Illegal IAC Commands"));
+
+        buf.reset();
+        byte[] command = "ll -t\n".getBytes();
+        buf.write(command, 0, command.length);
+        result = decoder.decode(buf, nioSession);
+        assertNotNull(result);
+        assertTrue(result.isFinished());
+        assertTrue(result.getMessage() instanceof ShellCommand);
+        ShellCommand shellCommand = (ShellCommand) result.getMessage();
+        assertNotNull(shellCommand);
+        assertEquals("ll", shellCommand.getCommand());
+        assertArrayEquals(new String[]{"-t"}, shellCommand.getArgs());
+
+        command = "ll -t \\ \n -h\n".getBytes();
+        buf.write(command, 0, command.length);
+        result = decoder.decode(buf, nioSession);
+        assertNotNull(result);
+        assertTrue(result.isFinished());
+        assertTrue(result.getMessage() instanceof ShellCommand);
+        shellCommand = (ShellCommand) result.getMessage();
+        assertNotNull(shellCommand);
+        assertEquals("ll", shellCommand.getCommand());
+        assertArrayEquals(new String[]{"-t", "-h"}, shellCommand.getArgs());
+
+        command = "ll\n".getBytes();
+        buf.write(command, 0, command.length);
+        result = decoder.decode(buf, nioSession);
+        assertNotNull(result);
+        assertTrue(result.isFinished());
+        assertTrue(result.getMessage() instanceof ShellCommand);
+        shellCommand = (ShellCommand) result.getMessage();
+        assertNotNull(shellCommand);
+        assertEquals("ll", shellCommand.getCommand());
+    }
 
     @Test
     public void testLastIndexOfBackslash() throws NoSuchMethodException, InvocationTargetException, IllegalAccessException {

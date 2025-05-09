@@ -47,9 +47,6 @@ public class TelnetDecoder implements Decoder<TelnetRequest, TelnetServerNioSess
                     iacCommand = new IACCommand();
                     iacCommand.setCommand(iac);
                     iac = parseIacCommand(_buf.get(pos++));
-                    if (iac != IAC.IAC) {
-                        throw new RuntimeException("Illegal IAC Commands " + iac);
-                    }
                     iacCommand.setIac(parseIacCommand(_buf.get(pos++)));
                     iacCommand.setOption(_buf.get(pos++) & 0xFF);
 

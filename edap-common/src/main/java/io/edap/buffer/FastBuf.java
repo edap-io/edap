@@ -155,6 +155,10 @@ public class FastBuf extends BasePoolEntry {
         UnsafeUtil.writeByte(address, b1);
     }
 
+    public int write(byte[] bs) {
+        return write(bs, 0, bs.length);
+    }
+
     public int write(byte[] bs, int offset, int len) {
         int remain = (int)(endAddress - writePos);
         if (len > remain) {
@@ -183,7 +187,7 @@ public class FastBuf extends BasePoolEntry {
     }
 
     public int remain() {
-        return (int)(endAddress - readPos);
+        return (int)(writePos - readPos);
     }
 
     public FastBuf wpos(long wpos) {
