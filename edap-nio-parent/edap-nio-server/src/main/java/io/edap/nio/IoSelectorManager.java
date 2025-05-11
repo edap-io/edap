@@ -52,6 +52,8 @@ public class IoSelectorManager {
 
     public static final EventHandleThreadFactory BIZ_THREAD_FACTORY;
 
+    private long seq = 0;
+
     static {
         BIZ_THREAD_FACTORY = new EventHandleThreadFactory("e-biz-h");
     }
@@ -121,9 +123,10 @@ public class IoSelectorManager {
         return manager;
     }
 
-    public void registerNioSession(NioServerSession nioSession) {
+    public synchronized void registerNioSession(NioServerSession nioSession) {
         LOG.debug("registerNioSession {}", l -> l.arg(nioSession));
         SelectionKey key;
+        LOG.info("seq=" + seq++);
         try {
             IoWorker ioWorker = ioWorkers[ioWorkerIndex++];
             if (ioWorkerIndex == ioWorkers.length) {

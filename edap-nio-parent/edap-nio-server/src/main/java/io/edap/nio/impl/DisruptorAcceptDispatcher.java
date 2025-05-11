@@ -35,6 +35,7 @@ public class DisruptorAcceptDispatcher implements AcceptDispatcher {
 
     private DisruptorManager<AcceptEvent> disruptorManager;
     private Server                        server;
+    private int seq = 0;
 
     public DisruptorAcceptDispatcher(Server server, DisruptorManager<AcceptEvent> disruptorManager) {
         this.server           = server;
@@ -47,10 +48,13 @@ public class DisruptorAcceptDispatcher implements AcceptDispatcher {
         SocketChannel clientChan;
         try {
             clientChan = ((ServerSocketChannel)acceptKey.channel()).accept();
+            LOG.info("seq {}", l -> l.arg(seq));
+
             boolean published = disruptorManager.publishEvent(null, (event, sequence)
                     -> event.setChannel(clientChan)
                     .setServerChannelCtx((ServerChannelContext) acceptKey.attachment()));
-            LOG.debug("published {}", l-> l.arg(published));
+            LOG.debug("seq{} published {}", l-> l.arg(seq).arg(published));
+            seq++;
         } catch (IOException e) {
             LOG.warn("accept error", e);
         }

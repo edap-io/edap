@@ -73,25 +73,27 @@ public class RoundRobinDisruptorManager<E> implements DisruptorManager<E> {
         if (_seq == _queueCount) {
             _seq = 0;
         }
-        boolean isPublished = _ringBuffers[_seq++].tryPublishEvent(translator);
-        if (isPublished) {
-            this.seq = _seq;
-            return isPublished;
-        }
-        for (int i=1;i<_queueCount;i++) {
-            isPublished = _ringBuffers[_seq].tryPublishEvent(translator);
-            if (_seq == _queueCount - 1) {
-                _seq = 0;
-            } else {
-                _seq++;
-            }
-            if (isPublished) {
-                this.seq = _seq;
-                return true;
-            }
-        }
+        _ringBuffers[_seq++].publishEvent(translator);
         this.seq = _seq;
-        return false;
+//        boolean isPublished = _ringBuffers[_seq++].tryPublishEvent(translator);
+//        if (isPublished) {
+//            this.seq = _seq;
+//            return isPublished;
+//        }
+//        for (int i=1;i<_queueCount;i++) {
+//            isPublished = _ringBuffers[_seq].tryPublishEvent(translator);
+//            if (_seq == _queueCount - 1) {
+//                _seq = 0;
+//            } else {
+//                _seq++;
+//            }
+//            if (isPublished) {
+//                this.seq = _seq;
+//                return true;
+//            }
+//        }
+//        this.seq = _seq;
+        return true;
     }
 
     private boolean affinityThreadPublish(AffinityThread affinityThread, EventTranslator<E> translator) {
@@ -106,42 +108,41 @@ public class RoundRobinDisruptorManager<E> implements DisruptorManager<E> {
             } catch (Throwable e) {
                 return false;
             }
-        } else {
-            _seq = seq;
         }
+        _ringBuffers[seq++].publishEvent(translator);
 
-        boolean isPublished = _ringBuffers[_seq].tryPublishEvent(translator);
-        if (isPublished) {
-            affinityThread.setThreadIndex(_seq);
-            _seq++;
-            if (_seq >= _queueCount) {
-                this.seq = 0;
-            } else {
-                this.seq = _seq;
-            }
-            return isPublished;
-        }
-        for (int i=1;i<_queueCount;i++) {
-            isPublished = _ringBuffers[_seq].tryPublishEvent(translator);
-            if (isPublished) {
-                affinityThread.setThreadIndex(_seq);
-                _seq++;
-                if (_seq >= _queueCount) {
-                    this.seq = 0;
-                } else {
-                    this.seq = _seq;
-                }
-
-                return true;
-            } else {
-                _seq++;
-            }
-        }
-        if (_seq >= _queueCount) {
-            this.seq = 0;
-        } else {
-            this.seq = _seq;
-        }
-        return false;
+//        boolean isPublished = _ringBuffers[_seq].tryPublishEvent(translator);
+//        if (isPublished) {
+//            affinityThread.setThreadIndex(_seq);
+//            _seq++;
+//            if (_seq >= _queueCount) {
+//                this.seq = 0;
+//            } else {
+//                this.seq = _seq;
+//            }
+//            return isPublished;
+//        }
+//        for (int i=1;i<_queueCount;i++) {
+//            isPublished = _ringBuffers[_seq].tryPublishEvent(translator);
+//            if (isPublished) {
+//                affinityThread.setThreadIndex(_seq);
+//                _seq++;
+//                if (_seq >= _queueCount) {
+//                    this.seq = 0;
+//                } else {
+//                    this.seq = _seq;
+//                }
+//
+//                return true;
+//            } else {
+//                _seq++;
+//            }
+//        }
+//        if (_seq >= _queueCount) {
+//            this.seq = 0;
+//        } else {
+//            this.seq = _seq;
+//        }
+        return true;
     }
 }

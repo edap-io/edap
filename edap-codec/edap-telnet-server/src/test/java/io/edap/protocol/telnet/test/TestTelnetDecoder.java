@@ -194,4 +194,10 @@ public class TestTelnetDecoder {
         iac = (IAC) method.invoke(decoder, (byte)255);
         assertEquals(IAC.IAC, iac);
     }
+
+    @Test
+    public void testReset() {
+        TelnetDecoder decoder = new TelnetDecoder();
+        decoder.reset();
+    }
 }

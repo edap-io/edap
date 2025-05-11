@@ -33,6 +33,7 @@ public class TelnetServer extends Server {
     private ScheduledExecutorService scheduledExecutorService = Executors.newScheduledThreadPool(5);
 
     private Map<String, ShellCmdHandler> shellCmdHandlerMap = new ConcurrentHashMap<>();
+    private Object attachment;
 
     public TelnetServer() {
         setDecoder(DECODER);
@@ -72,4 +73,11 @@ public class TelnetServer extends Server {
         return shellCmdHandlerMap;
     }
 
+    public Object getAttachment() {
+        return attachment;
+    }
+
+    public void setAttachment(Object attachment) {
+        this.attachment = attachment;
+    }
 }
