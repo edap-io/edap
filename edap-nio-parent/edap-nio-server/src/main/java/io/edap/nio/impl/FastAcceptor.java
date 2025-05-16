@@ -69,7 +69,7 @@ public class FastAcceptor extends AbstractAcceptor {
                 while (running) {
                     try {
                         eventDispatcherSet.reset();
-                        int count = selector.select();
+                        int count = selector.select(500);
                         if (count > 0) {
                             LOG.info("selector.select() count: {}", l -> l.arg(count));
                         }

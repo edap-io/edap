@@ -34,7 +34,7 @@ import static io.edap.nio.util.DisruptorUtils.buildDisruptor;
 public class RoundRobinDisruptorManager<E> implements DisruptorManager<E> {
 
     private RingBuffer<E>[] ringBuffers;
-    private int             queueSize    = 64;
+    private int             queueSize    = 2048;
     private int             queueCount;
     private int             seq;
 
@@ -73,8 +73,14 @@ public class RoundRobinDisruptorManager<E> implements DisruptorManager<E> {
         if (_seq == _queueCount) {
             _seq = 0;
         }
-        _ringBuffers[_seq++].publishEvent(translator);
-        this.seq = _seq;
+        try {
+            _ringBuffers[_seq++].publishEvent(translator);
+
+            this.seq = _seq;
+        } catch (Throwable e) {
+            e.printStackTrace();
+            return false;
+        }
 //        boolean isPublished = _ringBuffers[_seq++].tryPublishEvent(translator);
 //        if (isPublished) {
 //            this.seq = _seq;
@@ -106,6 +112,7 @@ public class RoundRobinDisruptorManager<E> implements DisruptorManager<E> {
                 _ringBuffers[_seq].publishEvent(translator);
                 return true;
             } catch (Throwable e) {
+                e.printStackTrace();
                 return false;
             }
         }

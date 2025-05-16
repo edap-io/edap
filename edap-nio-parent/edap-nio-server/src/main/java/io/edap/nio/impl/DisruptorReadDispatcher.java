@@ -95,6 +95,7 @@ public class DisruptorReadDispatcher implements ReadDispatcher {
                 }
             }
         } catch (IOException e) {
+            closeChannel(readKey, nioSession);
             LOG.warn("channel {} read error ", l -> l.arg(getRemoteAddress(readKey.channel())).arg(e));
         } finally {
             if (buf != null) {
@@ -108,8 +109,8 @@ public class DisruptorReadDispatcher implements ReadDispatcher {
         try {
             String remoteAddr = channel.getRemoteAddress().toString();
             readKey.cancel();
-            readKey.channel().close();
-            LOG.trace("channel {} closed", l -> l.arg(remoteAddr));
+            channel.close();
+            LOG.info("channel {} closed", l -> l.arg(remoteAddr));
         } catch (IOException e) {
             LOG.warn("channel {} close error", l -> l.arg(channel).threw(e));
         } finally {

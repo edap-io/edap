@@ -92,7 +92,7 @@ public abstract class AbstractAcceptor implements Acceptor {
             }
             ssc.configureBlocking(false);
             ssc.socket().setReceiveBufferSize(16 * 1024);
-            ssc.bind(address, Math.max(addr.server.getBackLog(), 10));
+            ssc.bind(address, Math.max(addr.server.getBackLog(), 1024));
 
             LOG.info("serverGroup {} listen:{}", l -> l.arg(serverGroup.getName()).arg(addr));
             return ssc;
