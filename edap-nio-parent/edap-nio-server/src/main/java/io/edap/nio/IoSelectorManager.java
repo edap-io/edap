@@ -66,7 +66,6 @@ public class IoSelectorManager {
         if (server.getIoThreadCount() < 1) {
             ioThreadCount = SystemUtil.getCpuCount();
         }
-        ioThreadCount = 2;
 
         ioWorkers = new IoWorker[ioThreadCount];
         for (int i=0;i<ioThreadCount;i++) {
@@ -90,7 +89,7 @@ public class IoSelectorManager {
                     while (ioWorker.running) {
                         try {
                             eventDispatcherSet.reset();
-                            int count = selector.select(500);
+                            int count = selector.select(50);
                             if (count > 0) {
                                 LOG.info("selector.select() count: {}", l -> l.arg(count));
                             }

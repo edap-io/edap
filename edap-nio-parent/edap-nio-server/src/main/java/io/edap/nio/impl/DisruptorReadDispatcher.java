@@ -30,6 +30,7 @@ import io.edap.pool.Pool;
 import io.edap.pool.impl.ThreadLocalPool;
 
 import java.io.IOException;
+import java.net.SocketAddress;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.SocketChannel;
 
@@ -107,10 +108,14 @@ public class DisruptorReadDispatcher implements ReadDispatcher {
     private void closeChannel(SelectionKey readKey, NioServerSession nioSession) {
         SocketChannel channel = (SocketChannel)readKey.channel();
         try {
-            String remoteAddr = channel.getRemoteAddress().toString();
+            SocketAddress remoteAddr = channel.getRemoteAddress();
             readKey.cancel();
             channel.close();
-            LOG.info("channel {} closed", l -> l.arg(remoteAddr));
+            if (remoteAddr != null) {
+                LOG.info("channel {} closed", l -> l.arg(remoteAddr));
+            } else {
+                LOG.info("channel {} closed", l -> l.arg(channel));
+            }
         } catch (IOException e) {
             LOG.warn("channel {} close error", l -> l.arg(channel).threw(e));
         } finally {

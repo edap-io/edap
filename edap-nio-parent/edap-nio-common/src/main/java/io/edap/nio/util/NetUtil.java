@@ -20,6 +20,7 @@ import io.edap.log.Logger;
 import io.edap.log.LoggerManager;
 
 import java.io.IOException;
+import java.net.SocketAddress;
 import java.nio.channels.SelectableChannel;
 import java.nio.channels.SocketChannel;
 
@@ -30,11 +31,14 @@ public class NetUtil {
     private NetUtil() {}
 
     public static String getRemoteAddress(SelectableChannel channel) {
-        if (channel == null || !(channel instanceof SocketChannel)) {
+        if (channel == null || !(channel instanceof SocketChannel) || !channel.isOpen()) {
             return "";
         }
         try {
-            return ((SocketChannel)channel).getRemoteAddress().toString();
+            SocketAddress addr = ((SocketChannel)channel).getRemoteAddress();
+            if (addr != null) {
+                return addr.toString();
+            }
         } catch (IOException e) {
             LOG.warn("channel.getRemoteAddress() error", e);
         }
