@@ -271,6 +271,19 @@ public class ConfigManager {
                 return logConfig;
             }
         }
+
+        try {
+            configInStream = ConfigManager.class.getResourceAsStream("./edap-log.xml");
+            if (configInStream != null) {
+                System.out.println("./edap-log.xml found...");
+                logConfig = parseXmlConfig(configInStream, lastUpdateTime);
+                if (logConfig != null) {
+                    return logConfig;
+                }
+            }
+        } catch (Throwable t) {
+            System.err.println("findEdapLogConfig \"edap-log.xml\" error " + t.getMessage() + "\n");
+        }
         try {
             configInStream = ConfigManager.class.getResourceAsStream("/edap-log.xml");
             if (configInStream != null) {
@@ -282,6 +295,7 @@ public class ConfigManager {
         } catch (Throwable t) {
             System.err.println("findEdapLogConfig \"edap-log.xml\" error " + t.getMessage() + "\n");
         }
+
         try {
             configInStream = ConfigManager.class.getResourceAsStream("/edap-log.json5");
         } catch (Throwable t) {
