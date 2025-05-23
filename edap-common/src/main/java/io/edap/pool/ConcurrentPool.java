@@ -16,8 +16,6 @@
 
 package io.edap.pool;
 
-import io.edap.log.Logger;
-import io.edap.log.LoggerManager;
 import io.edap.util.CollectionUtils;
 import io.edap.util.EdapTime;
 import io.edap.util.FastGenericList;
@@ -44,8 +42,6 @@ import static java.util.concurrent.locks.LockSupport.parkNanos;
  * @date 2019-07-06 16:32
  */
 public class ConcurrentPool<T extends ConcurrentPool.PoolEntry> implements AutoCloseable {
-
-    private static final Logger LOG = LoggerManager.getLogger(ConcurrentPool.class);
 
     private static final EdapTime TIME = EdapTime.instance();
 
@@ -183,7 +179,6 @@ public class ConcurrentPool<T extends ConcurrentPool.PoolEntry> implements AutoC
 
         //如果当前线程列表中没有闲置对象则扫描共享列表，然后从等待队列里获取
         final int waiting = waiters.incrementAndGet();
-        LOG.info("sharedList={}", l -> l.arg(sharedList::size));
         try {
             for (T entry : sharedList) {
                 if (entry.compareAndSet(STATE_NOT_IN_USE, STATE_IN_USE)) {
@@ -198,18 +193,15 @@ public class ConcurrentPool<T extends ConcurrentPool.PoolEntry> implements AutoC
 
             timeout = timeUnit.toNanos(timeout);
             long finalTimeout = timeout;
-            LOG.info("timeout1={}", l -> l.arg(finalTimeout));
             do {
                 final long start = TIME.nanoTime();
                 final T entry = handoffQueue.poll(timeout, NANOSECONDS);
-                LOG.info("T={}", l -> l.arg(entry));
                 if (entry == null || entry.compareAndSet(STATE_NOT_IN_USE, STATE_IN_USE)) {
                     return entry;
                 }
 
                 timeout -= (TIME.nanoTime() - start);
                 long finalTimeout1 = timeout;
-                LOG.info("timeout2={}", l -> l.arg(finalTimeout1));
             } while (timeout > 10_000);
 
             return null;
@@ -247,11 +239,9 @@ public class ConcurrentPool<T extends ConcurrentPool.PoolEntry> implements AutoC
      */
     public synchronized void add(final List<T> entries) {
         if (closed) {
-            LOG.info("ConcurrentBag has been closed, ignoring add()");
             throw new IllegalStateException("ConcurrentPool has been closed, ignoring add()");
         }
         if (CollectionUtils.isEmpty(entries)) {
-            LOG.info("entries is empty, ignoring add()");
             return;
         }
         int size = sharedList.size();
@@ -276,15 +266,10 @@ public class ConcurrentPool<T extends ConcurrentPool.PoolEntry> implements AutoC
         if (!entry.compareAndSet(STATE_IN_USE, STATE_REMOVED)
                 && !entry.compareAndSet(STATE_RESERVED, STATE_REMOVED)
                 && !closed) {
-            LOG.warn("Attempt to remove an object from the bag that was not borrowed or reserved: {}", l -> l.arg(entry));
             return false;
         }
 
         final boolean removed = sharedList.remove(entry);
-        if (!removed && !closed) {
-            LOG.warn("Attempt to remove an object from the bag that does not exist: {}", l -> l.arg(entry));
-        }
-
         return removed;
     }
 
@@ -328,7 +313,6 @@ public class ConcurrentPool<T extends ConcurrentPool.PoolEntry> implements AutoC
                 //yield();
             }
         } else {
-            LOG.warn("Attempt to relinquish an object to the bag that was not reserved: {}",l -> l.arg(entry));
         }
     }
 

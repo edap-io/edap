@@ -29,10 +29,6 @@
 
     <dependencies>
         <dependency>
-            <groupId>io.edap</groupId>
-            <artifactId>edap-log-api</artifactId>
-        </dependency>
-        <dependency>
             <groupId>org.ow2.asm</groupId>
             <artifactId>asm</artifactId>
         </dependency>

@@ -16,9 +16,6 @@
 
 package io.edap.util;
 
-import io.edap.log.Logger;
-import io.edap.log.LoggerManager;
-
 import java.lang.reflect.Field;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
@@ -29,8 +26,6 @@ import static io.edap.util.UnsafeUtil.copyMemory;
  * 字符串常用的操作函数
  */
 public class StringUtil {
-
-    static Logger LOG = LoggerManager.getLogger(StringUtil.class);
 
     /**
      * String中value是否是byte[]
@@ -95,7 +90,7 @@ public class StringUtil {
                 //return (byte[])VALUE_FIELD.get(s);
                 return (byte[]) UnsafeUtil.getValue(s, VALUE_FIELD_OFFSET);
             } catch (Throwable e) {
-                LOG.warn("", e);
+                return s.getBytes(UTF8_CHARSET);
             }
         }
         return s.getBytes(UTF8_CHARSET);
@@ -110,7 +105,7 @@ public class StringUtil {
                 //return (byte[])VALUE_FIELD.get(s);
                 return (char[]) UnsafeUtil.getValue(s, VALUE_FIELD_OFFSET);
             } catch (Throwable e) {
-                LOG.warn("", e);
+                return s.toCharArray();
             }
         }
         return s.toCharArray();
@@ -126,9 +121,8 @@ public class StringUtil {
             //return LATIN1_FIELD.getByte(s) == 0;
             return UnsafeUtil.getByte(s, CODER_FIELD_OFFSET) == 0;
         } catch (Throwable e) {
-            LOG.error("UnsafeUtil.getByte error", e);
+            return false;
         }
-        return false;
     }
 
     /**
