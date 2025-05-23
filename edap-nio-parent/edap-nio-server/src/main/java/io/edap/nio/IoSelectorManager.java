@@ -35,6 +35,8 @@ import java.nio.channels.ClosedChannelException;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 public class IoSelectorManager {
 
@@ -47,6 +49,7 @@ public class IoSelectorManager {
     private int                   ioThreadCount;
     private volatile int          ioWorkerIndex;
     private Server.Addr           addr;
+    private static Lock           lock = new ReentrantLock();
 
     private static final AtomicInteger THREAD_SEQ = new AtomicInteger();
 
@@ -123,20 +126,26 @@ public class IoSelectorManager {
         return manager;
     }
 
-    public synchronized void registerNioSession(NioServerSession nioSession) {
+    public void registerNioSession(NioServerSession nioSession) {
         LOG.debug("registerNioSession {}", l -> l.arg(nioSession));
         SelectionKey key;
         LOG.info("seq=" + seq++);
+        lock.lock();
+        IoWorker ioWorker;
         try {
-            IoWorker ioWorker = ioWorkers[ioWorkerIndex++];
+            ioWorker = ioWorkers[ioWorkerIndex++];
             if (ioWorkerIndex == ioWorkers.length) {
                 ioWorkerIndex = 0;
             }
-            key = nioSession.getSocketChannel().register(ioWorker.selector, SelectionKey.OP_READ, nioSession);
             if (!ioWorker.running) {
                 ioWorker.running = true;
                 ioWorker.ioThread.start();
             }
+        } finally {
+            lock.unlock();
+        }
+        try {
+            key = nioSession.getSocketChannel().register(ioWorker.selector, SelectionKey.OP_READ, nioSession);
         } catch (ClosedChannelException e) {
             throw new RuntimeException(e);
         }
