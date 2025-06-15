@@ -14,17 +14,29 @@
  * under the License.
  */
 
-package com.easyea.dbtools.model;
+package com.easyea.dbtools.columncontraits;
 
-public abstract class TableConstraint {
+import com.easyea.dbtools.model.ColumnConstraint;
 
-    private String name;
+public class ColPrimaryKeyConstraint extends ColumnConstraint {
 
-    public String getName() {
-        return name;
+    private String sort;
+
+    private String autoIncrement;
+
+    public String getSort() {
+        return sort;
     }
 
-    public void setName(String name) {
-        this.name = name;
+    public void setSort(String sort) {
+        this.sort = sort;
+    }
+
+    public String getAutoIncrement() {
+        return autoIncrement;
+    }
+
+    public void setAutoIncrement(String autoIncrement) {
+        this.autoIncrement = autoIncrement;
     }
 }

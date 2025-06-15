@@ -14,17 +14,22 @@
  * under the License.
  */
 
-package com.easyea.dbtools.model;
+package com.easyea.dbtools.tablecontraits;
 
-public abstract class TableConstraint {
+import com.easyea.dbtools.model.TableConstraint;
 
-    private String name;
+import java.util.List;
 
-    public String getName() {
-        return name;
+public class TblPrimaryKeyConstraint extends TableConstraint {
+
+    private List<String> columns;
+
+
+    public List<String> getColumns() {
+        return columns;
     }
 
-    public void setName(String name) {
-        this.name = name;
+    public void setColumns(List<String> columns) {
+        this.columns = columns;
     }
 }

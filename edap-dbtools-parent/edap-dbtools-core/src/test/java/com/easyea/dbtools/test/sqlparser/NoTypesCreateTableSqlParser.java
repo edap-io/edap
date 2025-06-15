@@ -14,34 +14,21 @@
  * under the License.
  */
 
-package com.easyea.dbtools.sqlparser;
+package com.easyea.dbtools.test.sqlparser;
 
 import com.easyea.dbtools.enums.DataType;
+import com.easyea.dbtools.sqlparser.CreateTableSqlParser;
 
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 
-public class BaseCreateTableSqlParser extends CreateTableSqlParser {
+public class NoTypesCreateTableSqlParser extends CreateTableSqlParser {
 
-    final Set<DataType> dataTypes   = new HashSet<>();
-    final Set<String>   contraits   = new HashSet<>();
-    final Set<String>   tableTypes  = new HashSet<>();
     final Set<Byte>     escapeBytes = new HashSet<>();
 
-    public BaseCreateTableSqlParser(String sql) {
+    public NoTypesCreateTableSqlParser(String sql) {
         super(sql);
-        DataType[] allType = DataType.values();
-        for (DataType dataType : allType) {
-            dataTypes.add(dataType);
-        }
-        contraits.add("PRIMARY");
-        contraits.add("UNIQUE");
-        contraits.add("CHECK");
-        contraits.add("FOREIGN");
-        contraits.add("CONSTRAINT");
-
-        tableTypes.add("TEMP");
-        tableTypes.add("TEMPORARY");
 
         escapeBytes.add((byte)'"');
         escapeBytes.add((byte)'`');
@@ -49,17 +36,17 @@ public class BaseCreateTableSqlParser extends CreateTableSqlParser {
 
     @Override
     public Set<String> enableTableType() {
-        return tableTypes;
+        return Collections.emptySet();
     }
 
     @Override
     public Set<String> enableTableConstraints() {
-        return contraits;
+        return Collections.emptySet();
     }
 
     @Override
     public Set<DataType> enableDataTypes() {
-        return dataTypes;
+        return Collections.emptySet();
     }
 
     @Override

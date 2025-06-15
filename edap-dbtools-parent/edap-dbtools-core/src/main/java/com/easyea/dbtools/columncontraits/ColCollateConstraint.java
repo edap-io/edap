@@ -14,10 +14,19 @@
  * under the License.
  */
 
-package com.easyea.dbtools.model;
+package com.easyea.dbtools.columncontraits;
 
-public class ColumnPrimaryKeyConstraint extends ColumnConstraint {
-    private ConflictClause conflictClause;
-    private String sort;
-    private String autoIncrement;
+import com.easyea.dbtools.model.ColumnConstraint;
+
+public class ColCollateConstraint extends ColumnConstraint {
+
+    private String collationName;
+
+    public String getCollationName() {
+        return collationName;
+    }
+
+    public void setCollationName(String collationName) {
+        this.collationName = collationName;
+    }
 }

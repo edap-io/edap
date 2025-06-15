@@ -14,17 +14,9 @@
  * under the License.
  */
 
-package com.easyea.dbtools.model;
+package com.easyea.dbtools.columncontraits;
 
-public abstract class TableConstraint {
+import com.easyea.dbtools.model.ColumnConstraint;
 
-    private String name;
-
-    public String getName() {
-        return name;
-    }
-
-    public void setName(String name) {
-        this.name = name;
-    }
+public class ColGeneratedConstraint extends ColumnConstraint {
 }

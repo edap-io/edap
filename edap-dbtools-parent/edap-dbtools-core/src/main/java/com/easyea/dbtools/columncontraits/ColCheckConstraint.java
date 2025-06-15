@@ -14,22 +14,9 @@
  * under the License.
  */
 
-package com.easyea.dbtools.tablecontraits;
+package com.easyea.dbtools.columncontraits;
 
-import com.easyea.dbtools.model.TableConstraint;
+import com.easyea.dbtools.model.ColumnConstraint;
 
-import java.util.List;
-
-public class PrimaryKey extends TableConstraint {
-
-    private List<String> columns;
-
-
-    public List<String> getColumns() {
-        return columns;
-    }
-
-    public void setColumns(List<String> columns) {
-        this.columns = columns;
-    }
+public class ColCheckConstraint extends ColumnConstraint {
 }

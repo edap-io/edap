@@ -16,10 +16,13 @@
 
 package com.easyea.dbtools.sqlparser;
 
+import com.easyea.dbtools.columncontraits.*;
 import com.easyea.dbtools.enums.DataType;
+import com.easyea.dbtools.model.ColumnConstraint;
 import com.easyea.dbtools.model.ColumnDefine;
 import com.easyea.dbtools.model.CreateTable;
-import com.easyea.dbtools.tablecontraits.PrimaryKey;
+import com.easyea.dbtools.model.TableConstraint;
+import com.easyea.dbtools.tablecontraits.TblPrimaryKeyConstraint;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -55,7 +58,9 @@ public abstract class CreateTableSqlParser {
         if (!"TABLE".equalsIgnoreCase(token)) {
             throw new RuntimeException("row " + rowNum + ":" + columNum + " not start CREATE");
         }
-        token = nextToken();
+        trim();
+        ParseResult<String> parseResult = parseWithSpaceToken(b->isSpace(b), escapeByte(), (byte)' ', (byte)'(');
+        token = parseResult.token;
         if ("IF".equalsIgnoreCase(token)) {
             checkIfNotExists(createTable);
             trim();
@@ -69,20 +74,27 @@ public abstract class CreateTableSqlParser {
             createTable.setTableName(token);
         }
         trim();
-        token = nextToken();
-        if ("AS".equalsIgnoreCase(token)) {
-            trim();
-            createTable.setSelectStmt(new String(data, pos, data.length-pos, StandardCharsets.UTF_8));
+        byte tokenByte = data[pos];
+        if (tokenByte == '(') {
+            token = "(";
+            pos++;
+        } else {
+            token = nextToken();
+            if ("AS".equalsIgnoreCase(token)) {
+                trim();
+                createTable.setSelectStmt(new String(data, pos, data.length - pos, StandardCharsets.UTF_8));
 
-            return createTable;
+                return createTable;
+            }
         }
-
         if (token.length() == 1) {
             if (!token.equals("(")) {
                 throw new RuntimeException("row " + rowNum + ":" + columNum + " not start \"(\"");
             }
             trim();
-            token = nextToken();
+            ParseResult<String> tokenResult = parseWithSpaceToken(b -> isSpace(b), this.escapeByte(),
+                    (byte)',', (byte)')');
+            token = tokenResult.token;
         } else {
             if (token.charAt(0) == '(') {
                 token = token.substring(1);
@@ -95,9 +107,15 @@ public abstract class CreateTableSqlParser {
         while (true) {
             if (")".equals(token)) {  // 列定义以及约束定义结束
                 break;
+            } else if (",".equalsIgnoreCase(token)) {
+                pos++;
+                trim();
+                ParseResult<String> tokenResult = parseWithSpaceToken(b -> isSpace(b), this.escapeByte(),
+                        (byte)',', (byte)')');
+                token = tokenResult.token;
             } else {
                 if (tableContraits != null && tableContraits.contains(token.toUpperCase(Locale.ENGLISH))) {
-                    parseTableContrait(token, createTable);
+                    parseTableContrait(token, null, createTable);
                     trim();
                     token = nextToken();
                 } else {
@@ -114,64 +132,343 @@ public abstract class CreateTableSqlParser {
         ColumnDefine columnDefine = new ColumnDefine();
         columnDefine.setName(token);
         ParseResult<DataType> typeResult = parseColumnType();
-        if (typeResult.success) {
-            columnDefine.setDataType(typeResult.value);
-        }
-
+        boolean columFinish = typeResult.columnFinished;
+        String contraitToken = null;
+        ParseResult<String> tokenResult;
         List<ColumnDefine> defines = createTable.getColumns();
         if (defines == null) {
             defines = new ArrayList<>();
             createTable.setColumns(defines);
         }
+        if (typeResult.isSuccess()) {
+            columnDefine.setDataType(typeResult.getValue());
+            if (!columFinish) {
+                tokenResult = parseToken(b -> isSpace(b), (byte)',', (byte)')');
+                contraitToken = tokenResult.token;
+            } else {
+                defines.add(columnDefine);
+                return;
+            }
+        } else {
+            tokenResult                = new ParseResult<>();
+            tokenResult.token          = typeResult.token;
+            tokenResult.columnFinished = typeResult.columnFinished;
+            contraitToken              = typeResult.token;
+        }
+        while (!columFinish && contraitToken != null && contraitToken.trim().length() > 0) {
+            columFinish = parseColumnContraint(tokenResult.token, tokenResult.isColumnFinished(), columnDefine);
+            if (!columFinish) {
+                throw new RuntimeException("column define have't finish");
+            }
+        }
+
         defines.add(columnDefine);
     }
 
-    private void parseTableContrait(String token, CreateTable createTable) {
-        if ("PRIMARY".equalsIgnoreCase(token)) {
-            trim();
-            String key = null;
-            boolean hasKeyColumns = false;
-            int _pos=pos;
+    private boolean parseColumnContraint(String token, boolean isColFinished, ColumnDefine columnDefine) {
+        List<ColumnConstraint> constraints = columnDefine.getColumnConstraints();
+        if (constraints == null) {
+            constraints = new ArrayList<>();
+            columnDefine.setColumnConstraints(constraints);
+        }
+        while (true) {
+            if ("PRIMARY".equalsIgnoreCase(token)) {
+                trim();
+                ParseResult<String> tokenResult = parseToken(b -> isSpace(b), (byte) ',', (byte) ')');
+                if (!"KEY".equalsIgnoreCase(tokenResult.token)) {
+                    throw new RuntimeException("PRIMARY KEY not well");
+                }
+                ColPrimaryKeyConstraint primaryKeyConstraint = new ColPrimaryKeyConstraint();
+                if (tokenResult.isColumnFinished()) {
+                    constraints.add(primaryKeyConstraint);
+                    return true;
+                }
+                trim();
+                tokenResult = parseToken(b -> isSpace(b), (byte)'\'', (byte) ',', (byte) ')');
+                if ((tokenResult.token == null || tokenResult.token.length() == 0) && tokenResult.isColumnFinished()) {
+                    constraints.add(primaryKeyConstraint);
+                    return true;
+                }
+                if ("ASC".equalsIgnoreCase(tokenResult.token) || "DESC".equalsIgnoreCase(tokenResult.token)) {
+                    primaryKeyConstraint.setSort(tokenResult.token.toUpperCase(Locale.ENGLISH));
+                } else if ("AUTOINCREMENT".equalsIgnoreCase(tokenResult.token)) {
+                    primaryKeyConstraint.setAutoIncrement("AUTOINCREMENT");
+                } else {
+                    token = tokenResult.token;
+                    continue;
+                }
+                if (tokenResult.isColumnFinished()) {
+                    constraints.add(primaryKeyConstraint);
+                    return true;
+                }
+                trim();
+                tokenResult = parseToken(b -> isSpace(b), (byte) ',', (byte) ')');
+                if ("AUTOINCREMENT".equalsIgnoreCase(tokenResult.token)) {
+                    primaryKeyConstraint.setAutoIncrement("AUTOINCREMENT");
+                }
+                if (tokenResult.isColumnFinished()) {
+                    constraints.add(primaryKeyConstraint);
+                    return true;
+                } else {
+                    token = tokenResult.token;
+                }
+            } else if ("NOT".equalsIgnoreCase(token)) {
+                trim();
+                ParseResult<String> tokenResult = parseToken(b -> isSpace(b), (byte) ',', (byte) ')');
+                if (!"NULL".equalsIgnoreCase(tokenResult.token)) {
+                    throw new RuntimeException("NOT NULL not well");
+                }
+                ColNotNullConstraint colNotNullConstraint = new ColNotNullConstraint();
+                constraints.add(colNotNullConstraint);
+                if (tokenResult.isColumnFinished()) {
+                    return true;
+                }
+                trim();
+                tokenResult = parseToken(b -> isSpace(b), (byte) ',', (byte) ')');
+                if (tokenResult.columnFinished) {
+                    return true;
+                }
+                token = tokenResult.token;
+            } else if ("UNIQUE".equalsIgnoreCase(token)) {
+                ColUniqueConstraint colUniqueConstraint = new ColUniqueConstraint();
+                constraints.add(colUniqueConstraint);
+                if (isColFinished) {
+                    return true;
+                }
+                trim();
+                if (pos >= data.length) {
+                    return false;
+                }
+                ParseResult<String> tokenResult = parseWithSpaceToken(b -> isSpace(b),
+                        escapeByte(), (byte)',', (byte)')');
+                if (tokenResult.columnFinished) {
+                    return true;
+                }
+                token = tokenResult.token;
+            } else if ("CHECK".equalsIgnoreCase(token)) {
+
+            } else if ("DEFAULT".equalsIgnoreCase(token)) {
+                if (isColFinished) {
+                    throw new RuntimeException("DEFAULT value can't empty");
+                }
+                trim();
+                ParseResult<String> tokenResult = parseWithSpaceToken(b -> isSpace(b),
+                        (byte)'\'', (byte)',', (byte)')');
+                ColDefaultConstraint colDefaultConstraint = new ColDefaultConstraint();
+                if (tokenResult.columnFinished) {
+                    colDefaultConstraint.setValue(tokenResult.token);
+                    constraints.add(colDefaultConstraint);
+                    return true;
+                }
+                trim();
+                tokenResult = parseWithSpaceToken(b -> isSpace(b),
+                        (byte)'\'', (byte)',', (byte)')');
+                token = tokenResult.token;
+            } else if ("GENERATED".equalsIgnoreCase(token)) {
+
+            } else if ("COLLATE".equalsIgnoreCase(token)) {
+                ColCollateConstraint colCollateConstraint = new ColCollateConstraint();
+                trim();
+                ParseResult<String> tokenResult = parseToken(b -> isSpace(b), (byte) ',', (byte) ')');
+                constraints.add(colCollateConstraint);
+                colCollateConstraint.setCollationName(tokenResult.token);
+                if (tokenResult.columnFinished) {
+                    return true;
+                }
+                trim();
+                tokenResult = parseToken(b -> isSpace(b), (byte) ',', (byte) ')');
+                if (tokenResult.columnFinished) {
+                    isColFinished = true;
+                }
+                token = tokenResult.token;
+            }
+            if (pos >= data.length) {
+                break;
+            }
+        }
+        return false;
+    }
+
+    private ParseResult<String> parseWithSpaceToken(ByteIsSpace byteIsSpace, byte escapeByte, byte... endBytes) {
+        if (escapeByte == data[pos]) {
+            int     _pos       = pos + 1;
+            int     oldPos     = _pos;
+            String  token      = null;
             for (;_pos<data.length;_pos++) {
                 byte b = data[_pos];
-                if (isSpace(b)) {
-                    pos = _pos;
-                    key = new String(data, pos, _pos-pos, StandardCharsets.UTF_8);
-                    trim();
-                    _pos = pos;
-                    b = data[_pos];
-                    if (b == '(') {
-                        hasKeyColumns = true;
-                        _pos++;
+                if (b == escapeByte) {
+                    if (_pos > oldPos + 1 && data[_pos-1] == '\\') {
+                    } else {
+                        token = new String(data, oldPos, _pos - oldPos, StandardCharsets.UTF_8);
+                        pos = _pos + 1;
                         break;
                     }
-                } else if (b == '(') {
-                    key = new String(data, pos, _pos-pos, StandardCharsets.UTF_8);
-                    hasKeyColumns = true;
-                    _pos++;
+                }
+            }
+            if (token == null) {
+                throw new RuntimeException("String not finish");
+            }
+            ParseResult<String> result = new ParseResult<>();
+            result.token = token;
+
+            trim();
+            if (pos >= data.length) {
+                result.columnFinished = false;
+                return result;
+            }
+            byte b = data[pos];
+            boolean finish = false;
+            for (int i=0;i<endBytes.length;i++) {
+                if (b == endBytes[i]) {
+                    finish = true;
                     break;
                 }
             }
-            if (key == null || "KEY".equalsIgnoreCase(key)) {
+            result.columnFinished = finish;
+
+            return result;
+        } else {
+            return parseToken(byteIsSpace, endBytes);
+        }
+    }
+
+    private ParseResult<String> parseWithSpaceToken(ByteIsSpace byteIsSpace, Set<Byte> escapeBytes, byte... endBytes) {
+        if (escapeBytes.contains(data[pos])) {
+            byte    escapeByte = data[pos];
+            int     _pos       = pos + 1;
+            int     oldPos     = _pos;
+            String  token      = null;
+            for (;_pos<data.length;_pos++) {
+                byte b = data[_pos];
+                if (b == escapeByte) {
+                    if (_pos > oldPos + 1 && data[_pos-1] == '\\') {
+                    } else {
+                        token = new String(data, oldPos, _pos - oldPos, StandardCharsets.UTF_8);
+                        pos = _pos + 1;
+                        break;
+                    }
+                }
+            }
+            if (token == null) {
+                throw new RuntimeException("String not finish");
+            }
+            ParseResult<String> result = new ParseResult<>();
+            result.token = token;
+
+            trim();
+            if (pos >= data.length) {
+                result.columnFinished = false;
+                return result;
+            }
+            byte b = data[pos];
+            boolean finish = false;
+            for (int i=0;i<endBytes.length;i++) {
+                if (b == endBytes[i]) {
+                    finish = true;
+                    break;
+                }
+            }
+            result.columnFinished = finish;
+
+            return result;
+        } else {
+            return parseToken(byteIsSpace, endBytes);
+        }
+    }
+
+    private ParseResult<String> parseToken(ByteIsSpace byteIsSpace, byte... endBytes) {
+        int     _pos     = pos;
+        int     oldPos   = pos;
+        String  token    = null;
+        boolean isFinish = false;
+        for (;_pos<data.length;_pos++) {
+            byte b = data[_pos];
+            if (byteIsSpace.space(b)) {
+                token = new String(data, oldPos, _pos - oldPos, StandardCharsets.UTF_8);
+                pos = _pos;
+                break;
+            } else {
+                boolean finish = false;
+                for (int i=0;i<endBytes.length;i++) {
+                    if (b == endBytes[i]) {
+                        token = new String(data, oldPos, _pos - oldPos, StandardCharsets.UTF_8);
+                        pos = _pos;
+                        finish = true;
+                        break;
+                    }
+                }
+                if (finish) {
+                    isFinish = true;
+                    break;
+                }
+            }
+        }
+        ParseResult<String> result = new ParseResult<>();
+        result.token = token;
+        if (isFinish) {
+            result.columnFinished = isFinish;
+            return result;
+        }
+        if (token == null || token.trim().length() == 0) {
+            throw new RuntimeException("token can't is empty");
+        }
+
+        result.success = true;
+
+        return result;
+    }
+
+    private void parseTableContrait(String token, String name, CreateTable createTable) {
+        if ("PRIMARY".equalsIgnoreCase(token)) {
+            trim();
+            ParseResult<String> parseResult = parseToken(b -> isSpace(b), (byte)'(', (byte)' ');
+            String key = parseResult.token;
+            if (key == null || !"KEY".equalsIgnoreCase(key)) {
                 throw new RuntimeException("row " + rowNum + ":" + columNum + " PRIMARY KEY not set");
             }
-            if (!hasKeyColumns) {
-                throw new RuntimeException("row " + rowNum + ":" + columNum + " PRIMARY KEY not set");
+            int _pos = pos;
+            if (data[_pos] != '(') {
+                trim();
+                _pos = pos;
+                if (data[_pos] != '(') {
+                    throw new RuntimeException("row " + rowNum + ":" + columNum + " PRIMARY KEY not set");
+                }
             }
+            _pos++;
             int oldPos = _pos;
             String option = null;
-            for (_pos=pos;_pos<data.length;_pos++) {
+            for (;_pos<data.length;_pos++) {
                 byte b = data[_pos];
                 if (b == ')') {
                     option = new String(data, oldPos, _pos - oldPos, StandardCharsets.UTF_8);
+                    pos = _pos + 1;
                     break;
                 }
             }
-            if (option == null) {
-                throw new RuntimeException("row " + rowNum + ":" + columNum + " PRIMARY KEY not set");
+            if (option == null || option.trim().length() == 0) {
+                throw new RuntimeException("row " + rowNum + ":" + columNum + " PRIMARY KEY column not set");
             }
-            PrimaryKey primaryKey = new PrimaryKey();
+            TblPrimaryKeyConstraint primaryKey = new TblPrimaryKeyConstraint();
+            primaryKey.setColumns(parseColumns(option));
+            primaryKey.setName(name);
+            List<TableConstraint> constraints = new ArrayList<>();
+            constraints.add(primaryKey);
 
+            createTable.setConstraints(constraints);
+        } else if ("CONSTRAINT".equalsIgnoreCase(token)) {
+            trim();
+            ParseResult<String> parseResult = parseToken(b -> isSpace(b), (byte)'(', (byte)' ');
+            String nameToken = parseResult.token;
+            if (nameToken == null || nameToken.length() == 0) {
+                throw new RuntimeException("CONSTRAINT name not set");
+            }
+            trim();
+            parseResult = parseToken(b -> isSpace(b), (byte)'(', (byte)' ');
+            String constraintToken = parseResult.token;
+            if (constraintToken == null || constraintToken.length() == 0) {
+                throw new RuntimeException("CONSTRAINT not set");
+            }
+            parseTableContrait(constraintToken, nameToken, createTable);
         }
     }
 
@@ -189,9 +486,11 @@ public abstract class CreateTableSqlParser {
                 }
             }
             oldPos = _pos;
-            if (text.charAt(_pos) == (char) escapeByte()) {
+            byte escapeByte = 0;
+            if (escapeByte().contains((byte)text.charAt(_pos))) {
+                escapeByte = (byte)text.charAt(_pos);
                 _pos++;
-                String columnName = parseEscapeByteToken(text, _pos, escapeByte());
+                String columnName = parseEscapeByteToken(text, _pos, escapeByte);
                 columns.add(columnName);
                 _pos += columnName.length() + 1;
             } else {
@@ -218,7 +517,7 @@ public abstract class CreateTableSqlParser {
         char c;
         for (;_pos<text.length();_pos++) {
             c = text.charAt(_pos);
-            if (c == (char) escapeByte()) {
+            if (escapeByte == (byte)c) {
                 return text.substring(oldPos, _pos);
             }
         }
@@ -239,37 +538,96 @@ public abstract class CreateTableSqlParser {
         createTable.setCreateOption("IF NOT EXISTS");
     }
 
-    static class ParseResult<T> {
+    public static class ParseResult<T> {
         private boolean success;
         private T value;
         private String  token;
+        private boolean columnFinished;
+
+        public boolean isSuccess() {
+            return success;
+        }
+
+        public void setSuccess(boolean success) {
+            this.success = success;
+        }
+
+        public T getValue() {
+            return value;
+        }
+
+        public void setValue(T value) {
+            this.value = value;
+        }
+
+        public String getToken() {
+            return token;
+        }
+
+        public void setToken(String token) {
+            this.token = token;
+        }
+
+        public boolean isColumnFinished() {
+            return columnFinished;
+        }
+
+        public void setColumnFinished(boolean columnFinished) {
+            this.columnFinished = columnFinished;
+        }
     }
 
     private ParseResult parseColumnType() {
         trim();
-        String  type          = null;
-        boolean hasTypeOption = false;
+        String  type           = null;
+        boolean hasTypeOption  = false;
+        boolean columnFinished = false;
         for (int _pos=pos;_pos<data.length;_pos++) {
             byte b = data[_pos];
             if (isSpace(b)) {
-                pos = _pos;
                 type = new String(data, pos, _pos-pos, StandardCharsets.UTF_8);
+                pos = _pos;
                 trim();
                 _pos = pos;
+                if (_pos >= data.length) {
+                    break;
+                }
+
                 b = data[_pos];
                 if (b == '(') {
                     hasTypeOption = true;
                     _pos++;
+                    pos = _pos;
+                    break;
+                } else if (b == ',') {
+                    pos = _pos;
+                    columnFinished = true;
+                } else if (b == ')') {
+                    pos = _pos;
+                    columnFinished = true;
+                } else {
+                    pos = _pos;
                     break;
                 }
             } else if (b == '(') {
                 type = new String(data, pos, _pos-pos, StandardCharsets.UTF_8);
                 hasTypeOption = true;
                 _pos++;
+                pos = _pos;
+                break;
+            } else if (b == ',') {
+                type = new String(data, pos, _pos-pos, StandardCharsets.UTF_8);
+                columnFinished = true;
+                pos = _pos;
+                break;
+            } else if (b == ')') {
+                type = new String(data, pos, _pos-pos, StandardCharsets.UTF_8);
+                columnFinished = true;
+                pos = _pos;
                 break;
             }
         }
-        if (type == null) {
+        if ((type == null || type.trim().length() == 0) && !columnFinished) {
             throw new RuntimeException("row " + rowNum + ":" + columNum + " column type is error");
         }
         Set<DataType> dataTypes = enableDataTypes();
@@ -289,27 +647,43 @@ public abstract class CreateTableSqlParser {
         String option = null;
         if (hasTypeOption) {
             trim();
-            int _pos, oldPos = pos;
+            int oldPos = pos;
+            int _pos   = pos;
             byte b;
             for (_pos=pos;_pos<data.length;_pos++) {
                 b = data[_pos];
                 if (b == ')') {
                     option = new String(data, oldPos, _pos - oldPos, StandardCharsets.UTF_8);
+                    pos = _pos+1;
                     break;
                 }
             }
-            if (option == null) {
+            if (option == null || option.trim().length() == 0) {
                 throw new RuntimeException("row " + rowNum + ":" + columNum + " column type is error");
             }
         }
+        trim();
+        if (pos == data.length - 1 && (data[pos] == ',' ||data[pos] == ')')) {
+            columnFinished = true;
+        }
         ParseResult<DataType> result = new ParseResult();
         if (isType) {
-            result.success = true;
-            result.value = dataType;
+            if (option != null && option.trim().length() > 0) {
+                String[] options = option.split(",");
+                if (options.length == 1) {
+                    dataType.setPrecision(Integer.parseInt(options[0].trim()));
+                } else if (options.length == 2) {
+                    dataType.setPrecision(Integer.parseInt(options[0].trim()));
+                    dataType.setScale(Integer.parseInt(options[1].trim()));
+                }
+            }
+            result.setSuccess(true);
+            result.setValue(dataType);
         } else {
-            result.success = false;
-            result.token   = type;
+            result.setSuccess(false);
+            result.setToken(type);
         }
+        result.setColumnFinished(columnFinished);
 
         return result;
     }
@@ -341,36 +715,42 @@ public abstract class CreateTableSqlParser {
         if (b != 'C' && b != 'c') {
             throw new RuntimeException("row " + rowNum + ":" + columNum + " not start CREATE");
         } else {
+            columNum++;
             _pos++;
         }
         b = data[_pos];
         if (b != 'R' && b != 'r') {
             throw new RuntimeException("row " + rowNum + ":" + columNum + " not start CREATE");
         } else {
+            columNum++;
             _pos++;
         }
         b = data[_pos];
         if (b != 'E' && b != 'e') {
             throw new RuntimeException("row " + rowNum + ":" + columNum + " not start CREATE");
         } else {
+            columNum++;
             _pos++;
         }
         b = data[_pos];
         if (b != 'A' && b != 'a') {
             throw new RuntimeException("row " + rowNum + ":" + columNum + " not start CREATE");
         } else {
+            columNum++;
             _pos++;
         }
         b = data[_pos];
         if (b != 'T' && b != 't') {
             throw new RuntimeException("row " + rowNum + ":" + columNum + " not start CREATE");
         } else {
+            columNum++;
             _pos++;
         }
         b = data[_pos];
         if (b != 'E' && b != 'e') {
             throw new RuntimeException("row " + rowNum + ":" + columNum + " not start CREATE");
         } else {
+            columNum++;
             _pos++;
         }
         b = data[_pos];
@@ -390,7 +770,6 @@ public abstract class CreateTableSqlParser {
                 case ' ' :
                 case '\t':
                 case '\r':
-                    pos++;
                     columNum++;
                     break;
                 case '\n':
@@ -399,12 +778,15 @@ public abstract class CreateTableSqlParser {
                     break;
                 default:
                     int len = pos - oldPos;
-                    pos--;
                     return len;
             }
             pos++;
         }
-        return pos - oldPos;
+        int len = pos - oldPos;
+//        if (pos == data.length) {
+//            pos = pos - 1;
+//        }
+        return len;
     }
 
     /**
@@ -417,5 +799,5 @@ public abstract class CreateTableSqlParser {
 
     public abstract Set<DataType> enableDataTypes();
 
-    public abstract byte escapeByte();
+    public abstract Set<Byte> escapeByte();
 }

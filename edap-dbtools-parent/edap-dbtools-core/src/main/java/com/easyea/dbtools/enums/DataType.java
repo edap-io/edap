@@ -16,8 +16,6 @@
 
 package com.easyea.dbtools.enums;
 
-import java.util.Locale;
-
 public enum DataType {
 
     INT(              "INT"              ),
