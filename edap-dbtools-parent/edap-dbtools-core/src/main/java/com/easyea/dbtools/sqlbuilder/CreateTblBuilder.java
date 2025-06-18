@@ -39,12 +39,18 @@ public abstract class CreateTblBuilder {
             List<ColumnConstraint> columnConstraints = columnDefine.getColumnConstraints();
             if (columnConstraints != null && !columnConstraints.isEmpty()) {
                 int cdcCount = columnConstraints.size();
+                boolean isFirst = true;
                 for (int j=0;j<cdcCount;j++) {
+                    if (!isFirst) {
+                        createSql.append(' ');
+                    }
                     ColumnConstraint cc = columnConstraints.get(j);
                     if (cc instanceof ColPrimaryKeyConstraint) {
                         createSql.append("PRIMARY KEY");
+                        isFirst = false;
                     } else if (cc instanceof ColDefaultConstraint) {
                         createSql.append("DEFAULT ");
+                        isFirst = false;
                         ColDefaultConstraint cdc = (ColDefaultConstraint)cc;
                         if (isNumber(type)) {
                             createSql.append(cdc.getValue());
@@ -53,8 +59,10 @@ public abstract class CreateTblBuilder {
                         }
                     } else if (cc instanceof ColNotNullConstraint) {
                         createSql.append("NOT NULL");
+                        isFirst = false;
                     } else if (cc instanceof ColUniqueConstraint) {
                         createSql.append("UNIQUE");
+                        isFirst = false;
                     }
                     if (j != cdcCount - 1) {
                         createSql.append(' ');
@@ -65,7 +73,7 @@ public abstract class CreateTblBuilder {
                 createSql.append(",\n");
             }
         }
-        createSql.append(")");
+        createSql.append("\n)");
         sqls.add(createSql.toString());
 
         List<CreateIndex> createIndexs = tableStructure.getCreateIndexs();
