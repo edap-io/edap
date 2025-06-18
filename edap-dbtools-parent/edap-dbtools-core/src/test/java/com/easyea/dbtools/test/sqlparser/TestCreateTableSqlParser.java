@@ -72,7 +72,7 @@ public class TestCreateTableSqlParser {
                     CreateTable createTable2 = new CreateTable();
                     method.invoke(parser2, createTable2);
                 });
-        assertTrue(thrown.getTargetException().getMessage().contains("row 1:2 not start \"NOT EXISTS\""));
+        assertTrue(thrown.getTargetException().getMessage().contains("row 1:2 not start \"NOT EXISTS\\"));
 
         thrown = assertThrows(InvocationTargetException.class,
                 () -> {
@@ -81,7 +81,7 @@ public class TestCreateTableSqlParser {
                     CreateTable createTable2 = new CreateTable();
                     method.invoke(parser2, createTable2);
                 });
-        assertTrue(thrown.getTargetException().getMessage().contains("row 1:3 not start \"NOT EXISTS\""));
+        assertTrue(thrown.getTargetException().getMessage().contains("row 1:3 not start \"NOT EXISTS\\"));
     }
 
     @Test
@@ -586,6 +586,16 @@ public class TestCreateTableSqlParser {
                 ")";
         BaseCreateTableSqlParser parser = new BaseCreateTableSqlParser(sql);
         CreateTable createTable = parser.parse();
+        assertNotNull(createTable);
+        
+        sql = "CREATE TABLE \"RG_ECUFAULT_DOCIDS\" (\"ECUFAULT_ID\" INTEGER NOT NULL, \"INFOOBJECTID\" INTEGER, " +
+                "\"CONTENT_DEDE\" INTEGER,\"CONTENT_ENGB\" INTEGER,\"CONTENT_ENUS\" INTEGER,\"CONTENT_FR\" INTEGER," +
+                "\"CONTENT_TH\" INTEGER,\"CONTENT_SV\" INTEGER,\"CONTENT_IT\" INTEGER,\"CONTENT_ES\" INTEGER," +
+                "\"CONTENT_ID\" INTEGER,\"CONTENT_KO\" INTEGER,\"CONTENT_EL\" INTEGER,\"CONTENT_TR\" INTEGER," +
+                "\"CONTENT_ZHCN\" INTEGER,\"CONTENT_RU\" INTEGER,\"CONTENT_NL\" INTEGER,\"CONTENT_PT\" INTEGER," +
+                "\"CONTENT_ZHTW\" INTEGER,\"CONTENT_JA\"  INTEGER, \"CONTENT_CSCZ\"  INTEGER, \"CONTENT_PLPL\"  INTEGER)";
+        parser = new BaseCreateTableSqlParser(sql);
+        createTable = parser.parse();
         assertNotNull(createTable);
     }
 }

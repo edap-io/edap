@@ -28,6 +28,9 @@ public abstract class SqlParser {
 
     protected String nextToken() {
         int oldPos = pos;
+        if (data[oldPos] == ',') {
+            return ",";
+        }
         for (int _pos=pos;_pos<data.length;_pos++) {
             byte b = data[_pos];
             if (isSpace(b)) {
