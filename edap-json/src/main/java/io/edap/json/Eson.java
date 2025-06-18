@@ -123,6 +123,8 @@ public class Eson {
                 codec.encode(writer, array[i]);
             }
             writer.write((byte)']');
+        } else if (obj.getClass().isEnum()) {
+            writer.write(obj.toString());
         } else {
             JsonEncoder codec = JsonCodecRegister.instance().getEncoder(obj.getClass());
             codec.encode(writer, obj);

@@ -78,11 +78,11 @@ public class JsonEncoderGenerator {
             if (isEnum(e.field.getGenericType())) {
                 String enumName = toInternalName(e.field.getType().getName());
 
-                if (!enumNames.containsKey(enumName)) {
-                    String varName = "ENUM_NAME_" + enumNames.size();
-                    enumNames.put(enumName, varName);
-                    enumFields.add(e);
-                }
+//                if (!enumNames.containsKey(enumName)) {
+//                    String varName = "ENUM_NAME_" + enumNames.size();
+//                    enumNames.put(enumName, varName);
+//                    enumFields.add(e);
+//                }
             }
             if (e.isMap) {
                 mapFields.add(e);
@@ -205,6 +205,16 @@ public class JsonEncoderGenerator {
                 visitIterableFiledMethod(mv, jfi, l0);
             } else if (jfi.field.getType().isArray()) {
                 visitArrayFieldMethod(mv, jfi, l0);
+            } else if (jfi.field.getType().isEnum()) {
+                mv.visitVarInsn(ALOAD, 1);
+                mv.visitVarInsn(ALOAD, 2);
+                if (jfi.method != null) {
+                    visitMethod(mv, INVOKEVIRTUAL, pojoName, jfi.method.getName(), "()" + typeString, false);
+                } else {
+                    mv.visitFieldInsn(GETFIELD, pojoName, jfi.field.getName(), typeString);
+                }
+                mv.visitMethodInsn(INVOKEVIRTUAL, typeString.substring(1, typeString.length()-1), "toString", "()Ljava/lang/String;", false);
+                visitMethod(mv, INVOKEINTERFACE, WRITER_NAME, "write", "(Ljava/lang/String;)V", true);
             } else {
                 mv.visitVarInsn(ALOAD, 1);
                 mv.visitVarInsn(ALOAD, 2);
@@ -411,21 +421,29 @@ public class JsonEncoderGenerator {
         // 输出第一个元素
         Label labelNoItem = new Label();
         mv.visitJumpInsn(IFLE, labelNoItem);
-        mv.visitVarInsn(ALOAD, 1);
-        mv.visitVarInsn(ALOAD, 4);
-        mv.visitInsn(ICONST_0);
-        mv.visitMethodInsn(INVOKEINTERFACE, "java/util/List", "get", "(I)Ljava/lang/Object;", true);
-        mv.visitTypeInsn(CHECKCAST, pojoTypeName);
+
         if (isPojo(pojoType)) {
-            if (!((Class)pojoType).getName().equals(this.pojoCls.getName())) {
-                mv.visitFieldInsn(GETSTATIC, encoderName, getCodecFieldName(pojoCls), "L" + IFACE_NAME + ";");
-            } else {
-                mv.visitVarInsn(ALOAD, 0);
-            }
-            String writeMethod = "write";
-            mv.visitMethodInsn(INVOKEINTERFACE, WRITER_NAME, writeMethod,
-                    "(Ljava/lang/Object;L" + IFACE_NAME + ";)V", true);
+            mv.visitVarInsn(ALOAD, 4);
+            mv.visitInsn(ICONST_0);
+            mv.visitMethodInsn(INVOKEINTERFACE, "java/util/List", "get", "(I)Ljava/lang/Object;", true);
+            mv.visitTypeInsn(CHECKCAST, pojoTypeName);
+//            if (!((Class)pojoType).getName().equals(this.pojoCls.getName())) {
+//                mv.visitFieldInsn(GETSTATIC, encoderName, getCodecFieldName(pojoCls), "L" + IFACE_NAME + ";");
+//            } else {
+//                mv.visitVarInsn(ALOAD, 0);
+//            }
+            mv.visitVarInsn(ALOAD, 1);
+//            String writeMethod = "write";
+//            mv.visitMethodInsn(INVOKEINTERFACE, WRITER_NAME, writeMethod,
+//                    "(Ljava/lang/Object;L" + IFACE_NAME + ";)V", true);
+            mv.visitMethodInsn(INVOKESTATIC, "io/edap/json/Eson", "serialize",
+                    "(Ljava/lang/Object;L" + WRITER_NAME + ";)V", false);
         } else {
+            mv.visitVarInsn(ALOAD, 1);
+            mv.visitVarInsn(ALOAD, 4);
+            mv.visitInsn(ICONST_0);
+            mv.visitMethodInsn(INVOKEINTERFACE, "java/util/List", "get", "(I)Ljava/lang/Object;", true);
+            mv.visitTypeInsn(CHECKCAST, pojoTypeName);
             String writeMethod = getWriteMethod(pojoCls);
             typeString = getDescriptor(pojoCls);
             if (writeMethod.equals("writeObject")) {
@@ -450,21 +468,29 @@ public class JsonEncoderGenerator {
         mv.visitIntInsn(BIPUSH, 44);
         mv.visitMethodInsn(INVOKEINTERFACE, WRITER_NAME, "write", "(B)V", true);
 
-        mv.visitVarInsn(ALOAD, 1);
-        mv.visitVarInsn(ALOAD, 4);
-        mv.visitVarInsn(ILOAD, 5);
-        mv.visitMethodInsn(INVOKEINTERFACE, "java/util/List", "get", "(I)Ljava/lang/Object;", true);
-        mv.visitTypeInsn(CHECKCAST, pojoTypeName);
+
         if (isPojo(pojoType)) {
-            if (!((Class)pojoType).getName().equals(this.pojoCls.getName())) {
-                mv.visitFieldInsn(GETSTATIC, encoderName, getCodecFieldName(pojoCls), "L" + IFACE_NAME + ";");
-            } else {
-                mv.visitVarInsn(ALOAD, 0);
-            }
-            String writeMethod = "write";
-            mv.visitMethodInsn(INVOKEINTERFACE, WRITER_NAME, writeMethod,
-                    "(Ljava/lang/Object;L" + IFACE_NAME + ";)V", true);
+            mv.visitVarInsn(ALOAD, 4);
+            mv.visitVarInsn(ILOAD, 5);
+            mv.visitMethodInsn(INVOKEINTERFACE, "java/util/List", "get", "(I)Ljava/lang/Object;", true);
+            mv.visitTypeInsn(CHECKCAST, pojoTypeName);
+//            if (!((Class)pojoType).getName().equals(this.pojoCls.getName())) {
+//                mv.visitFieldInsn(GETSTATIC, encoderName, getCodecFieldName(pojoCls), "L" + IFACE_NAME + ";");
+//            } else {
+//                mv.visitVarInsn(ALOAD, 0);
+//            }
+//            String writeMethod = "write";
+//            mv.visitMethodInsn(INVOKEINTERFACE, WRITER_NAME, writeMethod,
+//                    "(Ljava/lang/Object;L" + IFACE_NAME + ";)V", true);
+            mv.visitVarInsn(ALOAD, 1);
+            mv.visitMethodInsn(INVOKESTATIC, "io/edap/json/Eson", "serialize",
+                    "(Ljava/lang/Object;L" + WRITER_NAME + ";)V", false);
         } else {
+            mv.visitVarInsn(ALOAD, 1);
+            mv.visitVarInsn(ALOAD, 4);
+            mv.visitVarInsn(ILOAD, 5);
+            mv.visitMethodInsn(INVOKEINTERFACE, "java/util/List", "get", "(I)Ljava/lang/Object;", true);
+            mv.visitTypeInsn(CHECKCAST, pojoTypeName);
             String writeMethod = getWriteMethod(pojoCls);
             typeString = getDescriptor(pojoCls);
             if (writeMethod.equals("writeObject")) {
@@ -612,11 +638,6 @@ public class JsonEncoderGenerator {
             }
         });
 
-
-        enumFields.forEach(e -> {
-            String enumName = toInternalName(e.field.getType().getName());
-        });
-
         if (!CollectionUtils.isEmpty(mapFields)) {
             for (int i=0;i<mapFields.size();i++) {
                 JsonFieldInfo jfi = mapFields.get(i);
@@ -722,14 +743,14 @@ public class JsonEncoderGenerator {
             definePojoEncoders(e.field, allPojos);
         });
 
-        for (int i=0;i<enumFields.size();i++) {
-            JsonFieldInfo cfi = enumFields.get(i);
-            FieldVisitor fv;
-            String enumName = toInternalName(cfi.field.getType().getName());
-            fv = cw.visitField(ACC_PRIVATE + ACC_FINAL + ACC_STATIC,
-                    enumNames.get(enumName), "[[B", null, null);
-            fv.visitEnd();
-        }
+//        for (int i=0;i<enumFields.size();i++) {
+//            JsonFieldInfo cfi = enumFields.get(i);
+//            FieldVisitor fv;
+//            String enumName = toInternalName(cfi.field.getType().getName());
+//            fv = cw.visitField(ACC_PRIVATE + ACC_FINAL + ACC_STATIC,
+//                    enumNames.get(enumName), "[[B", null, null);
+//            fv.visitEnd();
+//        }
 
         //初始化函数
         MethodVisitor mv;

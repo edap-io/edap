@@ -16,9 +16,12 @@
 
 package io.edap.json;
 
+import java.util.HashMap;
 import java.util.Map;
 
 public abstract class AbstractEncoder {
+
+    private Map<Class, JsonEncoder> jsonEncoderMap = new HashMap<>();
 
     public boolean writeEmptyMap(JsonWriter writer, Map map) {
         if (map == null) {
@@ -30,5 +33,14 @@ public abstract class AbstractEncoder {
             return true;
         }
         return false;
+    }
+
+    public JsonEncoder getJsonEncoder(Class cls) {
+        JsonEncoder encoder = jsonEncoderMap.get(cls);
+        if (encoder == null) {
+            encoder = JsonCodecRegister.instance().getEncoder(cls);
+            jsonEncoderMap.put(cls, encoder);
+        }
+        return encoder;
     }
 }
