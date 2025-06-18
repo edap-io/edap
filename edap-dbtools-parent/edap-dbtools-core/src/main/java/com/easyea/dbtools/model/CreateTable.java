@@ -16,13 +16,16 @@
 
 package com.easyea.dbtools.model;
 
+import com.easyea.dbtools.enums.DbType;
+
 import java.util.List;
 
 public class CreateTable {
+    private DbType                dbType;
     private String                type;
     private String                schema;
     private String                tableName;
-    private String                createOption;
+    private boolean               ifNotExist;
     private String                selectStmt;
     private List<ColumnDefine>    columns;
     private List<TableConstraint> constraints;
@@ -50,14 +53,6 @@ public class CreateTable {
 
     public void setTableName(String tableName) {
         this.tableName = tableName;
-    }
-
-    public String getCreateOption() {
-        return createOption;
-    }
-
-    public void setCreateOption(String createOption) {
-        this.createOption = createOption;
     }
 
     public String getSelectStmt() {
@@ -90,5 +85,21 @@ public class CreateTable {
 
     public void setOptions(List<TableOption> options) {
         this.options = options;
+    }
+
+    public DbType getDbType() {
+        return dbType;
+    }
+
+    public void setDbType(DbType dbType) {
+        this.dbType = dbType;
+    }
+
+    public boolean isIfNotExist() {
+        return ifNotExist;
+    }
+
+    public void setIfNotExist(boolean ifNotExist) {
+        this.ifNotExist = ifNotExist;
     }
 }

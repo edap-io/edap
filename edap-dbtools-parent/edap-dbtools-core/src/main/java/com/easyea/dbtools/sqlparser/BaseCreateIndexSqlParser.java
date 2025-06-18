@@ -16,7 +16,21 @@
 
 package com.easyea.dbtools.sqlparser;
 
-@FunctionalInterface
-public interface ByteIsSpace {
-    boolean space(byte b);
+import java.util.HashSet;
+import java.util.Set;
+
+public class BaseCreateIndexSqlParser extends CreateIndexSqlParser {
+
+    final Set<Byte>     escapeBytes = new HashSet<>();
+
+    public BaseCreateIndexSqlParser(String sql) {
+        super(sql);
+        escapeBytes.add((byte)'"');
+        escapeBytes.add((byte)'`');
+    }
+
+    @Override
+    public Set<Byte> escapeByte() {
+        return escapeBytes;
+    }
 }

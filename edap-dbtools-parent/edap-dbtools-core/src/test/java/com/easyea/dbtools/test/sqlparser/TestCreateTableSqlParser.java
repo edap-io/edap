@@ -18,12 +18,12 @@ package com.easyea.dbtools.test.sqlparser;
 
 import com.easyea.dbtools.columncontraits.*;
 import com.easyea.dbtools.enums.DataType;
-import com.easyea.dbtools.model.ColumnConstraint;
 import com.easyea.dbtools.model.ColumnDefine;
 import com.easyea.dbtools.model.CreateTable;
 import com.easyea.dbtools.sqlparser.BaseCreateTableSqlParser;
 import com.easyea.dbtools.sqlparser.ByteIsSpace;
 import com.easyea.dbtools.sqlparser.CreateTableSqlParser;
+import com.easyea.dbtools.sqlparser.SqlParser;
 import com.easyea.dbtools.tablecontraits.TblPrimaryKeyConstraint;
 import org.junit.jupiter.api.Test;
 
@@ -63,7 +63,7 @@ public class TestCreateTableSqlParser {
         CreateTable createTable = new CreateTable();
         method.invoke(parser, createTable);
 
-        assertEquals(createTable.getCreateOption(), "IF NOT EXISTS");
+        assertEquals(createTable.isIfNotExist(), true);
 
         InvocationTargetException thrown = assertThrows(InvocationTargetException.class,
                 () -> {
@@ -87,13 +87,13 @@ public class TestCreateTableSqlParser {
     @Test
     public void testParseTableContrait() throws NoSuchMethodException, InvocationTargetException, IllegalAccessException {
         Method method = CreateTableSqlParser.class.getDeclaredMethod("parseTableContrait",
-                String.class, CreateTable.class);
+                String.class, String.class, CreateTable.class);
         method.setAccessible(true);
 
         String sql = "   \r\t\n KEY(id)";
         BaseCreateTableSqlParser parser = new BaseCreateTableSqlParser(sql);
         CreateTable createTable = new CreateTable();
-        method.invoke(parser, "Primary", createTable);
+        method.invoke(parser, "Primary", "", createTable);
         assertNotNull(createTable.getConstraints());
         assertEquals(createTable.getConstraints().size(), 1);
         assertEquals(((TblPrimaryKeyConstraint)createTable.getConstraints().get(0)).getColumns().get(0), "id");
@@ -101,7 +101,7 @@ public class TestCreateTableSqlParser {
         sql = "   \r\t\n KEY ( id )";
         parser = new BaseCreateTableSqlParser(sql);
         createTable = new CreateTable();
-        method.invoke(parser, "Primary", createTable);
+        method.invoke(parser, "Primary", "", createTable);
         assertNotNull(createTable.getConstraints());
         assertEquals(createTable.getConstraints().size(), 1);
         assertEquals(((TblPrimaryKeyConstraint)createTable.getConstraints().get(0)).getColumns().get(0), "id");
@@ -111,7 +111,7 @@ public class TestCreateTableSqlParser {
                     String sql2 = "   \r\t\n ( id )";
                     CreateTableSqlParser parser2 = new BaseCreateTableSqlParser(sql2);
                     CreateTable createTable2 = new CreateTable();
-                    method.invoke(parser2, "Primary", createTable2);
+                    method.invoke(parser2, "Primary", "", createTable2);
                 });
         assertTrue(thrown.getTargetException().getMessage().contains("row 2:2 PRIMARY KEY not set"));
 
@@ -120,7 +120,7 @@ public class TestCreateTableSqlParser {
                     String sql2 = "   \r\t\n KEY  id )";
                     CreateTableSqlParser parser2 = new BaseCreateTableSqlParser(sql2);
                     CreateTable createTable2 = new CreateTable();
-                    method.invoke(parser2, "Primary", createTable2);
+                    method.invoke(parser2, "Primary", "", createTable2);
                 });
         assertTrue(thrown.getTargetException().getMessage().contains("row 2:4 PRIMARY KEY not set"));
 
@@ -129,7 +129,7 @@ public class TestCreateTableSqlParser {
                     String sql2 = "   \r\t\n KEY ()";
                     CreateTableSqlParser parser2 = new BaseCreateTableSqlParser(sql2);
                     CreateTable createTable2 = new CreateTable();
-                    method.invoke(parser2, "Primary", createTable2);
+                    method.invoke(parser2, "Primary", "", createTable2);
                 });
         assertTrue(thrown.getTargetException().getMessage().contains("row 2:3 PRIMARY KEY column not set"));
     }
@@ -453,7 +453,7 @@ public class TestCreateTableSqlParser {
 
     @Test
     public void testCheckCreateStart() throws NoSuchMethodException, InvocationTargetException, IllegalAccessException {
-        Method method = CreateTableSqlParser.class.getDeclaredMethod("checkCreateStart");
+        Method method = SqlParser.class.getDeclaredMethod("checkCreateStart");
         method.setAccessible(true);
 
         InvocationTargetException thrown = assertThrows(InvocationTargetException.class,
@@ -519,7 +519,7 @@ public class TestCreateTableSqlParser {
 
     @Test
     public void testParseWithSpaceToken() throws NoSuchMethodException, InvocationTargetException, IllegalAccessException {
-        Method method = CreateTableSqlParser.class.getDeclaredMethod("parseWithSpaceToken",
+        Method method = SqlParser.class.getDeclaredMethod("parseWithSpaceToken",
                 ByteIsSpace.class, byte.class, byte[].class);
         method.setAccessible(true);
 

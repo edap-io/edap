@@ -14,9 +14,10 @@
  * under the License.
  */
 
-package com.easyea.dbtools.sqlparser;
+package com.easyea.dbtools.enums;
 
-@FunctionalInterface
-public interface ByteIsSpace {
-    boolean space(byte b);
+public enum DbType {
+    SQLITE,
+    POSTGRESQL,
+    MYSQL
 }

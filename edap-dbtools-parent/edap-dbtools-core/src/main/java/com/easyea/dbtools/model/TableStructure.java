@@ -14,9 +14,27 @@
  * under the License.
  */
 
-package com.easyea.dbtools.sqlparser;
+package com.easyea.dbtools.model;
 
-@FunctionalInterface
-public interface ByteIsSpace {
-    boolean space(byte b);
+import java.util.List;
+
+public class TableStructure {
+    private CreateTable       createTable;
+    private List<CreateIndex> createIndexs;
+
+    public CreateTable getCreateTable() {
+        return createTable;
+    }
+
+    public void setCreateTable(CreateTable createTable) {
+        this.createTable = createTable;
+    }
+
+    public List<CreateIndex> getCreateIndexs() {
+        return createIndexs;
+    }
+
+    public void setCreateIndexs(List<CreateIndex> createIndexs) {
+        this.createIndexs = createIndexs;
+    }
 }
