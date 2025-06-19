@@ -1,5 +1,7 @@
 package com.easyea.dbtools.sqlbuilder;
 
+import com.easyea.dbtools.ColKeywordConvertor;
+import com.easyea.dbtools.DataTypeConvertor;
 import com.easyea.dbtools.columncontraits.ColDefaultConstraint;
 import com.easyea.dbtools.columncontraits.ColNotNullConstraint;
 import com.easyea.dbtools.columncontraits.ColPrimaryKeyConstraint;
@@ -24,8 +26,15 @@ public abstract class CreateTblBuilder {
         int columnCount = createTable.getColumns().size();
         for (int i=0;i<columnCount;i++) {
             ColumnDefine columnDefine = createTable.getColumns().get(i);
-            createSql.append('\t').append(columnDefine.getName()).append(' ');
+            String colName = columnDefine.getName();
+            if (this instanceof ColKeywordConvertor) {
+                colName = ((ColKeywordConvertor)this).colNameConvert(colName);
+            }
+            createSql.append('\t').append(colName).append(' ');
             DataType type = columnDefine.getDataType();
+            if (this instanceof DataTypeConvertor) {
+                type = ((DataTypeConvertor)this).convert(type);
+            }
             if (type != null) {
                 createSql.append(type.getType());
                 if (type.getPrecision() > 0) {
@@ -39,18 +48,13 @@ public abstract class CreateTblBuilder {
             List<ColumnConstraint> columnConstraints = columnDefine.getColumnConstraints();
             if (columnConstraints != null && !columnConstraints.isEmpty()) {
                 int cdcCount = columnConstraints.size();
-                boolean isFirst = true;
                 for (int j=0;j<cdcCount;j++) {
-                    if (!isFirst) {
-                        createSql.append(' ');
-                    }
+                    createSql.append(' ');
                     ColumnConstraint cc = columnConstraints.get(j);
                     if (cc instanceof ColPrimaryKeyConstraint) {
                         createSql.append("PRIMARY KEY");
-                        isFirst = false;
                     } else if (cc instanceof ColDefaultConstraint) {
                         createSql.append("DEFAULT ");
-                        isFirst = false;
                         ColDefaultConstraint cdc = (ColDefaultConstraint)cc;
                         if (isNumber(type)) {
                             createSql.append(cdc.getValue());
@@ -59,13 +63,8 @@ public abstract class CreateTblBuilder {
                         }
                     } else if (cc instanceof ColNotNullConstraint) {
                         createSql.append("NOT NULL");
-                        isFirst = false;
                     } else if (cc instanceof ColUniqueConstraint) {
                         createSql.append("UNIQUE");
-                        isFirst = false;
-                    }
-                    if (j != cdcCount - 1) {
-                        createSql.append(' ');
                     }
                 }
             }

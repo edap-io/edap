@@ -44,7 +44,9 @@ public enum DataType {
     DECIMAL(          "DECIMAL"          ),
     BOOLEAN(          "BOOLEAN"          ),
     DATE(             "DATE"             ),
-    DATETIME(         "DATETIME"         );
+    DATETIME(         "DATETIME"         ),
+    BYTEA(            "BYTEA"            ),
+    TIMESTAMP_WITH_ZONE("TIMESTAMP WITH TIME ZONE");
 
 
     private String type;

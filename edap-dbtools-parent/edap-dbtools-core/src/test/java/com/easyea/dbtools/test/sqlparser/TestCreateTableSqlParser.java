@@ -72,7 +72,7 @@ public class TestCreateTableSqlParser {
                     CreateTable createTable2 = new CreateTable();
                     method.invoke(parser2, createTable2);
                 });
-        assertTrue(thrown.getTargetException().getMessage().contains("row 1:2 not start \"NOT EXISTS\\"));
+        assertTrue(thrown.getTargetException().getMessage().contains("row 1:2 not start \"NOT EXISTS\""));
 
         thrown = assertThrows(InvocationTargetException.class,
                 () -> {
@@ -81,7 +81,7 @@ public class TestCreateTableSqlParser {
                     CreateTable createTable2 = new CreateTable();
                     method.invoke(parser2, createTable2);
                 });
-        assertTrue(thrown.getTargetException().getMessage().contains("row 1:3 not start \"NOT EXISTS\\"));
+        assertTrue(thrown.getTargetException().getMessage().contains("row 1:3 not start \"NOT EXISTS\""));
     }
 
     @Test
