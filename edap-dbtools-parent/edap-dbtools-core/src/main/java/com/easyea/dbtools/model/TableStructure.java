@@ -16,7 +16,12 @@
 
 package com.easyea.dbtools.model;
 
+import com.easyea.dbtools.columncontraits.ColPrimaryKeyConstraint;
+import com.easyea.dbtools.tablecontraits.TblPrimaryKeyConstraint;
+
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 public class TableStructure {
     private CreateTable       createTable;
@@ -36,5 +41,45 @@ public class TableStructure {
 
     public void setCreateIndexs(List<CreateIndex> createIndexs) {
         this.createIndexs = createIndexs;
+    }
+
+    public List<String> getPrimaryKeyColumns() {
+        List<String> columns = new ArrayList<>();
+        List<ColumnDefine> columnDefins = createTable.getColumns();
+        if (columnDefins == null || columnDefins.isEmpty()) {
+            return columns;
+        }
+        for (ColumnDefine columnDefine : columnDefins) {
+            if (isPrimaryColumn(columnDefine)) {
+                columns.add(columnDefine.getName().toUpperCase(Locale.ENGLISH));
+                return columns;
+            }
+        }
+        List<TableConstraint> tableConstraints = createTable.getConstraints();
+        if (tableConstraints == null || tableConstraints.isEmpty()) {
+            return columns;
+        }
+        for (TableConstraint tableConstraint : tableConstraints) {
+            if (tableConstraint instanceof TblPrimaryKeyConstraint) {
+                TblPrimaryKeyConstraint primaryKeyConstraint = (TblPrimaryKeyConstraint)tableConstraint;
+                for (String colName : primaryKeyConstraint.getColumns()) {
+                    columns.add(colName.toUpperCase(Locale.ENGLISH));
+                }
+            }
+        }
+
+        return columns;
+    }
+
+    private boolean isPrimaryColumn(ColumnDefine columnDefine) {
+        if (columnDefine.getColumnConstraints() == null || columnDefine.getColumnConstraints().isEmpty()) {
+            return false;
+        }
+        for (ColumnConstraint constraint : columnDefine.getColumnConstraints()) {
+            if (constraint instanceof ColPrimaryKeyConstraint) {
+                return true;
+            }
+        }
+        return false;
     }
 }

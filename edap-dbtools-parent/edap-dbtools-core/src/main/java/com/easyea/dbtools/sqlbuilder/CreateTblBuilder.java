@@ -1,13 +1,16 @@
 package com.easyea.dbtools.sqlbuilder;
 
 import com.easyea.dbtools.ColKeywordConvertor;
+import com.easyea.dbtools.CreateIndexIfNotExists;
 import com.easyea.dbtools.DataTypeConvertor;
+import com.easyea.dbtools.PrimaryKeyNotNull;
 import com.easyea.dbtools.columncontraits.ColDefaultConstraint;
 import com.easyea.dbtools.columncontraits.ColNotNullConstraint;
 import com.easyea.dbtools.columncontraits.ColPrimaryKeyConstraint;
 import com.easyea.dbtools.columncontraits.ColUniqueConstraint;
 import com.easyea.dbtools.enums.DataType;
 import com.easyea.dbtools.model.*;
+import com.easyea.dbtools.tablecontraits.TblPrimaryKeyConstraint;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -72,6 +75,30 @@ public abstract class CreateTblBuilder {
                 createSql.append(",\n");
             }
         }
+
+        List<TableConstraint> tableConstraints = createTable.getConstraints();
+        if (tableConstraints != null && !tableConstraints.isEmpty()) {
+            for (TableConstraint tableConstraint : tableConstraints) {
+                if (tableConstraint instanceof TblPrimaryKeyConstraint) {
+                    createSql.append(",\n\tPRIMARY KEY (");
+                    TblPrimaryKeyConstraint tblPrimaryKeyConstraint = (TblPrimaryKeyConstraint)tableConstraint;
+                    int cCount = tblPrimaryKeyConstraint.getColumns().size();
+
+                    for (int i=0;i<cCount;i++) {
+                        String colName = tblPrimaryKeyConstraint.getColumns().get(i);
+                        if (this instanceof ColKeywordConvertor) {
+                            colName = ((ColKeywordConvertor)this).colNameConvert(colName);
+                        }
+                        if (i > 0) {
+                            createSql.append(',');
+                        }
+                        createSql.append(colName);
+                    }
+                    createSql.append(")");
+                }
+            }
+        }
+
         createSql.append("\n)");
         sqls.add(createSql.toString());
 
@@ -84,7 +111,11 @@ public abstract class CreateTblBuilder {
                     sql.append("UNIQUE ");
                 }
                 sql.append("INDEX ");
-                if (createIndex.isIfNotExists()) {
+                boolean createIndexIfNotExists = false;
+                if (this instanceof CreateIndexIfNotExists) {
+                    createIndexIfNotExists = ((CreateIndexIfNotExists)this).createIndexIfNotExists();
+                }
+                if (createIndex.isIfNotExists() || createIndexIfNotExists) {
                     sql.append("IF NOT EXISTS ");
                 }
                 sql.append(createIndex.getName()).append(' ');

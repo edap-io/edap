@@ -1,12 +1,15 @@
 package com.easyea.dbtools.sqlbuilder;
 
+import com.easyea.dbtools.CreateIndexIfNotExists;
 import com.easyea.dbtools.DataTypeConvertor;
 import com.easyea.dbtools.ColKeywordConvertor;
+import com.easyea.dbtools.PrimaryKeyNotNull;
 import com.easyea.dbtools.enums.DataType;
 
 import static com.easyea.dbtools.enums.DataType.TEXT;
 
-public class PGCreateTblBuilder extends CreateTblBuilder implements DataTypeConvertor, ColKeywordConvertor {
+public class PGCreateTblBuilder extends CreateTblBuilder implements DataTypeConvertor, ColKeywordConvertor,
+        CreateIndexIfNotExists, PrimaryKeyNotNull {
 
     @Override
     public boolean enableIfNotExists() {
@@ -34,5 +37,10 @@ public class PGCreateTblBuilder extends CreateTblBuilder implements DataTypeConv
             return "COl_" + colName;
         }
         return colName;
+    }
+
+    @Override
+    public  boolean enablePrimaryKeyNotNull() {
+        return false;
     }
 }
