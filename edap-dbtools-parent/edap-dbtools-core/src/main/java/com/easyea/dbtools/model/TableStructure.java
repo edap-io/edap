@@ -17,6 +17,7 @@
 package com.easyea.dbtools.model;
 
 import com.easyea.dbtools.columncontraits.ColPrimaryKeyConstraint;
+import com.easyea.dbtools.columncontraits.ColUniqueConstraint;
 import com.easyea.dbtools.tablecontraits.TblPrimaryKeyConstraint;
 
 import java.util.ArrayList;
@@ -41,6 +42,39 @@ public class TableStructure {
 
     public void setCreateIndexs(List<CreateIndex> createIndexs) {
         this.createIndexs = createIndexs;
+    }
+
+    public List<CreateIndex> getUniqueIndexes() {
+        List<CreateIndex> uniqueIndexList = new ArrayList<>();
+        List<CreateIndex> createIndexs = getCreateIndexs();
+        if (createIndexs != null && !createIndexs.isEmpty()) {
+            for (CreateIndex createIndex : createIndexs) {
+                if (createIndex.isUnique()) {
+                    uniqueIndexList.add(createIndex);
+                }
+            }
+        }
+
+        return uniqueIndexList;
+    }
+
+    public List<String> getUniqueColumns() {
+        List<String> uniueColumns = new ArrayList<>();
+        List<ColumnDefine> columnDefins = createTable.getColumns();
+        if (columnDefins == null || columnDefins.isEmpty()) {
+            return uniueColumns;
+        }
+        for (ColumnDefine columnDefine : columnDefins) {
+            List<ColumnConstraint> columnConstraints = columnDefine.getColumnConstraints();
+            if (columnConstraints != null && !columnConstraints.isEmpty()) {
+                for (ColumnConstraint constraint : columnConstraints) {
+                    if (constraint instanceof ColUniqueConstraint) {
+                        uniueColumns.add(columnDefine.getName());
+                    }
+                }
+            }
+        }
+        return uniueColumns;
     }
 
     public List<String> getPrimaryKeyColumns() {

@@ -36,7 +36,7 @@ public abstract class CreateTblBuilder {
             createSql.append('\t').append(colName).append(' ');
             DataType type = columnDefine.getDataType();
             if (this instanceof DataTypeConvertor) {
-                type = ((DataTypeConvertor)this).convert(type);
+                type = ((DataTypeConvertor)this).convert(createTable.getDbType(), type);
             }
             if (type != null) {
                 createSql.append(type.getType());
@@ -148,4 +148,8 @@ public abstract class CreateTblBuilder {
     }
 
     public abstract boolean enableIfNotExists();
+
+    public String escapeString(String str) {
+        return str;
+    }
 }
