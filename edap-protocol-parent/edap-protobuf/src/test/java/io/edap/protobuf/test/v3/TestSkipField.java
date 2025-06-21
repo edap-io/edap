@@ -30,7 +30,7 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Type;
 import java.util.*;
 
-import static io.edap.protobuf.test.TestUtil.conver2HexStr;
+import static io.edap.protobuf.ProtoBuf.conver2HexStr;
 import static java.lang.Double.doubleToLongBits;
 import static java.lang.Float.floatToIntBits;
 import static org.junit.jupiter.api.Assertions.assertTrue;

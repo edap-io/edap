@@ -37,7 +37,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 
-import static io.edap.protobuf.test.TestUtil.conver2HexStr;
+import static io.edap.protobuf.ProtoBuf.conver2HexStr;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**

@@ -34,7 +34,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 import java.lang.reflect.Field;
 
-import static io.edap.protobuf.test.TestUtil.conver2HexStr;
+import static io.edap.protobuf.ProtoBuf.conver2HexStr;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 

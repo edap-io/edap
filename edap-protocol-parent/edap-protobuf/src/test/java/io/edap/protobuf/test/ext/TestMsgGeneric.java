@@ -31,7 +31,7 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 
-import static io.edap.protobuf.test.TestUtil.conver2HexStr;
+import static io.edap.protobuf.ProtoBuf.conver2HexStr;
 
 /**
  * @author : luysh@yonyou.com

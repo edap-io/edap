@@ -12,7 +12,7 @@ import io.edap.protobuf.wire.Field;
 import io.edap.protobuf.writer.StandardProtoBufWriter;
 import org.junit.jupiter.api.Test;
 
-import static io.edap.protobuf.test.TestUtil.conver2HexStr;
+import static io.edap.protobuf.ProtoBuf.conver2HexStr;
 import static io.edap.protobuf.wire.WireFormat.makeTag;
 import static io.edap.protobuf.wire.WireType.END_GROUP;
 import static org.junit.jupiter.api.Assertions.*;
