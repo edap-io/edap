@@ -18,10 +18,7 @@ package com.easyea.dbtools.sqlparser;
 
 import com.easyea.dbtools.columncontraits.*;
 import com.easyea.dbtools.enums.DataType;
-import com.easyea.dbtools.model.ColumnConstraint;
-import com.easyea.dbtools.model.ColumnDefine;
-import com.easyea.dbtools.model.CreateTable;
-import com.easyea.dbtools.model.TableConstraint;
+import com.easyea.dbtools.model.*;
 import com.easyea.dbtools.tablecontraits.TblPrimaryKeyConstraint;
 
 import java.nio.charset.StandardCharsets;
@@ -49,6 +46,7 @@ public abstract class CreateTableSqlParser extends SqlParser {
             String tableType = token.toUpperCase(Locale.ENGLISH);
             if (tableTypes.contains(tableType)) {
                 createTable.setType(tableType);
+                trim();
                 token = nextToken();
             }
         }
@@ -82,6 +80,15 @@ public abstract class CreateTableSqlParser extends SqlParser {
                 createTable.setSelectStmt(new String(data, pos, data.length - pos, StandardCharsets.UTF_8));
 
                 return createTable;
+            } else if ("USING".equalsIgnoreCase(token)) {
+                trim();
+                ParseResult<String> tokenResult = parseWithSpaceToken(b -> isSpace(b), (byte)'\'', (byte)'(');
+                String moduleName = tokenResult.getToken();
+                UsingStmt usingStmt = new UsingStmt();
+                usingStmt.setModuleName(moduleName);
+                createTable.setUsingStmt(usingStmt);
+                trim();
+                token = nextToken();
             }
         }
         if (token.length() == 1) {
@@ -89,8 +96,9 @@ public abstract class CreateTableSqlParser extends SqlParser {
                 throw new RuntimeException("row " + rowNum + ":" + columNum + " not start \"(\"");
             }
             trim();
+            pos++;
             ParseResult<String> tokenResult = parseWithSpaceToken(b -> isSpace(b), this.escapeByte(),
-                    (byte)',', (byte)')');
+                    (byte)',', (byte)'(', (byte)')');
             token = tokenResult.getToken();
         } else {
             if (token.charAt(0) == '(') {

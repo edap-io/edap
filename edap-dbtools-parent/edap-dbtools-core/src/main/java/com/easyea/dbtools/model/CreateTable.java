@@ -27,6 +27,7 @@ public class CreateTable {
     private String                tableName;
     private boolean               ifNotExist;
     private String                selectStmt;
+    private UsingStmt             usingStmt;
     private List<ColumnDefine>    columns;
     private List<TableConstraint> constraints;
     private List<TableOption>     options;
@@ -101,5 +102,13 @@ public class CreateTable {
 
     public void setIfNotExist(boolean ifNotExist) {
         this.ifNotExist = ifNotExist;
+    }
+
+    public UsingStmt getUsingStmt() {
+        return usingStmt;
+    }
+
+    public void setUsingStmt(UsingStmt usingStmt) {
+        this.usingStmt = usingStmt;
     }
 }

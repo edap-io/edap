@@ -598,4 +598,11 @@ public class TestCreateTableSqlParser {
         createTable = parser.parse();
         assertNotNull(createTable);
     }
+
+    @Test
+    public void testParseVirtualTable() {
+        String sql = "CREATE VIRTUAL TABLE xmlvalueprimitive USING fts5(id, modified, deleted, data, compressed_data)";
+        BaseCreateTableSqlParser parser = new BaseCreateTableSqlParser(sql);
+        CreateTable createTable = parser.parse();
+    }
 }

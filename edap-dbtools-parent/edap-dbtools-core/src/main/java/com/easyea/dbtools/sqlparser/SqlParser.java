@@ -31,6 +31,9 @@ public abstract class SqlParser {
         if (data[oldPos] == ',') {
             return ",";
         }
+        if (data[oldPos] == '(') {
+            return "(";
+        }
         for (int _pos=pos;_pos<data.length;_pos++) {
             byte b = data[_pos];
             if (isSpace(b)) {

@@ -42,6 +42,7 @@ public class BaseCreateTableSqlParser extends CreateTableSqlParser {
 
         tableTypes.add("TEMP");
         tableTypes.add("TEMPORARY");
+        tableTypes.add("VIRTUAL");
 
         escapeBytes.add((byte)'"');
         escapeBytes.add((byte)'`');
