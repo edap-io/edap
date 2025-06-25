@@ -46,6 +46,7 @@ public class BaseCreateTableSqlParser extends CreateTableSqlParser {
 
         escapeBytes.add((byte)'"');
         escapeBytes.add((byte)'`');
+        escapeBytes.add((byte)'\'');
     }
 
     @Override

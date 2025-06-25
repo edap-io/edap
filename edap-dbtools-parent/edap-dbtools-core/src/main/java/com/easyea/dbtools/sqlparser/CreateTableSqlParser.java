@@ -89,6 +89,9 @@ public abstract class CreateTableSqlParser extends SqlParser {
                 createTable.setUsingStmt(usingStmt);
                 trim();
                 token = nextToken();
+                if (token.equalsIgnoreCase("(")) {
+                    pos++;
+                }
             }
         }
         if (token.length() == 1) {
@@ -96,7 +99,6 @@ public abstract class CreateTableSqlParser extends SqlParser {
                 throw new RuntimeException("row " + rowNum + ":" + columNum + " not start \"(\"");
             }
             trim();
-            pos++;
             ParseResult<String> tokenResult = parseWithSpaceToken(b -> isSpace(b), this.escapeByte(),
                     (byte)',', (byte)'(', (byte)')');
             token = tokenResult.getToken();
@@ -477,7 +479,7 @@ public abstract class CreateTableSqlParser extends SqlParser {
                 dataType = DataType.valueOf(type.toUpperCase(Locale.ENGLISH));
                 isType = dataTypes.contains(dataType);
             } catch (IllegalArgumentException e) {
-                e.printStackTrace();
+                //e.printStackTrace();
             }
         }
 

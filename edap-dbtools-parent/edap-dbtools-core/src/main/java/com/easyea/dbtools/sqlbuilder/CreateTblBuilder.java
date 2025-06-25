@@ -1,9 +1,24 @@
+/*
+ * Copyright 2023 The edap Project
+ *
+ * The Netty Project licenses this file to you under the Apache License,
+ * version 2.0 (the "License"); you may not use this file except in compliance
+ * with the License. You may obtain a copy of the License at:
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+ * License for the specific language governing permissions and limitations
+ * under the License.
+ */
+
 package com.easyea.dbtools.sqlbuilder;
 
 import com.easyea.dbtools.ColKeywordConvertor;
 import com.easyea.dbtools.CreateIndexIfNotExists;
 import com.easyea.dbtools.DataTypeConvertor;
-import com.easyea.dbtools.PrimaryKeyNotNull;
 import com.easyea.dbtools.columncontraits.ColDefaultConstraint;
 import com.easyea.dbtools.columncontraits.ColNotNullConstraint;
 import com.easyea.dbtools.columncontraits.ColPrimaryKeyConstraint;
@@ -17,7 +32,7 @@ import java.util.List;
 
 public abstract class CreateTblBuilder {
 
-    public List<String> buildSqls(TableStructure tableStructure) {
+    public List<String> buildSqls(TableStructure tableStructure, String tblName) {
         List<String> sqls = new ArrayList<>();
         CreateTable createTable = tableStructure.getCreateTable();
         StringBuilder createSql = new StringBuilder();
@@ -25,7 +40,8 @@ public abstract class CreateTblBuilder {
         if (enableIfNotExists()) {
             createSql.append("IF NOT EXISTS ");
         }
-        createSql.append(createTable.getTableName()).append(" (\n");
+
+        createSql.append(tblName).append(" (\n");
         int columnCount = createTable.getColumns().size();
         for (int i=0;i<columnCount;i++) {
             ColumnDefine columnDefine = createTable.getColumns().get(i);
@@ -119,7 +135,7 @@ public abstract class CreateTblBuilder {
                     sql.append("IF NOT EXISTS ");
                 }
                 sql.append(createIndex.getName()).append(' ');
-                sql.append("ON ").append(createIndex.getTableName()).append(" (");
+                sql.append("ON ").append(tblName).append(" (");
                 List<IndexedColumn> indexedColumns = createIndex.getIndexColumns();
                 int icCount = indexedColumns.size();
                 for (int i=0;i<icCount;i++) {
