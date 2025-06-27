@@ -861,6 +861,7 @@ public class StringJsonReader implements JsonReader {
         pos++;
         char startChar = firstNotSpaceChar();
         if (startChar == ']') {
+            pos++;
             return Collections.emptyList();
         }
         Object v = readValue();
