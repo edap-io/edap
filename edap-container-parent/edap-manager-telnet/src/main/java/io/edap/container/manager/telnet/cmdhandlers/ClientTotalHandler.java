@@ -8,10 +8,7 @@ import io.edap.protocol.telnet.ShellCommand;
 import io.edap.protocol.telnet.TelnetServerNioSession;
 import io.edap.util.CollectionUtils;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Random;
+import java.util.*;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -22,37 +19,59 @@ public class ClientTotalHandler implements ShellCmdHandler {
         Map<String, ServerGroup> serverGroups = telnetSession.getEdap().getServerGroups();
 
         Map<String, ServerGroup> sgs;
+        boolean showVerbose = false;
         int refreshSecond = 5;
         if (command.getArgs() == null || command.getArgs().length == 0) {
             sgs = serverGroups;
         } else if (command.getArgs().length > 0) {
-            if (command.getArgs()[0].charAt(0) > '0' && command.getArgs()[0].charAt(0) <= '9') {
-                sgs = serverGroups;
-                try {
-                    refreshSecond = Integer.parseInt(command.getArgs()[0]);
-                } catch (NumberFormatException e) {
-                    refreshSecond = 5;
+            String[] args;
+            List<String> argList = new ArrayList<>();
+            for (String arg : command.getArgs()) {
+                if ("-v".equals(arg)) {
+                    showVerbose = true;
+                } else {
+                    argList.add(arg);
                 }
+            }
+            if (showVerbose) {
+                args = argList.toArray(new String[0]);
             } else {
-                String[] sgNames = command.getArgs()[0].split(",");
-                sgs = new HashMap<>();
-                for (String name : sgNames) {
-                    ServerGroup sg = serverGroups.get(name);
-                    if (sg != null) {
-                        sgs.put(sg.getName(), sg);
+                args = command.getArgs();
+            }
+            if (args.length > 0) {
+                if (command.getArgs()[0].charAt(0) > '0' && command.getArgs()[0].charAt(0) <= '9') {
+                    sgs = serverGroups;
+                    try {
+                        refreshSecond = Integer.parseInt(command.getArgs()[0]);
+                    } catch (NumberFormatException e) {
+                        refreshSecond = 5;
+                    }
+                } else {
+                    String[] sgNames = command.getArgs()[0].split(",");
+                    sgs = new HashMap<>();
+                    for (String name : sgNames) {
+                        ServerGroup sg = serverGroups.get(name);
+                        if (sg != null) {
+                            sgs.put(sg.getName(), sg);
+                        }
                     }
                 }
+            } else {
+                sgs = serverGroups;
             }
         } else {
             sgs = new HashMap<>();
         }
-        CtInfo ctInfo = buildCtHeader(sgs);
+        CtInfo ctInfo = buildCtHeader(sgs, showVerbose);
         StringBuilder result = ctInfo.stringBuilder;
         int maxSgNameLen     = ctInfo.maxSgNameLen;
         int maxListenHostLen = ctInfo.maxListenHostLen;
         int maxListenPortLen = ctInfo.maxListenPortLen;
         int maxServerNameLen = ctInfo.maxServerNameLen;
         int maxTotalLen      = ctInfo.maxTotalLen;
+        int maxThreadNameLen = ctInfo.maxThreadNameLen;
+        int maxThreadStatusLen = ctInfo.maxThreadStatusLen;
+
         int padding          = ctInfo.padding;
 
         telnetSession.writeString(result.toString());
@@ -64,6 +83,7 @@ public class ClientTotalHandler implements ShellCmdHandler {
         String header = result.toString();
         String sepStr = sep.toString();
         AtomicReference<Integer> row = new AtomicReference<>(0);
+        boolean showVerboseFlag = showVerbose;
         ScheduledExecutorService executorService = telnetSession.getScheduledExecutorService();
         telnetSession.setScheduledFuture(executorService.scheduleAtFixedRate(() -> {
 
@@ -83,13 +103,28 @@ public class ClientTotalHandler implements ShellCmdHandler {
                         Map<Server.Addr, IoSelectorManager> ioSelectorManagerMap = server.getIoSelectorManagerMap();
                         for (Map.Entry<Server.Addr, IoSelectorManager> addrIoManager : ioSelectorManagerMap.entrySet()) {
                             Server.Addr addr = addrIoManager.getKey();
-                            fillRightSpace(result, entry.getKey(), maxSgNameLen + padding);
-                            fillRightSpace(result, server.name(), maxServerNameLen + padding);
-                            fillLeftSpace (result, addr.host + ":", maxListenHostLen + 1);
-                            fillRightSpace(result, "" + addr.port, maxListenPortLen + padding);
-                            fillLeftSpace (result, addrIoManager.getValue().getClientCount() + "", maxTotalLen);
-                            result.append('\n');
-                            row.getAndSet(row.get() + 1);
+                            if (showVerboseFlag) {
+                                List<IoSelectorManager.IoWorkerInfo> ioWorkerInfos = addrIoManager.getValue().getWorkerInfoList();
+                                for (IoSelectorManager.IoWorkerInfo info : ioWorkerInfos) {
+                                    fillRightSpace(result, entry.getKey(), maxSgNameLen + padding);
+                                    fillRightSpace(result, server.name(), maxServerNameLen + padding);
+                                    fillLeftSpace(result, addr.host + ":", maxListenHostLen + 1);
+                                    fillRightSpace(result, "" + addr.port, maxListenPortLen + padding);
+                                    fillRightSpace(result, info.getThreadName(), maxThreadNameLen + padding);
+                                    fillRightSpace(result, info.getWorkerStatus() + "", maxThreadStatusLen + padding);
+                                    fillLeftSpace(result, info.getClientCount() + "", maxTotalLen);
+                                    result.append('\n');
+                                    row.getAndSet(row.get() + 1);
+                                }
+                            } else {
+                                fillRightSpace(result, entry.getKey(), maxSgNameLen + padding);
+                                fillRightSpace(result, server.name(), maxServerNameLen + padding);
+                                fillLeftSpace (result, addr.host + ":", maxListenHostLen + 1);
+                                fillRightSpace(result, "" + addr.port, maxListenPortLen + padding);
+                                fillLeftSpace(result, addrIoManager.getValue().getClientCount() + "", maxTotalLen);
+                                result.append('\n');
+                                row.getAndSet(row.get() + 1);
+                            }
                         }
                     }
                 }
@@ -97,13 +132,15 @@ public class ClientTotalHandler implements ShellCmdHandler {
             }, 1, refreshSecond, TimeUnit.SECONDS));
     }
 
-    private CtInfo buildCtHeader(Map<String, ServerGroup> serverGroups) {
+    private CtInfo buildCtHeader(Map<String, ServerGroup> serverGroups, boolean showVerbose) {
         int maxSgNameLen     = "ServerGroup".length();
         int maxListenHostLen = "Host".length();
         int maxListenPortLen = "port".length();
         int maxServerNameLen = "ServerName".length();
         int maxTotalLen      = 11;
         int padding          = 4;
+        int maxThreadNameLen = "threadName".length();
+        int maxThreadStatusLen = "running".length();
         for (Map.Entry<String, ServerGroup> entry : serverGroups.entrySet()) {
             if (entry.getKey().length() > maxSgNameLen) {
                 maxSgNameLen = entry.getKey().length();
@@ -119,12 +156,24 @@ public class ClientTotalHandler implements ShellCmdHandler {
             if (lhpl.nameLen > maxServerNameLen) {
                 maxServerNameLen = lhpl.nameLen;
             }
+
+            if (showVerbose) {
+                ThreadStatusInfoLen threadStatusInfoLen = getMaxThreadStatusInfoLen(sg);
+                maxThreadNameLen = threadStatusInfoLen.getThreadNameLen();
+                maxThreadStatusLen = threadStatusInfoLen.getThreadStatusLen();
+            }
         }
         StringBuilder result = new StringBuilder();
         fillRightSpace(result, "ServerGroup", maxSgNameLen + padding);
         fillRightSpace(result, "Server", maxServerNameLen + padding);
         fillRightSpace(result, "Listen", maxListenHostLen + maxListenPortLen + padding + 1);
-        fillRightSpace(result, "ClientCount", maxTotalLen);
+        if (showVerbose) {
+            fillRightSpace(result, "threadName", maxTotalLen + padding);
+            fillRightSpace(result, "threadStatus", maxTotalLen + padding);
+            fillRightSpace(result, "ClientCount", maxTotalLen);
+        } else {
+            fillRightSpace(result, "ClientCount", maxTotalLen);
+        }
         result.append('\n');
         int rowLen = result.length() - 1;
 
@@ -138,9 +187,37 @@ public class ClientTotalHandler implements ShellCmdHandler {
         ctInfo.setMaxTotalLen(maxTotalLen);
         ctInfo.setMaxSgNameLen(maxSgNameLen);
         ctInfo.setRowLen(rowLen);
+        ctInfo.setMaxThreadNameLen(maxThreadNameLen);
+        ctInfo.setMaxThreadStatusLen(maxThreadStatusLen);
         return ctInfo;
     }
 
+    private ThreadStatusInfoLen getMaxThreadStatusInfoLen(ServerGroup sg) {
+        List<Server> servers = sg.getServers();
+        ThreadStatusInfoLen tsil = new ThreadStatusInfoLen();
+        if (CollectionUtils.isEmpty(servers)) {
+            return tsil;
+        }
+        int maxNameLen = 0;
+        int maxStatusLen = "running".length();
+        for (Server server : servers) {
+            Map<Server.Addr, IoSelectorManager> ioSelectorManagerMap = server.getIoSelectorManagerMap();
+            for (Map.Entry<Server.Addr, IoSelectorManager> entry : ioSelectorManagerMap.entrySet()) {
+                Server.Addr addr = entry.getKey();
+                IoSelectorManager ioSelectorManager = entry.getValue();
+                List<IoSelectorManager.IoWorkerInfo> ioWorkerInfos = ioSelectorManager.getWorkerInfoList();
+                for (IoSelectorManager.IoWorkerInfo info : ioWorkerInfos) {
+                    if (info.getThreadName().length() > maxNameLen) {
+                        maxNameLen = info.getThreadName().length();
+                    }
+                }
+            }
+        }
+
+        tsil.setThreadNameLen(maxNameLen);
+        tsil.setThreadStatusLen(maxStatusLen);
+        return tsil;
+    }
 
     private ListenHostPortLen getMaxListenLen(ServerGroup sg) {
         List<Server> servers = sg.getServers();
@@ -196,6 +273,8 @@ public class ClientTotalHandler implements ShellCmdHandler {
         private int maxListenPortLen;
         private int maxServerNameLen;
         private int maxTotalLen;
+        private int maxThreadNameLen;
+        private int maxThreadStatusLen;
         /**
          * 两列数据的间隔
          */
@@ -267,6 +346,43 @@ public class ClientTotalHandler implements ShellCmdHandler {
 
         public void setRowLen(int rowLen) {
             this.rowLen = rowLen;
+        }
+
+        public int getMaxThreadNameLen() {
+            return maxThreadNameLen;
+        }
+
+        public void setMaxThreadNameLen(int maxThreadNameLen) {
+            this.maxThreadNameLen = maxThreadNameLen;
+        }
+
+        public int getMaxThreadStatusLen() {
+            return maxThreadStatusLen;
+        }
+
+        public void setMaxThreadStatusLen(int maxThreadStatusLen) {
+            this.maxThreadStatusLen = maxThreadStatusLen;
+        }
+    }
+
+    class ThreadStatusInfoLen {
+        private int threadNameLen;
+        private int threadStatusLen;
+
+        public int getThreadNameLen() {
+            return threadNameLen;
+        }
+
+        public void setThreadNameLen(int threadNameLen) {
+            this.threadNameLen = threadNameLen;
+        }
+
+        public int getThreadStatusLen() {
+            return threadStatusLen;
+        }
+
+        public void setThreadStatusLen(int threadStatusLen) {
+            this.threadStatusLen = threadStatusLen;
         }
     }
 

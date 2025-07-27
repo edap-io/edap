@@ -17,11 +17,9 @@
 package io.edap.nio;
 
 import com.lmax.disruptor.*;
-import com.lmax.disruptor.dsl.Disruptor;
 import com.lmax.disruptor.dsl.ProducerType;
 import io.edap.NioServerSession;
 import io.edap.Server;
-import io.edap.ServerChannelContext;
 import io.edap.log.Logger;
 import io.edap.log.LoggerManager;
 import io.edap.nio.event.BizEvent;
@@ -34,6 +32,8 @@ import java.io.IOException;
 import java.nio.channels.ClosedChannelException;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -96,7 +96,7 @@ public class IoSelectorManager {
                             if (count > 0) {
                                 LOG.info("selector.select() count: {}", l -> l.arg(count));
                             }
-                        } catch (IOException e) {
+                        } catch (Throwable e) {
                             LOG.warn("selector.select() error", e);
                         }
                     }
@@ -115,6 +115,19 @@ public class IoSelectorManager {
             total += ioWorkers[i].selector.keys().size();
         }
         return total;
+    }
+
+    public List<IoWorkerInfo> getWorkerInfoList() {
+        List<IoWorkerInfo> infos = new ArrayList<>();
+        for (int i=0;i<ioThreadCount;i++) {
+            IoWorkerInfo ioWorkerInfo = new IoWorkerInfo();
+            ioWorkerInfo.clientCount  = ioWorkers[i].selector.keys().size();
+            ioWorkerInfo.workerStatus = ioWorkers[i].running?1:0;
+            ioWorkerInfo.threadName   = ioWorkers[i].ioThread.getName();
+            infos.add(ioWorkerInfo);
+        }
+
+        return infos;
     }
 
     private DisruptorManager<BizEvent> createDisruptorManager() {
@@ -155,6 +168,37 @@ public class IoSelectorManager {
         private Selector selector;
         private boolean  running;
         private Thread   ioThread;
+    }
+
+    public class IoWorkerInfo {
+        private int clientCount;
+        private int workerStatus;
+        private String threadName;
+
+
+        public int getClientCount() {
+            return clientCount;
+        }
+
+        public void setClientCount(int clientCount) {
+            this.clientCount = clientCount;
+        }
+
+        public int getWorkerStatus() {
+            return workerStatus;
+        }
+
+        public void setWorkerStatus(int workerStatus) {
+            this.workerStatus = workerStatus;
+        }
+
+        public String getThreadName() {
+            return threadName;
+        }
+
+        public void setThreadName(String threadName) {
+            this.threadName = threadName;
+        }
     }
 
 }
