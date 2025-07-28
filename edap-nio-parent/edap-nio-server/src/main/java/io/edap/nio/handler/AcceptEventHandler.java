@@ -26,6 +26,7 @@ import io.edap.nio.event.AcceptEvent;
 import io.edap.pool.Pool;
 import io.edap.pool.impl.ThreadLocalPool;
 
+import java.net.SocketOption;
 import java.nio.channels.SocketChannel;
 
 /**
@@ -69,6 +70,7 @@ public class AcceptEventHandler implements EventHandler<AcceptEvent> {
         ServerChannelContext scc = event.getServerChannelCtx();
         SocketChannel sc = event.getChannel();
         sc.configureBlocking(false);
+        sc.socket().setKeepAlive(true);
         NioServerSession<?> nioSession;
         if (nioSessionPooled) {
             nioSession = nioSessionPool.borrow();
