@@ -28,6 +28,7 @@ import io.edap.nio.ReadDispatcher;
 import io.edap.nio.event.BizEvent;
 import io.edap.pool.Pool;
 import io.edap.pool.impl.ThreadLocalPool;
+import io.edap.util.EdapTime;
 
 import java.io.IOException;
 import java.net.SocketAddress;
@@ -47,7 +48,8 @@ public class DisruptorReadDispatcher implements ReadDispatcher {
 
     private DisruptorManager<BizEvent> disruptorManager;
 
-    private static boolean NIO_SESSION_POOLED;
+    private static boolean  NIO_SESSION_POOLED;
+    private static EdapTime EDAP_TIME          = EdapTime.instance();
 
 
     public DisruptorReadDispatcher(Server server, DisruptorManager<BizEvent> disruptorManager) {
@@ -72,6 +74,7 @@ public class DisruptorReadDispatcher implements ReadDispatcher {
             if (len < 0) {
                 closeChannel(readKey, nioSession);
             } else {
+                nioSession.setLastReadTime(EDAP_TIME.currentTimeMillis());
                 while (buf.remain() > 0) {
                     ParseResult pr = decoder.decode(buf, nioSession);
                     if (!pr.isFinished()) {

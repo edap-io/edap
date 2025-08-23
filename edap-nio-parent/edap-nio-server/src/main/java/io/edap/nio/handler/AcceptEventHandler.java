@@ -25,6 +25,7 @@ import io.edap.log.LoggerManager;
 import io.edap.nio.event.AcceptEvent;
 import io.edap.pool.Pool;
 import io.edap.pool.impl.ThreadLocalPool;
+import io.edap.util.EdapTime;
 
 import java.net.SocketOption;
 import java.nio.channels.SocketChannel;
@@ -36,9 +37,10 @@ public class AcceptEventHandler implements EventHandler<AcceptEvent> {
 
     static Logger LOG = LoggerManager.getLogger(AcceptEventHandler.class);
 
-    private Server                    server;
-    private boolean                   nioSessionPooled;
-    private Pool<NioServerSession<?>> nioSessionPool;
+    private        Server                    server;
+    private        boolean                   nioSessionPooled;
+    private        Pool<NioServerSession<?>> nioSessionPool;
+    private static EdapTime                  EDAP_TIME = EdapTime.instance();
 
     public AcceptEventHandler(Server server) {
         this.server = server;
@@ -84,6 +86,7 @@ public class AcceptEventHandler implements EventHandler<AcceptEvent> {
         nioSession.setChannelFd(NioServerSession.getValue(sc, "fd"));
         nioSession.setEdap(scc.getEdap());
         nioSession.setMonitorIndex(scc.getMonitorIndex());
+        nioSession.setLastReadTime(EDAP_TIME.currentTimeMillis());
 
         scc.getIoSelectorManager().registerNioSession(nioSession);
     }

@@ -23,9 +23,6 @@ import io.edap.Server;
 import io.edap.log.Logger;
 import io.edap.log.LoggerManager;
 import io.edap.nio.event.BizEvent;
-import io.edap.util.CollectionUtils;
-
-import java.util.List;
 
 public class BizEventHandler implements EventHandler<BizEvent>  {
 
