@@ -56,34 +56,27 @@ public class PathCache {
      * @param handler
      */
     public synchronized void registerHandler(String path, HttpHandler handler, String... methods) {
-        FastBufDataRange key = FastBufDataRange.from(path);
-        PathInfo pathInfo = pathCache.get(key);
-        MethodCache methodCache = MethodCache.instance();
+        FastBufDataRange key         = FastBufDataRange.from(path);
+        PathInfo         pathInfo    = pathCache.get(key);
+        MethodCache      methodCache = MethodCache.instance();
+        HttpHandler[]    handlers;
         if (pathInfo == null) {
             pathInfo = new PathInfo();
             pathInfo.setPath(path);
             pathInfo.setFound(true);
-            HttpHandler[] handlers = new HttpHandler[16];
-            for (int i=0;i<methods.length;i++) {
-                int methodIndex = methodCache.getMethodIndex(methods[i]);
-                if (methodIndex > handlers.length - 1) {
-                    handlers = new HttpHandler[methodIndex+1];
-                }
-                handlers[methodIndex] = handler;
-            }
+            handlers = new HttpHandler[16];
             pathInfo.setHttpHandlers(handlers);
             pathCache.put(key, pathInfo);
         } else {
-            HttpHandler[] handlers = pathInfo.getHttpHandlers();
-            for (int i=0;i<methods.length;i++) {
-                int methodIndex = methodCache.getMethodIndex(methods[i]);
-                if (methodIndex > handlers.length - 1) {
-                    handlers = new HttpHandler[methodIndex+1];
-                }
-                handlers[methodIndex] = handler;
-            }
+            handlers = pathInfo.getHttpHandlers();
         }
-
+        for (String method : methods) {
+            int methodIndex = methodCache.getMethodIndex(method);
+            if (methodIndex > handlers.length - 1) {
+                handlers = new HttpHandler[methodIndex + 1];
+            }
+            handlers[methodIndex] = handler;
+        }
     }
 
     public static final PathCache instance() {

@@ -19,7 +19,7 @@ package io.edap.http;
 public class MethodInfo {
 
     private String method;
-    private int methodIndex;
+    private int    methodIndex;
 
     public String getMethod() {
         return method;

@@ -41,7 +41,7 @@ public class JsonEncoderGenerator {
     private final String pojoName;
     private ClassWriter cw;
 
-    private       List<JsonFieldInfo> enumFields;
+    private List<JsonFieldInfo> enumFields;
     private List<JsonFieldInfo> encodeFields;
     private List<JsonFieldInfo> mapFields;
     private final int varWriter = 1;

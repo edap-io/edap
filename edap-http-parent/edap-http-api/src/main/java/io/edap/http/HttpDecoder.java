@@ -23,7 +23,6 @@ import io.edap.http.cache.HeaderNameCache;
 import io.edap.http.codec.HttpFastBufDataRange;
 import io.edap.http.decoder.*;
 import io.edap.http.model.QueryInfo;
-import io.edap.util.CollectionUtils;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -33,22 +32,21 @@ import java.util.List;
  */
 public class HttpDecoder extends AbstractHttpDecoder implements Decoder<HttpRequest, HttpNioSession> {
 
-    static MethodDecoder METHOD_DECODER      = new MethodDecoder();
-    static PathDecoder PATH_DECODER        = new PathDecoder();
-    static HttpVersionDecoder VERSION_DECODER     = new HttpVersionDecoder();
-
+    static MethodDecoder      METHOD_DECODER      = new MethodDecoder();
+    static PathDecoder        PATH_DECODER        = new PathDecoder();
     static QueryStringDecoder QUERY_DECODER       = new QueryStringDecoder();
-    static HeaderNameDecoder HEADERNAME_DECODER  = new HeaderNameDecoder();
+    static HttpVersionDecoder VERSION_DECODER     = new HttpVersionDecoder();
+    static HeaderDecoder      HEAADER_DACODER     = new HeaderDecoder();
+    static HeaderNameDecoder  HEADERNAME_DECODER  = new HeaderNameDecoder();
     static HeaderValueDecoder HEADERVALUE_DECODER = new HeaderValueDecoder();
     static BodyDecoder        BODY_DECODER        = new BodyDecoder();
-    static HeaderDecoder      HEAADER_DACODER     = new HeaderDecoder();
 
     static ContentTypeValueDecoder CONTENT_TYPE_VALUE_DECODER = new ContentTypeValueDecoder();
     static HeaderValueCacheDecoder HEADER_VALUE_CACHE_DECODER = new HeaderValueCacheDecoder();
-    static ConnectionValueDecoder CONNECTION_VALUE_DECODER    = new ConnectionValueDecoder();
+    static ConnectionValueDecoder  CONNECTION_VALUE_DECODER   = new ConnectionValueDecoder();
 
     static ThreadLocal<List<ValueHttpRequest>> THREAD_RANGE_REQUEST;
-    static ThreadLocal<List<HttpRequest>> THREAD_USED_REQUEST;
+    static ThreadLocal<List<HttpRequest>>      THREAD_USED_REQUEST;
 
     static {
         THREAD_RANGE_REQUEST = ThreadLocal.withInitial(() -> {

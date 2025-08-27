@@ -38,18 +38,18 @@ public class HttpNioSession extends NioServerSession<HttpRequest> {
     static Logger LOG = LoggerManager.getLogger(HttpNioSession.class);
 
     static final HttpHandler NOT_SUPPORT_METHO_HANDLER = new NotSupportMethodHandler();
-    static final HttpHandler NOT_FOUND_HANDLER = new NotFoundHandler();
+    static final HttpHandler NOT_FOUND_HANDLER         = new NotFoundHandler();
 
-    private HttpRequest request;
+    private HttpRequest              request;
     private ParseResult<HttpRequest> parseResult;
-    private HttpDecoder.State decodeState;
-    private HttpFastBufDataRange dataRange;
-    private BytesDataRange bytesDataRange;
-    private ByteData tmpData;
-    private HttpResponse response;
-    private List<ValueHttpRequest> valueRequestPool;
-    private List<RangeHttpRequest> rangeRequestPool;
-    private List<HttpRequest> reqeustList;
+    private HttpDecoder.State        decodeState;
+    private HttpFastBufDataRange     dataRange;
+    private BytesDataRange           bytesDataRange;
+    private ByteData                 tmpData;
+    private HttpResponse             response;
+    private List<ValueHttpRequest>   valueRequestPool;
+    private List<RangeHttpRequest>   rangeRequestPool;
+    private List<HttpRequest>        reqeustList;
 
     public HttpNioSession() {
         valueRequestPool = new FastList<>(32);
