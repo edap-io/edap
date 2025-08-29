@@ -80,14 +80,14 @@ public interface DataRange<P, B> {
      * 数据块所有数据的hash值,在HashMap中作为key时取hashCode的值，该值在协议解码时直接计算获得，减少一次遍历数据的过程
      * @return 数据块的hash值
      */
-    int hashCode();
+    long hash();
 
     /**
      * 设置数据库块对象的hash值
      * @param hash
      * @return
      */
-    DataRange<P, B> hashCode(int hash);
+    DataRange<P, B> hash(long hash);
 
     /**
      * 数据块的长度

@@ -5,24 +5,25 @@ import io.edap.nio.codec.BytesDataRange;
 import io.edap.nio.codec.FastBufDataRange;
 import org.junit.jupiter.api.Test;
 
+import java.nio.charset.StandardCharsets;
 import java.util.Random;
 
 import static io.edap.util.Constants.FNV_1a_FACTOR_VAL;
 import static io.edap.util.Constants.FNV_1a_INIT_VAL;
 import static org.junit.jupiter.api.Assertions.*;
 
-public class TestFastBufDataRange {
+public class BytesDataRangeTest {
 
     @Test
     public void testFrom() {
-        FastBufDataRange fdr = FastBufDataRange.from("");
+        BytesDataRange fdr = BytesDataRange.from("");
         assertNull(fdr);
 
         String str = new Random().nextLong() + "";
-        fdr = FastBufDataRange.from(str);
+        fdr = BytesDataRange.from(str);
         assertEquals(fdr.first(), str.getBytes()[0]);
         assertEquals(fdr.last(), str.getBytes()[str.length()-1]);
-        assertEquals(fdr.hashCode(), fnv1aHash(str.getBytes()));
+        assertEquals(fdr.hash(), fnv1aHash(str.getBytes()));
         assertEquals(fdr.length(), str.length());
         assertFalse(fdr.matchStrict());
     }
@@ -30,35 +31,41 @@ public class TestFastBufDataRange {
     @Test
     public void testConstructor() {
         String str = new Random().nextLong() + "";
-        FastBuf fb = new FastBuf(str.length());
-        fb.write(str.getBytes(), 0, str.length());
-        FastBufDataRange fdr = new FastBufDataRange(fb, fb.address(), str.length(), fnv1aHash(str.getBytes()));
+        BytesDataRange fdr = new BytesDataRange(str);
         assertEquals(fdr.first(), str.getBytes()[0]);
         assertEquals(fdr.last(), str.getBytes()[str.length()-1]);
-        assertEquals(fdr.hashCode(), fnv1aHash(str.getBytes()));
+        assertEquals(fdr.hash(), fnv1aHash(str.getBytes()));
         assertEquals(fdr.length(), str.length());
         assertFalse(fdr.matchStrict());
-        assertEquals(fdr.buffer(), fb);
-        assertEquals(fdr.start(), fb.address());
+
+        RuntimeException thrown = assertThrows(RuntimeException.class,
+                () -> {
+                    new BytesDataRange(null);
+                });
+        assertEquals(thrown.getMessage(), "Cann't empty!");
     }
 
     @Test
     public void testEquals() {
-        FastBufDataRange fdr = FastBufDataRange.from("Host");
+        BytesDataRange fdr = BytesDataRange.from("Host");
 
-        BytesDataRange bdr = BytesDataRange.from("Host");
+        FastBufDataRange bdr = FastBufDataRange.from("Host");
         assertEquals(fdr.equals(bdr), false);
 
 
-        FastBufDataRange nfdr = fdr;
+        BytesDataRange nfdr = fdr;
         assertEquals(fdr.equals(nfdr), true);
 
-        FastBufDataRange other = new FastBufDataRange();
+        BytesDataRange other = new BytesDataRange();
+        other.buffer("Host".getBytes(StandardCharsets.UTF_8));
+        assertArrayEquals(other.buffer(), "Host".getBytes(StandardCharsets.UTF_8));
         other.first((byte)'H');
         other.last((byte)'t');
-        other.hashCode(fnv1aHash("Host".getBytes()));
+        other.hash(fnv1aHash("Host".getBytes()));
         other.length(3);
         assertEquals(fdr.equals(other), false);
+        fdr.start(0);
+        assertEquals(fdr.start(), 0);
 
         other.length(4);
         other.first((byte)'h');
@@ -69,10 +76,10 @@ public class TestFastBufDataRange {
         assertEquals(fdr.equals(other), false);
 
         other.last((byte)'t');
-        other.hashCode(101);
+        other.hash(101);
         assertEquals(fdr.equals(other), false);
 
-        other.hashCode(fnv1aHash("Host".getBytes()));
+        other.hash(fnv1aHash("Host".getBytes()));
         assertEquals(fdr.equals(other), true);
 
         fdr.matchStrict(true);
@@ -90,45 +97,52 @@ public class TestFastBufDataRange {
         assertEquals(fdr.equals(other), false);
 
         other.last((byte)'t');
-        other.hashCode(101);
+        other.hash(-101L);
         assertEquals(fdr.equals(other), false);
 
-        other.hashCode(fnv1aHash("Host".getBytes()));
-        FastBuf fb = new FastBuf(4);
-        fb.write("Host".getBytes(), 0, 4);
-        other.buffer(fb);
-        other.start(fb.address());
+        fdr.matchStrict(false);
+        other.hash(-2798444378225708657L);
         assertEquals(fdr.equals(other), true);
 
-        fb = new FastBuf(4);
-        fb.write("Ho1t".getBytes(), 0, 4);
-        other.buffer(fb);
-        other.start(fb.address());
+        fdr.matchStrict(true);
+        other.hash(-2798444378225708657L);
+        assertEquals(fdr.equals(other), true);
+
+        other.buffer("Hast".getBytes(StandardCharsets.UTF_8));
         assertEquals(fdr.equals(other), false);
+
+        other.buffer("Hobt".getBytes(StandardCharsets.UTF_8));
+        assertEquals(fdr.equals(other), false);
+
+
+        fdr = BytesDataRange.from("Ht");
+        other = BytesDataRange.from("Ht");
+        fdr.matchStrict(true);
+        assertEquals(fdr.equals(other), true);
     }
 
     @Test
     public void testGetString() {
         String str = (100000 + new Random().nextLong()) + "";
-        FastBufDataRange fdr = FastBufDataRange.from(str.substring(2, 6));
+        BytesDataRange fdr = BytesDataRange.from(str.substring(2, 6));
 
         assertEquals(fdr.getString(), str.substring(2, 6));
     }
 
     @Test
     public void testReset() {
-        FastBufDataRange fdr = FastBufDataRange.from("io/edap");
+        BytesDataRange fdr = BytesDataRange.from("io/edap");
         fdr.reset();
     }
 
-    private int fnv1aHash(byte[] bytes) {
+    private long fnv1aHash(byte[] bytes) {
         long hashCode = FNV_1a_INIT_VAL;
         for (byte b : bytes) {
             hashCode ^= b;
             hashCode *= FNV_1a_FACTOR_VAL;
         }
 
-        return (int)hashCode;
+        return hashCode;
     }
 
 }

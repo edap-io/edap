@@ -32,23 +32,23 @@ public class FastBufDataRange implements DataRange<Long, FastBuf> {
 
     boolean strict;
 
-    long start;
+    long    start;
 
-    byte first;
+    byte    first;
 
-    byte last;
+    byte    last;
 
-    int length;
+    int     length;
 
-    int hash;
+    long    hash;
 
     public FastBufDataRange() {}
 
-    public FastBufDataRange(FastBuf buf, long start, int length, int hash) {
+    public FastBufDataRange(FastBuf buf, long start, int length, long hash) {
         this(buf, start, length, buf.get(start), buf.get(start+length-1) , hash);
     }
 
-    public FastBufDataRange(FastBuf buf, long start, int length, byte first, byte last, int hash) {
+    public FastBufDataRange(FastBuf buf, long start, int length, byte first, byte last, long hash) {
         this.buf    = buf;
         this.hash   = hash;
         this.start  = start;
@@ -61,21 +61,21 @@ public class FastBufDataRange implements DataRange<Long, FastBuf> {
         if (StringUtil.isEmpty(v)) {
             return null;
         }
-        FastBufDataRange dr = new FastBufDataRange();
-        byte[] bytes = v.getBytes(DEFAULT_CHARSET);
-        long hashCode = FNV_1a_INIT_VAL;
+        FastBufDataRange dr       = new FastBufDataRange();
+        byte[]           bytes    = v.getBytes(DEFAULT_CHARSET);
+        long             hashCode = FNV_1a_INIT_VAL;
         FastBuf buf = new FastBuf(bytes.length);
         buf.write(bytes,0, bytes.length);
         dr.start = buf.address();
         dr.first = bytes[0];
         dr.last  = bytes[bytes.length-1];
-        dr.buf = buf;
+        dr.buf   = buf;
         for (byte b : bytes) {
             hashCode ^= b;
             hashCode *= FNV_1a_FACTOR_VAL;
         }
         dr.length = bytes.length;
-        dr.hash = (int)hashCode;
+        dr.hash   = hashCode;
         return dr;
     }
 
@@ -138,12 +138,12 @@ public class FastBufDataRange implements DataRange<Long, FastBuf> {
     }
 
     @Override
-    public int hashCode() {
+    public long hash() {
         return hash;
     }
 
    @Override
-   public DataRange<Long, FastBuf> hashCode(int hash) {
+   public DataRange<Long, FastBuf> hash(long hash) {
         this.hash = hash;
         return this;
    }
@@ -179,7 +179,8 @@ public class FastBufDataRange implements DataRange<Long, FastBuf> {
         if (dataRange == this) {
             return true;
         }
-        if (dataRange.length != length) {
+        int _len = length;
+        if (dataRange.length != _len) {
             return false;
         }
         if (dataRange.hash != hash) {
@@ -191,10 +192,10 @@ public class FastBufDataRange implements DataRange<Long, FastBuf> {
         if (dataRange.last != last) {
             return false;
         }
-        if (length > 2) {
-            FastBuf o = dataRange.buf;
-            long pos = dataRange.start;
-            for (int i=1;i<=length-2;i++) {
+        if (_len > 2) {
+            FastBuf o   = dataRange.buf;
+            long    pos = dataRange.start;
+            for (int i=1;i<=_len-2;i++) {
                 if (buf.get(start+i) != o.get(pos+i)) {
                     return false;
                 }
