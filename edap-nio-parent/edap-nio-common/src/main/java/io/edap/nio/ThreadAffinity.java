@@ -17,9 +17,9 @@
 package io.edap.nio;
 
 /**
- * 线程亲和性接口，继承该接口的NioSession被分配到一个线程后，知道该队列中没有被一个线程正在处理才会被分配到其他线程。
+ * 线程亲和性接口，继承该接口的NioSession被分配到一个线程后，直到该队列中没有被一个线程正在处理才会被分配到其他线程。
  */
-public interface AffinityThread {
+public interface ThreadAffinity {
     /**
      * 是否想具备线程亲和性
      * @return

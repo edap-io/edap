@@ -31,28 +31,53 @@ public class BytesDataRange implements DataRange<Integer, byte[]> {
     byte    last;
     int     length;
     int     start;
-    int     hash;
+    long    hash;
+
+    public BytesDataRange() {
+
+    }
+
+    public BytesDataRange(String v) {
+        if (StringUtil.isEmpty(v)) {
+            throw new RuntimeException("Cann't empty!");
+        }
+        byte[] bytes    = v.getBytes(DEFAULT_CHARSET);
+        int    length   = bytes.length;
+        long   hashCode = FNV_1a_INIT_VAL;
+        byte[] buf      = new byte[length];
+        System.arraycopy(bytes, 0, buf, 0, length);
+        this.start = 0;
+        this.first = bytes[0];
+        this.last  = bytes[bytes.length-1];
+        this.buf   = buf;
+        for (byte aByte : bytes) {
+            hashCode ^= aByte;
+            hashCode *= FNV_1a_FACTOR_VAL;
+        }
+        this.length = bytes.length;
+        this.hash   = hashCode;
+    }
 
     public static BytesDataRange from(String v) {
         if (StringUtil.isEmpty(v)) {
             return null;
         }
         BytesDataRange dr = new BytesDataRange();
-        byte[] bytes = v.getBytes(DEFAULT_CHARSET);
-        int length = bytes.length;
-        long hashCode = FNV_1a_INIT_VAL;
-        byte[] buf = new byte[length];
+        byte[] bytes    = v.getBytes(DEFAULT_CHARSET);
+        int    length   = bytes.length;
+        long   hashCode = FNV_1a_INIT_VAL;
+        byte[] buf      = new byte[length];
         System.arraycopy(bytes, 0, buf, 0, length);
         dr.start = 0;
         dr.first = bytes[0];
         dr.last  = bytes[bytes.length-1];
-        dr.buf = buf;
+        dr.buf   = buf;
         for (byte aByte : bytes) {
             hashCode ^= aByte;
             hashCode *= FNV_1a_FACTOR_VAL;
         }
         dr.length = bytes.length;
-        dr.hash = (int)hashCode;
+        dr.hash   = hashCode;
         return dr;
     }
 
@@ -112,13 +137,13 @@ public class BytesDataRange implements DataRange<Integer, byte[]> {
     }
 
     @Override
-    public DataRange<Integer, byte[]> hashCode(int hash) {
+    public DataRange<Integer, byte[]> hash(long hash) {
         this.hash = hash;
         return this;
     }
 
     @Override
-    public int hashCode() {
+    public long hash() {
         return hash;
     }
 
@@ -136,6 +161,62 @@ public class BytesDataRange implements DataRange<Integer, byte[]> {
     @Override
     public String getString(Charset charset) {
         return new String(buf, start, length, charset);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (!(obj instanceof BytesDataRange)) {
+            return false;
+        }
+        if (matchStrict()) {
+            return equalsStrict((BytesDataRange)obj);
+        }
+        return equalsLoose((BytesDataRange)obj);
+    }
+
+    private boolean equalsLoose(BytesDataRange dataRange) {
+        if (dataRange == this) {
+            return true;
+        }
+        if (dataRange.length != length) {
+            return false;
+        }
+        if (dataRange.hash != hash) {
+            return false;
+        }
+        if (dataRange.first != first) {
+            return false;
+        }
+        return dataRange.last == last;
+    }
+
+    private boolean equalsStrict(BytesDataRange dataRange) {
+        if (dataRange == this) {
+            return true;
+        }
+        int _len = length;
+        if (dataRange.length != _len) {
+            return false;
+        }
+        if (dataRange.hash != hash) {
+            return false;
+        }
+        if (dataRange.first != first) {
+            return false;
+        }
+        if (dataRange.last != last) {
+            return false;
+        }
+        if (_len > 2) {
+            byte[] o   = dataRange.buf;
+            int    pos = dataRange.start;
+            for (int i=1;i<=_len-2;i++) {
+                if (buf[start+i] != o[pos+i]) {
+                    return false;
+                }
+            }
+        }
+        return true;
     }
 
     @Override

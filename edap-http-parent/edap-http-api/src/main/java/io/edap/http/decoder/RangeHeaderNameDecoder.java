@@ -42,7 +42,7 @@ public class RangeHeaderNameDecoder implements TokenDecoder<HeaderName> {
                     rangeHttpRequest = (RangeHttpRequest)request;
                     keyRange = rangeHttpRequest.headerRanges.keys[rangeHttpRequest.headerRanges.length];
                     keyRange.length(i);
-                    keyRange.hashCode(hashCode);
+                    keyRange.hash(hashCode);
                     keyRange.last();
                     _buf.rpos(rpos+i+1);
                     return EMPTY_HEADERNAME;
@@ -50,7 +50,7 @@ public class RangeHeaderNameDecoder implements TokenDecoder<HeaderName> {
                     rangeHttpRequest = (RangeHttpRequest)request;
                     keyRange = rangeHttpRequest.headerRanges.keys[rangeHttpRequest.headerRanges.length];
                     keyRange.length(i);
-                    keyRange.hashCode(hashCode);
+                    keyRange.hash(hashCode);
                     keyRange.last();
                     for (int j=i+1;j<remain;j++) {
                         switch (_buf.get(rpos+j)) {

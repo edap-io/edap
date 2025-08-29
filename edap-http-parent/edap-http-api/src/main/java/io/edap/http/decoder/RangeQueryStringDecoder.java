@@ -68,7 +68,7 @@ public class RangeQueryStringDecoder implements TokenDecoder<HttpFastBufDataRang
                 case '=':
                     keyRange.length((int)(rpos - queryRange.start() - 1));
                     keyRange.last();
-                    keyRange.hashCode(hashCode);
+                    keyRange.hash(hashCode);
                     keyRange.urlEncoded(dr.urlEncoded());
                     hashCode = 0;
                     valRange.start(rpos);
@@ -88,7 +88,7 @@ public class RangeQueryStringDecoder implements TokenDecoder<HttpFastBufDataRang
                     valRange.length(0);
                     break;
                 case ' ':
-                    queryRange.hashCode(queryHash);
+                    queryRange.hash(queryHash);
                     return queryRange;
                 case '+':
                     hashCode = BKDR_HASH_SEED * hashCode + ' ';

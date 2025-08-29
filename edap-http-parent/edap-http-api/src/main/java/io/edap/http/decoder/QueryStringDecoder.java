@@ -41,17 +41,17 @@ public class QueryStringDecoder implements TokenDecoder<QueryInfo> {
     }
 
     private QueryInfo decodeQuery(FastBuf buf, FastBufDataRange dataRange) {
-        FastBuf _buf = buf;
+        FastBuf         _buf       = buf;
         List<ParamPair> paramPairs = new FastList<>();
-        QueryInfo query = new QueryInfo();
-        int remain = _buf.remain();
-        long rpos = _buf.rpos();
-        long queryPos = rpos;
+        QueryInfo       query      = new QueryInfo();
+        int             remain     = _buf.remain();
+        long            rpos       = _buf.rpos();
+        long            queryPos   = rpos;
         dataRange.buffer(_buf);
         dataRange.start(rpos);
         String key = null;
-        byte b;
-        long hashCode = FNV_1a_INIT_VAL;
+        byte   b;
+        long   hashCode = FNV_1a_INIT_VAL;
         for (int i=0;i<remain;i++) {
             b = _buf.get(rpos++);
             switch (b) {
@@ -59,7 +59,7 @@ public class QueryStringDecoder implements TokenDecoder<QueryInfo> {
                     dataRange.length((int)(rpos - dataRange.start() - 1));
                     _buf.rpos(dataRange.start());
                     dataRange.last();
-                    dataRange.hashCode((int)hashCode);
+                    dataRange.hash(hashCode);
                     key = KEY_CACHE.get(dataRange);
                     dataRange.start(rpos);
                     hashCode = FNV_1a_INIT_VAL;
@@ -69,7 +69,7 @@ public class QueryStringDecoder implements TokenDecoder<QueryInfo> {
                     dataRange.last();
                     _buf.rpos(dataRange.start());
                     if (!StringUtil.isEmpty(key)) {
-                        dataRange.hashCode((int)hashCode);
+                        dataRange.hash(hashCode);
                         ParamPair paramPair = new ParamPair();
                         paramPair.setKey(key);
                         paramPair.setValue(dataRange.getString());
@@ -84,14 +84,14 @@ public class QueryStringDecoder implements TokenDecoder<QueryInfo> {
                     if (!StringUtil.isEmpty(key)) {
                         dataRange.last();
                         dataRange.length((int)(rpos - dataRange.start() - 1));
-                        dataRange.hashCode((int)hashCode);
+                        dataRange.hash(hashCode);
                         ParamPair paramPair = new ParamPair();
                         paramPair.setKey(key);
                         paramPair.setValue(dataRange.getString());
                         paramPairs.add(paramPair);
                     }
                     byte[] queryBytes = new byte[i];
-                    _buf.rpos(queryPos);
+                    //_buf.rpos(queryPos);
                     _buf.get(queryBytes);
                     query.setQueryBytes(queryBytes);
                     query.setParamPairs(paramPairs);

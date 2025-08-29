@@ -49,7 +49,7 @@ public class HeaderValueCacheDecoder implements TokenDecoder<HeaderValue> {
                     if (_buf.get(rpos+i+1) == '\n') {
                         _buf.rpos(rpos+i+2);
                         len = (int)((rpos+i)-dataRange.start());
-                        dataRange.hashCode((int)hashCode);
+                        dataRange.hash(hashCode);
                         dataRange.last();
                         dataRange.length(len);
                         return CACHE.get(dataRange);

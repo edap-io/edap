@@ -45,13 +45,13 @@ public class HeaderNameDecoder implements TokenDecoder<HeaderName> {
             b = _buf.get(rpos+i);
             if (b == ':') {
                 dataRange.length(i);
-                dataRange.hashCode((int)hashCode);
+                dataRange.hash(hashCode);
                 dataRange.last();
                 _buf.rpos(rpos+i+1);
                 return CACHE.get(dataRange);
             } else if (b == ' ') {
                 dataRange.length(i);
-                dataRange.hashCode((int)hashCode);
+                dataRange.hash(hashCode);
                 dataRange.last();
                 for (int j=i+1;j<remain;j++) {
                     b = _buf.get(rpos+j);

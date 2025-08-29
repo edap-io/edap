@@ -33,10 +33,8 @@ public class HttpConsts {
      * 预置的header名称，预置header由框架来进行设置，用户设置无效
      */
     public static Map<String, Header> BUILDIN_HEADERS;
-
-    public static Charset DEFAULT_CHARSET = StandardCharsets.UTF_8;
-
-    public static int[] BYTE_VALUES = new int[71];
+    public static Charset             DEFAULT_CHARSET = StandardCharsets.UTF_8;
+    public static int[]               BYTE_VALUES     = new int[71];
 
     static {
 

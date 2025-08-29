@@ -8,7 +8,7 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.nio.channels.SocketChannel;
 
-public abstract class NioSession implements AffinityThread {
+public abstract class NioSession implements ThreadAffinity {
 
     /**
      * 最后读取到数据的时间

@@ -19,9 +19,8 @@ package io.edap.nio.impl;
 import com.lmax.disruptor.*;
 import com.lmax.disruptor.dsl.Disruptor;
 import com.lmax.disruptor.dsl.ProducerType;
-import io.edap.nio.AffinityThread;
+import io.edap.nio.ThreadAffinity;
 import io.edap.nio.DisruptorManager;
-import io.edap.nio.NioSession;
 
 import java.util.concurrent.ThreadFactory;
 
@@ -57,9 +56,9 @@ public class RoundRobinDisruptorManager<E> implements DisruptorManager<E> {
      * @return 成功发布返回true否则返回false
      */
     @Override
-    public boolean publishEvent(AffinityThread affinityThread, EventTranslator<E> translator) {
-        if (affinityThread != null && affinityThread.isAffinityThread()) {
-            return affinityThreadPublish(affinityThread, translator);
+    public boolean publishEvent(ThreadAffinity threadAffinity, EventTranslator<E> translator) {
+        if (threadAffinity != null && threadAffinity.isAffinityThread()) {
+            return affinityThreadPublish(threadAffinity, translator);
         } else {
             return normalPublish(translator);
         }
@@ -102,12 +101,12 @@ public class RoundRobinDisruptorManager<E> implements DisruptorManager<E> {
         return true;
     }
 
-    private boolean affinityThreadPublish(AffinityThread affinityThread, EventTranslator<E> translator) {
+    private boolean affinityThreadPublish(ThreadAffinity threadAffinity, EventTranslator<E> translator) {
         int             _seq;
         int             _queueCount  = queueCount;
         RingBuffer<E>[] _ringBuffers = ringBuffers;
-        if (affinityThread.getThreadIndex() >= 0) {
-            _seq = affinityThread.getThreadIndex();
+        if (threadAffinity.getThreadIndex() >= 0) {
+            _seq = threadAffinity.getThreadIndex();
             try {
                 _ringBuffers[_seq].publishEvent(translator);
                 return true;

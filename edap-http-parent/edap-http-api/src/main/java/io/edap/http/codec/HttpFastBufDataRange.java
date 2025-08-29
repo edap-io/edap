@@ -34,7 +34,7 @@ public class HttpFastBufDataRange extends FastBufDataRange {
             hashCode *= FNV_1a_FACTOR_VAL;
         }
         dr.length(bytes.length);
-        dr.hashCode((int)hashCode);
+        dr.hash(hashCode);
         return dr;
     }
 

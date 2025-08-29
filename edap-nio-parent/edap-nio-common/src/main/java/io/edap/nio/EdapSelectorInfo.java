@@ -19,7 +19,7 @@ package io.edap.nio;
 import java.nio.channels.Selector;
 
 public class EdapSelectorInfo {
-    private Selector selector;
+    private Selector           selector;
     private EventDispatcherSet eventDispatcherSet;
 
     public Selector getSelector() {

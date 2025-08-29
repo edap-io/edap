@@ -16,8 +16,6 @@
 
 package io.edap.nio.enums;
 
-import java.util.Locale;
-
 public enum ThreadType {
     /**
      * 标准的reaction的模式
