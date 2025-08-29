@@ -23,7 +23,7 @@ public class PathInfo {
     /**
      * http的路径信息
      */
-    private String path;
+    private String  path;
     private boolean found;
     /**
      * 支持的method下标的列表

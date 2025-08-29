@@ -24,21 +24,14 @@ import static io.edap.util.Constants.*;
 
 public class BytesDataRange implements DataRange<Integer, byte[]> {
 
-    byte[] buf;
-
+    byte[]  buf;
     boolean urlEncoded;
-
     boolean strict;
-
-    byte first;
-
-    byte last;
-
-    int length;
-
-    int start;
-
-    int hash;
+    byte    first;
+    byte    last;
+    int     length;
+    int     start;
+    int     hash;
 
     public static BytesDataRange from(String v) {
         if (StringUtil.isEmpty(v)) {

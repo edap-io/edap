@@ -26,55 +26,13 @@ import static io.edap.log.Logger.MAX_ARGS;
  */
 public class LogArgsImpl implements LogArgs {
 
-    public String getLoggerName() {
-        return loggerName;
-    }
-
-    public void setLoggerName(String loggerName) {
-        this.loggerName = loggerName;
-    }
-
-    public Appender[] getAppenders() {
-        return appenders;
-    }
-
-    public void setAppenders(Appender[] appenders) {
-        this.appenders = appenders;
-    }
-
-    public static final class TooManyArgsException extends IllegalStateException {
-        private static final long serialVersionUID = 1L;
-        TooManyArgsException(String m) { super(m); }
-    }
-
-    public static final class DuplicateValueException extends IllegalStateException {
-        private static final long serialVersionUID = 1L;
-        DuplicateValueException(String m) { super(m); }
-    }
-
-    private int level;
-    private String format;
-    private int argc;
-    private final Object[] argv = new Object[MAX_ARGS];
-    private Throwable throwable;
-    private Appender[] appenders;
-    private String loggerName;
-
-    public String getFormat() {
-        return format;
-    }
-
-    public void setFormat(String format) {
-        this.format = format;
-    }
-
-    public Throwable getThrowable() {
-        return throwable;
-    }
-
-    public void setThrowable(Throwable throwable) {
-        this.throwable = throwable;
-    }
+    private       int        level;
+    private       String     format;
+    private       int        argc;
+    private       Throwable  throwable;
+    private       Appender[] appenders;
+    private       String     loggerName;
+    private final Object[]   argv       = new Object[MAX_ARGS];
 
     @Override
     public void reset() {
@@ -207,5 +165,47 @@ public class LogArgsImpl implements LogArgs {
 
     public int getArgc() {
         return argc;
+    }
+
+    public String getFormat() {
+        return format;
+    }
+
+    public void setFormat(String format) {
+        this.format = format;
+    }
+
+    public Throwable getThrowable() {
+        return throwable;
+    }
+
+    public void setThrowable(Throwable throwable) {
+        this.throwable = throwable;
+    }
+
+    public String getLoggerName() {
+        return loggerName;
+    }
+
+    public void setLoggerName(String loggerName) {
+        this.loggerName = loggerName;
+    }
+
+    public Appender[] getAppenders() {
+        return appenders;
+    }
+
+    public void setAppenders(Appender[] appenders) {
+        this.appenders = appenders;
+    }
+
+    public static final class TooManyArgsException extends IllegalStateException {
+        private static final long serialVersionUID = 1L;
+        TooManyArgsException(String m) { super(m); }
+    }
+
+    public static final class DuplicateValueException extends IllegalStateException {
+        private static final long serialVersionUID = 1L;
+        DuplicateValueException(String m) { super(m); }
     }
 }

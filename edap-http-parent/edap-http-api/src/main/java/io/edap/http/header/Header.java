@@ -18,8 +18,8 @@ package io.edap.http.header;
 
 public abstract class Header {
 
-    private String name;
-    private String value;
+    private   String name;
+    private   String value;
     protected byte[] bytes;
 
     public Header() {

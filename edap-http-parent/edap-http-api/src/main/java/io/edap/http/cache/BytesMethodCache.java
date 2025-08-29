@@ -26,8 +26,8 @@ import java.util.Map;
 
 public class BytesMethodCache {
 
-    private List<String>            methods;
-    private Map<String, MethodInfo> cache;
+    private List<String>                    methods;
+    private Map<String, MethodInfo>         cache;
     private Map<BytesDataRange, MethodInfo> rangeCache;
 
     private BytesMethodCache() {

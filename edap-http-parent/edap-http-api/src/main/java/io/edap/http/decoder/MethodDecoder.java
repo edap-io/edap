@@ -57,10 +57,10 @@ public class MethodDecoder implements TokenDecoder<MethodInfo> {
             byte b5 = _buf.get(pos+4);
             if (b5 == ' ') {
                 _buf.rpos(pos+5);
-                if (b1 == 'H' && b2 == 'E' && b3 == 'A' && b4 == 'D') {
-                    return HEAD;
-                } else if (b1 == 'P' && b2 == 'O' && b3 == 'S' && b4 == 'T') {
+                if (b1 == 'P' && b2 == 'O' && b3 == 'S' && b4 == 'T') {
                     return POST;
+                } else if (b1 == 'H' && b2 == 'E' && b3 == 'A' && b4 == 'D') {
+                    return HEAD;
                 } else {
                     return getMethodInfo(pos, _buf, dataRange, b1, b2, b3, b4);
                 }
@@ -99,7 +99,6 @@ public class MethodDecoder implements TokenDecoder<MethodInfo> {
                     return getMethodInfo(pos, _buf, dataRange, b1, b2, b3, b4, b5, b6, b7);
                 }
             }
-            break METHOD_FINISHED;
         }
         long hashCode = FNV_1a_INIT_VAL;
         for (int i = 0;i<remain;i++) {

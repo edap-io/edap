@@ -18,6 +18,7 @@ package io.edap.util;
 
 import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.Calendar;
 import java.util.Date;
@@ -58,7 +59,7 @@ public class TimeUtil {
      * @return
      */
     public static long timeMillis(LocalDateTime time) {
-        return time==null?0:time.toEpochSecond(UTC_ZONEOFFSET);
+        return time==null?0:time.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
     }
 
     /**
