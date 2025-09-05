@@ -20,8 +20,6 @@ import io.edap.NioServerSession;
 import io.edap.nio.ParseResult;
 import io.edap.nio.codec.BytesDataRange;
 import io.edap.http.codec.HttpFastBufDataRange;
-import io.edap.http.handler.NotFoundHandler;
-import io.edap.http.handler.NotSupportMethodHandler;
 import io.edap.log.Logger;
 import io.edap.log.LoggerManager;
 import io.edap.util.ByteData;
@@ -33,16 +31,13 @@ import java.util.List;
  * @author: louis.lu
  * @date : 2019-07-17 15:42
  */
-public class HttpNioSession extends NioServerSession<HttpRequest> {
+public abstract class HttpNioSession extends NioServerSession<HttpRequest> {
 
     static Logger LOG = LoggerManager.getLogger(HttpNioSession.class);
 
-    static final HttpHandler NOT_SUPPORT_METHO_HANDLER = new NotSupportMethodHandler();
-    static final HttpHandler NOT_FOUND_HANDLER         = new NotFoundHandler();
-
     private HttpRequest              request;
     private ParseResult<HttpRequest> parseResult;
-    private RangeHttpDecoder.State        decodeState;
+    private HttpDecoder.State        decodeState;
     private HttpFastBufDataRange     dataRange;
     private BytesDataRange           bytesDataRange;
     private ByteData                 tmpData;
@@ -71,28 +66,7 @@ public class HttpNioSession extends NioServerSession<HttpRequest> {
 
     }
 
-    public void handle(HttpRequest request) {
-        PathInfo pathInfo = request.getPath();
-        HttpHandler handler = null;
-        if (pathInfo.isFound()) {
-            try {
-                handler = pathInfo.getHttpHandlers()[request.getMethodInfo().getMethodIndex()];
-            } catch (Exception e) {
-                LOG.warn("get HttpHandler error", e);
-            }
-            if (handler == null) {
-                handler = NOT_SUPPORT_METHO_HANDLER;
-            }
-        } else { // 请求的路径不存在
-            handler = NOT_FOUND_HANDLER;
-        }
-        HttpResponse resp = new HttpResponse();
-        resp.setNioSession(this);
-        resp.setRequest(request);
-        resp.setBuf(getBuf());
-
-        handler.handle(request, resp);
-    }
+    public abstract void handle(HttpRequest request);
 
     public HttpRequest getRequest() {
         return request;
@@ -102,11 +76,11 @@ public class HttpNioSession extends NioServerSession<HttpRequest> {
         this.request = request;
     }
 
-    public RangeHttpDecoder.State getDecodeState() {
+    public HttpDecoder.State getDecodeState() {
         return decodeState;
     }
 
-    public void setDecodeState(RangeHttpDecoder.State decodeState) {
+    public void setDecodeState(HttpDecoder.State decodeState) {
         this.decodeState = decodeState;
     }
 

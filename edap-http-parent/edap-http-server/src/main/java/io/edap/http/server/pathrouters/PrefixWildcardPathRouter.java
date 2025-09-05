@@ -14,20 +14,17 @@
  * under the License.
  */
 
-package io.edap.http;
+package io.edap.http.server.pathrouters;
 
-import java.io.Serializable;
+import io.edap.http.PathInfo;
+import io.edap.http.server.PathRouter;
 
 /**
- * HTTP处理器的接口定义
+ * 前置通配符的路由器，设置字符串如: "*.do","*.jsp","*.html"等
  */
-@FunctionalInterface
-public interface HttpHandler extends Serializable {
-
-    /**
-     * HTTP请求的处理接口，处理HTTP请求并返回响应的数据
-     * @param req HTTP请求
-     * @param resp HTTP的相应实例
-     */
-    void handle(HttpRequest req, HttpResponse resp);
+public class PrefixWildcardPathRouter implements PathRouter {
+	@Override
+	public PathInfo route(String path) {
+		return null;
+	}
 }

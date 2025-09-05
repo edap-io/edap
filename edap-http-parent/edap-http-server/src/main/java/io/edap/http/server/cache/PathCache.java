@@ -14,32 +14,41 @@
  * under the License.
  */
 
-package io.edap.http.cache;
+package io.edap.http.server.cache;
 
-import io.edap.nio.codec.BytesDataRange;
+import io.edap.http.cache.MethodCache;
+import io.edap.nio.codec.FastBufDataRange;
 import io.edap.http.HttpHandler;
 import io.edap.http.PathInfo;
+import io.edap.http.server.handler.NotFoundHandler;
 
 import java.util.HashMap;
 import java.util.Map;
 
-public class BytesPathCache {
+public class PathCache {
 
     /**
      * 路径的缓存方便解析path，并获取HttpHandler数组的下标
      */
-    private Map<BytesDataRange, PathInfo> pathCache;
+    private Map<FastBufDataRange, PathInfo> pathCache;
 
-    private BytesPathCache() {
+    public static PathInfo NOT_FOUND_PATH;
+    static {
+        NOT_FOUND_PATH = new PathInfo();
+        NOT_FOUND_PATH.setFound(false);
+        NOT_FOUND_PATH.setHttpHandlers(new HttpHandler[]{new NotFoundHandler()});
+    }
+
+    private PathCache() {
         pathCache = new HashMap<>();
     }
 
-    public PathInfo get(BytesDataRange dataRange) {
+    public PathInfo get(FastBufDataRange dataRange) {
         PathInfo pi = pathCache.get(dataRange);
         if (pi != null) {
             return pi;
         }
-        return null;
+        return NOT_FOUND_PATH;
     }
 
     /**
@@ -48,41 +57,34 @@ public class BytesPathCache {
      * @param handler
      */
     public synchronized void registerHandler(String path, HttpHandler handler, String... methods) {
-        BytesDataRange key = BytesDataRange.from(path);
-        PathInfo pathInfo = pathCache.get(key);
+        FastBufDataRange key         = FastBufDataRange.from(path);
+        PathInfo         pathInfo    = pathCache.get(key);
         MethodCache methodCache = MethodCache.instance();
+        HttpHandler[]    handlers;
         if (pathInfo == null) {
             pathInfo = new PathInfo();
             pathInfo.setPath(path);
             pathInfo.setFound(true);
-            HttpHandler[] handlers = new HttpHandler[16];
-            for (int i=0;i<methods.length;i++) {
-                int methodIndex = methodCache.getMethodIndex(methods[i]);
-                if (methodIndex > handlers.length - 1) {
-                    handlers = new HttpHandler[methodIndex+1];
-                }
-                handlers[methodIndex] = handler;
-            }
+            handlers = new HttpHandler[16];
             pathInfo.setHttpHandlers(handlers);
             pathCache.put(key, pathInfo);
         } else {
-            HttpHandler[] handlers = pathInfo.getHttpHandlers();
-            for (int i=0;i<methods.length;i++) {
-                int methodIndex = methodCache.getMethodIndex(methods[i]);
-                if (methodIndex > handlers.length - 1) {
-                    handlers = new HttpHandler[methodIndex+1];
-                }
-                handlers[methodIndex] = handler;
-            }
+            handlers = pathInfo.getHttpHandlers();
         }
-
+        for (String method : methods) {
+            int methodIndex = methodCache.getMethodIndex(method);
+            if (methodIndex > handlers.length - 1) {
+                handlers = new HttpHandler[methodIndex + 1];
+            }
+            handlers[methodIndex] = handler;
+        }
     }
 
-    public static final BytesPathCache instance() {
+    public static final PathCache instance() {
         return SingletonHolder.INSTANCE;
     }
 
     private static class SingletonHolder {
-        private static final BytesPathCache INSTANCE = new BytesPathCache();
+        private static final PathCache INSTANCE = new PathCache();
     }
 }

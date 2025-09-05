@@ -14,20 +14,17 @@
  * under the License.
  */
 
-package io.edap.http;
+package io.edap.http.server.handler;
 
-import java.io.Serializable;
 
-/**
- * HTTP处理器的接口定义
- */
-@FunctionalInterface
-public interface HttpHandler extends Serializable {
+import io.edap.http.HttpHandler;
+import io.edap.http.HttpRequest;
+import io.edap.http.HttpResponse;
 
-    /**
-     * HTTP请求的处理接口，处理HTTP请求并返回响应的数据
-     * @param req HTTP请求
-     * @param resp HTTP的相应实例
-     */
-    void handle(HttpRequest req, HttpResponse resp);
+public class NotSupportMethodHandler implements HttpHandler {
+
+    @Override
+    public void handle(HttpRequest req, HttpResponse resp) {
+
+    }
 }

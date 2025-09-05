@@ -14,20 +14,14 @@
  * under the License.
  */
 
-package io.edap.http;
+package io.edap.http.server;
 
-import java.io.Serializable;
+import io.edap.http.PathInfo;
 
 /**
- * HTTP处理器的接口定义
+ * 自定义的http的URL地址的路由器，根据path的字符串路由请求到赌赢的处理器
  */
-@FunctionalInterface
-public interface HttpHandler extends Serializable {
+public interface PathRouter {
 
-    /**
-     * HTTP请求的处理接口，处理HTTP请求并返回响应的数据
-     * @param req HTTP请求
-     * @param resp HTTP的相应实例
-     */
-    void handle(HttpRequest req, HttpResponse resp);
+	PathInfo route(String path);
 }

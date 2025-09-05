@@ -17,12 +17,12 @@ public class ValueHttpRequest implements HttpRequest {
      */
     private HttpNioSession httpNioSession;
 
-    protected PathInfo pathInfo;
+    public PathInfo pathInfo;
     /**
      * Http请求的方法信息
      */
-    protected MethodInfo methodInfo;
-    protected QueryInfo queryInfo;
+	public MethodInfo methodInfo;
+    public QueryInfo queryInfo;
 
     protected HttpVersion version;
 
