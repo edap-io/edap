@@ -43,6 +43,14 @@ public class FastBufDataRangeTest {
     }
 
     @Test
+    public void testIfaceMethod() {
+        FastBufDataRange fdr = new FastBufDataRange();
+        assertNull(fdr.decodeData());
+
+        fdr.decodeData(new byte[0]);
+    }
+
+    @Test
     public void testEquals() {
         FastBufDataRange fdr = FastBufDataRange.from("Host");
 

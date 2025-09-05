@@ -12,7 +12,7 @@
     <artifactId>edap-http-parent</artifactId>
     <packaging>pom</packaging>
     <modules>
-        <module>edap-http-api</module>
+        <module>edap-http-core</module>
         <module>edap-http-client</module>
         <module>edap-http-server</module>
     </modules>

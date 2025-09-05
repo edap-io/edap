@@ -25,6 +25,17 @@ import java.nio.charset.StandardCharsets;
  * @param <B> 内存Buffer的类型，有ByteBuffer，FastBuf类型
  */
 public interface DataRange<P, B> {
+    /**
+     * 解码后数据
+     * @return
+     */
+    default byte[] decodeData() { return null;}
+
+    /**
+     * 设置解码后的数据
+     * @param data
+     */
+    default void decodeData(byte[] data) {}
 
     /**
      * 数据块判断相同时是否采用严格的匹配模式

@@ -24,7 +24,7 @@ import io.edap.Server;
  */
 public class HttpServer extends Server {
 
-    private static Decoder<HttpRequest, HttpNioSession> VALUE_DECODER = new HttpDecoder();
+    private static Decoder<HttpRequest, HttpNioSession> VALUE_DECODER = new RangeHttpDecoder();
 
     public enum DecoderType {
         NORMAL,
