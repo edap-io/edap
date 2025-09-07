@@ -18,11 +18,11 @@ package io.edap.http.header;
 
 import io.edap.http.HttpTime;
 
-public class HeaderDate extends Header {
+public class DateHeader extends Header {
 
     private static HttpTime HTTP_TIME = HttpTime.instance();
 
-    public HeaderDate() {
+    public DateHeader() {
         super("Date", "");
     }
 

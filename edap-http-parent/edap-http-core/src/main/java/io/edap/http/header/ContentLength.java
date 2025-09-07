@@ -30,7 +30,7 @@ public class ContentLength extends Header {
         @Override
         protected ByteData initialValue() {
             ByteData data = new ByteData();
-            byte[] bs = new byte[32];
+            byte[]   bs   = new byte[32];
             System.arraycopy(keyBytes, 0, bs, 0, keyBytes.length);
             data.setBytes(bs);
             data.setOffset(keyBytes.length);
@@ -47,7 +47,7 @@ public class ContentLength extends Header {
         ByteData data = BYTE_CACHE_LOCAL.get();
         data.setOffset(keyBytes.length);
         uncheckWriteInt(data, length);
-        data.getBytes()[data.getOffset()] = '\r';
+        data.getBytes()[data.getOffset()]   = '\r';
         data.getBytes()[data.getOffset()+1] = '\n';
         data.setLength(data.getOffset()+2);
         data.setOffset(0);

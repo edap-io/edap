@@ -14,25 +14,25 @@
  *    limitations under the License.
  */
 
-package io.edap.http.server.core.test.decoder;
+package io.edap.http.core.test.decoder;
 
 import io.edap.buffer.FastBuf;
-import io.edap.http.server.HeaderValue;
-import io.edap.http.server.HttpRequest;
-import io.edap.http.server.ValueHttpRequest;
-import io.edap.http.server.codec.HttpFastBufDataRange;
-import io.edap.http.server.rangedecoder.ConnectionValueDecoder;
+import io.edap.http.HeaderValue;
+import io.edap.http.HttpRequest;
+import io.edap.http.ValueHttpRequest;
+import io.edap.http.codec.HttpFastBufDataRange;
+import io.edap.http.rangedecoder.HeaderValueDecoder;
 import org.junit.jupiter.api.Test;
 
 import java.nio.charset.StandardCharsets;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-public class ConnectionValueDecoderTest {
+public class HeaderValueDecoderTest {
 
 	@Test
 	public void testDecode() {
-		ConnectionValueDecoder decoder = new ConnectionValueDecoder();
+		HeaderValueDecoder decoder = new HeaderValueDecoder();
 		FastBuf buf = new FastBuf(1024);
 		HttpFastBufDataRange hbdr = new HttpFastBufDataRange();
 		HttpRequest request = new ValueHttpRequest();
@@ -61,36 +61,6 @@ public class ConnectionValueDecoderTest {
 		val = decoder.decode(buf, hbdr, request);
 		assertNull(val);
 
-		buf.reset();
-		buf.write(" close\r\n".getBytes(StandardCharsets.UTF_8));
-		val = decoder.decode(buf, hbdr, request);
-		assertNotNull(val);
-		assertEquals(val.getValue(), "close");
-
-		buf.reset();
-		buf.write(" dlose\r\n".getBytes(StandardCharsets.UTF_8));
-		val = decoder.decode(buf, hbdr, request);
-		assertNotNull(val);
-		assertEquals(val.getValue(), "keep-alive");
-
-		buf.reset();
-		buf.write(" closa\r\n".getBytes(StandardCharsets.UTF_8));
-		val = decoder.decode(buf, hbdr, request);
-		assertNotNull(val);
-		assertEquals(val.getValue(), "keep-alive");
-
-		buf.reset();
-		buf.write(" keep-alive\r\n".getBytes(StandardCharsets.UTF_8));
-		val = decoder.decode(buf, hbdr, request);
-		assertNotNull(val);
-		assertEquals(val.getValue(), "keep-alive");
-
-		buf.reset();
-		buf.write("keep-alive\r\n".getBytes(StandardCharsets.UTF_8));
-		val = decoder.decode(buf, hbdr, request);
-		assertNotNull(val);
-		assertEquals(val.getValue(), "keep-alive");
-
 		IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
 				() -> {
 					buf.reset();
@@ -98,5 +68,11 @@ public class ConnectionValueDecoderTest {
 					decoder.decode(buf, hbdr, request);
 				});
 		assertTrue(ex.getMessage().contains("HeaderValue: Illegal name can't have \\r!"));
+
+		buf.reset();
+		buf.write("gzip, deflate, br\r\n".getBytes(StandardCharsets.UTF_8));
+		val = decoder.decode(buf, hbdr, request);
+		assertNotNull(val);
+		assertEquals(val.getValue(), "gzip, deflate, br");
 	}
 }

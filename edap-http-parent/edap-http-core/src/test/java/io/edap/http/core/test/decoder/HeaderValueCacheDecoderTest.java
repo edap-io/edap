@@ -14,25 +14,25 @@
  *    limitations under the License.
  */
 
-package io.edap.http.server.core.test.decoder;
+package io.edap.http.core.test.decoder;
 
 import io.edap.buffer.FastBuf;
-import io.edap.http.server.HeaderValue;
-import io.edap.http.server.HttpRequest;
-import io.edap.http.server.ValueHttpRequest;
-import io.edap.http.server.codec.HttpFastBufDataRange;
-import io.edap.http.server.rangedecoder.HeaderValueDecoder;
+import io.edap.http.HeaderValue;
+import io.edap.http.HttpRequest;
+import io.edap.http.ValueHttpRequest;
+import io.edap.http.codec.HttpFastBufDataRange;
+import io.edap.http.rangedecoder.HeaderValueCacheDecoder;
 import org.junit.jupiter.api.Test;
 
 import java.nio.charset.StandardCharsets;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-public class HeaderValueDecoderTest {
+public class HeaderValueCacheDecoderTest {
 
 	@Test
 	public void testDecode() {
-		HeaderValueDecoder decoder = new HeaderValueDecoder();
+		HeaderValueCacheDecoder decoder = new HeaderValueCacheDecoder();
 		FastBuf buf = new FastBuf(1024);
 		HttpFastBufDataRange hbdr = new HttpFastBufDataRange();
 		HttpRequest request = new ValueHttpRequest();

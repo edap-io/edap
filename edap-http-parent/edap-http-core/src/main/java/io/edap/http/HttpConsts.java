@@ -18,8 +18,8 @@ package io.edap.http;
 
 import io.edap.http.header.ContentLength;
 import io.edap.http.header.Header;
-import io.edap.http.header.HeaderDate;
-import io.edap.http.header.HeaderServer;
+import io.edap.http.header.DateHeader;
+import io.edap.http.header.ServerHeader;
 
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
@@ -49,9 +49,9 @@ public class HttpConsts {
         }
 
         BUILDIN_HEADERS = new HashMap<>();
-        BUILDIN_HEADERS.put("Server", new HeaderServer());
+        BUILDIN_HEADERS.put("Server", new ServerHeader());
         BUILDIN_HEADERS.put("Content-Length", new ContentLength());
-        BUILDIN_HEADERS.put("Date", new HeaderDate());
+        BUILDIN_HEADERS.put("Date", new DateHeader());
     }
 
     private HttpConsts() {}

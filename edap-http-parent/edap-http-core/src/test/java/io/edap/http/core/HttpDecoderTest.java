@@ -14,7 +14,7 @@
  *    limitations under the License.
  */
 
-package io.edap.http.server.core;
+package io.edap.http.core;
 
 public class HttpDecoderTest {
 }

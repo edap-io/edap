@@ -16,9 +16,9 @@
 
 package io.edap.http.header;
 
-public class HeaderServer extends Header {
+public class ServerHeader extends Header {
 
-    public HeaderServer() {
+    public ServerHeader() {
         super("Server", "ews");
     }
 

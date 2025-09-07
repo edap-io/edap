@@ -14,14 +14,14 @@
  *    limitations under the License.
  */
 
-package io.edap.http.server.core.test.decoder;
+package io.edap.http.core.test.decoder;
 
 import io.edap.buffer.FastBuf;
-import io.edap.http.server.HttpRequest;
-import io.edap.http.server.MethodInfo;
-import io.edap.http.server.ValueHttpRequest;
-import io.edap.http.server.codec.HttpFastBufDataRange;
-import io.edap.http.server.rangedecoder.MethodDecoder;
+import io.edap.http.HttpRequest;
+import io.edap.http.MethodInfo;
+import io.edap.http.ValueHttpRequest;
+import io.edap.http.codec.HttpFastBufDataRange;
+import io.edap.http.rangedecoder.MethodDecoder;
 import org.junit.jupiter.api.Test;
 
 import java.nio.charset.StandardCharsets;

@@ -46,9 +46,9 @@ public class HttpResponse {
     private HttpVersion version;
     private FastBuf buf;
     private BufPool bufPool;
-    private ContentType contentType;
-    private static HeaderServer HEADER_SERVER = (HeaderServer)BUILDIN_HEADERS.get("Server");
-    private static HeaderDate HEADER_DATE   = (HeaderDate)BUILDIN_HEADERS.get("Date");
+    private ContentTypeHeader contentType;
+    private static ServerHeader HEADER_SERVER = (ServerHeader)BUILDIN_HEADERS.get("Server");
+    private static DateHeader HEADER_DATE   = (DateHeader)BUILDIN_HEADERS.get("Date");
     private static byte[] LINE = new byte[]{'\r', '\n'};
     private HttpNioSession nioSession;
 
@@ -69,7 +69,7 @@ public class HttpResponse {
         return this;
     }
 
-    public HttpResponse contentType(ContentType contentType) {
+    public HttpResponse contentType(ContentTypeHeader contentType) {
         this.contentType = contentType;
         return this;
     }
@@ -113,11 +113,11 @@ public class HttpResponse {
 
     public HttpResponse write(Object obj) {
         if (contentType == null) {
-            contentType = ContentType.from("application/json; charset=UTF-8");
+            contentType = ContentTypeHeader.from("application/json; charset=UTF-8");
         }
         FastBuf _buf;
-        switch (contentType.getValueEnum()) {
-            case JSON:
+        switch (contentType.getContentType()) {
+            case "application/json":
                 _buf = buf;
                 _buf.wpos(_buf.address());
                 JsonWriter writer = Eson.THREAD_WRITER.get();
@@ -137,7 +137,7 @@ public class HttpResponse {
                     ioe.printStackTrace();
                 }
                 break;
-            case PROTOBUF:
+            case "application/x-protobuf":
                 _buf = buf;
                 _buf.wpos(_buf.address());
                 ProtoBufEncoder codec = INSTANCE.getEncoder(obj.getClass());

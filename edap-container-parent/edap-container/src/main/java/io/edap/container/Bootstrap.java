@@ -18,7 +18,7 @@ package io.edap.container;
 
 import io.edap.Edap;
 import io.edap.ServerGroup;
-import io.edap.http.HttpServerBuilder;
+import io.edap.http.server.HttpServerBuilder;
 
 import java.io.IOException;
 

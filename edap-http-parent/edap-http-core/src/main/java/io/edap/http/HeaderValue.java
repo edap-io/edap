@@ -40,7 +40,7 @@ public class HeaderValue {
         if (value != null) {
             return value;
         }
-        if (value == null && data != null) {
+        if (data != null) {
             value = new String(data);
             return value;
         }
@@ -63,10 +63,10 @@ public class HeaderValue {
         if (intValue != null) {
             return intValue.intValue();
         }
-        if (intValue == null && data != null) {
+        if (data != null) {
             int v;
             int count = 0;
-            for (int j=data.length-1;j>=0;j--) {
+            for (int j=0;j<data.length;j++) {
                 if (data[j] == ' ') {
                     count++;
                 } else {
@@ -76,54 +76,54 @@ public class HeaderValue {
             int len = data.length - count;
             switch (len) {
                 case 1:
-                    v = INT_DIGITS[data[0]];
+                    v = INT_DIGITS[data[count]];
                     break;
                 case 2:
-                    v = INT_DIGITS[data[0]] * 10 + INT_DIGITS[data[1]];
+                    v = INT_DIGITS[data[count++]] * 10 + INT_DIGITS[data[count]];
                     break;
                 case 3:
-                    v = INT_DIGITS[data[0]] * 100 + INT_DIGITS[data[1]] * 10
-                            + INT_DIGITS[data[2]];
+                    v = INT_DIGITS[data[count++]] * 100 + INT_DIGITS[data[count++]] * 10
+                            + INT_DIGITS[data[count]];
                     break;
                 case 4:
-                    v = INT_DIGITS[data[0]] * 1000 + INT_DIGITS[data[1]] * 100
-                            + INT_DIGITS[data[2]] * 10 + INT_DIGITS[data[3]];
+                    v = INT_DIGITS[data[count++]] * 1000 + INT_DIGITS[data[count++]] * 100
+                            + INT_DIGITS[data[count++]] * 10 + INT_DIGITS[data[count]];
                     break;
                 case 5:
-                    v = INT_DIGITS[data[0]] * 10000 + INT_DIGITS[data[1]] * 1000
-                            + INT_DIGITS[data[2]] * 100 + INT_DIGITS[data[3]] * 10
-                            + INT_DIGITS[data[4]];
+                    v = INT_DIGITS[data[count++]] * 10000 + INT_DIGITS[data[count++]] * 1000
+                            + INT_DIGITS[data[count++]] * 100 + INT_DIGITS[data[count++]] * 10
+                            + INT_DIGITS[data[count]];
                     break;
                 case 6:
-                    v = INT_DIGITS[data[0]] * 100000 + INT_DIGITS[data[1]] * 10000
-                            + INT_DIGITS[data[2]] * 1000 + INT_DIGITS[data[3]] * 100
-                            + INT_DIGITS[data[4]] * 10 + INT_DIGITS[data[5]];
+                    v = INT_DIGITS[data[count++]] * 100000 + INT_DIGITS[data[count++]] * 10000
+                            + INT_DIGITS[data[count++]] * 1000 + INT_DIGITS[data[count++]] * 100
+                            + INT_DIGITS[data[count++]] * 10 + INT_DIGITS[data[count]];
                     break;
                 case 7:
-                    v = INT_DIGITS[data[0]] * 1000000 + INT_DIGITS[data[1]] * 100000
-                            + INT_DIGITS[data[2]] * 10000 + INT_DIGITS[data[3]] * 1000
-                            + INT_DIGITS[data[4]] * 100 + INT_DIGITS[data[5]] * 10
-                            + INT_DIGITS[data[6]];
+                    v = INT_DIGITS[data[count++]] * 1000000 + INT_DIGITS[data[count++]] * 100000
+                            + INT_DIGITS[data[count++]] * 10000 + INT_DIGITS[data[count++]] * 1000
+                            + INT_DIGITS[data[count++]] * 100 + INT_DIGITS[data[count++]] * 10
+                            + INT_DIGITS[data[count]];
                     break;
                 case 8:
-                    v = INT_DIGITS[data[0]] * 10000000 + INT_DIGITS[data[1]] * 1000000
-                            + INT_DIGITS[data[2]] * 100000 + INT_DIGITS[data[3]] * 10000
-                            + INT_DIGITS[data[4]] * 1000 + INT_DIGITS[data[5]] * 100
-                            + INT_DIGITS[data[6]] * 10 + INT_DIGITS[data[7]];
+                    v = INT_DIGITS[data[count++]] * 10000000 + INT_DIGITS[data[count++]] * 1000000
+                            + INT_DIGITS[data[count++]] * 100000 + INT_DIGITS[data[count++]] * 10000
+                            + INT_DIGITS[data[count++]] * 1000 + INT_DIGITS[data[count++]] * 100
+                            + INT_DIGITS[data[count++]] * 10 + INT_DIGITS[data[count]];
                      break;
                 case 9:
-                    v = INT_DIGITS[data[0]] * 100000000 + INT_DIGITS[data[1]] * 10000000
-                            + INT_DIGITS[data[2]] * 1000000 + INT_DIGITS[data[3]] * 100000
-                            + INT_DIGITS[data[4]] * 10000 + INT_DIGITS[data[5]] * 1000
-                            + INT_DIGITS[data[6]] * 100 + INT_DIGITS[data[7]] * 10
-                            + INT_DIGITS[data[8]];
+                    v = INT_DIGITS[data[count++]] * 100000000 + INT_DIGITS[data[count++]] * 10000000
+                            + INT_DIGITS[data[count++]] * 1000000 + INT_DIGITS[data[count++]] * 100000
+                            + INT_DIGITS[data[count++]] * 10000 + INT_DIGITS[data[count++]] * 1000
+                            + INT_DIGITS[data[count++]] * 100 + INT_DIGITS[data[count++]] * 10
+                            + INT_DIGITS[data[count]];
                     break;
                 case 10:
-                    v = INT_DIGITS[data[0]] * 1000000000 + INT_DIGITS[data[1]] * 100000000
-                            + INT_DIGITS[data[2]] * 10000000 + INT_DIGITS[data[3]] * 1000000
-                            + INT_DIGITS[data[4]] * 100000 + INT_DIGITS[data[5]] * 10000
-                            + INT_DIGITS[data[6]] * 1000 + INT_DIGITS[data[7]] * 100
-                            + INT_DIGITS[data[8]] * 10 + INT_DIGITS[data[9]];
+                    v = INT_DIGITS[data[count++]] * 1000000000 + INT_DIGITS[data[count++]] * 100000000
+                            + INT_DIGITS[data[count++]] * 10000000 + INT_DIGITS[data[count++]] * 1000000
+                            + INT_DIGITS[data[count++]] * 100000 + INT_DIGITS[data[count++]] * 10000
+                            + INT_DIGITS[data[count++]] * 1000 + INT_DIGITS[data[count++]] * 100
+                            + INT_DIGITS[data[count++]] * 10 + INT_DIGITS[data[count]];
                     break;
                 default:
                     v = -1;
@@ -134,6 +134,6 @@ public class HeaderValue {
             }
         }
 
-        return intValue.intValue();
+        return intValue==null?-1:intValue;
     }
 }

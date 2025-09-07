@@ -20,7 +20,7 @@ package io.edap.http.rangedecoder;
 import io.edap.buffer.FastBuf;
 import io.edap.http.AbstractHttpDecoder;
 import io.edap.http.codec.HttpFastBufDataRange;
-import io.edap.http.header.ContentType;
+import io.edap.http.header.ContentTypeHeader;
 import io.edap.http.HeaderValue;
 import io.edap.http.HttpNioSession;
 import io.edap.http.HttpRequest;
@@ -42,10 +42,10 @@ public class BodyDecoder {
             if (contentLength == 0) {
                 result.finish = true;
             } else if (contentLength > 0) {
-                ContentType.ValueEnum typeValue = ContentType.ValueEnum.UNKNOWN;
-                HeaderValue hv = request.getHeaderValue(ContentType.NAME);
+                String typeValue = "";
+                HeaderValue hv = request.getHeaderValue(ContentTypeHeader.NAME);
                 if (hv == null) {
-                    typeValue = ContentType.ValueEnum.FORM_URLENCODED;
+                    typeValue = ContentTypeHeader.FORM_URLENCODED.getContentType();
                 } else {
                     if (hv instanceof ContentTypeValue) {
                         ContentTypeValue htv = (ContentTypeValue) hv;
@@ -65,7 +65,7 @@ public class BodyDecoder {
         }
     }
 
-    private boolean decodeFixedBody(ContentType.ValueEnum typeValue, FastBuf buf, int length,
+    private boolean decodeFixedBody(String typeValue, FastBuf buf, int length,
                                     HttpRequest request, HttpNioSession httpNioSession) {
         ByteData data = httpNioSession.getTmpData();
         int hasLen = 0;
