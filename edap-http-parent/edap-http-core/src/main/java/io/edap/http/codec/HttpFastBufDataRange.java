@@ -15,24 +15,12 @@ import static io.edap.util.Constants.*;
 
 public class HttpFastBufDataRange extends FastBufDataRange {
 
-    private byte[] decodeData;
-
     private boolean urlEncoded;
 
     private ByteArrayBuilder bytesBuilder;
 
     public HttpFastBufDataRange() {
         bytesBuilder = new ByteArrayBuilder();
-    }
-
-    @Override
-    public byte[] decodeData() {
-        return decodeData;
-    }
-
-    @Override
-    public void decodeData(byte[] data) {
-        this.decodeData = data;
     }
 
     public HttpFastBufDataRange urlEncoded(boolean urlEncoded) {

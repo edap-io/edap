@@ -32,11 +32,11 @@ public class BaseFileAppender implements Appender {
         }
         ByteArrayBuilder builder = encoder.encode(logEvent);
         logWriter.rollover(logEvent);
-        try {
-            builder.writeToLogOut(logWriter);
-        } catch (IOException e) {
-            printError("writeToLogOut error", e);
-        }
+//        try {
+//            //builder.writeToLogOut(logWriter);
+//        } catch (IOException e) {
+//            printError("writeToLogOut error", e);
+//        }
     }
 
     public void batchAppend(List<LogEvent> logEvents) throws IOException {
@@ -51,11 +51,11 @@ public class BaseFileAppender implements Appender {
         for (LogEvent logEvent : logEvents) {
             logWriter.rollover(logEvent);
         }
-        try {
-            builder.writeToLogOut(logWriter);
-        } catch (IOException e) {
-            printError("writeToLogOut error", e);
-        }
+//        try {
+//            builder.writeToLogOut(logWriter);
+//        } catch (IOException e) {
+//            printError("writeToLogOut error", e);
+//        }
     }
 
     @Override

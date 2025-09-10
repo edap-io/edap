@@ -218,7 +218,7 @@ public class FastBufDataRange implements DataRange<Long, FastBuf> {
     @Override
     public String getString(Charset charset) {
         byte[] data = new byte[length];
-        buf.get(data);
+        buf.get(start, data);
         return new String(data, charset);
     }
 
