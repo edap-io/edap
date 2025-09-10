@@ -16,9 +16,8 @@
 
 package io.edap.log.appenders.rolling;
 
-import io.edap.log.LogCompression;
 import io.edap.log.LogEvent;
-import io.edap.log.helps.ByteArrayBuilder;
+import io.edap.util.ByteArrayBuilder;
 import io.edap.log.helps.EncoderPatternParser;
 import io.edap.log.helps.EncoderPatternToken;
 import io.edap.util.CollectionUtils;

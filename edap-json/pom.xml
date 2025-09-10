@@ -33,12 +33,12 @@
             <artifactId>edap-common</artifactId>
         </dependency>
         <dependency>
-            <groupId>org.ow2.asm</groupId>
-            <artifactId>asm</artifactId>
+            <groupId>io.edap</groupId>
+            <artifactId>edap-log-api</artifactId>
         </dependency>
         <dependency>
             <groupId>io.edap</groupId>
-            <artifactId>edap-log-api</artifactId>
+            <artifactId>edap-asm-utils</artifactId>
         </dependency>
 
         <dependency>

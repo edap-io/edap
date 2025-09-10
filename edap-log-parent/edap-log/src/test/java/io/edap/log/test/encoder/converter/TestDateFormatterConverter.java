@@ -19,8 +19,7 @@ package io.edap.log.test.encoder.converter;
 import io.edap.log.LogEvent;
 import io.edap.log.converter.CacheDateFormatterConverter;
 import io.edap.log.converter.DateFormatterConverter;
-import io.edap.log.test.perf.SimpleDateConverter;
-import io.edap.log.helps.ByteArrayBuilder;
+import io.edap.util.ByteArrayBuilder;
 import org.junit.jupiter.api.Test;
 
 import java.nio.charset.StandardCharsets;

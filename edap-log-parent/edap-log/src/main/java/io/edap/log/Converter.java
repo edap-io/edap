@@ -16,7 +16,7 @@
 
 package io.edap.log;
 
-import io.edap.log.helps.ByteArrayBuilder;
+import io.edap.util.ByteArrayBuilder;
 
 /**
  * 转换日志段的转换器，将日志的段转换为字节数组

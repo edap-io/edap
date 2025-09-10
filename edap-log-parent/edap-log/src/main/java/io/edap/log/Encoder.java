@@ -16,9 +16,7 @@
 
 package io.edap.log;
 
-import io.edap.log.helps.ByteArrayBuilder;
-
-import java.io.OutputStream;
+import io.edap.util.ByteArrayBuilder;
 
 /**
  * 日志事件的编码器，将日志事件编码为字节数组，然后有Appender进行持久化

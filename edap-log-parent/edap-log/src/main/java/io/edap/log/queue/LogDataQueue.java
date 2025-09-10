@@ -18,10 +18,8 @@ package io.edap.log.queue;
 
 import com.lmax.disruptor.EventHandler;
 import io.edap.log.LogQueue;
-import io.edap.log.helps.ByteArrayBuilder;
+import io.edap.util.ByteArrayBuilder;
 import io.edap.log.io.BaseLogOutputStream;
-
-import java.io.IOException;
 
 import static io.edap.log.helpers.Util.printError;
 

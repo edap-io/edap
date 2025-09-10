@@ -24,6 +24,7 @@ public class PathInfo {
      * http的路径信息
      */
     private String  path;
+    private String  matchPath;
     private boolean found;
     /**
      * 支持的method下标的列表
@@ -59,5 +60,13 @@ public class PathInfo {
 
     public void setFound(boolean found) {
         this.found = found;
+    }
+
+    public String getMatchPath() {
+        return matchPath;
+    }
+
+    public void setMatchPath(String matchPath) {
+        this.matchPath = matchPath;
     }
 }

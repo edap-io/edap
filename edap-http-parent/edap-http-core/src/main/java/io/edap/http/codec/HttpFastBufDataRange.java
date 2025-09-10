@@ -2,7 +2,14 @@ package io.edap.http.codec;
 
 import io.edap.buffer.FastBuf;
 import io.edap.nio.codec.FastBufDataRange;
+import io.edap.util.ByteArrayBuilder;
 import io.edap.util.StringUtil;
+
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 
 import static io.edap.util.Constants.*;
 
@@ -11,6 +18,12 @@ public class HttpFastBufDataRange extends FastBufDataRange {
     private byte[] decodeData;
 
     private boolean urlEncoded;
+
+    private ByteArrayBuilder bytesBuilder;
+
+    public HttpFastBufDataRange() {
+        bytesBuilder = new ByteArrayBuilder();
+    }
 
     @Override
     public byte[] decodeData() {
@@ -26,6 +39,10 @@ public class HttpFastBufDataRange extends FastBufDataRange {
         this.urlEncoded = urlEncoded;
 
         return this;
+    }
+
+    public ByteArrayBuilder getBytesBuilder() {
+        return bytesBuilder;
     }
 
     public static HttpFastBufDataRange from(String v) {
@@ -52,5 +69,28 @@ public class HttpFastBufDataRange extends FastBufDataRange {
 
     public boolean urlEncoded() {
         return urlEncoded;
+    }
+
+    public void append(byte[] data) {
+        bytesBuilder.append(data);
+    }
+
+    public void append(byte b) {
+        bytesBuilder.append(b);
+    }
+
+    @Override
+    public String getString(Charset charset) {
+        if (urlEncoded) {
+            return new String(bytesBuilder.toByteArray(), StandardCharsets.UTF_8);
+        } else {
+            return super.getString(charset);
+        }
+    }
+
+    @Override
+    public void reset() {
+        bytesBuilder.reset();
+        urlEncoded = false;
     }
 }

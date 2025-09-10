@@ -28,6 +28,8 @@ import org.junit.jupiter.api.Test;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
 public class PathDecoderTest {
 
     @Test
@@ -50,30 +52,44 @@ public class PathDecoderTest {
         pathInfo = pathDecoder.decode(buf, hbdr, request);
         Assertions.assertNotNull(pathInfo);
         Assertions.assertNull(pathInfo.getPath());
-        Assertions.assertEquals(hbdr.first(), (byte)' ');
+        assertEquals(hbdr.first(), (byte)' ');
 
         buf.reset();
+        hbdr.reset();
         buf.write("++t ".getBytes(StandardCharsets.UTF_8));
         pathInfo = pathDecoder.decode(buf, hbdr, request);
         Assertions.assertNotNull(pathInfo);
         Assertions.assertNull(pathInfo.getPath());
-        Assertions.assertEquals(hbdr.first(), (byte)' ');
+        assertEquals(hbdr.first(), (byte)' ');
 
         buf.reset();
+        hbdr.reset();
         buf.write("++t?".getBytes(StandardCharsets.UTF_8));
         pathInfo = pathDecoder.decode(buf, hbdr, request);
         Assertions.assertNotNull(pathInfo);
         Assertions.assertNull(pathInfo.getPath());
-        Assertions.assertEquals(hbdr.first(), (byte)' ');
+        assertEquals(hbdr.first(), (byte)' ');
 
         buf.reset();
+        hbdr.reset();
         buf.write("++t#".getBytes(StandardCharsets.UTF_8));
         pathInfo = pathDecoder.decode(buf, hbdr, request);
         Assertions.assertNotNull(pathInfo);
         Assertions.assertNull(pathInfo.getPath());
-        Assertions.assertEquals(hbdr.first(), (byte)' ');
+        assertEquals(hbdr.first(), (byte)' ');
+        assertEquals(hbdr.getString(), "  t");
 
         buf.reset();
+        hbdr.reset();
+        buf.write("123++t#".getBytes(StandardCharsets.UTF_8));
+        pathInfo = pathDecoder.decode(buf, hbdr, request);
+        Assertions.assertNotNull(pathInfo);
+        Assertions.assertNull(pathInfo.getPath());
+        assertEquals(hbdr.first(), (byte)'1');
+        assertEquals(hbdr.getString(), "123  t");
+
+        buf.reset();
+        hbdr.reset();
         byte[] bs = URLEncoder.encode("中", StandardCharsets.UTF_8).getBytes(StandardCharsets.UTF_8);
         byte[] data = new byte[bs.length+1];
         System.arraycopy(bs, 0, data, 0, bs.length);
@@ -82,7 +98,21 @@ public class PathDecoderTest {
         pathInfo = pathDecoder.decode(buf, hbdr, request);
         Assertions.assertNotNull(pathInfo);
         Assertions.assertNull(pathInfo.getPath());
-        Assertions.assertEquals(hbdr.first(), "中".getBytes(StandardCharsets.UTF_8)[0]);
+        assertEquals(hbdr.first(), "中".getBytes(StandardCharsets.UTF_8)[0]);
+        assertEquals(hbdr.getString(), "中");
+
+        buf.reset();
+        hbdr.reset();
+        bs = URLEncoder.encode("54321中", StandardCharsets.UTF_8).getBytes(StandardCharsets.UTF_8);
+        data = new byte[bs.length+1];
+        System.arraycopy(bs, 0, data, 0, bs.length);
+        data[data.length-1] = (byte)' ';
+        buf.write(data);
+        pathInfo = pathDecoder.decode(buf, hbdr, request);
+        Assertions.assertNotNull(pathInfo);
+        Assertions.assertNull(pathInfo.getPath());
+        assertEquals(hbdr.first(), "5".getBytes(StandardCharsets.UTF_8)[0]);
+        assertEquals(hbdr.getString(), "54321中");
 
         buf.reset();
         buf.write("%E".getBytes(StandardCharsets.UTF_8));

@@ -16,7 +16,6 @@
 
 package io.edap.log;
 
-import io.edap.log.helps.ByteArrayBuilder;
 import io.edap.log.queue.LogDataQueue;
 
 import java.io.IOException;

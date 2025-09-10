@@ -22,6 +22,7 @@ import io.edap.http.PathInfo;
 import io.edap.http.codec.HttpFastBufDataRange;
 import io.edap.http.rangedecoder.RangeTokenDecoder;
 import io.edap.http.server.PathInfoMatcher;
+import io.edap.util.ByteArrayBuilder;
 
 import static io.edap.http.HttpConsts.BYTE_VALUES;
 import static io.edap.util.Constants.FNV_1a_FACTOR_VAL;
@@ -45,6 +46,7 @@ public class PathDecoder implements RangeTokenDecoder<PathInfo> {
         long hashCode = FNV_1a_INIT_VAL;
         int  len      = 0;
         dataRange.first(_buf.get(pos));
+        byte decodeByte;
         for (int i=0;i<remain;i++) {
             b = _buf.get(pos+i);
             switch (b) {
@@ -57,13 +59,26 @@ public class PathDecoder implements RangeTokenDecoder<PathInfo> {
                     _buf.rpos(pos+i);
                     return PATH_INFO_MATCHER.match(dataRange);
                 case '+':
-                    hashCode ^= ' ';
+                    decodeByte = (byte)' ';
+                    hashCode ^= decodeByte;
                     hashCode *= FNV_1a_FACTOR_VAL;
                     len++;
                     if (i == 0) {
-                        dataRange.first((byte)' ');
+                        dataRange.first(decodeByte);
                     }
-                    //dataRange.urlEncoded(true);
+                    if (dataRange.urlEncoded()) {
+                        dataRange.append(decodeByte);
+                    } else {
+                        if (i > 0) {
+                            ByteArrayBuilder builder = dataRange.getBytesBuilder();
+                            builder.ensureCapacity(i);
+                            byte[] data = builder.getValue();
+                            buf.get(data, i);
+                            builder.setLength(builder.length()+i);
+                        }
+                        dataRange.append(decodeByte);
+                        dataRange.urlEncoded(true);
+                    }
                     break;
                 case '%':
                     if (i < remain - 2) {
@@ -71,15 +86,28 @@ public class PathDecoder implements RangeTokenDecoder<PathInfo> {
                         if (v < 0) {
                             throw new IllegalArgumentException("URLDecoder: Illegal hex characters in escape (%) pattern - negative value");
                         }
+                        decodeByte = (byte)v;
                         if (i == 0) {
-                            dataRange.first((byte) v);
+                            dataRange.first(decodeByte);
                         }
-                        i += 2;
-                        hashCode ^= (byte) v;
+
+                        hashCode ^= decodeByte;
                         hashCode *= FNV_1a_FACTOR_VAL;
                         len++;
-                        //dataRange.urlEncoded(true);
-
+                        if (dataRange.urlEncoded()) {
+                            dataRange.append(decodeByte);
+                        } else {
+                            if (i > 0) {
+                                ByteArrayBuilder builder = dataRange.getBytesBuilder();
+                                builder.ensureCapacity(i);
+                                byte[] data = builder.getValue();
+                                buf.get(data, i);
+                                builder.setLength(builder.length()+i);
+                            }
+                            dataRange.append(decodeByte);
+                            dataRange.urlEncoded(true);
+                        }
+                        i += 2;
                         break;
                     } else {
                         return null;
@@ -87,6 +115,9 @@ public class PathDecoder implements RangeTokenDecoder<PathInfo> {
                 default:
                     hashCode ^= b;
                     hashCode *= FNV_1a_FACTOR_VAL;
+                    if (dataRange.urlEncoded()) {
+                        dataRange.append(b);
+                    }
                     len++;
             }
         }

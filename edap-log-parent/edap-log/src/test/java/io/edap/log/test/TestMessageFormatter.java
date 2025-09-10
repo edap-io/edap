@@ -16,7 +16,7 @@
 
 package io.edap.log.test;
 
-import io.edap.log.helps.ByteArrayBuilder;
+import io.edap.util.ByteArrayBuilder;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;

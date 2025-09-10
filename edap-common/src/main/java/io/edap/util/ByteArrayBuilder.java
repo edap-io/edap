@@ -1,9 +1,20 @@
-package io.edap.log.helps;
+/*
+ * Copyright 2020 The edap Project
+ *
+ * The Netty Project licenses this file to you under the Apache License,
+ * version 2.0 (the "License"); you may not use this file except in compliance
+ * with the License. You may obtain a copy of the License at:
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+ * License for the specific language governing permissions and limitations
+ * under the License.
+ */
 
-import io.edap.log.LogWriter;
-import io.edap.log.io.BaseLogOutputStream;
-import io.edap.util.Grisu3;
-import io.edap.util.StringUtil;
+package io.edap.util;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -54,11 +65,13 @@ public class ByteArrayBuilder {
 
     private int initCount;
 
-    private BaseLogOutputStream outputStream;
-
     public ByteArrayBuilder() {
         initValue(128);
         this.count = 0;
+    }
+
+    public byte[] getValue() {
+        return value;
     }
 
     /**
@@ -71,6 +84,14 @@ public class ByteArrayBuilder {
 
     public int length() {
         return count;
+    }
+
+    public void setLength(int length) {
+        if (length > value.length) {
+            count = value.length;
+        } else {
+            count = length;
+        }
     }
 
     public ByteArrayBuilder(int cap) {
@@ -653,15 +674,4 @@ public class ByteArrayBuilder {
         out.write(value, 0, count);
     }
 
-    public void writeToLogOut(LogWriter out) throws IOException {
-        out.writeLog(value, 0, count);
-    }
-
-    public BaseLogOutputStream getOutputStream() {
-        return outputStream;
-    }
-
-    public void setOutputStream(BaseLogOutputStream outputStream) {
-        this.outputStream = outputStream;
-    }
 }

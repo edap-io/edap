@@ -19,7 +19,7 @@ package io.edap.log.test.encoder.converter;
 import io.edap.log.LogEvent;
 import io.edap.log.LogLevel;
 import io.edap.log.converter.LevelConverter;
-import io.edap.log.helps.ByteArrayBuilder;
+import io.edap.util.ByteArrayBuilder;
 import org.junit.jupiter.api.Test;
 
 import static io.edap.log.LogLevel.*;

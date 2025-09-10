@@ -19,7 +19,6 @@ package io.edap.log.test.spi;
 import io.edap.log.Appender;
 import io.edap.log.LogEvent;
 import io.edap.log.LogWriter;
-import io.edap.log.helps.ByteArrayBuilder;
 import io.edap.log.queue.LogDataQueue;
 
 import java.io.IOException;

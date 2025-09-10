@@ -17,6 +17,7 @@
 package io.edap.log.helps;
 
 import io.edap.log.converter.TextConverter;
+import io.edap.util.ByteArrayBuilder;
 import io.edap.util.internal.GeneratorClassInfo;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.FieldVisitor;

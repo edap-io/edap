@@ -28,10 +28,6 @@
     <artifactId>edap-common</artifactId>
 
     <dependencies>
-        <dependency>
-            <groupId>org.ow2.asm</groupId>
-            <artifactId>asm</artifactId>
-        </dependency>
 
         <!-- 单元测试相关依赖 -->
         <dependency>

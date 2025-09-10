@@ -16,13 +16,9 @@
 
 package io.edap.log.appenders;
 
-import com.lmax.disruptor.EventHandler;
-import io.edap.log.AbstractEncoder;
-import io.edap.log.AppenderManager;
 import io.edap.log.LogEvent;
-import io.edap.log.helps.ByteArrayBuilder;
+import io.edap.util.ByteArrayBuilder;
 import io.edap.log.io.BaseLogOutputStream;
-import io.edap.log.queue.LogDataQueue;
 import io.edap.util.CollectionUtils;
 
 import java.io.*;

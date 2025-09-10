@@ -18,10 +18,9 @@ package io.edap.log.test.encoder.converter;
 
 import io.edap.log.LogEvent;
 import io.edap.log.converter.LoggerConverter;
-import io.edap.log.helps.ByteArrayBuilder;
+import io.edap.util.ByteArrayBuilder;
 import org.junit.jupiter.api.Test;
 
-import static io.edap.log.LogLevel.TRACE;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 
 public class TestLoggerConverter {

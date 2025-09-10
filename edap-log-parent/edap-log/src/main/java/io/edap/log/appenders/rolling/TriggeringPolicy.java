@@ -19,7 +19,7 @@ package io.edap.log.appenders.rolling;
 import io.edap.log.LifeCycle;
 import io.edap.log.LogEvent;
 import io.edap.log.appenders.FileAppender;
-import io.edap.log.helps.ByteArrayBuilder;
+import io.edap.util.ByteArrayBuilder;
 
 import java.io.File;
 

@@ -15,7 +15,7 @@
 
 package io.edap.log;
 
-import io.edap.log.helps.ByteArrayBuilder;
+import io.edap.util.ByteArrayBuilder;
 
 public abstract class AbstractEncoder implements Encoder {
 

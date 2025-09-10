@@ -16,11 +16,9 @@
 
 package io.edap.log.appenders;
 
-import io.edap.log.helps.ByteArrayBuilder;
 import io.edap.log.io.BaseLogOutputStream;
 import io.edap.log.io.ConsoleTarget;
 
-import java.io.IOException;
 import java.util.Arrays;
 
 import static io.edap.log.helpers.Util.printError;

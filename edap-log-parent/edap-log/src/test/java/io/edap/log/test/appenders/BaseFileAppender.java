@@ -1,7 +1,7 @@
 package io.edap.log.test.appenders;
 
 import io.edap.log.*;
-import io.edap.log.helps.ByteArrayBuilder;
+import io.edap.util.ByteArrayBuilder;
 import io.edap.log.queue.LogDataQueue;
 import io.edap.util.CollectionUtils;
 

@@ -16,8 +16,8 @@
 
 package io.edap.log.helps;
 
-import java.io.IOException;
-import java.nio.charset.Charset;
+import io.edap.util.ByteArrayBuilder;
+
 import java.nio.charset.StandardCharsets;
 
 /**
@@ -30,8 +30,8 @@ public class MessageFormatter {
     private static final byte ESCAPE_CHAR = '\\';
 
     public static void formatTo(ByteArrayBuilder bytesBuilder,
-                                String messagePattern,
-                                Object[] args) {
+								String messagePattern,
+								Object[] args) {
         if (args == null || args.length == 0) {
             bytesBuilder.append(messagePattern.getBytes(StandardCharsets.UTF_8));
             return;

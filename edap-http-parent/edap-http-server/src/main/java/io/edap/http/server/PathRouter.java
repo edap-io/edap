@@ -24,4 +24,8 @@ import io.edap.http.PathInfo;
 public interface PathRouter {
 
 	PathInfo route(String path);
+
+	void registerPathInfo(PathInfo pathInfo);
+
+	void unregisterPathInfo(PathInfo pathInfo);
 }

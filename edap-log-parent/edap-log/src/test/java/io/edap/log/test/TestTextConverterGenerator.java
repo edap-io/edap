@@ -18,7 +18,7 @@ package io.edap.log.test;
 
 import io.edap.log.converter.BaseTextConverter;
 import io.edap.log.converter.TextConverter;
-import io.edap.log.helps.ByteArrayBuilder;
+import io.edap.util.ByteArrayBuilder;
 import io.edap.log.helps.TextConverterFactory;
 import org.junit.jupiter.api.Test;
 

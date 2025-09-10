@@ -17,16 +17,13 @@
 package io.edap.log.appenders;
 
 import io.edap.log.*;
-import io.edap.log.helps.ByteArrayBuilder;
+import io.edap.util.ByteArrayBuilder;
 import io.edap.log.io.BaseLogOutputStream;
 import io.edap.log.queue.LogDataQueue;
 import io.edap.util.CollectionUtils;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
 import static io.edap.log.AbstractEncoder.LOCAL_BYTE_ARRAY_BUILDER;
@@ -87,7 +84,6 @@ public abstract class OutputStremAppender implements Appender {
         ByteArrayBuilder builder = LOCAL_BYTE_ARRAY_BUILDER.get();
         builder.reset();
         encoder.encode(logEvent, builder);
-        builder.setOutputStream(getOutputStream());
         queue.publish(builder);
     }
 
@@ -119,7 +115,6 @@ public abstract class OutputStremAppender implements Appender {
     protected void writeData(ByteArrayBuilder builder) throws IOException {
         lock.lock();
         try {
-            builder.writeToLogOut(outputStream);
             if (isImmediateFlush()) {
                 this.outputStream.flush();
             }
@@ -129,7 +124,6 @@ public abstract class OutputStremAppender implements Appender {
     }
 
     protected void lockFreeWriteData(ByteArrayBuilder builder) throws IOException {
-        builder.writeToLogOut(outputStream);
         if (isImmediateFlush()) {
             this.outputStream.flush();
         }

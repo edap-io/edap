@@ -17,7 +17,7 @@
 package io.edap.log.test.encoder.converter;
 
 import io.edap.log.converter.TextConverter;
-import io.edap.log.helps.ByteArrayBuilder;
+import io.edap.util.ByteArrayBuilder;
 
 import java.nio.charset.StandardCharsets;
 

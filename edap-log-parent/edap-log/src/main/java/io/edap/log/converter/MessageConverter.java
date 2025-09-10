@@ -18,12 +18,10 @@ package io.edap.log.converter;
 
 import io.edap.log.Converter;
 import io.edap.log.LogEvent;
-import io.edap.log.helpers.Util;
-import io.edap.log.helps.ByteArrayBuilder;
+import io.edap.util.ByteArrayBuilder;
 import io.edap.log.helps.MessageFormatter;
 import io.edap.util.StringUtil;
 
-import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
 public class MessageConverter implements Converter<LogEvent> {

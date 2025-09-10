@@ -18,7 +18,7 @@ package io.edap.log.converter;
 
 import io.edap.log.Converter;
 import io.edap.log.LogEvent;
-import io.edap.log.helps.ByteArrayBuilder;
+import io.edap.util.ByteArrayBuilder;
 
 import java.nio.charset.StandardCharsets;
 

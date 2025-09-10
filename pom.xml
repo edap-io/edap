@@ -57,6 +57,7 @@
         <module>edap-nio-parent</module>
         <module>edap-codec</module>
         <module>edap-dbtools-parent</module>
+        <module>edap-asm-utils</module>
 
     </modules>
 
@@ -74,7 +75,11 @@
                 <artifactId>edap-telnet-server</artifactId>
                 <version>${project.version}</version>
             </dependency>
-
+            <dependency>
+                <groupId>io.edap</groupId>
+                <artifactId>edap-asm-utils</artifactId>
+                <version>${project.version}</version>
+            </dependency>
             <dependency>
                 <groupId>io.edap</groupId>
                 <artifactId>edap-common</artifactId>

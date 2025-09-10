@@ -48,6 +48,10 @@
             <artifactId>edap-common</artifactId>
         </dependency>
         <dependency>
+            <groupId>io.edap</groupId>
+            <artifactId>edap-asm-utils</artifactId>
+        </dependency>
+        <dependency>
             <groupId>com.lmax</groupId>
             <artifactId>disruptor</artifactId>
             <scope>provided</scope>

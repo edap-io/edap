@@ -20,6 +20,7 @@ import io.edap.log.AbstractEncoder;
 import io.edap.log.Encoder;
 import io.edap.log.LogWriter;
 import io.edap.log.converter.*;
+import io.edap.util.ByteArrayBuilder;
 import io.edap.util.StringUtil;
 import io.edap.util.internal.GeneratorClassInfo;
 import org.objectweb.asm.*;

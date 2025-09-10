@@ -23,7 +23,7 @@ import com.lmax.disruptor.dsl.ProducerType;
 import com.lmax.disruptor.util.DaemonThreadFactory;
 import io.edap.log.LogConfig;
 import io.edap.log.config.DisruptorConfig;
-import io.edap.log.helps.ByteArrayBuilder;
+import io.edap.util.ByteArrayBuilder;
 
 import static io.edap.log.helpers.Util.printError;
 import static io.edap.log.util.DisruptorUtil.checkSetConfig;

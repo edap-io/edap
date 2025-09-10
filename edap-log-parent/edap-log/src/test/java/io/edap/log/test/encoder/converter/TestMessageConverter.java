@@ -19,7 +19,7 @@ package io.edap.log.test.encoder.converter;
 import io.edap.log.Converter;
 import io.edap.log.LogEvent;
 import io.edap.log.converter.MessageConverter;
-import io.edap.log.helps.ByteArrayBuilder;
+import io.edap.util.ByteArrayBuilder;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;

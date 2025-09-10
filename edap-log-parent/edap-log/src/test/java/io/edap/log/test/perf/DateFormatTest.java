@@ -19,7 +19,7 @@ package io.edap.log.test.perf;
 import io.edap.log.LogEvent;
 import io.edap.log.converter.CacheDateFormatterConverter;
 import io.edap.log.converter.DateFormatterConverter;
-import io.edap.log.helps.ByteArrayBuilder;
+import io.edap.util.ByteArrayBuilder;
 import org.openjdk.jmh.annotations.*;
 import org.openjdk.jmh.runner.Runner;
 import org.openjdk.jmh.runner.RunnerException;

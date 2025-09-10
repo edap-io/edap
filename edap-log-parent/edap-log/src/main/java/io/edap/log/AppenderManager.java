@@ -23,7 +23,6 @@ import io.edap.log.config.AppenderConfig;
 import io.edap.log.config.AppenderConfigSection;
 import io.edap.log.config.QueueConfig;
 import io.edap.log.config.QueueConfigSection;
-import io.edap.log.helps.ByteArrayBuilder;
 import io.edap.log.helps.LogEncoderRegister;
 import io.edap.log.queue.DisruptorLogDataQueue;
 import io.edap.log.queue.LogDataQueue;
