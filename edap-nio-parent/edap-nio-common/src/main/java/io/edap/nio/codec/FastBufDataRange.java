@@ -225,6 +225,6 @@ public class FastBufDataRange implements DataRange<Long, FastBuf> {
 
     @Override
     public void reset() {
-
+        length = 0;
     }
 }

@@ -80,5 +80,6 @@ public class HttpFastBufDataRange extends FastBufDataRange {
     public void reset() {
         bytesBuilder.reset();
         urlEncoded = false;
+        super.reset();
     }
 }

@@ -8,6 +8,7 @@ import io.edap.http.model.ParamPair;
 import io.edap.http.model.QueryInfo;
 import io.edap.http.rangedecoder.RangeTokenDecoder;
 import io.edap.nio.codec.FastBufDataRange;
+import io.edap.util.ByteArrayBuilder;
 import io.edap.util.FastList;
 import io.edap.util.StringUtil;
 
@@ -41,7 +42,7 @@ public class QueryStringDecoder implements RangeTokenDecoder<QueryInfo> {
         return decodeQuery(_buf, dataRange);
     }
 
-    private QueryInfo decodeQuery(FastBuf buf, FastBufDataRange dataRange) {
+    private QueryInfo decodeQuery(FastBuf buf, HttpFastBufDataRange dataRange) {
         FastBuf         _buf       = buf;
         List<ParamPair> paramPairs = new FastList<>();
         QueryInfo       query      = new QueryInfo();
@@ -54,6 +55,7 @@ public class QueryStringDecoder implements RangeTokenDecoder<QueryInfo> {
         String key = null;
         byte   b;
         long   hashCode = FNV_1a_INIT_VAL;
+        byte   decodeByte;
         for (int i=0;i<remain;i++) {
             b = _buf.get(rpos++);
             switch (b) {
@@ -63,6 +65,7 @@ public class QueryStringDecoder implements RangeTokenDecoder<QueryInfo> {
                     dataRange.last(_buf.get(rpos-2));
                     dataRange.hash(hashCode);
                     key = KEY_CACHE.get(dataRange);
+                    dataRange.reset();
                     dataRange.start(rpos);
                     hashCode = FNV_1a_INIT_VAL;
                     break;
@@ -78,6 +81,7 @@ public class QueryStringDecoder implements RangeTokenDecoder<QueryInfo> {
                         paramPairs.add(paramPair);
                     }
                     key = null;
+                    dataRange.reset();
                     dataRange.start(rpos);
                     hashCode = FNV_1a_INIT_VAL;
                     break;
@@ -94,14 +98,28 @@ public class QueryStringDecoder implements RangeTokenDecoder<QueryInfo> {
                     }
                     byte[] queryBytes = new byte[i];
                     _buf.rpos(queryPos);
-                    _buf.get(queryBytes);
+                    _buf.get(queryPos, queryBytes);
                     query.setQueryBytes(queryBytes);
                     query.setParamPairs(paramPairs);
                     return query;
                 case '+':
+                    decodeByte = ' ';
                     hashCode ^= ' ';
                     hashCode *= FNV_1a_FACTOR_VAL;
-                    //dataRange.urlEncoded(true);
+                    if (dataRange.urlEncoded()) {
+                        dataRange.append(decodeByte);
+                    } else {
+                        if (rpos > dataRange.start() + 1) {
+                            ByteArrayBuilder builder = dataRange.getBytesBuilder();
+                            builder.ensureCapacity(i);
+                            int noDecodeLen = (int)(rpos - dataRange.start()-1);
+                            byte[] data = builder.getValue();
+                            buf.get(dataRange.start(), data, 0, noDecodeLen);
+                            builder.setLength(noDecodeLen);
+                        }
+                        dataRange.append(decodeByte);
+                        dataRange.urlEncoded(true);
+                    }
                     break;
                 case '%':
                     if (i < remain - 2) {
@@ -109,10 +127,24 @@ public class QueryStringDecoder implements RangeTokenDecoder<QueryInfo> {
                         if (v < 0) {
                             throw new IllegalArgumentException("URLDecoder: Illegal hex characters in escape (%) pattern - negative value");
                         }
-                        i += 2;
-                        hashCode ^= (byte) v;
+                        decodeByte = (byte)v;
+                        hashCode ^= decodeByte;
                         hashCode *= FNV_1a_FACTOR_VAL;
-                        //dataRange.urlEncoded(true);
+                        if (dataRange.urlEncoded()) {
+                            dataRange.append(decodeByte);
+                        } else {
+                            if (rpos > dataRange.start() + 1) {
+                                ByteArrayBuilder builder = dataRange.getBytesBuilder();
+                                builder.ensureCapacity(i);
+                                int noDecodeLen = (int)(rpos - dataRange.start()-3);
+                                byte[] data = builder.getValue();
+                                buf.get(dataRange.start(), data, 0, noDecodeLen);
+                                builder.setLength(noDecodeLen);
+                            }
+                            dataRange.append(decodeByte);
+                            dataRange.urlEncoded(true);
+                        }
+                        i += 2;
                         break;
                     } else {
                         return null;
@@ -120,6 +152,9 @@ public class QueryStringDecoder implements RangeTokenDecoder<QueryInfo> {
                 default:
                     hashCode ^= b;
                     hashCode *= FNV_1a_FACTOR_VAL;
+                    if (dataRange.urlEncoded()) {
+                        dataRange.append(b);
+                    }
             }
         }
         return null;
