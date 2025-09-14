@@ -115,6 +115,7 @@ public abstract class OutputStremAppender implements Appender {
     protected void writeData(ByteArrayBuilder builder) throws IOException {
         lock.lock();
         try {
+            builder.writeTo(this.outputStream);
             if (isImmediateFlush()) {
                 this.outputStream.flush();
             }
