@@ -46,6 +46,10 @@ public abstract class JdbcBaseDao {
 
     static ConnectionHolder CONNECTION_HOLDER;
 
+    private StatementSession stmtSession;
+
+    protected LimitDialect limitDialect;
+
     static {
 
         String spiProvider = System.getProperty("edap.edao.connection.holder");
@@ -113,6 +117,10 @@ public abstract class JdbcBaseDao {
         }
     }
 
+    public DataSource getDataSource() {
+        return dataSource;
+    }
+
     public void setConnection(Connection con) {
         this.con = con;
         if (connectionHolder == null) {
@@ -122,13 +130,21 @@ public abstract class JdbcBaseDao {
     }
 
     public StatementSession getStatementSession() throws SQLException {
-        StatementSession session = STMT_SESSION_LOCAL.get();
-        session.setConHolder(connectionHolder);
-        return session;
+        if (stmtSession == null) {
+            stmtSession = new SingleStatementSession();
+            stmtSession.setConHolder(connectionHolder);
+        }
+//        StatementSession session = STMT_SESSION_LOCAL.get();
+//        session.setConHolder(connectionHolder);
+        return stmtSession;
     }
 
     protected void closeStatmentSession() {
         StatementSession session = STMT_SESSION_LOCAL.get();
+        closeStatmentSession(session);
+    }
+
+    protected void closeStatmentSession(StatementSession session) {
         if (session != null) {
             session.close();
         }
@@ -164,27 +180,31 @@ public abstract class JdbcBaseDao {
 
 
     public static void setPreparedParams(PreparedStatement pstmt, QueryParam... params) throws SQLException {
+        setPreparedParams(pstmt, 1, params);
+    }
+
+    public static void setPreparedParams(PreparedStatement pstmt, int startIndex, QueryParam... params) throws SQLException {
         if (CollectionUtils.isEmpty(params)) {
             return;
         }
-        int index = 0;
         for (QueryParam param : params) {
             Object value = param.getParam();
-            index++;
-            pstmt.setObject(index, value);
-
+            pstmt.setObject(startIndex, value);
+            startIndex++;
         }
     }
 
     public static void setPreparedParams(PreparedStatement pstmt, Object... params) throws SQLException {
+        setPreparedParams(pstmt, 1, params);
+    }
+
+    public static void setPreparedParams(PreparedStatement pstmt, int startIndex, Object... params) throws SQLException {
         if (CollectionUtils.isEmpty(params)) {
             return;
         }
-        int index = 0;
         for (Object param : params) {
-            index++;
-            pstmt.setObject(index, param);
-
+            pstmt.setObject(startIndex, param);
+            startIndex++;
         }
     }
 }

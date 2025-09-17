@@ -26,6 +26,18 @@ public interface ViewDao<T> {
 
     List<T> query(String sql, Object... params) throws Exception;
 
+    List<T> query(String sql, int start, int count) throws Exception;
+
+    List<T> query(String sql, int start, int count, QueryParam... params) throws Exception;
+
+    List<T> query(String sql, int start, int count, Object... params) throws Exception;
+
+    PageResult<T> queryPage(String sql, int pageNum, int pageSize) throws Exception;
+
+    PageResult<T> queryPage(String sql, int pageNum, int pageSize, QueryParam... params) throws Exception;
+
+    PageResult<T> queryPage(String sql, int pageNum, int pageSize, Object... params) throws Exception;
+
     T findById(Object id) throws Exception;
 
     T findOne(String sql) throws Exception;

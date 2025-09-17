@@ -71,10 +71,13 @@ public class JdbcEntityDaoGenerator extends BaseDaoGenerator {
         visitInsertMethod();
         visitInsertBridgeMethod();
 
-        visitQueryOneParamMethod();
         visitGetSqlFieldSetFuncMethod();
+        visitQueryOneParamMethod();
         visitQueryTwoParamMethod();
         visitQueryObjectArrayMethod();
+        visitQueryThreeParamMethod();
+        visitQueryFourParamMethod();
+        visitQueryFourObjectArrayMethod();
 
         visitFindOneOneParamMethod();
         visitFindOneTwoParamMethod();

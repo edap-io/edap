@@ -16,12 +16,14 @@
 
 package io.edap.data.jdbc;
 
+import io.edap.data.PageResult;
 import io.edap.data.QueryParam;
 import io.edap.data.jdbc.model.ColumnsInfo;
 import io.edap.data.jdbc.model.JdbcInfo;
 import io.edap.data.jdbc.model.QueryInfo;
 import io.edap.data.jdbc.util.Convertor;
 import io.edap.data.jdbc.util.DaoUtil;
+import io.edap.data.jdbc.util.DialectFactory;
 import io.edap.util.CollectionUtils;
 import io.edap.util.Constants;
 import org.objectweb.asm.*;
@@ -48,6 +50,12 @@ public class BaseDaoGenerator {
 
     protected static String CONVERTOR_NAME = toInternalName(Convertor.class.getName());
 
+    protected static String LIMIT_DIALECT_NAME   = toInternalName(LimitDialect.class.getName());
+    protected static String LIMIT_QUERYINFO_NAME   = toInternalName(LimitQueryInfo.class.getName());
+    protected static String PAGE_RESULT_NAME = toInternalName(PageResult.class.getName());
+    protected static String DAO_OPTION_NAME = toInternalName(DaoOption.class.getName());
+    protected static String DIALECT_FACTORY_NAME = toInternalName(DialectFactory.class.getName());
+
     protected String PARENT_NAME;
 
     protected ClassWriter cw;
@@ -66,41 +74,27 @@ public class BaseDaoGenerator {
                 "(Ljava/lang/String;)Ljava/lang/String;", null, null);
         mv.visitCode();
         mv.visitVarInsn(ALOAD, 0);
-        mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/String", "trim",
-                "()Ljava/lang/String;", false);
+
+        Label lbSqlNotNull = new Label();
+        mv.visitJumpInsn(IFNONNULL, lbSqlNotNull);
+        mv.visitLdcInsn("");
         mv.visitVarInsn(ASTORE, 0);
+
+        Label lbIsSelect = new Label();
+        mv.visitJumpInsn(GOTO, lbIsSelect);
+
+        mv.visitLabel(lbSqlNotNull);
         mv.visitVarInsn(ALOAD, 0);
-        mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/String", "length",
-                "()I", false);
-        mv.visitIntInsn(BIPUSH, 7);
-        Label label0 = new Label();
-        mv.visitJumpInsn(IF_ICMPLE, label0);
-        mv.visitIntInsn(BIPUSH, 7);
-        Label label1 = new Label();
-        mv.visitJumpInsn(GOTO, label1);
-        mv.visitLabel(label0);
-        mv.visitFrame(Opcodes.F_SAME, 0, null, 0, null);
+        mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/String", "trim", "()Ljava/lang/String;", false);
+        mv.visitVarInsn(ASTORE, 0);
+
+        String dialectFactoryName = toInternalName(DialectFactory.class.getName());
+        mv.visitLabel(lbIsSelect);
         mv.visitVarInsn(ALOAD, 0);
-        mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/String", "length", "()I",
-                false);
-        mv.visitLabel(label1);
-        mv.visitFrame(Opcodes.F_SAME1, 0, null, 1,
-                new Object[] {Opcodes.INTEGER});
-        mv.visitVarInsn(ISTORE, 1);
-        mv.visitVarInsn(ALOAD, 0);
-        mv.visitInsn(ICONST_0);
-        mv.visitVarInsn(ILOAD, 1);
-        mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/String", "substring",
-                "(II)Ljava/lang/String;", false);
-        mv.visitFieldInsn(GETSTATIC, "java/util/Locale", "ENGLISH",
-                "Ljava/util/Locale;");
-        mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/String", "toLowerCase",
-                "(Ljava/util/Locale;)Ljava/lang/String;", false);
-        mv.visitLdcInsn("select ");
-        mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/String", "startsWith",
-                "(Ljava/lang/String;)Z", false);
-        Label label2 = new Label();
-        mv.visitJumpInsn(IFNE, label2);
+        mv.visitMethodInsn(INVOKESTATIC, dialectFactoryName, "isSelectStart", "(Ljava/lang/String;)Z", false);
+
+        Label lbIfSelect = new Label();
+        mv.visitJumpInsn(IFNE, lbIfSelect);
         mv.visitTypeInsn(NEW, "java/lang/StringBuilder");
         mv.visitInsn(DUP);
         mv.visitMethodInsn(INVOKESPECIAL, "java/lang/StringBuilder", "<init>",
@@ -122,10 +116,11 @@ public class BaseDaoGenerator {
         mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/StringBuilder", "toString",
                 "()Ljava/lang/String;", false);
         mv.visitVarInsn(ASTORE, 0);
-        mv.visitLabel(label2);
+
+        mv.visitLabel(lbIfSelect);
         mv.visitVarInsn(ALOAD, 0);
         mv.visitInsn(ARETURN);
-        mv.visitMaxs(3, 2);
+        mv.visitMaxs(1, 1);
         mv.visitEnd();
     }
 
@@ -542,6 +537,561 @@ public class BaseDaoGenerator {
         mv.visitMethodInsn(INVOKEVIRTUAL, daoName, "query", "(Ljava/lang/String;[Ljava/lang/Object;)Ljava/util/List;", false);
         mv.visitInsn(ARETURN);
         mv.visitMaxs(6, 2);
+        mv.visitEnd();
+    }
+
+    protected void visitQueryThreeParamMethod() {
+
+        MethodVisitor mv;
+        mv = cw.visitMethod(ACC_PUBLIC, "query", "(Ljava/lang/String;II)Ljava/util/List;",
+                "(Ljava/lang/String;II)Ljava/util/List<L" + entityName + ";>;", new String[] { "java/lang/Exception" });
+        mv.visitCode();
+
+        mv.visitVarInsn(ALOAD, 0);
+        mv.visitVarInsn(ALOAD, 1);
+        mv.visitVarInsn(ILOAD, 2);
+        mv.visitVarInsn(ILOAD, 3);
+        mv.visitFieldInsn(GETSTATIC, CONSTANTS_NAME, "EMPTY_ARRAY", "[Ljava/lang/Object;");
+        mv.visitMethodInsn(INVOKEVIRTUAL, daoName, "query",
+                "(Ljava/lang/String;II[Ljava/lang/Object;)Ljava/util/List;", false);
+        mv.visitInsn(ARETURN);
+        mv.visitMaxs(5, 4);
+        mv.visitEnd();
+    }
+
+    protected void visitQueryFourParamMethod() {
+
+        MethodVisitor mv;
+        mv = cw.visitMethod(ACC_PUBLIC | ACC_VARARGS, "query",
+                "(Ljava/lang/String;II[Ljava/lang/Object;)Ljava/util/List;",
+                "(Ljava/lang/String;II[Ljava/lang/Object;)Ljava/util/List<L" + entityName + ";>;",
+                new String[] { "java/lang/Exception" });
+        mv.visitCode();
+        int varSql       = 1;
+        int varStart     = 2;
+        int varCount     = 3;
+        int varParam     = 4;
+        int varSession   = 5;
+        int varLimitInfo = 6;
+        int varPstmt     = 7;
+        int varResultSet = 8;
+        int varFieldKey  = 9;
+        int varFunc      = 10;
+        int varResList   = 11;
+        int varEntity    = 12;
+        int varEx        = 13;
+
+        Label label0 = new Label();
+        Label label1 = new Label();
+        Label label2 = new Label();
+        mv.visitTryCatchBlock(label0, label1, label2, null);
+        Label label3 = new Label();
+        mv.visitTryCatchBlock(label2, label3, label2, null);
+        mv.visitVarInsn(ILOAD, varStart);
+
+        // start小于0
+        Label lbStartGe = new Label();
+        mv.visitJumpInsn(IFGE, lbStartGe);
+        mv.visitInsn(ICONST_0);
+        mv.visitVarInsn(ISTORE, varStart);
+
+        mv.visitLabel(lbStartGe);
+        // 判断count是否小于1
+        mv.visitVarInsn(ILOAD, varCount);
+        mv.visitInsn(ICONST_1);
+        Label lbCountGe = new Label();
+        mv.visitJumpInsn(IF_ICMPGE, lbCountGe);
+        mv.visitInsn(ICONST_1);
+        mv.visitVarInsn(ISTORE, 3);
+        mv.visitLabel(lbCountGe);
+
+        // 完善sql语句，如果没有提供select 部分则使用select所有字段补全
+        mv.visitVarInsn(ALOAD, varSql);
+        mv.visitMethodInsn(INVOKESTATIC, daoName, "fillSqlField", "(Ljava/lang/String;)Ljava/lang/String;", false);
+        mv.visitVarInsn(ASTORE, varSql);
+
+        // 获取StatementSession
+        mv.visitVarInsn(ALOAD, 0);
+        mv.visitMethodInsn(INVOKEVIRTUAL, daoName, "getStatementSession", "()L" + STMT_SESSION_NAME + ";", false);
+        mv.visitVarInsn(ASTORE, varSession);
+        // try内执行limit查询
+        mv.visitLabel(label0);
+        // 根据分页sql以及变量返回分页信息
+        mv.visitVarInsn(ALOAD, 0);
+        mv.visitFieldInsn(GETFIELD, daoName, "limitDialect", "L" + LIMIT_DIALECT_NAME + ";");
+        mv.visitVarInsn(ALOAD, varSql);
+        mv.visitVarInsn(ILOAD, varStart);
+        mv.visitVarInsn(ILOAD, varCount);
+        mv.visitMethodInsn(INVOKEINTERFACE, LIMIT_DIALECT_NAME, "process",
+                "(Ljava/lang/String;II)L" + LIMIT_QUERYINFO_NAME + ";", true);
+        mv.visitVarInsn(ASTORE, varLimitInfo);
+
+        // preparedStatement
+        mv.visitVarInsn(ALOAD, varSession);
+        mv.visitVarInsn(ALOAD, varLimitInfo);
+        mv.visitMethodInsn(INVOKEVIRTUAL, LIMIT_QUERYINFO_NAME, "getSql", "()Ljava/lang/String;", false);
+        mv.visitMethodInsn(INVOKEINTERFACE, STMT_SESSION_NAME, "preparedStatement",
+                "(Ljava/lang/String;)Ljava/sql/PreparedStatement;", true);
+        mv.visitVarInsn(ASTORE, varPstmt);
+
+        // 为PreparedStatement设置参数
+        mv.visitVarInsn(ALOAD, varPstmt);
+        mv.visitVarInsn(ALOAD, varParam);
+        mv.visitMethodInsn(INVOKESTATIC, daoName, "setPreparedParams",
+                "(Ljava/sql/PreparedStatement;[Ljava/lang/Object;)V", false);
+        mv.visitVarInsn(ALOAD, varPstmt);
+        mv.visitVarInsn(ALOAD, varParam);
+        mv.visitInsn(ARRAYLENGTH);
+        mv.visitInsn(ICONST_1);
+        mv.visitInsn(IADD);
+        mv.visitVarInsn(ALOAD, varLimitInfo);
+        mv.visitMethodInsn(INVOKEVIRTUAL, LIMIT_QUERYINFO_NAME, "getParams", "()[Ljava/lang/Object;", false);
+        mv.visitMethodInsn(INVOKESTATIC, daoName, "setPreparedParams",
+                "(Ljava/sql/PreparedStatement;I[Ljava/lang/Object;)V", false);
+
+        // 执行executeQuery
+        mv.visitVarInsn(ALOAD, varPstmt);
+        mv.visitMethodInsn(INVOKEINTERFACE, "java/sql/PreparedStatement", "executeQuery", "()Ljava/sql/ResultSet;");
+        mv.visitVarInsn(ASTORE, varResultSet);
+
+        // 获取为entity赋值的函数实例
+        mv.visitVarInsn(ALOAD, 0);
+        mv.visitVarInsn(ALOAD, varSql);
+        mv.visitMethodInsn(INVOKEVIRTUAL, daoName, "getFieldsSql",
+                "(Ljava/lang/String;)Ljava/lang/String;", false);
+        mv.visitVarInsn(ASTORE, varFieldKey);
+        mv.visitFieldInsn(GETSTATIC, daoName, "FIELD_SET_FUNCS", "Ljava/util/Map;");
+        mv.visitVarInsn(ALOAD, varFieldKey);
+        mv.visitMethodInsn(INVOKEINTERFACE, "java/util/Map", "get",
+                "(Ljava/lang/String;)Ljava/lang/Object;", true);
+        mv.visitTypeInsn(CHECKCAST, FIELD_SET_FUNC_NAME);
+        mv.visitVarInsn(ASTORE, varFunc);
+
+        // 如果func为空则使创建func
+        mv.visitVarInsn(ALOAD, varFunc);
+        Label lbFuncNotNull = new Label();
+        mv.visitJumpInsn(IFNONNULL, lbFuncNotNull);
+        mv.visitVarInsn(ALOAD, 0);
+        mv.visitVarInsn(ALOAD, varResultSet);
+        mv.visitVarInsn(ALOAD, varFieldKey);
+        mv.visitMethodInsn(INVOKEVIRTUAL, daoName, "getSqlFieldSetFunc",
+                "(Ljava/sql/ResultSet;Ljava/lang/String;)L" + FIELD_SET_FUNC_NAME + ";", false);
+        mv.visitVarInsn(ASTORE, varFunc);
+        mv.visitFieldInsn(GETSTATIC, daoName, "FIELD_SET_FUNCS", "Ljava/util/Map;");
+        mv.visitVarInsn(ALOAD, varFieldKey);
+        mv.visitVarInsn(ALOAD, varFunc);
+        mv.visitMethodInsn(INVOKEINTERFACE, "java/util/Map", "putIfAbsent",
+                "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;", true);
+        mv.visitInsn(POP);
+
+        mv.visitLabel(lbFuncNotNull);
+        // 初始化List
+        mv.visitLabel(lbFuncNotNull);
+        mv.visitTypeInsn(NEW, "java/util/ArrayList");
+        mv.visitInsn(DUP);
+        mv.visitMethodInsn(INVOKESPECIAL, "java/util/ArrayList", "<init>", "()V", false);
+        mv.visitVarInsn(ASTORE, varResList);
+
+        // while (rs.next) 循环
+        Label lbWhile = new Label();
+        mv.visitLabel(lbWhile);
+        mv.visitVarInsn(ALOAD, varResultSet);
+        mv.visitMethodInsn(INVOKEINTERFACE, "java/sql/ResultSet", "next", "()Z", true);
+        Label lbReturn = new Label();
+        mv.visitJumpInsn(IFEQ, lbReturn);
+
+        // 新建entity实例并且赋值
+        mv.visitTypeInsn(NEW, entityName);
+        mv.visitInsn(DUP);
+        mv.visitMethodInsn(INVOKESPECIAL, entityName, "<init>", "()V", false);
+        mv.visitVarInsn(ASTORE, varEntity);
+        mv.visitVarInsn(ALOAD, varFunc);
+        mv.visitVarInsn(ALOAD, varEntity);
+        mv.visitVarInsn(ALOAD, varResultSet);
+        mv.visitMethodInsn(INVOKEINTERFACE, FIELD_SET_FUNC_NAME, "set", "(Ljava/lang/Object;Ljava/sql/ResultSet;)V", true);
+
+        // 添加到List中
+        mv.visitVarInsn(ALOAD, varResList);
+        mv.visitVarInsn(ALOAD, varEntity);
+        mv.visitMethodInsn(INVOKEVIRTUAL, "java/util/ArrayList", "add", "(Ljava/lang/Object;)Z", false);
+        mv.visitInsn(POP);
+        mv.visitJumpInsn(GOTO, lbWhile);
+
+        mv.visitLabel(lbReturn);
+
+        mv.visitLabel(label1);
+        mv.visitVarInsn(ALOAD, 0);
+        mv.visitVarInsn(ALOAD, varSession);
+        mv.visitMethodInsn(INVOKEVIRTUAL, daoName, "closeStatmentSession", "(L" + STMT_SESSION_NAME + ";)V", false);
+
+        mv.visitVarInsn(ALOAD, varResList);
+        mv.visitInsn(ARETURN);
+
+        mv.visitLabel(label2);
+        mv.visitFrame(Opcodes.F_FULL, 6, new Object[] {daoName, "java/lang/String", Opcodes.INTEGER,
+                        Opcodes.INTEGER, "[Ljava/lang/Object;", STMT_SESSION_NAME}, 1,
+                new Object[] {"java/lang/Throwable"});
+        mv.visitVarInsn(ASTORE, varEx);
+
+        mv.visitLabel(label3);
+        mv.visitVarInsn(ALOAD, 0);
+        mv.visitVarInsn(ALOAD, varSession);
+        mv.visitMethodInsn(INVOKEVIRTUAL, daoName, "closeStatmentSession", "(L" + STMT_SESSION_NAME + ";)V", false);
+        mv.visitVarInsn(ALOAD, varEx);
+        mv.visitInsn(ATHROW);
+
+        mv.visitMaxs(4, 14);
+        mv.visitEnd();
+    }
+
+    protected void visitQueryPageMethod() {
+        MethodVisitor mv;
+        mv = cw.visitMethod(ACC_PUBLIC, "queryPage", "(Ljava/lang/String;II)Lio/edap/data/PageResult;",
+                "(Ljava/lang/String;II)Lio/edap/data/PageResult<L" + entityName + ";>;",
+                new String[] { "java/lang/Exception" });
+        mv.visitCode();
+        mv.visitVarInsn(ALOAD, 0);
+        mv.visitVarInsn(ALOAD, 1);
+        mv.visitVarInsn(ILOAD, 2);
+        mv.visitVarInsn(ILOAD, 3);
+        mv.visitFieldInsn(GETSTATIC, CONSTANTS_NAME, "EMPTY_ARRAY", "[Ljava/lang/Object;");
+        mv.visitMethodInsn(INVOKEVIRTUAL, daoName, "queryPage",
+                "(Ljava/lang/String;II[Ljava/lang/Object;)Lio/edap/data/PageResult;", false);
+        mv.visitInsn(ARETURN);
+        mv.visitMaxs(5, 4);
+        mv.visitEnd();
+    }
+
+    protected void visitQueryPageObjectParamMethod() {
+        MethodVisitor mv = cw.visitMethod(ACC_PUBLIC | ACC_VARARGS, "queryPage", "(Ljava/lang/String;II[Lio/edap/data/QueryParam;)Lio/edap/data/PageResult;", "(Ljava/lang/String;II[Lio/edap/data/QueryParam;)Lio/edap/data/PageResult<Lio/edap/data/jdbc/jdbc/test/entity/Demo;>;", new String[] { "java/lang/Exception" });
+        mv.visitCode();
+        Label label0 = new Label();
+        Label label1 = new Label();
+        Label label2 = new Label();
+        mv.visitTryCatchBlock(label0, label1, label2, null);
+        Label label3 = new Label();
+        mv.visitTryCatchBlock(label2, label3, label2, null);
+
+        int varSql         = 1;
+        int varPageNum     = 2;
+        int varPageSize    = 3;
+        int varParams      = 4;
+        int varStart       = 5;
+        int varPageRes     = 6;
+        int varStmtSession = 7;
+        int varTotalSql    = 8;
+        int varPstmt       = 9;
+        int varResultSet   = 10;
+        int varLimitInfo   = 11;
+
+        // 如果pageSize 小于1 则赋值为1
+        mv.visitVarInsn(ILOAD, varPageSize);
+        mv.visitInsn(ICONST_1);
+        Label lbPageSizeGe = new Label();
+        mv.visitJumpInsn(IF_ICMPGE, lbPageSizeGe);
+        mv.visitInsn(ICONST_1);
+        mv.visitVarInsn(ISTORE, varPageSize);
+        mv.visitLabel(lbPageSizeGe);
+
+        mv.visitVarInsn(ILOAD, varPageNum);
+        mv.visitInsn(ICONST_1);
+        Label lbPageNumGe = new Label();
+        mv.visitJumpInsn(IF_ICMPGE, lbPageNumGe);
+        mv.visitInsn(ICONST_0);
+        mv.visitVarInsn(ISTORE, varStart);
+        Label lbResDef = new Label();
+        mv.visitJumpInsn(GOTO, lbResDef);
+
+        // 计算开始位置
+        mv.visitLabel(lbPageNumGe);
+        mv.visitVarInsn(ILOAD, varPageNum);
+        mv.visitInsn(ICONST_1);
+        mv.visitInsn(ISUB);
+        mv.visitVarInsn(ILOAD, varPageSize);
+        mv.visitInsn(IMUL);
+        mv.visitVarInsn(ISTORE, varStart);
+
+        // 声明返回实例
+        mv.visitLabel(lbResDef);
+        mv.visitTypeInsn(NEW, PAGE_RESULT_NAME);
+        mv.visitInsn(DUP);
+        mv.visitMethodInsn(INVOKESPECIAL, PAGE_RESULT_NAME, "<init>", "()V", false);
+        mv.visitVarInsn(ASTORE, varPageRes);
+
+        // 为result赋值pageSize
+        mv.visitVarInsn(ALOAD, varPageRes);
+        mv.visitVarInsn(ILOAD, varPageSize);
+        mv.visitMethodInsn(INVOKEVIRTUAL, PAGE_RESULT_NAME, "setPageSize", "(I)V", false);
+
+        // 完善sql语句
+        mv.visitVarInsn(ALOAD, varSql);
+        mv.visitMethodInsn(INVOKESTATIC, daoName, "fillSqlField",
+                "(Ljava/lang/String;)Ljava/lang/String;", false);
+        mv.visitVarInsn(ASTORE, varSql);
+
+        // 获取StatementSession
+        mv.visitVarInsn(ALOAD, 0);
+        mv.visitMethodInsn(INVOKEVIRTUAL, daoName, "getStatementSession", "()L" + STMT_SESSION_NAME + ";", false);
+        mv.visitVarInsn(ASTORE, varStmtSession);
+
+        // try开始
+        mv.visitLabel(label0);
+        mv.visitLdcInsn(DaoUtil.getTableName(entity));
+        mv.visitVarInsn(ALOAD, 0);
+        mv.visitFieldInsn(GETFIELD, daoName, "daoOption", "L" + DAO_OPTION_NAME + ";");
+        mv.visitMethodInsn(INVOKESTATIC, DIALECT_FACTORY_NAME, "buildTotalSql",
+                "(Ljava/lang/String;Ljava/lang/String;L" + DAO_OPTION_NAME + ";)Ljava/lang/String;", false);
+        mv.visitVarInsn(ASTORE, varTotalSql);
+
+        // preparedStatement操作
+        mv.visitVarInsn(ALOAD, varStmtSession);
+        mv.visitVarInsn(ALOAD, varTotalSql);
+        mv.visitMethodInsn(INVOKEINTERFACE, STMT_SESSION_NAME, "preparedStatement",
+                "(Ljava/lang/String;)Ljava/sql/PreparedStatement;", true);
+        mv.visitVarInsn(ASTORE, varPstmt);
+
+        // 为preparedStatement绑定参数,并执行查询
+        mv.visitVarInsn(ALOAD, varPstmt);
+        mv.visitVarInsn(ALOAD, varParams);
+        mv.visitMethodInsn(INVOKESTATIC, daoName, "setPreparedParams",
+                "(Ljava/sql/PreparedStatement;[Ljava/lang/Object;)V", false);
+        mv.visitVarInsn(ALOAD, varPstmt);
+        mv.visitMethodInsn(INVOKEINTERFACE, "java/sql/PreparedStatement", "executeQuery",
+                "()Ljava/sql/ResultSet;", true);
+        mv.visitVarInsn(ASTORE, varResultSet);
+
+        // 填充PageResult的total值
+        mv.visitVarInsn(ALOAD, varResultSet);
+        mv.visitMethodInsn(INVOKEINTERFACE, "java/sql/ResultSet", "next", "()Z", true);
+        Label lbNotTotal = new Label();
+        mv.visitJumpInsn(IFEQ, lbNotTotal);
+        mv.visitVarInsn(ALOAD, varPageRes);
+        mv.visitVarInsn(ALOAD, varResultSet);
+        mv.visitInsn(ICONST_1);
+        mv.visitMethodInsn(INVOKEINTERFACE, "java/sql/ResultSet", "getInt", "(I)I", true);
+        mv.visitMethodInsn(INVOKEVIRTUAL, PAGE_RESULT_NAME, "setTotal", "(I)V", false);
+        mv.visitLabel(lbNotTotal);
+
+        // 获取分页的数据实例
+        mv.visitVarInsn(ALOAD, 0);
+        mv.visitFieldInsn(GETFIELD, daoName, "limitDialect", "L" + LIMIT_DIALECT_NAME + ";");
+        mv.visitVarInsn(ALOAD, varSql);
+        mv.visitVarInsn(ILOAD, varStart);
+        mv.visitVarInsn(ILOAD, varParams);
+        mv.visitMethodInsn(INVOKEINTERFACE, LIMIT_DIALECT_NAME, "process",
+                "Ljava/lang/String;II)L" + LIMIT_QUERYINFO_NAME + ";", true);
+        mv.visitVarInsn(ASTORE, varLimitInfo);
+
+        // 生成PreparedStatement并执行查询
+        mv.visitVarInsn(ALOAD, varStmtSession);
+        mv.visitVarInsn(ALOAD, varLimitInfo);
+        mv.visitMethodInsn(INVOKEVIRTUAL, LIMIT_QUERYINFO_NAME, "getSql", "()Ljava/lang/String;", false);
+        mv.visitMethodInsn(INVOKEINTERFACE, STMT_SESSION_NAME, "preparedStatement",
+                "(Ljava/lang/String;)Ljava/sql/PreparedStatement", true);
+        mv.visitVarInsn(ASTORE, varPstmt);
+        mv.visitVarInsn(ALOAD, varPstmt);
+        mv.visitVarInsn(ALOAD, varParams);
+        mv.visitMethodInsn(INVOKESTATIC, daoName, "setPreparedParams",
+                "(Ljava/sql/PreparedStatement;[Ljava/lang/Object;)V", false);
+        mv.visitVarInsn(ALOAD, varPstmt);
+        mv.visitVarInsn(ALOAD, varParams);
+        mv.visitInsn(ARRAYLENGTH);
+        mv.visitInsn(ICONST_1);
+        mv.visitInsn(IADD);
+        mv.visitVarInsn(ALOAD, varLimitInfo);
+        mv.visitMethodInsn(INVOKEVIRTUAL, LIMIT_QUERYINFO_NAME, "getParams", "()[Ljava/lang/Object;", false);
+        mv.visitMethodInsn(INVOKESTATIC, daoName, "setPreparedParams",
+                "(Ljava/sql/PreparedStatement;I[Ljava/lang/object;)V", false);
+        mv.visitVarInsn(ALOAD, varPstmt);
+        mv.visitMethodInsn(INVOKEINTERFACE, "java/sql/PreparedStatement", "executeQuery",
+                "()Ljava/sql/ResultSet;", true);
+        mv.visitVarInsn(ASTORE, varResultSet);
+
+        //
+    }
+
+    protected void visitQueryFourObjectArrayMethod() {
+
+        MethodVisitor mv;
+        mv = cw.visitMethod(ACC_PUBLIC | ACC_VARARGS, "query",
+                "(Ljava/lang/String;II[L" + QUERY_PARAM_NAME + ";)Ljava/util/List;",
+                "(Ljava/lang/String;II[L" + QUERY_PARAM_NAME + ";)Ljava/util/List<L" + entityName + ";>;",
+                new String[] { "java/lang/Exception" });
+        mv.visitCode();
+        int varSql       = 1;
+        int varStart     = 2;
+        int varCount     = 3;
+        int varParam     = 4;
+        int varSession   = 5;
+        int varLimitInfo = 6;
+        int varPstmt     = 7;
+        int varResultSet = 8;
+        int varFieldKey  = 9;
+        int varFunc      = 10;
+        int varResList   = 11;
+        int varEntity    = 12;
+        int varEx        = 13;
+
+        Label label0 = new Label();
+        Label label1 = new Label();
+        Label label2 = new Label();
+        mv.visitTryCatchBlock(label0, label1, label2, null);
+        Label label3 = new Label();
+        mv.visitTryCatchBlock(label2, label3, label2, null);
+        mv.visitVarInsn(ILOAD, varStart);
+
+        // start小于0
+        Label lbStartGe = new Label();
+        mv.visitJumpInsn(IFGE, lbStartGe);
+        mv.visitInsn(ICONST_0);
+        mv.visitVarInsn(ISTORE, varStart);
+
+        mv.visitLabel(lbStartGe);
+        // 判断count是否小于1
+        mv.visitVarInsn(ILOAD, varCount);
+        mv.visitInsn(ICONST_1);
+        Label lbCountGe = new Label();
+        mv.visitJumpInsn(IF_ICMPGE, lbCountGe);
+        mv.visitInsn(ICONST_1);
+        mv.visitVarInsn(ISTORE, 3);
+        mv.visitLabel(lbCountGe);
+
+        // 完善sql语句，如果没有提供select 部分则使用select所有字段补全
+        mv.visitVarInsn(ALOAD, varSql);
+        mv.visitMethodInsn(INVOKESTATIC, daoName, "fillSqlField", "(Ljava/lang/String;)Ljava/lang/String;", false);
+        mv.visitVarInsn(ASTORE, varSql);
+
+        // 获取StatementSession
+        mv.visitVarInsn(ALOAD, 0);
+        mv.visitMethodInsn(INVOKEVIRTUAL, daoName, "getStatementSession", "()L" + STMT_SESSION_NAME + ";", false);
+        mv.visitVarInsn(ASTORE, varSession);
+        // try内执行limit查询
+        mv.visitLabel(label0);
+        // 根据分页sql以及变量返回分页信息
+        mv.visitVarInsn(ALOAD, 0);
+        mv.visitFieldInsn(GETFIELD, daoName, "limitDialect", "L" + LIMIT_DIALECT_NAME + ";");
+        mv.visitVarInsn(ALOAD, varSql);
+        mv.visitVarInsn(ILOAD, varStart);
+        mv.visitVarInsn(ILOAD, varCount);
+        mv.visitMethodInsn(INVOKEINTERFACE, LIMIT_DIALECT_NAME, "process",
+                "(Ljava/lang/String;II)L" + LIMIT_QUERYINFO_NAME + ";", true);
+        mv.visitVarInsn(ASTORE, varLimitInfo);
+
+        // preparedStatement
+        mv.visitVarInsn(ALOAD, varSession);
+        mv.visitVarInsn(ALOAD, varLimitInfo);
+        mv.visitMethodInsn(INVOKEVIRTUAL, LIMIT_QUERYINFO_NAME, "getSql", "()Ljava/lang/String;", false);
+        mv.visitMethodInsn(INVOKEINTERFACE, STMT_SESSION_NAME, "preparedStatement",
+                "(Ljava/lang/String;)Ljava/sql/PreparedStatement;", true);
+        mv.visitVarInsn(ASTORE, varPstmt);
+
+        // 为PreparedStatement设置参数
+        mv.visitVarInsn(ALOAD, varPstmt);
+        mv.visitVarInsn(ALOAD, varParam);
+        mv.visitMethodInsn(INVOKESTATIC, daoName, "setPreparedParams",
+                "(Ljava/sql/PreparedStatement;[L" + QUERY_PARAM_NAME + ";)V", false);
+        mv.visitVarInsn(ALOAD, varPstmt);
+        mv.visitVarInsn(ALOAD, varParam);
+        mv.visitInsn(ARRAYLENGTH);
+        mv.visitInsn(ICONST_1);
+        mv.visitInsn(IADD);
+        mv.visitVarInsn(ALOAD, varLimitInfo);
+        mv.visitMethodInsn(INVOKEVIRTUAL, LIMIT_QUERYINFO_NAME, "getParams", "()[Ljava/lang/Object;", false);
+        mv.visitMethodInsn(INVOKESTATIC, daoName, "setPreparedParams",
+                "(Ljava/sql/PreparedStatement;I[L" + QUERY_PARAM_NAME + ";)V", false);
+
+        // 执行executeQuery
+        mv.visitVarInsn(ALOAD, varPstmt);
+        mv.visitMethodInsn(INVOKEINTERFACE, "java/sql/PreparedStatement", "executeQuery", "()Ljava/sql/ResultSet;");
+        mv.visitVarInsn(ASTORE, varResultSet);
+
+        // 获取为entity赋值的函数实例
+        mv.visitVarInsn(ALOAD, 0);
+        mv.visitVarInsn(ALOAD, varSql);
+        mv.visitMethodInsn(INVOKEVIRTUAL, daoName, "getFieldsSql",
+                "(Ljava/lang/String;)Ljava/lang/String;", false);
+        mv.visitVarInsn(ASTORE, varFieldKey);
+        mv.visitFieldInsn(GETSTATIC, daoName, "FIELD_SET_FUNCS", "Ljava/util/Map;");
+        mv.visitVarInsn(ALOAD, varFieldKey);
+        mv.visitMethodInsn(INVOKEINTERFACE, "java/util/Map", "get",
+                "(Ljava/lang/String;)Ljava/lang/Object;", true);
+        mv.visitTypeInsn(CHECKCAST, FIELD_SET_FUNC_NAME);
+        mv.visitVarInsn(ASTORE, varFunc);
+
+        // 如果func为空则使创建func
+        mv.visitVarInsn(ALOAD, varFunc);
+        Label lbFuncNotNull = new Label();
+        mv.visitJumpInsn(IFNONNULL, lbFuncNotNull);
+        mv.visitVarInsn(ALOAD, 0);
+        mv.visitVarInsn(ALOAD, varResultSet);
+        mv.visitVarInsn(ALOAD, varFieldKey);
+        mv.visitMethodInsn(INVOKEVIRTUAL, daoName, "getSqlFieldSetFunc",
+                "(Ljava/sql/ResultSet;Ljava/lang/String;)L" + FIELD_SET_FUNC_NAME + ";", false);
+        mv.visitVarInsn(ASTORE, varFunc);
+        mv.visitFieldInsn(GETSTATIC, daoName, "FIELD_SET_FUNCS", "Ljava/util/Map;");
+        mv.visitVarInsn(ALOAD, varFieldKey);
+        mv.visitVarInsn(ALOAD, varFunc);
+        mv.visitMethodInsn(INVOKEINTERFACE, "java/util/Map", "putIfAbsent",
+                "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;", true);
+        mv.visitInsn(POP);
+
+        mv.visitLabel(lbFuncNotNull);
+        // 初始化List
+        mv.visitLabel(lbFuncNotNull);
+        mv.visitTypeInsn(NEW, "java/util/ArrayList");
+        mv.visitInsn(DUP);
+        mv.visitMethodInsn(INVOKESPECIAL, "java/util/ArrayList", "<init>", "()V", false);
+        mv.visitVarInsn(ASTORE, varResList);
+
+        // while (rs.next) 循环
+        Label lbWhile = new Label();
+        mv.visitLabel(lbWhile);
+        mv.visitVarInsn(ALOAD, varResultSet);
+        mv.visitMethodInsn(INVOKEINTERFACE, "java/sql/ResultSet", "next", "()Z", true);
+        Label lbReturn = new Label();
+        mv.visitJumpInsn(IFEQ, lbReturn);
+
+        // 新建entity实例并且赋值
+        mv.visitTypeInsn(NEW, entityName);
+        mv.visitInsn(DUP);
+        mv.visitMethodInsn(INVOKESPECIAL, entityName, "<init>", "()V", false);
+        mv.visitVarInsn(ASTORE, varEntity);
+        mv.visitVarInsn(ALOAD, varFunc);
+        mv.visitVarInsn(ALOAD, varEntity);
+        mv.visitVarInsn(ALOAD, varResultSet);
+        mv.visitMethodInsn(INVOKEINTERFACE, FIELD_SET_FUNC_NAME, "set", "(Ljava/lang/Object;Ljava/sql/ResultSet;)V", true);
+
+        // 添加到List中
+        mv.visitVarInsn(ALOAD, varResList);
+        mv.visitVarInsn(ALOAD, varEntity);
+        mv.visitMethodInsn(INVOKEVIRTUAL, "java/util/ArrayList", "add", "(Ljava/lang/Object;)Z", false);
+        mv.visitInsn(POP);
+        mv.visitJumpInsn(GOTO, lbWhile);
+
+        mv.visitLabel(lbReturn);
+
+        mv.visitLabel(label1);
+        mv.visitVarInsn(ALOAD, 0);
+        mv.visitVarInsn(ALOAD, varSession);
+        mv.visitMethodInsn(INVOKEVIRTUAL, daoName, "closeStatmentSession", "(L" + STMT_SESSION_NAME + ";)V", false);
+
+        mv.visitVarInsn(ALOAD, varResList);
+        mv.visitInsn(ARETURN);
+
+        mv.visitLabel(label2);
+        mv.visitFrame(Opcodes.F_FULL, 6, new Object[] {daoName, "java/lang/String", Opcodes.INTEGER,
+                        Opcodes.INTEGER, "[Ljava/lang/Object;", STMT_SESSION_NAME}, 1,
+                new Object[] {"java/lang/Throwable"});
+        mv.visitVarInsn(ASTORE, varEx);
+
+        mv.visitLabel(label3);
+        mv.visitVarInsn(ALOAD, 0);
+        mv.visitVarInsn(ALOAD, varSession);
+        mv.visitMethodInsn(INVOKEVIRTUAL, daoName, "closeStatmentSession", "(L" + STMT_SESSION_NAME + ";)V", false);
+        mv.visitVarInsn(ALOAD, varEx);
+        mv.visitInsn(ATHROW);
+
+        mv.visitMaxs(4, 14);
         mv.visitEnd();
     }
 

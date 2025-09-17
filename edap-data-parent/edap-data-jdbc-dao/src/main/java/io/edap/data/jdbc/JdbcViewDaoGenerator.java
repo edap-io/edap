@@ -52,10 +52,16 @@ public class JdbcViewDaoGenerator extends BaseDaoGenerator {
 
         visitFillSqlFieldMethod();
 
-        visitQueryOneParamMethod();
         visitGetSqlFieldSetFuncMethod();
+        visitQueryOneParamMethod();
         visitQueryTwoParamMethod();
         visitQueryObjectArrayMethod();
+        visitQueryThreeParamMethod();
+        visitQueryFourParamMethod();
+        visitQueryFourObjectArrayMethod();
+
+        visitQueryPageMethod();
+        visitQueryPageObjectParamMethod();
 
         visitFindOneOneParamMethod();
         visitFindOneTwoParamMethod();

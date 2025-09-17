@@ -19,6 +19,7 @@ package io.edap.data.jdbc.jdbc.test.dao;
 import io.edap.data.*;
 import io.edap.data.jdbc.*;
 import io.edap.data.jdbc.jdbc.test.entity.DemoIntId;
+import io.edap.data.jdbc.util.DialectFactory;
 import io.edap.util.CollectionUtils;
 import io.edap.util.Constants;
 
@@ -39,6 +40,17 @@ import static io.edap.util.Constants.EMPTY_LIST;
 public class DemoIntIdEntityDao extends JdbcBaseEntityDao implements JdbcEntityDao<DemoIntId> {
 
     static Map<String, JdbcFieldSetFunc<DemoIntId>> FIELD_SET_FUNCS = new ConcurrentHashMap<>();
+    private DaoOption daoOption;
+
+    public DemoIntIdEntityDao() {
+        this(null);
+    }
+
+    public DemoIntIdEntityDao(DaoOption daoOption) {
+        super();
+        this.daoOption    = daoOption;
+        this.limitDialect = DialectFactory.createLimitDialect(daoOption);
+    }
 
     @Override
     public int insert(DemoIntId d) throws Exception {
@@ -192,6 +204,59 @@ public class DemoIntIdEntityDao extends JdbcBaseEntityDao implements JdbcEntityD
         } finally {
             closeStatmentSession();
         }
+    }
+
+    @Override
+    public List<DemoIntId> query(String sql, int start, int count) throws Exception {
+        return List.of();
+    }
+
+    @Override
+    public List<DemoIntId> query(String sql, int start, int count, QueryParam... params) throws Exception {
+        return List.of();
+    }
+
+    @Override
+    public List<DemoIntId> query(String sql, int start, int count, Object... params) throws Exception {
+        return List.of();
+    }
+
+    @Override
+    public PageResult<DemoIntId> queryPage(String sql, int pageNum, int pageSize) throws Exception {
+        if (pageNum < 1) {
+            pageNum = 1;
+        }
+        if (pageSize < 1) {
+            pageSize = 1;
+        }
+        PageResult<DemoIntId> result = new PageResult<>();
+        StatementSession session = getStatementSession();
+        try {
+            int offseet = (pageNum-1) * pageSize;
+            String totalSql = DialectFactory.buildTotalSql(sql, "user_info", daoOption);
+            PreparedStatement pstmt = session.prepareStatement(totalSql);
+            ResultSet rs = pstmt.executeQuery();
+            if (rs.next()) {
+                result.setTotal(rs.getInt(1));
+            }
+            LimitQueryInfo limitInfo = limitDialect.process(sql, offseet, pageSize);
+            pstmt = session.prepareStatement(limitInfo.getSql());
+            setPreparedParams(pstmt, limitInfo.getParams());
+
+        } finally {
+
+        }
+        return null;
+    }
+
+    @Override
+    public PageResult<DemoIntId> queryPage(String sql, int pageNum, int pageSize, QueryParam... params) throws Exception {
+        return null;
+    }
+
+    @Override
+    public PageResult<DemoIntId> queryPage(String sql, int pageNum, int pageSize, Object... params) throws Exception {
+        return null;
     }
 
     @Override

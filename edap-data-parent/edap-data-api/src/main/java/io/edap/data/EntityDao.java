@@ -22,7 +22,7 @@ import java.util.List;
  * 数据访问接口的定时
  * @param <T> 数据接口的水类型
  */
-public interface EntityDao<T> {
+public interface EntityDao<T> extends ViewDao<T> {
 
     /**
      * 持久化一个javaBean
@@ -39,66 +39,6 @@ public interface EntityDao<T> {
      * @throws Exception 返回持久化时的异常
      */
     int[] insert(List<T> ts) throws Exception;
-
-    /**
-     * 根据查询条件返回java对象的列表，如果没有服务条件的对象则返回null
-     * @param sql 查询数据的语句
-     * @return 返回符合条件的java对象列表
-     * @throws Exception 返回查询数据时的异常
-     */
-    List<T> query(String sql) throws Exception;
-
-    /**
-     * 根据查询语句已经语句绑定的变量，返回符合条件的java对象列表
-     * @param sql 查询语句
-     * @param params 查询语句绑定的变量数组
-     * @return 符合条件的java对象列表
-     * @throws Exception 查询时如果异常信息
-     */
-    List<T> query(String sql, QueryParam... params) throws Exception;
-
-    /**
-     * 根据查询语句已经语句绑定的变量，返回符合条件的java对象列表
-     * @param sql 查询语句
-     * @param params 查询语句绑定的变量数组
-     * @return 符合条件的java对象列表
-     * @throws Exception 查询时如果异常信息
-     */
-    List<T> query(String sql, Object... params) throws Exception;
-
-    /**
-     * 根据主键获取一个java对象
-     * @param id 主键对象
-     * @return 返回符合条件的java对象
-     * @throws Exception 查询时抛出的异常
-     */
-    T findById(Object id) throws Exception;
-
-    /**
-     * 根据查询语句返回符合条件的第一个java对象，r如果有多个则返回第一个java对象
-     * @param sql 查询条件
-     * @return 返回符合条件的java对象
-     * @throws Exception 查询时返回的异常信息
-     */
-    T findOne(String sql) throws Exception;
-
-    /**
-     * 根据查询语句一会查询语句绑定的变量列表，查询第一个符合条件的java对象
-     * @param sql 查询语句
-     * @param params 语句绑定的变量列表
-     * @return 返回符合条件的第一个java对象
-     * @throws Exception 查询时返回的异常信息
-     */
-    T findOne(String sql, QueryParam... params) throws Exception;
-
-    /**
-     * 根据查询语句一会查询语句绑定的变量列表，查询第一个符合条件的java对象
-     * @param sql 查询语句
-     * @param params 语句绑定的变量列表
-     * @return 返回符合条件的第一个java对象
-     * @throws Exception 查询时返回的异常信息
-     */
-    T findOne(String sql, Object... params) throws Exception;
 
     /**
      * 将java对象更新都持久化的介质中，按对象的主键更新
