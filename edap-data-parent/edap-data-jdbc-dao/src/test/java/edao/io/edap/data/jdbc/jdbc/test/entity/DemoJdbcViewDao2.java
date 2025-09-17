@@ -263,10 +263,11 @@ public class DemoJdbcViewDao2 extends JdbcBaseViewDao implements JdbcViewDao<Dem
 			}
 
 			result.setDataList(list);
-			return result;
 		} finally {
 			this.closeStatmentSession(session);
 		}
+
+        return result;
 	}
 
 	@Override
