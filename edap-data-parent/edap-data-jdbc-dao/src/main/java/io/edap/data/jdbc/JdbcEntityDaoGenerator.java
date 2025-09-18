@@ -79,6 +79,10 @@ public class JdbcEntityDaoGenerator extends BaseDaoGenerator {
         visitQueryFourParamMethod();
         visitQueryFourObjectArrayMethod();
 
+        visitQueryPageMethod();
+        visitQueryPageObjectParamMethod();
+        visitQueryPageQueryParamParamMethod();
+
         visitFindOneOneParamMethod();
         visitFindOneTwoParamMethod();
         visitFindOneObjectArrayMethod();

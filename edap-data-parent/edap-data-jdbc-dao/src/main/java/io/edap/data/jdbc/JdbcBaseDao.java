@@ -133,6 +133,8 @@ public abstract class JdbcBaseDao {
         if (stmtSession == null) {
             stmtSession = new SingleStatementSession();
             stmtSession.setConHolder(connectionHolder);
+        } else {
+            stmtSession.setConHolder(connectionHolder);
         }
 //        StatementSession session = STMT_SESSION_LOCAL.get();
 //        session.setConHolder(connectionHolder);

@@ -52,7 +52,7 @@ public class SingleStatementSession implements StatementSession {
         if (con == null) {
             con = conHolder.getConnection();
         }
-        return con;
+        return conHolder.getConnection();
     }
 
     @Override
