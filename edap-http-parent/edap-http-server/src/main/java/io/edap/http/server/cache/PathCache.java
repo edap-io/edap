@@ -32,6 +32,8 @@ public class PathCache {
      */
     private Map<FastBufDataRange, PathInfo> pathCache;
 
+    private Map<String, PathInfo> stringPathCache;
+
     public static PathInfo NOT_FOUND_PATH;
     static {
         NOT_FOUND_PATH = new PathInfo();
@@ -40,7 +42,8 @@ public class PathCache {
     }
 
     private PathCache() {
-        pathCache = new HashMap<>();
+        pathCache       = new HashMap<>();
+        stringPathCache = new HashMap<>();
     }
 
     public PathInfo get(FastBufDataRange dataRange) {
@@ -48,7 +51,15 @@ public class PathCache {
         if (pi != null) {
             return pi;
         }
-        return NOT_FOUND_PATH;
+        return pi;
+    }
+
+    public PathInfo get(String path) {
+        PathInfo pi = stringPathCache.get(path);
+        if (pi != null) {
+            return pi;
+        }
+        return pi;
     }
 
     /**
@@ -68,6 +79,7 @@ public class PathCache {
             handlers = new HttpHandler[16];
             pathInfo.setHttpHandlers(handlers);
             pathCache.put(key, pathInfo);
+            stringPathCache.put(path, pathInfo);
         } else {
             handlers = pathInfo.getHttpHandlers();
         }

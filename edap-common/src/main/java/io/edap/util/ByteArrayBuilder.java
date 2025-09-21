@@ -18,6 +18,8 @@ package io.edap.util;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 
 import static io.edap.util.StringUtil.IS_BYTE_ARRAY;
@@ -632,7 +634,8 @@ public class ByteArrayBuilder {
      * 大小恢复为初始化的数组大小，避免对象重用时一直保持大内存的占用。
      */
     public void reset() {
-        count = 0;
+        int _count = 0;
+        count = _count;
         if (initCount * 2 < value.length) {
             value = new byte[initCount];
         }
@@ -670,8 +673,23 @@ public class ByteArrayBuilder {
         return bs;
     }
 
+    public String toString() {
+        return new String(value, 0, count, StandardCharsets.UTF_8);
+    }
+
+    public String toString(Charset charset) {
+        return new String(value, 0, count, charset);
+    }
+
+    public String toString(String charset) {
+        return new String(value, 0, count, Charset.forName(charset));
+    }
+
     public void writeTo(OutputStream out) throws IOException {
         out.write(value, 0, count);
     }
 
+    public byte get(int i) {
+        return value[i];
+    }
 }

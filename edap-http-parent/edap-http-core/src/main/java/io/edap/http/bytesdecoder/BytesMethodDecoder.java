@@ -14,41 +14,38 @@
  * under the License.
  */
 
-package io.edap.http.rangedecoder;
+package io.edap.http.bytesdecoder;
 
 import io.edap.buffer.FastBuf;
-import io.edap.nio.codec.FastBufDataRange;
 import io.edap.http.HttpRequest;
 import io.edap.http.MethodInfo;
 import io.edap.http.cache.MethodCache;
-import io.edap.http.codec.HttpFastBufDataRange;
+import io.edap.util.ByteArrayBuilder;
 
 import static io.edap.http.HttpConsts.*;
-import static io.edap.util.Constants.FNV_1a_FACTOR_VAL;
-import static io.edap.util.Constants.FNV_1a_INIT_VAL;
 
-public class MethodDecoder implements RangeTokenDecoder<MethodInfo> {
+public class BytesMethodDecoder implements BytesTokenDecoder<MethodInfo> {
 
     static final MethodCache METHOD_CACHE = MethodCache.instance();
 
     @Override
-    public MethodInfo decode(FastBuf buf, HttpFastBufDataRange dataRange, HttpRequest request) {
+    public MethodInfo decode(FastBuf buf, ByteArrayBuilder sb, HttpRequest request) {
         FastBuf _buf = buf;
         int remain = _buf.remain();
 
         long pos = _buf.rpos();
-        dataRange.start(pos);
+        long startPos = pos;
         if (remain > 7) {
             byte b1 = _buf.get(pos);
             byte b2 = _buf.get(pos+1);
             if (b2 == ' ') {
                 _buf.rpos(pos+2);
-                return getMethodInfo(pos, _buf, dataRange, b1);
+                return getMethodInfo(b1);
             }
             byte b3 = _buf.get(pos+2);
             if (b3 == ' ') {
                 _buf.rpos(pos+3);
-                return getMethodInfo(pos, _buf, dataRange, b1, b2);
+                return getMethodInfo(b1, b2);
             }
             byte b4 = _buf.get(pos+3);
             if (b4 == ' ') {
@@ -58,7 +55,7 @@ public class MethodDecoder implements RangeTokenDecoder<MethodInfo> {
                 } else if (b1 == 'P' && b2 == 'U' && b3 == 'T') {
                     return PUT;
                 } else {
-                    return getMethodInfo(pos, _buf, dataRange, b1, b2, b3);
+                    return getMethodInfo(b1, b2, b3);
                 }
             }
             byte b5 = _buf.get(pos+4);
@@ -69,7 +66,7 @@ public class MethodDecoder implements RangeTokenDecoder<MethodInfo> {
                 } else if (b1 == 'H' && b2 == 'E' && b3 == 'A' && b4 == 'D') {
                     return HEAD;
                 } else {
-                    return getMethodInfo(pos, _buf, dataRange, b1, b2, b3, b4);
+                    return getMethodInfo(b1, b2, b3, b4);
                 }
             }
 
@@ -79,7 +76,7 @@ public class MethodDecoder implements RangeTokenDecoder<MethodInfo> {
                 if (b1 == 'T' && b2 == 'R' && b3 == 'A' && b4 == 'C' && b5 == 'E') {
                     return TRACE;
                 } else {
-                    return getMethodInfo(pos, _buf, dataRange, b1, b2, b3, b4, b5);
+                    return getMethodInfo(b1, b2, b3, b4, b5);
                 }
             }
 
@@ -90,7 +87,7 @@ public class MethodDecoder implements RangeTokenDecoder<MethodInfo> {
                         && b6 == 'E') {
                     return DELETE;
                 } else {
-                    return getMethodInfo(pos, _buf, dataRange, b1, b2, b3, b4, b5, b6);
+                    return getMethodInfo(b1, b2, b3, b4, b5, b6);
                 }
             }
             byte b8 = _buf.get(pos+7);
@@ -103,41 +100,22 @@ public class MethodDecoder implements RangeTokenDecoder<MethodInfo> {
                         && b5 == 'O' && b6 == 'N' && b7 == 'S') {
                     return OPTIONS;
                 } else {
-                    return getMethodInfo(pos, _buf, dataRange, b1, b2, b3, b4, b5, b6, b7);
+                    return getMethodInfo(b1, b2, b3, b4, b5, b6, b7);
                 }
             }
         }
-        long hashCode = FNV_1a_INIT_VAL;
         for (int i = 0;i<remain;i++) {
             byte b = _buf.get(pos + i);
             if (b == ' ') {
-                dataRange.first(_buf.get(pos));
-                dataRange.hash(hashCode);
-                dataRange.length(i);
-                dataRange.start(pos);
-                _buf.rpos(pos + i);
-                return METHOD_CACHE.getMethodInfo(dataRange);
-            } else {
-                hashCode ^= b;
-                hashCode *= FNV_1a_FACTOR_VAL;
+                byte[] bs = new byte[i];
+                _buf.get(startPos, bs);
+                return METHOD_CACHE.getMethodInfo(new String(bs));
             }
         }
         return null;
     }
 
-    private MethodInfo getMethodInfo(long pos, FastBuf buf, FastBufDataRange dr, byte... bs) {
-        long hashCode = FNV_1a_INIT_VAL;
-        int len = bs.length;
-        for (int i=0;i<len;i++) {
-            hashCode ^= bs[i];
-            hashCode *= FNV_1a_FACTOR_VAL;
-        }
-        dr.first(bs[0]);
-        dr.hash(hashCode);
-        dr.length(len);
-        dr.start(pos);
-        dr.buffer(buf);
-
-        return METHOD_CACHE.getMethodInfo(dr);
+    private MethodInfo getMethodInfo(byte... bs) {
+        return METHOD_CACHE.getMethodInfo(new String(bs));
     }
 }

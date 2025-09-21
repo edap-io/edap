@@ -16,6 +16,7 @@
 
 package io.edap.http;
 
+import io.edap.http.cache.MethodCache;
 import io.edap.http.header.ContentLength;
 import io.edap.http.header.Header;
 import io.edap.http.header.DateHeader;
@@ -35,6 +36,16 @@ public class HttpConsts {
     public static Map<String, Header> BUILDIN_HEADERS;
     public static Charset             DEFAULT_CHARSET = StandardCharsets.UTF_8;
     public static int[]               BYTE_VALUES     = new int[71];
+
+    static final MethodCache METHOD_CACHE = MethodCache.instance();
+    public static MethodInfo GET     = METHOD_CACHE.getMethodInfo("GET");
+    public static MethodInfo PUT     = METHOD_CACHE.getMethodInfo("PUT");
+    public static MethodInfo HEAD    = METHOD_CACHE.getMethodInfo("HEAD");
+    public static MethodInfo POST    = METHOD_CACHE.getMethodInfo("POST");
+    public static MethodInfo TRACE   = METHOD_CACHE.getMethodInfo("TRACE");
+    public static MethodInfo DELETE  = METHOD_CACHE.getMethodInfo("DELETE");
+    public static MethodInfo CONNECT = METHOD_CACHE.getMethodInfo("CONNECT");
+    public static MethodInfo OPTIONS = METHOD_CACHE.getMethodInfo("OPTIONS");
 
     static {
 

@@ -44,16 +44,20 @@ public class PathDecoder implements RangeTokenDecoder<PathInfo> {
         dataRange.buffer(buf);
         dataRange.start(pos);
         long hashCode = FNV_1a_INIT_VAL;
-        int  len      = 0;
         dataRange.first(_buf.get(pos));
         byte decodeByte;
+        ByteArrayBuilder builder = null;
         for (int i=0;i<remain;i++) {
             b = _buf.get(pos+i);
             switch (b) {
                 case ' ':
                 case '?':
                 case '#':
-                    dataRange.length(len);
+                    if (dataRange.urlEncoded()) {
+                        dataRange.length(builder.length());
+                    } else {
+                        dataRange.length(i);
+                    }
                     dataRange.hash(hashCode);
                     dataRange.last();
                     _buf.rpos(pos+i);
@@ -62,21 +66,20 @@ public class PathDecoder implements RangeTokenDecoder<PathInfo> {
                     decodeByte = (byte)' ';
                     hashCode ^= decodeByte;
                     hashCode *= FNV_1a_FACTOR_VAL;
-                    len++;
                     if (i == 0) {
                         dataRange.first(decodeByte);
                     }
                     if (dataRange.urlEncoded()) {
-                        dataRange.append(decodeByte);
+                        builder.append(decodeByte);
                     } else {
                         if (i > 0) {
-                            ByteArrayBuilder builder = dataRange.getBytesBuilder();
+                            builder = dataRange.getBytesBuilder();
                             builder.ensureCapacity(i);
                             byte[] data = builder.getValue();
                             buf.get(data, i);
                             builder.setLength(builder.length()+i);
                         }
-                        dataRange.append(decodeByte);
+                        builder.append(decodeByte);
                         dataRange.urlEncoded(true);
                     }
                     break;
@@ -93,18 +96,19 @@ public class PathDecoder implements RangeTokenDecoder<PathInfo> {
 
                         hashCode ^= decodeByte;
                         hashCode *= FNV_1a_FACTOR_VAL;
-                        len++;
                         if (dataRange.urlEncoded()) {
-                            dataRange.append(decodeByte);
+                            builder.append(decodeByte);
                         } else {
                             if (i > 0) {
-                                ByteArrayBuilder builder = dataRange.getBytesBuilder();
+                                builder = dataRange.getBytesBuilder();
                                 builder.ensureCapacity(i);
                                 byte[] data = builder.getValue();
                                 buf.get(data, i);
                                 builder.setLength(builder.length()+i);
+                            } else {
+                                builder = dataRange.getBytesBuilder();
                             }
-                            dataRange.append(decodeByte);
+                            builder.append(decodeByte);
                             dataRange.urlEncoded(true);
                         }
                         i += 2;
@@ -116,9 +120,8 @@ public class PathDecoder implements RangeTokenDecoder<PathInfo> {
                     hashCode ^= b;
                     hashCode *= FNV_1a_FACTOR_VAL;
                     if (dataRange.urlEncoded()) {
-                        dataRange.append(b);
+                        builder.append(b);
                     }
-                    len++;
             }
         }
         return null;

@@ -20,8 +20,8 @@ import io.edap.buffer.FastBuf;
 import io.edap.http.HttpRequest;
 import io.edap.http.PathInfo;
 import io.edap.http.ValueHttpRequest;
-import io.edap.http.codec.HttpFastBufDataRange;
-import io.edap.http.server.rangedecoder.PathDecoder;
+import io.edap.http.server.bytesdecoder.BytesPathDecoder;
+import io.edap.util.ByteArrayBuilder;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -30,100 +30,102 @@ import java.nio.charset.StandardCharsets;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-public class PathDecoderTest {
+public class BytesPathDecoderTest {
 
     @Test
     public void testDecode() {
-        PathDecoder pathDecoder = new PathDecoder();
+        BytesPathDecoder pathDecoder = new BytesPathDecoder();
         FastBuf buf = new FastBuf(1024);
-        HttpFastBufDataRange hbdr = new HttpFastBufDataRange();
+        ByteArrayBuilder sb = new ByteArrayBuilder();
         HttpRequest request = new ValueHttpRequest();
 
-        PathInfo pathInfo = pathDecoder.decode(buf, hbdr, request);
+        PathInfo pathInfo = pathDecoder.decode(buf, sb, request);
         Assertions.assertNull(pathInfo);
 
         buf.reset();
         buf.write("/index".getBytes(StandardCharsets.UTF_8));
-        pathInfo = pathDecoder.decode(buf, hbdr, request);
+        pathInfo = pathDecoder.decode(buf, sb, request);
         Assertions.assertNull(pathInfo);
 
         buf.reset();
         buf.write("+ ".getBytes(StandardCharsets.UTF_8));
-        pathInfo = pathDecoder.decode(buf, hbdr, request);
+        pathInfo = pathDecoder.decode(buf, sb, request);
         Assertions.assertNotNull(pathInfo);
         Assertions.assertNotNull(pathInfo.getPath());
-        assertEquals(hbdr.first(), (byte)' ');
+        assertEquals(sb.get(0), (byte)' ');
 
         buf.reset();
-        hbdr.reset();
         buf.write("++t ".getBytes(StandardCharsets.UTF_8));
-        pathInfo = pathDecoder.decode(buf, hbdr, request);
+        pathInfo = pathDecoder.decode(buf, sb, request);
         Assertions.assertNotNull(pathInfo);
         Assertions.assertNotNull(pathInfo.getPath());
-        assertEquals(hbdr.first(), (byte)' ');
+        assertEquals(sb.get(0), (byte)' ');
 
         buf.reset();
-        hbdr.reset();
         buf.write("++t?".getBytes(StandardCharsets.UTF_8));
-        pathInfo = pathDecoder.decode(buf, hbdr, request);
+        pathInfo = pathDecoder.decode(buf, sb, request);
         Assertions.assertNotNull(pathInfo);
         Assertions.assertNotNull(pathInfo.getPath());
-        assertEquals(hbdr.first(), (byte)' ');
+        assertEquals(sb.get(0), (byte)' ');
 
         buf.reset();
-        hbdr.reset();
         buf.write("++t#".getBytes(StandardCharsets.UTF_8));
-        pathInfo = pathDecoder.decode(buf, hbdr, request);
+        pathInfo = pathDecoder.decode(buf, sb, request);
         Assertions.assertNotNull(pathInfo);
         Assertions.assertNotNull(pathInfo.getPath());
-        assertEquals(hbdr.first(), (byte)' ');
-        assertEquals(hbdr.getString(), "  t");
+        assertEquals(sb.get(0), (byte)' ');
+        assertEquals(sb.toString(), "  t");
 
         buf.reset();
-        hbdr.reset();
         buf.write("123++t#".getBytes(StandardCharsets.UTF_8));
-        pathInfo = pathDecoder.decode(buf, hbdr, request);
+        pathInfo = pathDecoder.decode(buf, sb, request);
         Assertions.assertNotNull(pathInfo);
         Assertions.assertNotNull(pathInfo.getPath());
-        assertEquals(hbdr.first(), (byte)'1');
-        assertEquals(hbdr.getString(), "123  t");
+        assertEquals(sb.get(0), (byte)'1');
+        assertEquals(sb.toString(), "123  t");
 
         buf.reset();
-        hbdr.reset();
+        buf.write("/index.html ".getBytes(StandardCharsets.UTF_8));
+        pathInfo = pathDecoder.decode(buf, sb, request);
+        Assertions.assertNotNull(pathInfo);
+        Assertions.assertNotNull(pathInfo.getPath());
+        assertEquals(pathInfo.getPath().charAt(0), '/');
+        assertEquals(pathInfo.getPath(), "/index.html");
+
+        buf.reset();
         byte[] bs = URLEncoder.encode("中", StandardCharsets.UTF_8).getBytes(StandardCharsets.UTF_8);
         byte[] data = new byte[bs.length+1];
         System.arraycopy(bs, 0, data, 0, bs.length);
         data[data.length-1] = (byte)' ';
         buf.write(data);
-        pathInfo = pathDecoder.decode(buf, hbdr, request);
+        pathInfo = pathDecoder.decode(buf, sb, request);
         Assertions.assertNotNull(pathInfo);
         Assertions.assertNotNull(pathInfo.getPath());
-        assertEquals(hbdr.first(), "中".getBytes(StandardCharsets.UTF_8)[0]);
-        assertEquals(hbdr.getString(), "中");
+        assertEquals(sb.get(0), "中".getBytes(StandardCharsets.UTF_8)[0]);
+        assertEquals(sb.toString(), "中");
 
         buf.reset();
-        hbdr.reset();
         bs = URLEncoder.encode("54321中", StandardCharsets.UTF_8).getBytes(StandardCharsets.UTF_8);
         data = new byte[bs.length+1];
         System.arraycopy(bs, 0, data, 0, bs.length);
         data[data.length-1] = (byte)' ';
         buf.write(data);
-        pathInfo = pathDecoder.decode(buf, hbdr, request);
+        pathInfo = pathDecoder.decode(buf, sb, request);
         Assertions.assertNotNull(pathInfo);
         Assertions.assertNotNull(pathInfo.getPath());
-        assertEquals(hbdr.first(), "5".getBytes(StandardCharsets.UTF_8)[0]);
-        assertEquals(hbdr.getString(), "54321中");
+        assertEquals(sb.get(0), "5".getBytes(StandardCharsets.UTF_8)[0]);
+        assertEquals(sb.toString(), "54321中");
 
         buf.reset();
         buf.write("%E".getBytes(StandardCharsets.UTF_8));
-        pathInfo = pathDecoder.decode(buf, hbdr, request);
+        pathInfo = pathDecoder.decode(buf, sb, request);
         Assertions.assertNull(pathInfo);
 
         buf.reset();
         buf.write(new byte[]{'%', 1, 29});
         Throwable ex = Assertions.assertThrows(Throwable.class,
                 () -> {
-                    pathDecoder.decode(buf, hbdr, request);
+                    pathDecoder.decode(buf, sb, request);
                 });
         Assertions.assertTrue(ex.getMessage().contains(": Illegal hex characters in escape (%) pattern - negative value"));
     }

@@ -39,25 +39,7 @@ public class ValueHttpRequest implements HttpRequest {
 
     private ByteData body;
 
-    /**
-     * 整个header数据区的数据
-     */
-    public byte[] getHeaderData() {
-        return headerData;
-    }
-
-    public void setHeaderData(byte[] headerData) {
-        this.headerData = headerData;
-    }
-
-    class HeaderItem {
-        String name;
-        HeaderValue value;
-        public HeaderItem(String name, HeaderValue value) {
-            this.name = name;
-            this.value = value;
-        }
-    }
+    private int headerSize;
 
     /**
      * HTTP请求的header列表
@@ -67,7 +49,7 @@ public class ValueHttpRequest implements HttpRequest {
      * 整个header数据区的数据
      */
     private byte[] headerData;
-    private int headerCount = 0;
+
     /**
      * HTTP请求的参数
      */
@@ -100,12 +82,12 @@ public class ValueHttpRequest implements HttpRequest {
     }
 
     public void addHeader(String name, HeaderValue value) {
-        if (headerCount >= headers.length - 1) {
+        if (headerSize >= headers.length - 1) {
             HeaderItem[] tmp = new HeaderItem[headers.length*2];
-            System.arraycopy(headers, 0, tmp, 0, headerCount);
+            System.arraycopy(headers, 0, tmp, 0, headerSize);
             headers = tmp;
         }
-        headers[headerCount++] = new HeaderItem(name, value);
+        headers[headerSize++] = new HeaderItem(name, value);
     }
 
     @Override
@@ -115,10 +97,10 @@ public class ValueHttpRequest implements HttpRequest {
 
     @Override
     public HeaderValue getHeaderValue(String name) {
-        if (headerCount <= 0) {
+        if (headerSize <= 0) {
             return null;
         }
-        for (int i=0;i<headerCount;i++) {
+        for (int i=0;i<headerSize;i++) {
             HeaderItem h = headers[i];
             if (h.name != null && h.name.equals(name)) {
                 return h.value;
@@ -163,12 +145,38 @@ public class ValueHttpRequest implements HttpRequest {
 
     @Override
     public void reset() {
-        for (int i=0;i<headerCount;i++) {
-            headers[i] = null;
+        int hc = headerSize;
+        int _hc = hc;
+        if (_hc > 0) {
+            HeaderItem[] _headers = headers;
+            for (int i = 0; i < hc; i++) {
+                _headers[i] = null;
+                _hc--;
+            }
         }
-        headerCount = 0;
-        if (!CollectionUtils.isEmpty(parameter)) {
-            parameter.clear();
+        headerSize = _hc;
+//        if (!CollectionUtils.isEmpty(parameter)) {
+//            parameter.clear();
+//        }
+    }
+
+    /**
+     * 整个header数据区的数据
+     */
+    public byte[] getHeaderData() {
+        return headerData;
+    }
+
+    public void setHeaderData(byte[] headerData) {
+        this.headerData = headerData;
+    }
+
+    class HeaderItem {
+        String name;
+        HeaderValue value;
+        public HeaderItem(String name, HeaderValue value) {
+            this.name = name;
+            this.value = value;
         }
     }
 }

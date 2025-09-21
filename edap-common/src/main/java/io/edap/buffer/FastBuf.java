@@ -59,7 +59,8 @@ public class FastBuf extends BasePoolEntry {
 
     @Override
     public void reset() {
-        clear(true);
+        this.writePos = address;
+        this.readPos = address;
     }
 
     public long limit() {
@@ -115,6 +116,10 @@ public class FastBuf extends BasePoolEntry {
 
     public int writeRemain() {
         return (int)(endAddress - writePos);
+    }
+
+    public void rewind() {
+        readPos = address;
     }
 
     /**
@@ -247,8 +252,8 @@ public class FastBuf extends BasePoolEntry {
     public void clear(boolean isSyncByteBuffer) {
         this.writePos = address;
         this.readPos = address;
-        if (isSyncByteBuffer) {
-            buf.clear();
-        }
+//        if (isSyncByteBuffer) {
+//            buf.clear();
+//        }
     }
 }

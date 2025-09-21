@@ -19,6 +19,7 @@ package io.edap.http.server;
 import io.edap.http.PathInfo;
 import io.edap.http.codec.HttpFastBufDataRange;
 import io.edap.http.server.cache.PathCache;
+import io.edap.http.server.handler.NotFoundHandler;
 import io.edap.http.server.pathrouters.PostfixWildcardPathRouter;
 import io.edap.http.server.pathrouters.PrefixWildcardPathRouter;
 import io.edap.util.CollectionUtils;
@@ -26,6 +27,8 @@ import io.edap.util.CollectionUtils;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+
+import static io.edap.http.server.cache.PathCache.NOT_FOUND_PATH;
 
 public class PathInfoMatcher {
 
@@ -58,7 +61,7 @@ public class PathInfoMatcher {
 		int size = ROUTERS.size();
 		PathInfo pi;
 		if (size == 0) {
-			return null;
+			return NOT_FOUND_PATH;
 		}
 		String path = dataRange.getString(StandardCharsets.UTF_8);
 		for (int i=0;i<size;i++) {
@@ -68,8 +71,36 @@ public class PathInfoMatcher {
 				return pi;
 			}
 		}
-		return null;
+        pathInfo = new PathInfo();
+        pathInfo.setPath(path);
+        pathInfo.setMatchPath(null);
+        pathInfo.setFound(false);
+		return pathInfo;
 	}
+
+    public PathInfo match(String path) {
+        PathInfo pathInfo = CACHE.get(path);
+        if (pathInfo != null) {
+            return pathInfo;
+        }
+        int size = ROUTERS.size();
+        PathInfo pi;
+        if (size == 0) {
+            return NOT_FOUND_PATH;
+        }
+        for (int i=0;i<size;i++) {
+            PathRouter pr = ROUTERS.get(i);
+            pi = pr.route(path);
+            if (pi != null) {
+                return pi;
+            }
+        }
+        pathInfo = new PathInfo();
+        pathInfo.setPath(path);
+        pathInfo.setMatchPath(null);
+        pathInfo.setFound(false);
+        return pathInfo;
+    }
 
 	public static final PathInfoMatcher instance() {
 		return SingletonHolder.INSTANCE;
