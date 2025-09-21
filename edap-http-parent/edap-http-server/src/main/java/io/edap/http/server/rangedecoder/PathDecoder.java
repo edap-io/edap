@@ -43,23 +43,20 @@ public class PathDecoder implements RangeTokenDecoder<PathInfo> {
         long pos = _buf.rpos();
         dataRange.buffer(buf);
         dataRange.start(pos);
-        long hashCode = FNV_1a_INIT_VAL;
         dataRange.first(_buf.get(pos));
-        byte decodeByte;
-        ByteArrayBuilder builder = null;
+        long hashCode   = FNV_1a_INIT_VAL;
+        byte decodeByte = 0;
+        int  len        = 0;
         for (int i=0;i<remain;i++) {
             b = _buf.get(pos+i);
+            len++;
             switch (b) {
                 case ' ':
                 case '?':
                 case '#':
-                    if (dataRange.urlEncoded()) {
-                        dataRange.length(builder.length());
-                    } else {
-                        dataRange.length(i);
-                    }
+                    dataRange.length(len);
                     dataRange.hash(hashCode);
-                    dataRange.last();
+                    dataRange.last(decodeByte);
                     _buf.rpos(pos+i);
                     return PATH_INFO_MATCHER.match(dataRange);
                 case '+':
@@ -69,23 +66,11 @@ public class PathDecoder implements RangeTokenDecoder<PathInfo> {
                     if (i == 0) {
                         dataRange.first(decodeByte);
                     }
-                    if (dataRange.urlEncoded()) {
-                        builder.append(decodeByte);
-                    } else {
-                        if (i > 0) {
-                            builder = dataRange.getBytesBuilder();
-                            builder.ensureCapacity(i);
-                            byte[] data = builder.getValue();
-                            buf.get(data, i);
-                            builder.setLength(builder.length()+i);
-                        }
-                        builder.append(decodeByte);
-                        dataRange.urlEncoded(true);
-                    }
+                    dataRange.urlEncoded(true);
                     break;
                 case '%':
                     if (i < remain - 2) {
-                        int v = BYTE_VALUES[_buf.get(pos+i+1)] * 16 + BYTE_VALUES[_buf.get(pos+i+2)];
+                        int v = BYTE_VALUES[_buf.get(pos+i+1)] << 4 + BYTE_VALUES[_buf.get(pos+i+2)];
                         if (v < 0) {
                             throw new IllegalArgumentException("URLDecoder: Illegal hex characters in escape (%) pattern - negative value");
                         }
@@ -93,24 +78,9 @@ public class PathDecoder implements RangeTokenDecoder<PathInfo> {
                         if (i == 0) {
                             dataRange.first(decodeByte);
                         }
-
+                        dataRange.urlEncoded(true);
                         hashCode ^= decodeByte;
                         hashCode *= FNV_1a_FACTOR_VAL;
-                        if (dataRange.urlEncoded()) {
-                            builder.append(decodeByte);
-                        } else {
-                            if (i > 0) {
-                                builder = dataRange.getBytesBuilder();
-                                builder.ensureCapacity(i);
-                                byte[] data = builder.getValue();
-                                buf.get(data, i);
-                                builder.setLength(builder.length()+i);
-                            } else {
-                                builder = dataRange.getBytesBuilder();
-                            }
-                            builder.append(decodeByte);
-                            dataRange.urlEncoded(true);
-                        }
                         i += 2;
                         break;
                     } else {
@@ -119,9 +89,7 @@ public class PathDecoder implements RangeTokenDecoder<PathInfo> {
                 default:
                     hashCode ^= b;
                     hashCode *= FNV_1a_FACTOR_VAL;
-                    if (dataRange.urlEncoded()) {
-                        builder.append(b);
-                    }
+                    decodeByte = b;
             }
         }
         return null;
