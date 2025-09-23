@@ -16,6 +16,7 @@
 
 package io.edap.http;
 
+import io.edap.http.rangedecoder.HeaderValueDecoder;
 import io.edap.http.rangedecoder.RangeTokenDecoder;
 
 /**
@@ -38,7 +39,7 @@ public class HeaderName {
     /**
      * 该header的值使用的HeaderValue解析器对象，如果未指定则使用HeaderValueDecoder该解码器不使用缓存
      */
-    public RangeTokenDecoder<HeaderValue> valueDecoder;
+    public HeaderValueDecoder valueDecoder;
     /**
      * 是否header已经结束
      */

@@ -25,6 +25,7 @@ import io.edap.http.server.rangedecoder.QueryStringDecoder;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
+import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 
@@ -33,7 +34,7 @@ import static org.junit.jupiter.api.Assertions.*;
 public class QueryStringDecoderTest {
 
     @Test
-    public void testDecode() {
+    public void testDecode() throws UnsupportedEncodingException {
         QueryStringDecoder decoder = new QueryStringDecoder();
 
         FastBuf buf = new FastBuf(1024);
@@ -143,7 +144,7 @@ public class QueryStringDecoderTest {
 
         hbdr.reset();
         buf.reset();
-        buf.write(("?key" + urlEncode("中文") + "1=1++3&test2=456 ").getBytes(StandardCharsets.UTF_8));
+        buf.write(("?key" + urlEncode("中文") + "1=1++3&test2=456 ").getBytes("utf-8"));
         query = decoder.decode(buf, hbdr, request);
         assertNotNull(query);
         assertEquals(query.getQuery(), "key" + urlEncode("中文") + "1=1++3&test2=456");
@@ -210,7 +211,7 @@ public class QueryStringDecoderTest {
 
     }
 
-    private String urlEncode(String s) {
-        return URLEncoder.encode(s, StandardCharsets.UTF_8);
+    private String urlEncode(String s) throws UnsupportedEncodingException {
+        return URLEncoder.encode(s, "utf-8");
     }
 }

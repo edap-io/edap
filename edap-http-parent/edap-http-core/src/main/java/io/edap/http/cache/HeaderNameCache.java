@@ -25,16 +25,29 @@ import java.util.Map;
 public class HeaderNameCache {
 
     private Map<FastBufDataRange, HeaderName> cache;
+    private Map<String, HeaderName>           stringCache;
 
     private HeaderNameCache() {
-        cache = new HashMap<>(16);
+        cache       = new HashMap<>(16);
+        stringCache = new HashMap<>(16);
     }
 
     public HeaderName get(FastBufDataRange dataRange) {
         HeaderName hn = cache.get(dataRange);
+        //long start = System.nanoTime();
         if (hn == null) {
             hn = new HeaderName(dataRange.getString());
             cache.put(FastBufDataRange.from(hn.name), hn);
+        }
+        //System.out.println("time=" + (System.nanoTime() - start));
+        return hn;
+    }
+
+    public HeaderName get(String name) {
+        HeaderName hn = stringCache.get(name);
+        if (hn == null) {
+            hn = new HeaderName(name);
+            stringCache.put(name, hn);
         }
         return hn;
     }

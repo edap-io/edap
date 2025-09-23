@@ -25,6 +25,7 @@ import io.edap.http.server.rangedecoder.PathDecoder;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
+import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 
@@ -33,7 +34,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 public class PathDecoderTest {
 
     @Test
-    public void testDecode() {
+    public void testDecode() throws UnsupportedEncodingException {
         PathDecoder pathDecoder = new PathDecoder();
         FastBuf buf = new FastBuf(1024);
         HttpFastBufDataRange hbdr = new HttpFastBufDataRange();
@@ -90,7 +91,7 @@ public class PathDecoderTest {
 
         buf.reset();
         hbdr.reset();
-        byte[] bs = URLEncoder.encode("中", StandardCharsets.UTF_8).getBytes(StandardCharsets.UTF_8);
+        byte[] bs = URLEncoder.encode("中", "utf-8").getBytes(StandardCharsets.UTF_8);
         byte[] data = new byte[bs.length+1];
         System.arraycopy(bs, 0, data, 0, bs.length);
         data[data.length-1] = (byte)' ';
@@ -103,7 +104,7 @@ public class PathDecoderTest {
 
         buf.reset();
         hbdr.reset();
-        bs = URLEncoder.encode("54321中", StandardCharsets.UTF_8).getBytes(StandardCharsets.UTF_8);
+        bs = URLEncoder.encode("54321中", "utf-8").getBytes(StandardCharsets.UTF_8);
         data = new byte[bs.length+1];
         System.arraycopy(bs, 0, data, 0, bs.length);
         data[data.length-1] = (byte)' ';

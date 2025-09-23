@@ -129,6 +129,7 @@ public class ByteArrayBuilder {
         return this;
     }
 
+
     public ByteArrayBuilder append(boolean bool) {
         if (bool) {
             return uncheckAppend((byte)'t', (byte)'r', (byte)'u', (byte)'e');

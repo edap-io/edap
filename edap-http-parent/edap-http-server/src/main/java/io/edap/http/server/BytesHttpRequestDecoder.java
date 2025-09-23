@@ -19,10 +19,7 @@ package io.edap.http.server;
 import io.edap.Decoder;
 import io.edap.buffer.FastBuf;
 import io.edap.http.*;
-import io.edap.http.bytesdecoder.BytesBodyDecoder;
-import io.edap.http.bytesdecoder.BytesHeaderDataDecoder;
-import io.edap.http.bytesdecoder.BytesHttpVersionDecoder;
-import io.edap.http.bytesdecoder.BytesMethodDecoder;
+import io.edap.http.bytesdecoder.*;
 import io.edap.http.model.QueryInfo;
 import io.edap.http.server.bytesdecoder.BytesPathDecoder;
 import io.edap.http.server.bytesdecoder.BytesQueryStringDecoder;
@@ -37,6 +34,8 @@ public class BytesHttpRequestDecoder extends AbstractHttpDecoder implements Deco
     static BytesHttpVersionDecoder VERSION_DECODER = new BytesHttpVersionDecoder();
     static BytesHeaderDataDecoder  HEADER_DECODER  = new BytesHeaderDataDecoder();
     static BytesBodyDecoder        BODY_DECODER    = new BytesBodyDecoder();
+    static BytesHeaderNameDecoder  HEADERNAME_DECODER = new BytesHeaderNameDecoder();
+    static BytesHeaderValueDecoder HEADERVALUE_DECODER = new BytesHeaderValueDecoder();
 
     @Override
     public ParseResult<HttpRequest> decode(FastBuf bufIn, HttpNioSession nioSession) {
@@ -73,7 +72,6 @@ public class BytesHttpRequestDecoder extends AbstractHttpDecoder implements Deco
                     break;
                 } else {
                     request.pathInfo = path;
-                    return result;
                 }
 
             case READ_QUERY_STRING:
@@ -91,32 +89,38 @@ public class BytesHttpRequestDecoder extends AbstractHttpDecoder implements Deco
                 }
                 request.setVersion(version);
             case READ_HEADER:
-                byte[] headerData = HEADER_DECODER.decode(buf, sb, request);
-                if (headerData != null) {
-                    request.setHeaderData(headerData);
-                    result.finish = true;
-                } else {
-                    break;
-                }
+//                byte[] headerData = HEADER_DECODER.decode(buf, sb, request);
+//                if (headerData != null) {
+//                    request.setHeaderData(headerData);
+//                    result.finish = true;
+//                } else {
+//                    break;
+//                }
 
-//                HeaderName name = HEADERNAME_DECODER.decode(buf, dataRange, request);
+//                HeaderName name = HEADERNAME_DECODER.decode(buf, sb, request);
 //                if (name == null) {
 //                    break;
 //                }
-//                while (!name.finish) {
-//                    HeaderValue value;
-//                    value = HEADERVALUE_DECODER.decode(buf, dataRange, request);
-//                    if (value == null) {
-//                        result.state = State.READ_HEADER;
-//                        break;
-//                    }
-//                    request.addHeader(name.name, value);
-//                    name = HEADERNAME_DECODER.decode(buf, dataRange, request);
-//                    if (name == null) {
-//                        result.finish = false;
-//                        return result;
-//                    }
-//                }
+//                HeaderValue value;
+//                    value = HEADERVALUE_DECODER.decode(buf, sb, request);
+//                name = HEADERNAME_DECODER.decode(buf, sb, request);
+//                value = HEADERVALUE_DECODER.decode(buf, sb, request);
+//                return result;
+                HeaderName name = HEADERNAME_DECODER.decode(buf, sb, request);
+                while (!name.finish) {
+                    HeaderValue value;
+                    value = HEADERVALUE_DECODER.decode(buf, sb, request);
+                    if (value == null) {
+                        result.state = HttpDecoder.State.READ_HEADER;
+                        break;
+                    }
+                    request.addHeader(name.name, value);
+                    name = HEADERNAME_DECODER.decode(buf, sb, request);
+                    if (name == null) {
+                        result.finish = false;
+                        return result;
+                    }
+                }
             case READ_BODY:
                 BODY_DECODER.decode(request, buf, sb, result, httpNioSession);
             default:

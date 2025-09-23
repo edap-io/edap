@@ -58,6 +58,7 @@ public class BytesPathDecoder implements BytesTokenDecoder<PathInfo> {
                         buf.get(start, data);
                         path = new String(data);
                     }
+                    _buf.rpos(pos+i);
                     return PATH_INFO_MATCHER.match(path);
                 case '+':
                     decodeByte = (byte)' ';

@@ -12,7 +12,7 @@ import static io.edap.util.Constants.FNV_1a_INIT_VAL;
 /**
  * 使用缓存的HeaderValue的解析器，使用该解析器的headerValue的值应该相对来说不怎么变化而且值不会太多的header时使用
  */
-public class HeaderValueCacheDecoder implements RangeTokenDecoder<HeaderValue> {
+public class HeaderValueCacheDecoder extends HeaderValueDecoder {
 
     static HeaderValueCache CACHE = HeaderValueCache.instance();
 
@@ -35,17 +35,15 @@ public class HeaderValueCacheDecoder implements RangeTokenDecoder<HeaderValue> {
         long hashCode = FNV_1a_INIT_VAL;
         dataRange.start(rpos + i);
         dataRange.first(b);
-        int len;
         for (;i<remain;i++) {
             b = _buf.get(rpos + i);
             if (b == '\r') {
                 if (i < remain - 1) {
                     if (_buf.get(rpos+i+1) == '\n') {
-                        _buf.rpos(rpos+i+2);
-                        len = (int)((rpos+i)-dataRange.start());
+                        dataRange.length(i);
                         dataRange.hash(hashCode);
-                        dataRange.last();
-                        dataRange.length(len);
+                        dataRange.last(_buf.get(rpos+i-1));
+                        _buf.rpos(rpos+i+2);
                         return CACHE.get(dataRange);
                     } else {
                         throw new IllegalArgumentException("HeaderValue: Illegal name can't have \\r!");

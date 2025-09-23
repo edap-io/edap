@@ -28,19 +28,19 @@ import static io.edap.util.Constants.*;
  */
 public class FastBufDataRange implements DataRange<Long, FastBuf> {
 
-    FastBuf buf;
+    protected FastBuf buf;
 
-    boolean strict;
+    protected boolean strict;
 
-    long    start;
+    protected long    start;
 
-    byte    first;
+    protected byte    first;
 
-    byte    last;
+    protected byte    last;
 
-    int     length;
+    protected int     length;
 
-    long    hash;
+    protected long    hash;
 
     public FastBufDataRange() {}
 
@@ -140,6 +140,11 @@ public class FastBufDataRange implements DataRange<Long, FastBuf> {
     @Override
     public long hash() {
         return hash;
+    }
+
+    @Override
+    public int hashCode() {
+        return (int)hash;
     }
 
    @Override

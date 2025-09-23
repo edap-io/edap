@@ -20,13 +20,13 @@ public class HeaderNameDecoder implements RangeTokenDecoder<HeaderName> {
 
     @Override
     public HeaderName decode(FastBuf buf, HttpFastBufDataRange dataRange, HttpRequest request) {
-        FastBuf _buf = buf;
-        int remain = _buf.remain();
+        FastBuf _buf   = buf;
+        int     remain = _buf.remain();
         if (remain <= 0) {
             return null;
         }
         long rpos = _buf.rpos();
-        byte b = _buf.get(rpos);
+        byte b    = _buf.get(rpos);
         if (b == '\r') {
             if (remain > 1 && _buf.get(rpos + 1) == '\n') {
                 _buf.rpos(rpos+2);

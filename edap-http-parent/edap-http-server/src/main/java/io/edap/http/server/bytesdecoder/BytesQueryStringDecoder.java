@@ -22,9 +22,24 @@ import io.edap.http.bytesdecoder.BytesTokenDecoder;
 import io.edap.http.model.QueryInfo;
 import io.edap.util.ByteArrayBuilder;
 
+import static io.edap.http.server.rangedecoder.QueryStringDecoder.EMPTY_QUERY_INFO;
+
 public class BytesQueryStringDecoder implements BytesTokenDecoder<QueryInfo> {
     @Override
     public QueryInfo decode(FastBuf buf, ByteArrayBuilder sb, HttpRequest request) {
+        FastBuf _buf = buf;
+        int remain = _buf.remain();
+        if (remain <= 0) {
+            return null;
+        }
+        byte b = _buf.get();
+        switch (b) {
+            case '?':
+                break;
+            case ' ':
+                return EMPTY_QUERY_INFO;
+        }
+
         return null;
     }
 }

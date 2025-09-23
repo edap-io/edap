@@ -54,9 +54,12 @@ public class PathDecoder implements RangeTokenDecoder<PathInfo> {
                 case ' ':
                 case '?':
                 case '#':
-                    dataRange.length(len);
+                    dataRange.length(len-1);
                     dataRange.hash(hashCode);
                     dataRange.last(decodeByte);
+                    if (dataRange.urlEncoded()) {
+                        dataRange.setUrlEncoderLen(i);
+                    }
                     _buf.rpos(pos+i);
                     return PATH_INFO_MATCHER.match(dataRange);
                 case '+':
@@ -70,7 +73,7 @@ public class PathDecoder implements RangeTokenDecoder<PathInfo> {
                     break;
                 case '%':
                     if (i < remain - 2) {
-                        int v = BYTE_VALUES[_buf.get(pos+i+1)] << 4 + BYTE_VALUES[_buf.get(pos+i+2)];
+                        int v = (BYTE_VALUES[_buf.get(pos+i+1)] << 4) + BYTE_VALUES[_buf.get(pos+i+2)];
                         if (v < 0) {
                             throw new IllegalArgumentException("URLDecoder: Illegal hex characters in escape (%) pattern - negative value");
                         }

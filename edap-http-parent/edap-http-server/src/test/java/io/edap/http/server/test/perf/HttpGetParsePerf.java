@@ -18,10 +18,16 @@ package io.edap.http.server.test.perf;
 
 import io.edap.buffer.FastBuf;
 import io.edap.http.*;
+import io.edap.http.cache.HeaderNameCache;
+import io.edap.http.cache.HeaderValueCache;
 import io.edap.http.codec.HttpFastBufDataRange;
+import io.edap.http.rangedecoder.ContentTypeValueDecoder;
+import io.edap.http.rangedecoder.HeaderValueCacheDecoder;
+import io.edap.http.rangedecoder.HeaderValueDecoder;
 import io.edap.http.server.BytesHttpRequestDecoder;
 import io.edap.http.server.RangeHttpRequestDecoder;
 import io.edap.http.server.cache.PathCache;
+import io.edap.nio.codec.FastBufDataRange;
 import io.edap.util.ByteArrayBuilder;
 import org.openjdk.jmh.annotations.*;
 import org.openjdk.jmh.results.format.ResultFormatType;
@@ -30,6 +36,7 @@ import org.openjdk.jmh.runner.RunnerException;
 import org.openjdk.jmh.runner.options.Options;
 import org.openjdk.jmh.runner.options.OptionsBuilder;
 
+import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.TimeUnit;
@@ -52,28 +59,72 @@ public class HttpGetParsePerf {
     static RangeHttpRequestDecoder decoder = new RangeHttpRequestDecoder();
     static BytesHttpRequestDecoder bytesDecoder = new BytesHttpRequestDecoder();
     static ByteArrayBuilder byteArrayBuilder;
+    static HeaderNameCache headerNameCache;
+    static FastBufDataRange range = FastBufDataRange.from("Host");
 
     static {
         request = new ValueHttpRequest();
         buf = new FastBuf(4096);
-        httpData = ("GET " + URLEncoder.encode("/zh_cn/中文/motherboard/A1SRI-2758F", StandardCharsets.UTF_8) + " HTTP/1.1\r\n" +
-                "Host: server\r\n" +
-                "User-Agent: Mozilla/5.0 (X11; Linux x86_64) Gecko/20130501 Firefox/30.0 AppleWebKit/600.00 Chrome/30.0.0000.0 Trident/10.0 Safari/600.00\r\n" +
-                "Cookie: uid=12345678901234567890;__utma=1.1234567890.1234567890.1234567890.1234567890.12; wd=2560x1600\r\n" +
-                "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8\r\n" +
-                "Accept-Language: en-US,en;q=0.5\r\n" +
-                "Connection: keep-alive\r\n\r\n").getBytes(StandardCharsets.UTF_8);
-        buf.write(httpData);
+		try {
+			httpData = ("GET " + URLEncoder.encode("/zh_cn/A1SRI-2758F", "utf-8") + " HTTP/1.1\r\n" +
+					"Host: server\r\n" +
+					"User-Agent: Mozilla/5.0 (X11; Linux x86_64) Gecko/20130501 Firefox/30.0 AppleWebKit/600.00 Chrome/30.0.0000.0 Trident/10.0 Safari/600.00\r\n" +
+					"Cookie: uid=12345678901234567890;__utma=1.1234567890.1234567890.1234567890.1234567890.12; wd=2560x1600\r\n" +
+					"Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8\r\n" +
+					"Accept-Language: en-US,en;q=0.5\r\n" +
+					"Connection: keep-alive\r\n\r\n").getBytes(StandardCharsets.UTF_8);
+		} catch (UnsupportedEncodingException e) {
+			throw new RuntimeException(e);
+		}
+		buf.write(httpData);
 
         byteArrayBuilder = new ByteArrayBuilder();
 
-        PathCache CACHE   = PathCache.instance();
-        CACHE.registerHandler("/zh_cn/中文/motherboard/A1SRI-2758F", new HttpHandler() {
-            @Override
-            public void handle(HttpRequest req, HttpResponse resp) {
 
-            }
-        });
+
+
+        PathCache CACHE   = PathCache.instance();
+        headerNameCache = HeaderNameCache.instance();
+        headerNameCache.get(range);
+		HeaderValueDecoder connectionDecoder = new ContentTypeValueDecoder();
+		FastBufDataRange connectionDecoderDr = FastBufDataRange.from("Connection");
+		HeaderName connectionName = headerNameCache.get(connectionDecoderDr);
+		connectionName.valueDecoder = connectionDecoder;
+
+		HeaderValueCache hvcache = HeaderValueCache.instance();
+		hvcache.get(FastBufDataRange.from("server"));
+		hvcache.get(FastBufDataRange.from("keep-alive"));
+
+//		HeaderValueDecoder hostDecoder = new HeaderValueCacheDecoder();
+//		FastBufDataRange hostDecoderDr = FastBufDataRange.from("Host");
+//		HeaderName hostName = headerNameCache.get(hostDecoderDr);
+//		hostName.valueDecoder = hostDecoder;
+
+
+//        CACHE.registerHandler("/zh_cn/中文/motherboard/A1SRI-2758F", new HttpHandler() {
+//            @Override
+//            public void handle(HttpRequest req, HttpResponse resp) {
+//
+//            }
+//        });
+//        CACHE.registerHandler("/zh_cn/motherboard/A1SRI-2758F2", new HttpHandler() {
+//            @Override
+//            public void handle(HttpRequest req, HttpResponse resp) {
+//
+//            }
+//        });
+//        CACHE.registerHandler("/zh_cn/motherboard/A1SRI-2758F3", new HttpHandler() {
+//            @Override
+//            public void handle(HttpRequest req, HttpResponse resp) {
+//
+//            }
+//        });
+//        CACHE.registerHandler("/zh_cn/motherboard/A1SRI-2758F4", new HttpHandler() {
+//            @Override
+//            public void handle(HttpRequest req, HttpResponse resp) {
+//
+//            }
+//        });
     }
 
     @Benchmark
@@ -87,7 +138,12 @@ public class HttpGetParsePerf {
 //        assertNotNull(res);
     }
 
-    @Benchmark
+    //@Benchmark
+    public void dataRangePerf() {
+        headerNameCache.get(range);
+    }
+
+    //@Benchmark
     public void bytesParse() {
         HttpDecoder.State state = HttpDecoder.State.SKIP_CONTROL_CHARS;
         buf.rewind();

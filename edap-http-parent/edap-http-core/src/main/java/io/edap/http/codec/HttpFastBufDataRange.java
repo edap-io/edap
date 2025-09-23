@@ -5,12 +5,11 @@ import io.edap.nio.codec.FastBufDataRange;
 import io.edap.util.ByteArrayBuilder;
 import io.edap.util.StringUtil;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
+import java.net.URLDecoder;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 
+import static io.edap.http.HttpConsts.BYTE_VALUES;
 import static io.edap.util.Constants.*;
 
 public class HttpFastBufDataRange extends FastBufDataRange {
@@ -18,6 +17,8 @@ public class HttpFastBufDataRange extends FastBufDataRange {
     private boolean urlEncoded;
 
     private ByteArrayBuilder bytesBuilder;
+
+    private int urlEncoderLen;
 
     public HttpFastBufDataRange() {
         bytesBuilder = new ByteArrayBuilder();
@@ -69,18 +70,45 @@ public class HttpFastBufDataRange extends FastBufDataRange {
 
     @Override
     public String getString(Charset charset) {
-        if (urlEncoded) {
-            return new String(bytesBuilder.toByteArray(), StandardCharsets.UTF_8);
+        boolean encode = urlEncoded;
+        if (encode) {
+            int l = urlEncoderLen;
+            FastBuf _buf = buf;
+            byte[] data = new byte[l];
+            int c = 0;
+            long _pos = _buf.rpos();
+            byte b;
+            for (int i=0;i<l;i++) {
+                b = _buf.get(_pos + i);
+                if (b == (byte)'+') {
+                    data[c++] = ' ';
+                } else if (b == (byte)'%') {
+                    int v = (BYTE_VALUES[_buf.get(_pos+i+1)] << 4) + BYTE_VALUES[_buf.get(_pos+i+2)];
+                    data[c++] = (byte)v;
+                } else {
+                    data[c++] = b;
+                }
+            }
+            return new String(data, 0, c, charset);
         } else {
             return super.getString(charset);
+            //return "";
         }
     }
 
     @Override
     public void reset() {
-        bytesBuilder.reset();
-        boolean _urlEncoded = false;
-        urlEncoded = _urlEncoded;
+        //bytesBuilder.reset();
+        //boolean _urlEncoded = false;
+        urlEncoded = false;
         super.reset();
+    }
+
+    public int getUrlEncoderLen() {
+        return urlEncoderLen;
+    }
+
+    public void setUrlEncoderLen(int urlEncoderLen) {
+        this.urlEncoderLen = urlEncoderLen;
     }
 }

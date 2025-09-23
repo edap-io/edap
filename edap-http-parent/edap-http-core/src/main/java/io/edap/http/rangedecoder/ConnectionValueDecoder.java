@@ -21,7 +21,7 @@ import io.edap.http.HeaderValue;
 import io.edap.http.HttpRequest;
 import io.edap.http.codec.HttpFastBufDataRange;
 
-public class ConnectionValueDecoder implements RangeTokenDecoder<HeaderValue> {
+public class ConnectionValueDecoder extends HeaderValueDecoder {
 
     private static final HeaderValue KEEP_ALIVE = new HeaderValue("keep-alive");
     private static final HeaderValue CLOSE      = new HeaderValue("close");
@@ -42,13 +42,13 @@ public class ConnectionValueDecoder implements RangeTokenDecoder<HeaderValue> {
         if (i == remain) {
             return null;
         }
-        dataRange.start(rpos + i);
         for (;i<remain;i++) {
             b = _buf.get(rpos + i);
             switch (b) {
                 case '\r':
                     if (i < remain - 1) {
                         if (_buf.get(rpos+i+1) == '\n') {
+                            _buf.rpos(rpos + i + 2);
                             int len = (int)((rpos+i)-dataRange.start());
                             if (len == 5 && _buf.get(dataRange.start()) == 'c' && _buf.get(rpos+i-1) == 'e') {
                                 return CLOSE;

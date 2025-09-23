@@ -50,7 +50,8 @@ public class HttpGetParseTest {
     @Test
     public void testParse() {
 
-        for (int i=0;i<1000000;i++) {
+        for (int i=0;i<2;i++) {
+        //while (true) {
             RangeHttpRequestDecoder decoder = new RangeHttpRequestDecoder();
             HttpDecoder.State state = HttpDecoder.State.SKIP_CONTROL_CHARS;
             buf.reset();

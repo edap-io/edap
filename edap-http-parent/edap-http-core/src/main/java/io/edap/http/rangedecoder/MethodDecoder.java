@@ -37,7 +37,6 @@ public class MethodDecoder implements RangeTokenDecoder<MethodInfo> {
         int remain = _buf.remain();
 
         long pos = _buf.rpos();
-        dataRange.start(pos);
         if (remain > 7) {
             byte b1 = _buf.get(pos);
             byte b2 = _buf.get(pos+1);

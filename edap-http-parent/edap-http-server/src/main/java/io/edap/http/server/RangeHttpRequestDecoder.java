@@ -142,7 +142,6 @@ public class RangeHttpRequestDecoder extends AbstractHttpDecoder implements Deco
                     break;
                 } else {
                     request.pathInfo = path;
-                    return result;
                 }
 
             case READ_QUERY_STRING:
@@ -160,32 +159,47 @@ public class RangeHttpRequestDecoder extends AbstractHttpDecoder implements Deco
                 }
                 request.setVersion(version);
             case READ_HEADER:
-                byte[] headerData = HEADER_DECODER.decode(buf, dataRange, request);
-                if (headerData != null) {
-                    request.setHeaderData(headerData);
-                    result.finish = true;
-                } else {
-                    break;
-                }
+//                byte[] headerData = HEADER_DECODER.decode(buf, dataRange, request);
+//                if (headerData != null) {
+//                    request.setHeaderData(headerData);
+//                    result.finish = true;
+//                } else {
+//                    break;
+//                }
 
 //                HeaderName name = HEADERNAME_DECODER.decode(buf, dataRange, request);
 //                if (name == null) {
 //                    break;
 //                }
-//                while (!name.finish) {
-//                    HeaderValue value;
+//                HeaderValue value;
 //                    value = HEADERVALUE_DECODER.decode(buf, dataRange, request);
-//                    if (value == null) {
-//                        result.state = State.READ_HEADER;
-//                        break;
-//                    }
-//                    request.addHeader(name.name, value);
-//                    name = HEADERNAME_DECODER.decode(buf, dataRange, request);
-//                    if (name == null) {
-//                        result.finish = false;
-//                        return result;
-//                    }
-//                }
+//                    dataRange.reset();
+//                name = HEADERNAME_DECODER.decode(buf, dataRange, request);
+//                value = HEADERVALUE_DECODER.decode(buf, dataRange, request);
+//                return result;
+                HeaderNameDecoder nameDecoder = HEADERNAME_DECODER;
+                HeaderValueDecoder valueDecoder = HEADERVALUE_DECODER;
+                HeaderName name = nameDecoder.decode(buf, dataRange, request);
+                while (!name.finish) {
+                    HeaderValue value;
+                    dataRange.reset();
+//                    if (name.valueDecoder != null) {
+//                        value = HEADER_VALUE_CACHE_DECODER.decode(buf, dataRange, request);
+//                    } else {
+                        value = valueDecoder.decode(buf, dataRange, request);
+                    //}
+                    if (value == null) {
+                        result.state = State.READ_HEADER;
+                        break;
+                    }
+                    request.addHeader(name.name, value);
+                    dataRange.reset();
+                    name = nameDecoder.decode(buf, dataRange, request);
+                    if (name == null) {
+                        result.finish = false;
+                        return result;
+                    }
+                }
             case READ_BODY:
                 BODY_DECODER.decode(request, buf, dataRange, result, httpNioSession);
             default:
