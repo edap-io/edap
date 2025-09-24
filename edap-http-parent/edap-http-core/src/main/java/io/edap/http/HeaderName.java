@@ -17,7 +17,6 @@
 package io.edap.http;
 
 import io.edap.http.rangedecoder.HeaderValueDecoder;
-import io.edap.http.rangedecoder.RangeTokenDecoder;
 
 /**
  * 定义http协议HeaderName的对象，Http HeaderName对象尽量采用缓存的方式减少String的生成

@@ -44,7 +44,7 @@ public class ValueHttpRequest implements HttpRequest {
     /**
      * HTTP请求的header列表
      */
-    private HeaderItem[] headers = new HeaderItem[16];
+    private Map<String, HeaderValue> headers = new HashMap<>();
     /**
      * 整个header数据区的数据
      */
@@ -81,13 +81,8 @@ public class ValueHttpRequest implements HttpRequest {
         return version;
     }
 
-    public void addHeader(String name, HeaderValue value) {
-        if (headerSize >= headers.length - 1) {
-            HeaderItem[] tmp = new HeaderItem[headers.length*2];
-            System.arraycopy(headers, 0, tmp, 0, headerSize);
-            headers = tmp;
-        }
-        headers[headerSize++] = new HeaderItem(name, value);
+    public void putHeader(String name, HeaderValue value) {
+        headers.put(name, value);
     }
 
     @Override
@@ -97,16 +92,7 @@ public class ValueHttpRequest implements HttpRequest {
 
     @Override
     public HeaderValue getHeaderValue(String name) {
-        if (headerSize <= 0) {
-            return null;
-        }
-        for (int i=0;i<headerSize;i++) {
-            HeaderItem h = headers[i];
-            if (h.name != null && h.name.equals(name)) {
-                return h.value;
-            }
-        }
-        return null;
+        return headers.get(name);
     }
 
     public String getHeader(String name) {
@@ -145,19 +131,7 @@ public class ValueHttpRequest implements HttpRequest {
 
     @Override
     public void reset() {
-        int hc = headerSize;
-        int _hc = hc;
-        if (_hc > 0) {
-            HeaderItem[] _headers = headers;
-            for (int i = 0; i < hc; i++) {
-                _headers[i] = null;
-                _hc--;
-            }
-        }
-        headerSize = _hc;
-//        if (!CollectionUtils.isEmpty(parameter)) {
-//            parameter.clear();
-//        }
+        headers.clear();
     }
 
     /**
@@ -169,14 +143,5 @@ public class ValueHttpRequest implements HttpRequest {
 
     public void setHeaderData(byte[] headerData) {
         this.headerData = headerData;
-    }
-
-    class HeaderItem {
-        String name;
-        HeaderValue value;
-        public HeaderItem(String name, HeaderValue value) {
-            this.name = name;
-            this.value = value;
-        }
     }
 }

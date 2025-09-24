@@ -72,24 +72,28 @@ public class HttpFastBufDataRange extends FastBufDataRange {
     public String getString(Charset charset) {
         boolean encode = urlEncoded;
         if (encode) {
-            int l = urlEncoderLen;
-            FastBuf _buf = buf;
-            byte[] data = new byte[l];
-            int c = 0;
-            long _pos = _buf.rpos();
-            byte b;
-            for (int i=0;i<l;i++) {
-                b = _buf.get(_pos + i);
-                if (b == (byte)'+') {
-                    data[c++] = ' ';
-                } else if (b == (byte)'%') {
-                    int v = (BYTE_VALUES[_buf.get(_pos+i+1)] << 4) + BYTE_VALUES[_buf.get(_pos+i+2)];
-                    data[c++] = (byte)v;
-                } else {
-                    data[c++] = b;
+            if (bytesBuilder.length() > 0) {
+                return bytesBuilder.toString(charset);
+            } else {
+                int l = urlEncoderLen;
+                FastBuf _buf = buf;
+                byte[] data = new byte[l];
+                int c = 0;
+                long _pos = _buf.rpos();
+                byte b;
+                for (int i = 0; i < l; i++) {
+                    b = _buf.get(_pos + i);
+                    if (b == (byte) '+') {
+                        data[c++] = ' ';
+                    } else if (b == (byte) '%') {
+                        int v = (BYTE_VALUES[_buf.get(_pos + i + 1)] << 4) + BYTE_VALUES[_buf.get(_pos + i + 2)];
+                        data[c++] = (byte) v;
+                    } else {
+                        data[c++] = b;
+                    }
                 }
+                return new String(data, 0, c, charset);
             }
-            return new String(data, 0, c, charset);
         } else {
             return super.getString(charset);
             //return "";

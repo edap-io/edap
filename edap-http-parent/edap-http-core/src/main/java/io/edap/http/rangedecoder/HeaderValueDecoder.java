@@ -15,67 +15,7 @@ import static io.edap.util.Constants.FNV_1a_INIT_VAL;
  */
 public class HeaderValueDecoder implements RangeTokenDecoder<HeaderValue> {
 
-    static HeaderValueCache CACHE = HeaderValueCache.instance();
-
-    @Override
     public HeaderValue decode(FastBuf buf, HttpFastBufDataRange dataRange, HttpRequest request) {
-        FastBuf _buf   = buf;
-        int     remain = _buf.remain();
-        if (remain <= 0) {
-            return null;
-        }
-        int  i    = 0;
-        long rpos = _buf.rpos();
-        // 忽略HeaderValue的第一个空格字符
-        byte b = _buf.get(rpos);
-        if (b == ' ') {
-            i++;
-            b = _buf.get(rpos + i);
-        }
-        if (i == remain) {
-            return null;
-        }
-        HeaderValue hv;
-        dataRange.start(rpos + i);
-        dataRange.first(b);
-        long hashCode = FNV_1a_INIT_VAL;
-        hashCode ^= b;
-        hashCode *= FNV_1a_FACTOR_VAL;
-        int start = i;
-        for (;i<remain;i++) {
-            b = _buf.get(rpos + i);
-            if (b == '\r') {
-                if (i < remain - 1) {
-                    if (_buf.get(rpos+i+1) == '\n') {
-                        int len = i - start;
-                        dataRange.length(len);
-                        dataRange.hash(hashCode);
-                        dataRange.last(_buf.get(rpos+i-1));
-                        hv = CACHE.get(dataRange);
-                        if (hv == null) {
-                            hv = new HeaderValue();
-                            byte[] data = new byte[len];
-                            _buf.get(rpos + start, data);
-                            hv.setData(data);
-                        }
-                        buf.rpos(rpos + i + 2);
-                        return hv;
-                    } else {
-                        throw new IllegalArgumentException("HeaderValue: Illegal name can't have \\r!");
-                    }
-                } else {
-                    return null;
-                }
-            } else {
-                hashCode ^= b;
-                hashCode *= FNV_1a_FACTOR_VAL;
-            }
-        }
-        return null;
-    }
-
-
-    public HeaderValue decode2(FastBuf buf, HttpFastBufDataRange dataRange, HttpRequest request) {
         FastBuf _buf   = buf;
         int     remain = _buf.remain();
         if (remain <= 0) {
@@ -93,7 +33,6 @@ public class HeaderValueDecoder implements RangeTokenDecoder<HeaderValue> {
         }
         HeaderValue hv;
         long start = rpos + i;
-        dataRange.start(start);
         for (;i<remain;i++) {
             b = _buf.get(rpos + i);
             if (b == '\r') {

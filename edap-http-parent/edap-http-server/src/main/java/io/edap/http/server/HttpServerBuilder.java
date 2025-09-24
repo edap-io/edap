@@ -1,11 +1,14 @@
 package io.edap.http.server;
 
+import io.edap.http.HttpHandleOption;
 import io.edap.http.HttpHandler;
 import io.edap.http.server.cache.PathCache;
 import io.edap.util.StringUtil;
 
 import java.util.ArrayList;
 import java.util.List;
+
+import static io.edap.http.HttpHandleOption.defaultHttpHandleOption;
 
 /**
  */
@@ -40,52 +43,108 @@ public class HttpServerBuilder {
      * @return
      */
     public HttpServerBuilder req(String path, HttpHandler handler) {
-        addPathHandler(path, handler, "GET", "POST");
+        addPathHandler(path, handler, defaultHttpHandleOption(), "GET", "POST");
+        return this;
+    }
+
+    /**
+     * 同时支持GET，POST的请求的HTTP处理器设置
+     * @param path 请求的地址
+     * @param handler http请求处理器
+     * @return
+     */
+    public HttpServerBuilder req(String path, HttpHandler handler, HttpHandleOption option) {
+        addPathHandler(path, handler, option,"GET", "POST");
         return this;
     }
 
     public HttpServerBuilder get(String path, HttpHandler handler) {
-        addPathHandler(path, handler, "GET");
+        addPathHandler(path, handler, defaultHttpHandleOption(),"GET");
+        return this;
+    }
+
+    public HttpServerBuilder get(String path, HttpHandler handler, HttpHandleOption option) {
+        addPathHandler(path, handler, option, "GET");
         return this;
     }
 
     public HttpServerBuilder post(String path, HttpHandler handler) {
-        addPathHandler(path, handler, "POST");
+        addPathHandler(path, handler, defaultHttpHandleOption(),"POST");
+        return this;
+    }
+
+    public HttpServerBuilder post(String path, HttpHandler handler, HttpHandleOption option) {
+        addPathHandler(path, handler, option,"POST");
         return this;
     }
 
     public HttpServerBuilder put(String path, HttpHandler handler) {
-        addPathHandler(path, handler, "PUT");
+        addPathHandler(path, handler, defaultHttpHandleOption(), "PUT");
+        return this;
+    }
+
+    public HttpServerBuilder put(String path, HttpHandler handler, HttpHandleOption option) {
+        addPathHandler(path, handler, option, "PUT");
         return this;
     }
 
     public HttpServerBuilder delete(String path, HttpHandler handler) {
-        addPathHandler(path, handler, "DELETE");
+        addPathHandler(path, handler, defaultHttpHandleOption(), "DELETE");
+        return this;
+    }
+
+    public HttpServerBuilder delete(String path, HttpHandler handler, HttpHandleOption option) {
+        addPathHandler(path, handler, option, "DELETE");
         return this;
     }
 
     public HttpServerBuilder head(String path, HttpHandler handler) {
-        addPathHandler(path, handler, "HEAD");
+        addPathHandler(path, handler, defaultHttpHandleOption(), "HEAD");
+        return this;
+    }
+
+    public HttpServerBuilder head(String path, HttpHandler handler, HttpHandleOption option) {
+        addPathHandler(path, handler, option, "HEAD");
         return this;
     }
 
     public HttpServerBuilder trace(String path, HttpHandler handler) {
-        addPathHandler(path, handler, "TRACE");
+        addPathHandler(path, handler, defaultHttpHandleOption(),"TRACE");
+        return this;
+    }
+
+    public HttpServerBuilder trace(String path, HttpHandler handler, HttpHandleOption option) {
+        addPathHandler(path, handler, option, "TRACE");
         return this;
     }
 
     public HttpServerBuilder options(String path, HttpHandler handler) {
-        addPathHandler(path, handler, "OPTIONS");
+        addPathHandler(path, handler, defaultHttpHandleOption(), "OPTIONS");
+        return this;
+    }
+
+    public HttpServerBuilder options(String path, HttpHandler handler, HttpHandleOption option) {
+        addPathHandler(path, handler, option, "OPTIONS");
         return this;
     }
 
     public HttpServerBuilder connect(String path, HttpHandler handler) {
-        addPathHandler(path, handler, "CONNECT");
+        addPathHandler(path, handler, defaultHttpHandleOption(), "CONNECT");
+        return this;
+    }
+
+    public HttpServerBuilder connect(String path, HttpHandler handler, HttpHandleOption option) {
+        addPathHandler(path, handler, option, "CONNECT");
         return this;
     }
 
     public HttpServerBuilder serve(String path, String method, HttpHandler handler) {
-        addPathHandler(path, handler, method);
+        addPathHandler(path, handler, defaultHttpHandleOption(), method);
+        return this;
+    }
+
+    public HttpServerBuilder serve(String path, String method, HttpHandler handler, HttpHandleOption option) {
+        addPathHandler(path, handler, option, method);
         return this;
     }
 
@@ -98,9 +157,9 @@ public class HttpServerBuilder {
         return decoderType;
     }
 
-    private void addPathHandler(String path, HttpHandler handler, String... methods) {
+    private void addPathHandler(String path, HttpHandler handler, HttpHandleOption option, String... methods) {
         PathCache pathCache = PathCache.instance();
-        pathCache.registerHandler(path, handler, methods);
+        pathCache.registerHandler(path, handler, option, methods);
     }
 
     public HttpServer build() {

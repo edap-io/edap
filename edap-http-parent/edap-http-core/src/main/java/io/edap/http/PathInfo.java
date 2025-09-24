@@ -31,6 +31,8 @@ public class PathInfo {
      */
     private HttpHandler[] httpHandlers;
 
+    private HttpHandleOption handlerOption;
+
     /**
      * http的路径信息
      */
@@ -68,5 +70,13 @@ public class PathInfo {
 
     public void setMatchPath(String matchPath) {
         this.matchPath = matchPath;
+    }
+
+    public HttpHandleOption getHandlerOption() {
+        return handlerOption;
+    }
+
+    public void setHandlerOption(HttpHandleOption handlerOption) {
+        this.handlerOption = handlerOption;
     }
 }

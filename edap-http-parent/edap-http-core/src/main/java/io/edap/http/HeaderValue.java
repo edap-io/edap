@@ -17,6 +17,7 @@
 package io.edap.http;
 
 import static io.edap.util.FastNum.INT_DIGITS;
+import static io.edap.util.StringUtil.fastInstance;
 
 public class HeaderValue {
     private String  value;
@@ -41,7 +42,7 @@ public class HeaderValue {
             return value;
         }
         if (data != null) {
-            value = new String(data);
+            value = fastInstance(data, (byte)0);
             return value;
         }
         return null;

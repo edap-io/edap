@@ -131,11 +131,19 @@ public class StringUtil {
      * @param coder
      * @return
      */
-    public static String fastInstance(byte[] data, byte coder) throws InstantiationException {
-        Object s = UnsafeUtil.allocateInstance(String.class);
-        UnsafeUtil.putByte(s, CODER_FIELD_OFFSET, coder);
-        UnsafeUtil.putObject(s, VALUE_FIELD_OFFSET, data);
-        return (String)s;
+    public static String fastInstance(byte[] data, byte coder) {
+        if (IS_BYTE_ARRAY) {
+            try {
+                Object s = UnsafeUtil.allocateInstance(String.class);
+                UnsafeUtil.putByte(s, CODER_FIELD_OFFSET, coder);
+                UnsafeUtil.putObject(s, VALUE_FIELD_OFFSET, data);
+                return (String) s;
+            } catch (InstantiationException e) {
+				throw new RuntimeException(e);
+			}
+		} else {
+            return new String(data);
+        }
     }
 
     /**
@@ -145,16 +153,5 @@ public class StringUtil {
      */
     public static boolean isEmpty(String str) {
         return str==null || str.isEmpty();
-    }
-
-
-    public static void main(String[] args) {
-        String s = "我们😁";
-        Object v = UnsafeUtil.getValue(s, VALUE_FIELD_OFFSET);
-        System.out.println(v);
-        byte[] bs = new byte[8];
-        copyMemory(s, VALUE_FIELD_OFFSET, bs, 0, 8);
-        String d = new String(bs, StandardCharsets.UTF_16);
-        System.out.println(d);
     }
 }

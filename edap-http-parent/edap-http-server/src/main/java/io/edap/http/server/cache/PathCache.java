@@ -16,6 +16,7 @@
 
 package io.edap.http.server.cache;
 
+import io.edap.http.HttpHandleOption;
 import io.edap.http.cache.MethodCache;
 import io.edap.nio.codec.FastBufDataRange;
 import io.edap.http.HttpHandler;
@@ -68,6 +69,15 @@ public class PathCache {
      * @param handler
      */
     public synchronized void registerHandler(String path, HttpHandler handler, String... methods) {
+        registerHandler(path, handler, HttpHandleOption.defaultHttpHandleOption(), methods);
+    }
+
+    /**
+     * 向系统中注册一个路径和HttpHandler的对应关系
+     * @param path
+     * @param handler
+     */
+    public synchronized void registerHandler(String path, HttpHandler handler, HttpHandleOption option, String... methods) {
         FastBufDataRange key         = FastBufDataRange.from(path);
         PathInfo         pathInfo    = pathCache.get(key);
         MethodCache methodCache = MethodCache.instance();

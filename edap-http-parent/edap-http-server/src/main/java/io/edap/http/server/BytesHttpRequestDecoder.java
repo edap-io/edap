@@ -89,36 +89,29 @@ public class BytesHttpRequestDecoder extends AbstractHttpDecoder implements Deco
                 }
                 request.setVersion(version);
             case READ_HEADER:
-//                byte[] headerData = HEADER_DECODER.decode(buf, sb, request);
-//                if (headerData != null) {
-//                    request.setHeaderData(headerData);
-//                    result.finish = true;
-//                } else {
-//                    break;
-//                }
-
-//                HeaderName name = HEADERNAME_DECODER.decode(buf, sb, request);
-//                if (name == null) {
-//                    break;
-//                }
-//                HeaderValue value;
-//                    value = HEADERVALUE_DECODER.decode(buf, sb, request);
-//                name = HEADERNAME_DECODER.decode(buf, sb, request);
-//                value = HEADERVALUE_DECODER.decode(buf, sb, request);
-//                return result;
-                HeaderName name = HEADERNAME_DECODER.decode(buf, sb, request);
-                while (!name.finish) {
-                    HeaderValue value;
-                    value = HEADERVALUE_DECODER.decode(buf, sb, request);
-                    if (value == null) {
-                        result.state = HttpDecoder.State.READ_HEADER;
+                if (request.pathInfo.getHandlerOption() != null && request.pathInfo.getHandlerOption().isLazyParseHeader()) {
+                    byte[] headerData = HEADER_DECODER.decode(buf, sb, request);
+                    if (headerData != null) {
+                        request.setHeaderData(headerData);
+                        result.finish = true;
+                    } else {
                         break;
                     }
-                    request.addHeader(name.name, value);
-                    name = HEADERNAME_DECODER.decode(buf, sb, request);
-                    if (name == null) {
-                        result.finish = false;
-                        return result;
+                } else {
+                    HeaderName name = HEADERNAME_DECODER.decode(buf, sb, request);
+                    while (!name.finish) {
+                        HeaderValue value;
+                        value = HEADERVALUE_DECODER.decode(buf, sb, request);
+                        if (value == null) {
+                            result.state = HttpDecoder.State.READ_HEADER;
+                            break;
+                        }
+                        request.putHeader(name.name, value);
+                        name = HEADERNAME_DECODER.decode(buf, sb, request);
+                        if (name == null) {
+                            result.finish = false;
+                            return result;
+                        }
                     }
                 }
             case READ_BODY:

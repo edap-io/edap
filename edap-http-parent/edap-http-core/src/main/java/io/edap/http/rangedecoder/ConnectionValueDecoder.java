@@ -42,6 +42,7 @@ public class ConnectionValueDecoder extends HeaderValueDecoder {
         if (i == remain) {
             return null;
         }
+        int start = i;
         for (;i<remain;i++) {
             b = _buf.get(rpos + i);
             switch (b) {
@@ -49,8 +50,8 @@ public class ConnectionValueDecoder extends HeaderValueDecoder {
                     if (i < remain - 1) {
                         if (_buf.get(rpos+i+1) == '\n') {
                             _buf.rpos(rpos + i + 2);
-                            int len = (int)((rpos+i)-dataRange.start());
-                            if (len == 5 && _buf.get(dataRange.start()) == 'c' && _buf.get(rpos+i-1) == 'e') {
+                            int len = i - start;
+                            if (len == 5 && _buf.get(rpos+start) == 'c' && _buf.get(rpos+i-1) == 'e') {
                                 return CLOSE;
                             } else {
                                 return KEEP_ALIVE;

@@ -5,6 +5,7 @@ import io.edap.http.HeaderName;
 import io.edap.http.HttpRequest;
 import io.edap.http.cache.HeaderNameCache;
 import io.edap.util.ByteArrayBuilder;
+import io.edap.util.StringUtil;
 
 import static io.edap.http.AbstractHttpDecoder.FINISH_HEADERNAME;
 
@@ -37,8 +38,7 @@ public class BytesHeaderNameDecoder implements BytesTokenDecoder<HeaderName> {
 				byte[] data = new byte[i];
 				_buf.get(rpos, data);
 				_buf.rpos(rpos + i + 1);
-				String key = new String(data);
-				return CACHE.get(key);
+				return CACHE.get(new String(data));
 			} else if (b == ' ') {
 				for (int j=i+1;j<remain;j++) {
 					b = _buf.get(rpos+j);
@@ -49,8 +49,7 @@ public class BytesHeaderNameDecoder implements BytesTokenDecoder<HeaderName> {
 							_buf.rpos(rpos+j+1);
 							byte[] data = new byte[i];
 							_buf.get(rpos, data);
-							String key = new String(data);
-							return CACHE.get(key);
+							return CACHE.get(StringUtil.fastInstance(data, (byte)0));
 						default:
 							int l = (int)(_buf.limit() - 0);
 							byte[] bs = new byte[j];
