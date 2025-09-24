@@ -22,7 +22,6 @@ import io.edap.http.PathInfo;
 import io.edap.http.codec.HttpFastBufDataRange;
 import io.edap.http.rangedecoder.RangeTokenDecoder;
 import io.edap.http.server.PathInfoMatcher;
-import io.edap.util.ByteArrayBuilder;
 
 import static io.edap.http.HttpConsts.BYTE_VALUES;
 import static io.edap.util.Constants.FNV_1a_FACTOR_VAL;
@@ -90,9 +89,9 @@ public class PathDecoder implements RangeTokenDecoder<PathInfo> {
                         return null;
                     }
                 default:
-                    hashCode ^= b;
-                    hashCode *= FNV_1a_FACTOR_VAL;
-                    decodeByte = b;
+                    hashCode   ^= b;
+                    hashCode   *= FNV_1a_FACTOR_VAL;
+                    decodeByte  = b;
             }
         }
         return null;

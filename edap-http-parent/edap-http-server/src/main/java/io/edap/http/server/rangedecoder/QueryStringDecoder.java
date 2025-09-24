@@ -7,7 +7,6 @@ import io.edap.http.codec.HttpFastBufDataRange;
 import io.edap.http.model.ParamPair;
 import io.edap.http.model.QueryInfo;
 import io.edap.http.rangedecoder.RangeTokenDecoder;
-import io.edap.nio.codec.FastBufDataRange;
 import io.edap.util.ByteArrayBuilder;
 import io.edap.util.FastList;
 import io.edap.util.StringUtil;
@@ -27,8 +26,8 @@ public class QueryStringDecoder implements RangeTokenDecoder<QueryInfo> {
 
     @Override
     public QueryInfo decode(FastBuf buf, HttpFastBufDataRange dataRange, HttpRequest request) {
-        FastBuf _buf = buf;
-        int remain = _buf.remain();
+        FastBuf _buf   = buf;
+        int     remain = _buf.remain();
         if (remain <= 0) {
             return null;
         }
@@ -37,6 +36,7 @@ public class QueryStringDecoder implements RangeTokenDecoder<QueryInfo> {
             case '?':
                 break;
             case ' ':
+            case '#':
                 return EMPTY_QUERY_INFO;
         }
         return decodeQuery(_buf, dataRange);
@@ -53,9 +53,9 @@ public class QueryStringDecoder implements RangeTokenDecoder<QueryInfo> {
         dataRange.start(rpos);
         dataRange.first(_buf.get(rpos));
         String key = null;
-        byte   b;
-        long   hashCode = FNV_1a_INIT_VAL;
-        byte   decodeByte;
+        byte  b;
+        long  hashCode = FNV_1a_INIT_VAL;
+        byte  decodeByte;
         for (int i=0;i<remain;i++) {
             b = _buf.get(rpos++);
             switch (b) {

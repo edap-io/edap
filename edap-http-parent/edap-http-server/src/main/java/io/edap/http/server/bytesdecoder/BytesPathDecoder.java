@@ -23,9 +23,8 @@ import io.edap.http.server.PathInfoMatcher;
 import io.edap.http.bytesdecoder.BytesTokenDecoder;
 import io.edap.util.ByteArrayBuilder;
 
-import java.nio.charset.StandardCharsets;
-
 import static io.edap.http.HttpConsts.BYTE_VALUES;
+import static io.edap.util.StringUtil.fastInstance;
 
 public class BytesPathDecoder implements BytesTokenDecoder<PathInfo> {
 
@@ -56,7 +55,7 @@ public class BytesPathDecoder implements BytesTokenDecoder<PathInfo> {
                     } else {
                         byte[] data = new byte[i];
                         buf.get(start, data);
-                        path = new String(data);
+                        path = fastInstance(data, (byte)0);
                     }
                     _buf.rpos(pos+i);
                     return PATH_INFO_MATCHER.match(path);
