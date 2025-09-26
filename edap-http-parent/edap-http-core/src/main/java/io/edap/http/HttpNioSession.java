@@ -43,25 +43,9 @@ public abstract class HttpNioSession extends NioServerSession<HttpRequest> {
     private HttpFastBufDataRange     dataRange;
     private BytesDataRange           bytesDataRange;
     private ByteData                 tmpData;
-    private HttpResponse             response;
-    private List<ValueHttpRequest>   valueRequestPool;
-    private List<RangeHttpRequest>   rangeRequestPool;
-    private List<HttpRequest>        reqeustList;
 
     public HttpNioSession() {
-        valueRequestPool = new FastList<>(32);
-        for (int i=0;i<32;i++) {
-            ValueHttpRequest req = new ValueHttpRequest();
-            req.setHttpNioSession(this);
-            valueRequestPool.add(req);
-        }
-        rangeRequestPool = new FastList<>(32);
-        for (int i=0;i<32;i++) {
-            RangeHttpRequest req = new RangeHttpRequest();
-            req.setHttpNioSession(this);
-            rangeRequestPool.add(req);
-        }
-        reqeustList = new FastList<>(32);
+
     }
 
     public void reset() {
@@ -116,30 +100,6 @@ public abstract class HttpNioSession extends NioServerSession<HttpRequest> {
 
     public void setBytesDataRange(BytesDataRange bytesDataRange) {
         this.bytesDataRange = bytesDataRange;
-    }
-
-    public List<ValueHttpRequest> getValueRequestPool() {
-        return valueRequestPool;
-    }
-
-    public void setRequestPool(List<ValueHttpRequest> requestPool) {
-        this.valueRequestPool = requestPool;
-    }
-
-    public List<HttpRequest> getReqeustList() {
-        return reqeustList;
-    }
-
-    public void setReqeustList(List<HttpRequest> reqeustList) {
-        this.reqeustList = reqeustList;
-    }
-
-    public List<RangeHttpRequest> getRangeRequestPool() {
-        return rangeRequestPool;
-    }
-
-    public void setRangeRequestPool(List<RangeHttpRequest> rangeRequestPool) {
-        this.rangeRequestPool = rangeRequestPool;
     }
 
     public void writeToChannel(FastBuf buf) throws IOException {

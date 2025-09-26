@@ -23,6 +23,7 @@ import io.edap.log.Logger;
 import io.edap.log.LoggerManager;
 
 import java.io.IOException;
+import java.nio.channels.SocketChannel;
 
 import static io.edap.http.server.HttpServer.NOT_FOUND_HANDLER;
 import static io.edap.http.server.HttpServer.NOT_SUPPORT_METHO_HANDLER;
@@ -71,7 +72,12 @@ public class HttpServerNioSession extends HttpNioSession {
 
 			handler.handle(request, resp);
 
-			writeToChannel(buf);
+			SocketChannel sc = getSocketChannel();
+			if (sc.isOpen()) {
+				writeToChannel(buf);
+			} else {
+				sc.close();
+			}
 		} catch (IOException e) {
 			throw new RuntimeException(e);
 		} finally {

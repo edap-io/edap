@@ -58,9 +58,8 @@ public class BytesHttpRequestDecoder extends AbstractHttpDecoder implements Deco
         if (state == null) {
             state = HttpDecoder.State.SKIP_CONTROL_CHARS;
         }
-        List<ValueHttpRequest> requests = nioSession.getValueRequestPool();
         int index = 0;
-        ValueHttpRequest request = requests.get(index++);
+        ValueHttpRequest request = new ValueHttpRequest();
         ByteArrayBuilder sb = THREAD_BYTE_ARRAY_BUILDER.get();
 
         request.reset();

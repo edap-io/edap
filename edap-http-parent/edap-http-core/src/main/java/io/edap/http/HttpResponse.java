@@ -45,7 +45,6 @@ public class HttpResponse {
     private Map<String, String> headers;
     private HttpVersion version;
     private FastBuf buf;
-    private BufPool bufPool;
     private ContentTypeHeader contentType;
     private static ServerHeader HEADER_SERVER = (ServerHeader)BUILDIN_HEADERS.get("Server");
     private static DateHeader HEADER_DATE   = (DateHeader)BUILDIN_HEADERS.get("Date");
@@ -58,7 +57,6 @@ public class HttpResponse {
     }
 
     public HttpResponse setRequest(HttpRequest request) {
-        bufPool = request.getHttpNioSession().getBufPool();
         nioSession = request.getHttpNioSession();
         version = request.getVersion();
         return this;

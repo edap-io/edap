@@ -228,7 +228,7 @@ public class JsonCodecRegister {
     }
 
     private Class generateEncoderClass(Class cls) {
-        Class encoderCls = null;
+        Class encoderCls;
         long start = System.currentTimeMillis();
         String encoderName = buildEncoderName(cls);
         JsonCodecLoader codecLoader = getEncoderLoader(cls);
@@ -236,14 +236,18 @@ public class JsonCodecRegister {
             encoderCls = codecLoader.loadClass(encoderName);
             return encoderCls;
         } catch (ClassNotFoundException e) {
-            e.printStackTrace();
-        }
 
+        }
+        long end = System.currentTimeMillis();
+        long time1 = end - start;
+        start = end;
         try {
             JsonEncoderGenerator generator = new JsonEncoderGenerator(cls);
             GeneratorClassInfo gci = generator.getClassInfo();
             byte[] bs = gci.clazzBytes;
-            System.out.println("generate class time: " + (System.currentTimeMillis() - start));
+            end = System.currentTimeMillis();
+            long time2 = (end - start);
+            start = end;
             saveJavaFile("./" + gci.clazzName + ".class", bs);
             encoderCls = codecLoader.define(encoderName, bs, 0, bs.length);
             if (!isEmpty(gci.inners)) {
@@ -254,6 +258,7 @@ public class JsonCodecRegister {
                     codecLoader.define(innerName, bs, 0, bs.length);
                 }
             }
+            System.out.println("generate class time1: " + time1 + ",time2:" + time2 + ",time3:"  + (System.currentTimeMillis() - start));
         } catch (Throwable e) {
             try {
                 if (codecLoader.loadClass(encoderName) != null) {

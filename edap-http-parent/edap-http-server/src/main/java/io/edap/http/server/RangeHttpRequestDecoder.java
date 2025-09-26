@@ -90,9 +90,8 @@ public class RangeHttpRequestDecoder extends AbstractHttpDecoder implements Deco
         if (state == null) {
             state = State.SKIP_CONTROL_CHARS;
         }
-        List<ValueHttpRequest> requests = httpNioSession.getValueRequestPool();
         int index = 0;
-        ValueHttpRequest request = requests.get(index++);
+        ValueHttpRequest request = new ValueHttpRequest();
         HttpFastBufDataRange dataRange = httpNioSession.getDataRange();
         if (dataRange == null) {
             dataRange = new HttpFastBufDataRange();
