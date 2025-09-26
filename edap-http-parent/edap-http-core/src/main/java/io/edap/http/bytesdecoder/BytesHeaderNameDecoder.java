@@ -38,7 +38,7 @@ public class BytesHeaderNameDecoder implements BytesTokenDecoder<HeaderName> {
 				byte[] data = new byte[i];
 				_buf.get(rpos, data);
 				_buf.rpos(rpos + i + 1);
-				return CACHE.get(new String(data));
+				return CACHE.get(StringUtil.fastInstance(data, (byte)0));
 			} else if (b == ' ') {
 				for (int j=i+1;j<remain;j++) {
 					b = _buf.get(rpos+j);

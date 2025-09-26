@@ -35,14 +35,14 @@ import java.util.List;
  */
 public class RangeHttpRequestDecoder extends AbstractHttpDecoder implements Decoder<HttpRequest, HttpNioSession> {
 
-    static MethodDecoder METHOD_DECODER      = new MethodDecoder();
+    static MethodDecoder      METHOD_DECODER      = new MethodDecoder();
     static PathDecoder        PATH_DECODER        = new PathDecoder();
     static QueryStringDecoder QUERY_DECODER       = new QueryStringDecoder();
     static HttpVersionDecoder VERSION_DECODER     = new HttpVersionDecoder();
     static HeaderDataDecoder  HEADER_DECODER      = new HeaderDataDecoder();
     static HeaderNameDecoder  HEADERNAME_DECODER  = new HeaderNameDecoder();
     static HeaderValueDecoder HEADERVALUE_DECODER = new HeaderValueDecoder();
-    static BodyDecoder BODY_DECODER        = new BodyDecoder();
+    static BodyDecoder        BODY_DECODER        = new BodyDecoder();
 
     static ContentTypeValueDecoder CONTENT_TYPE_VALUE_DECODER = new ContentTypeValueDecoder();
     static HeaderValueCacheDecoder HEADER_VALUE_CACHE_DECODER = new HeaderValueCacheDecoder();

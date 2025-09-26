@@ -7,7 +7,6 @@ import static io.edap.http.HttpConsts.DEFAULT_CHARSET;
 public class QueryInfo {
     private String query;
     private byte[] queryBytes;
-    private List<ParamPair> paramPairs;
 
     public String getQuery() {
         if (query == null) {
@@ -18,14 +17,6 @@ public class QueryInfo {
 
     public void setQuery(String query) {
         this.query = query;
-    }
-
-    public List<ParamPair> getParamPairs() {
-        return paramPairs;
-    }
-
-    public void setParamPairs(List<ParamPair> paramPairs) {
-        this.paramPairs = paramPairs;
     }
 
     public byte[] getQueryBytes() {

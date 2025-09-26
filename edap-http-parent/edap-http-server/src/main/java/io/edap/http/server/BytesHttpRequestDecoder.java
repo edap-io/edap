@@ -20,26 +20,59 @@ import io.edap.Decoder;
 import io.edap.buffer.FastBuf;
 import io.edap.http.*;
 import io.edap.http.bytesdecoder.*;
+import io.edap.http.codec.HttpFastBufDataRange;
 import io.edap.http.model.QueryInfo;
 import io.edap.http.server.bytesdecoder.BytesPathDecoder;
 import io.edap.http.server.bytesdecoder.BytesQueryStringDecoder;
 import io.edap.nio.ParseResult;
 import io.edap.util.ByteArrayBuilder;
 
+import java.util.ArrayList;
+import java.util.List;
+
 public class BytesHttpRequestDecoder extends AbstractHttpDecoder implements Decoder<HttpRequest, HttpNioSession> {
 
-    static BytesMethodDecoder      METHOD_DECODER  = new BytesMethodDecoder();
-    static BytesPathDecoder        PATH_DECODER    = new BytesPathDecoder();
-    static BytesQueryStringDecoder QUERY_DECODER   = new BytesQueryStringDecoder();
-    static BytesHttpVersionDecoder VERSION_DECODER = new BytesHttpVersionDecoder();
-    static BytesHeaderDataDecoder  HEADER_DECODER  = new BytesHeaderDataDecoder();
-    static BytesBodyDecoder        BODY_DECODER    = new BytesBodyDecoder();
-    static BytesHeaderNameDecoder  HEADERNAME_DECODER = new BytesHeaderNameDecoder();
+    static BytesMethodDecoder      METHOD_DECODER      = new BytesMethodDecoder();
+    static BytesPathDecoder        PATH_DECODER        = new BytesPathDecoder();
+    static BytesQueryStringDecoder QUERY_DECODER       = new BytesQueryStringDecoder();
+    static BytesHttpVersionDecoder VERSION_DECODER     = new BytesHttpVersionDecoder();
+    static BytesHeaderDataDecoder  HEADER_DECODER      = new BytesHeaderDataDecoder();
+    static BytesBodyDecoder        BODY_DECODER        = new BytesBodyDecoder();
+    static BytesHeaderNameDecoder  HEADERNAME_DECODER  = new BytesHeaderNameDecoder();
     static BytesHeaderValueDecoder HEADERVALUE_DECODER = new BytesHeaderValueDecoder();
+
+    static ThreadLocal<ByteArrayBuilder> THREAD_BYTE_ARRAY_BUILDER;
+
+    static {
+        THREAD_BYTE_ARRAY_BUILDER = ThreadLocal.withInitial(() -> {
+            ByteArrayBuilder sb = new ByteArrayBuilder();
+            return sb;
+        });
+
+    }
 
     @Override
     public ParseResult<HttpRequest> decode(FastBuf bufIn, HttpNioSession nioSession) {
-        return null;
+        ParseResult<HttpRequest> result = new ParseResult<>();
+        HttpDecoder.State state = nioSession.getDecodeState();
+        if (state == null) {
+            state = HttpDecoder.State.SKIP_CONTROL_CHARS;
+        }
+        List<ValueHttpRequest> requests = nioSession.getValueRequestPool();
+        int index = 0;
+        ValueHttpRequest request = requests.get(index++);
+        ByteArrayBuilder sb = THREAD_BYTE_ARRAY_BUILDER.get();
+
+        request.reset();
+        Result res = parseHttpRequest(bufIn, state, sb, request, nioSession);
+        if (res.finish) {
+            result.setMessage(request);
+            result.setFinished(true);
+        } else {
+            result.setFinished(false);
+        }
+
+        return result;
     }
 
     public Result parseHttpRequest(FastBuf buf, HttpDecoder.State state, ByteArrayBuilder sb,

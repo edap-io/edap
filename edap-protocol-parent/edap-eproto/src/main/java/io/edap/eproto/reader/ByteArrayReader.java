@@ -888,21 +888,13 @@ public class ByteArrayReader extends AbstractReader {
             if (psc == ProtoBufStringCharset.LATIN1) {
                 byte[] data = new byte[len];
                 System.arraycopy(buf, pos, data, 0, len);
-                try {
-                    return fastInstance(data, (byte)0);
-                } catch (InstantiationException e) {
-                    throw new ProtoException(e);
-                }
-            } else if (psc == ProtoBufStringCharset.UTF16) {
+				return fastInstance(data, (byte)0);
+			} else if (psc == ProtoBufStringCharset.UTF16) {
                 byte[] data = new byte[len];
                 System.arraycopy(buf, pos, data, 0, len);
                 if (IS_BYTE_ARRAY) {
-                    try {
-                        return fastInstance(data, (byte)1);
-                    } catch (InstantiationException e) {
-                        throw new ProtoException(e);
-                    }
-                } else {
+					return fastInstance(data, (byte)1);
+				} else {
 
                 }
             } else {

@@ -17,6 +17,7 @@
 package io.edap.http;
 
 import io.edap.NioServerSession;
+import io.edap.buffer.FastBuf;
 import io.edap.nio.ParseResult;
 import io.edap.nio.codec.BytesDataRange;
 import io.edap.http.codec.HttpFastBufDataRange;
@@ -25,6 +26,7 @@ import io.edap.log.LoggerManager;
 import io.edap.util.ByteData;
 import io.edap.util.FastList;
 
+import java.io.IOException;
 import java.util.List;
 
 /**
@@ -138,5 +140,14 @@ public abstract class HttpNioSession extends NioServerSession<HttpRequest> {
 
     public void setRangeRequestPool(List<RangeHttpRequest> rangeRequestPool) {
         this.rangeRequestPool = rangeRequestPool;
+    }
+
+    public void writeToChannel(FastBuf buf) throws IOException {
+        int len = (int)(buf.wpos() - buf.address());
+        int wlen = fastWrite(buf);
+        while (wlen < len) {
+            buf.wpos(buf.address() + wlen);
+            wlen += fastWrite(buf);
+        }
     }
 }

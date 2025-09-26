@@ -3,7 +3,6 @@ package io.edap.http;
 import io.edap.http.header.ContentLength;
 import io.edap.http.model.QueryInfo;
 import io.edap.util.ByteData;
-import io.edap.util.CollectionUtils;
 
 import java.util.HashMap;
 import java.util.List;
@@ -53,7 +52,7 @@ public class ValueHttpRequest implements HttpRequest {
     /**
      * HTTP请求的参数
      */
-    private Map<String, List<String>> parameter = new HashMap<>();
+    private Map<String, List<ParameterValue>> parameters = new HashMap<>();
 
     @Override
     public String getMethod() {
@@ -132,6 +131,7 @@ public class ValueHttpRequest implements HttpRequest {
     @Override
     public void reset() {
         headers.clear();
+        parameters.clear();
     }
 
     /**
@@ -143,5 +143,16 @@ public class ValueHttpRequest implements HttpRequest {
 
     public void setHeaderData(byte[] headerData) {
         this.headerData = headerData;
+    }
+
+    /**
+     * HTTP请求的参数
+     */
+    public Map<String, List<ParameterValue>> getParameters() {
+        return parameters;
+    }
+
+    public void setParameters(Map<String, List<ParameterValue>> parameters) {
+        this.parameters = parameters;
     }
 }

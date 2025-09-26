@@ -49,18 +49,4 @@ public class HttpFastBufDataRangeTest {
         assertNull(hbr);
     }
 
-    @Test
-    public void testGetBytesBuilder() {
-        HttpFastBufDataRange hbr = new HttpFastBufDataRange();
-        assertNotNull(hbr.getBytesBuilder());
-        assertEquals(hbr.getBytesBuilder().length(), 0);
-    }
-
-    @Test
-    public void testAppend() {
-        HttpFastBufDataRange hbr = new HttpFastBufDataRange();
-        hbr.append("中文".getBytes(StandardCharsets.UTF_8));
-        hbr.urlEncoded(true);
-        assertEquals(hbr.getString(StandardCharsets.UTF_8), "中文");
-    }
 }

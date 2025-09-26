@@ -121,10 +121,6 @@ public class FastBuf extends BasePoolEntry {
         return len;
     }
 
-    public int write(ByteData byteData) {
-        return 0;
-    }
-
     public int writeRemain() {
         return (int)(endAddress - writePos);
     }
@@ -197,6 +193,10 @@ public class FastBuf extends BasePoolEntry {
 
     public int write(byte[] bs) {
         return write(bs, 0, bs.length);
+    }
+
+    public int write(ByteData byteData) {
+        return write(byteData.getBytes(), byteData.getOffset(), byteData.getLength());
     }
 
     public int write(byte[] bs, int offset, int len) {

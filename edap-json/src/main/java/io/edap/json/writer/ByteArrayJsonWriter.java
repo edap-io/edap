@@ -475,7 +475,10 @@ public class ByteArrayJsonWriter extends AbstractJsonWriter implements JsonWrite
 
     @Override
     public int toFastBuf(FastBuf fastBuf) {
-        throw new UnsupportedOperationException("");
+        int wlen = fastBuf.writeRemain()>pos?pos:fastBuf.writeRemain();
+        fastBuf.write(buf, wpos, wlen);
+        wpos += wlen;
+        return wlen;
     }
 
     @Override

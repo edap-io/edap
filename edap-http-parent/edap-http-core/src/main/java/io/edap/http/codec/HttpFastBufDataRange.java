@@ -16,22 +16,18 @@ public class HttpFastBufDataRange extends FastBufDataRange {
 
     private boolean urlEncoded;
 
-    private ByteArrayBuilder bytesBuilder;
-
     private int urlEncoderLen;
 
+    private String value;
+
     public HttpFastBufDataRange() {
-        bytesBuilder = new ByteArrayBuilder();
+
     }
 
     public HttpFastBufDataRange urlEncoded(boolean urlEncoded) {
         this.urlEncoded = urlEncoded;
 
         return this;
-    }
-
-    public ByteArrayBuilder getBytesBuilder() {
-        return bytesBuilder;
     }
 
     public static HttpFastBufDataRange from(String v) {
@@ -60,51 +56,45 @@ public class HttpFastBufDataRange extends FastBufDataRange {
         return urlEncoded;
     }
 
-    public void append(byte[] data) {
-        bytesBuilder.append(data);
-    }
-
-    public void append(byte b) {
-        bytesBuilder.append(b);
-    }
-
     @Override
     public String getString(Charset charset) {
+        if (value != null) {
+            return value;
+        }
         boolean encode = urlEncoded;
         if (encode) {
-            if (bytesBuilder.length() > 0) {
-                return bytesBuilder.toString(charset);
-            } else {
-                int l = urlEncoderLen;
-                FastBuf _buf = buf;
-                byte[] data = new byte[l];
-                int c = 0;
-                long _pos = _buf.rpos();
-                byte b;
-                for (int i = 0; i < l; i++) {
-                    b = _buf.get(_pos + i);
-                    if (b == (byte) '+') {
-                        data[c++] = ' ';
-                    } else if (b == (byte) '%') {
-                        int v = (BYTE_VALUES[_buf.get(_pos + i + 1)] << 4) + BYTE_VALUES[_buf.get(_pos + i + 2)];
-                        data[c++] = (byte) v;
-                    } else {
-                        data[c++] = b;
-                    }
+            int l = urlEncoderLen;
+            FastBuf _buf = buf;
+            byte[] data = new byte[l];
+            int c = 0;
+            long _pos = start;
+            byte b;
+            for (int i = 0; i < l; i++) {
+                b = _buf.get(_pos + i);
+                if (b == (byte) '+') {
+                    data[c++] = ' ';
+                } else if (b == (byte) '%') {
+                    int v = (BYTE_VALUES[_buf.get(_pos + i + 1)] << 4) + BYTE_VALUES[_buf.get(_pos + i + 2)];
+                    data[c++] = (byte) v;
+                    i += 2;
+                } else {
+                    data[c++] = b;
                 }
-                return new String(data, 0, c, charset);
             }
+            value = new String(data, 0, c, charset);
+            return value;
         } else {
-            return super.getString(charset);
+            value = super.getString(charset);
+            return value;
             //return "";
         }
     }
 
     @Override
     public void reset() {
-        //bytesBuilder.reset();
         //boolean _urlEncoded = false;
         urlEncoded = false;
+        value = null;
         super.reset();
     }
 

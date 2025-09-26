@@ -19,14 +19,20 @@ package io.edap.http.server;
 import io.edap.Decoder;
 import io.edap.NioServerSession;
 import io.edap.Server;
+import io.edap.http.HttpHandler;
 import io.edap.http.HttpNioSession;
 import io.edap.http.HttpRequest;
+import io.edap.http.server.handler.NotFoundHandler;
+import io.edap.http.server.handler.NotSupportMethodHandler;
 
 /**
  */
 public class HttpServer extends Server {
 
     private static Decoder<HttpRequest, HttpNioSession> VALUE_DECODER = new RangeHttpRequestDecoder();
+
+    static final HttpHandler NOT_SUPPORT_METHO_HANDLER = new NotSupportMethodHandler();
+    static final HttpHandler NOT_FOUND_HANDLER = new NotFoundHandler();
 
     public enum DecoderType {
         NORMAL,
@@ -42,19 +48,16 @@ public class HttpServer extends Server {
     @Override
     public void init() {
         super.init();
+        setDecoder(VALUE_DECODER);
         System.out.println("HttpDecoder's type: " + decoderType);
     }
 
     @Override
     public NioServerSession createNioSession() {
-        HttpNioSession nioSession = new HttpNioSession() {
-            @Override
-            public void handle(HttpRequest request) {
-
-            }
-        };
+        HttpServerNioSession nioSession = new HttpServerNioSession();
         nioSession.setServer(this);
-            nioSession.setDecoder(VALUE_DECODER);
+        nioSession.setDecoder(VALUE_DECODER);
+        nioSession.setBufPool(getBufPool());
         return nioSession;
     }
 }

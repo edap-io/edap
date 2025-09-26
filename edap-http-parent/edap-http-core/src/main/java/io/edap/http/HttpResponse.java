@@ -217,13 +217,7 @@ public class HttpResponse {
     }
 
     private void writeToChannel(FastBuf buf) throws IOException {
-        int len = (int)(buf.wpos() - buf.address());
-        buf.wpos(buf.address());
-        int wlen = nioSession.fastWrite(buf);
-        while (wlen < len) {
-            buf.wpos(buf.address() + wlen);
-            wlen += nioSession.fastWrite(buf);
-        }
+        nioSession.writeToChannel(buf);
     }
 
     public HttpResponse write(ByteData data) {
