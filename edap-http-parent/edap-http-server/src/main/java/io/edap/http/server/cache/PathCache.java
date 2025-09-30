@@ -88,10 +88,12 @@ public class PathCache {
             pathInfo.setFound(true);
             handlers = new HttpHandler[16];
             pathInfo.setHttpHandlers(handlers);
+            pathInfo.setHandlerOption(option);
             pathCache.put(key, pathInfo);
             stringPathCache.put(path, pathInfo);
         } else {
             handlers = pathInfo.getHttpHandlers();
+            pathInfo.setHandlerOption(option);
         }
         for (String method : methods) {
             int methodIndex = methodCache.getMethodIndex(method);
