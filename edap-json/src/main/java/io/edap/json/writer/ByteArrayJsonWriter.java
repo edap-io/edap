@@ -514,6 +514,7 @@ public class ByteArrayJsonWriter extends AbstractJsonWriter implements JsonWrite
         byte[] _buf = buf;
         char c;
         int cur = pos;
+		_buf[cur++] = '"';
         for (int i=start;i<end;i++) {
             c = s.charAt(i);
             if (c < 128) {
@@ -561,6 +562,7 @@ public class ByteArrayJsonWriter extends AbstractJsonWriter implements JsonWrite
         byte[] _buf = buf;
         char c;
         int cur = pos;
+		writeByte(_buf, cur++, (byte)'"');
         for (int i=start;i<end;i++) {
             c = cs[i];
             if (c < 128) {
