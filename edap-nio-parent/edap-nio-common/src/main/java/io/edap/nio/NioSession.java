@@ -1,6 +1,9 @@
 package io.edap.nio;
 
+import io.edap.buffer.FastBuf;
+
 import java.io.FileDescriptor;
+import java.io.IOException;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.reflect.AccessibleObject;
@@ -36,11 +39,19 @@ public abstract class NioSession implements ThreadAffinity {
     private volatile long lastSequence;
     private boolean affinityThread;
 
+	public static ThreadLocal<FastBuf> THREAD_WRITE_BUF;
+
     private static final MethodHandle READ0_MH;
     private static final MethodHandle WRITE0_MH;
     private static final MethodHandle WRITE0_MH2;
 
     static {
+
+		THREAD_WRITE_BUF = ThreadLocal.withInitial(() -> {
+			FastBuf buf = new FastBuf(16384);
+			return buf;
+		});
+
         Class<?> fdi;
         try {
             fdi = Class.forName("sun.nio.ch.FileDispatcherImpl");

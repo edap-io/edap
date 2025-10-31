@@ -63,7 +63,7 @@ public class HttpServerNioSession extends HttpNioSession {
 		} else { // 请求的路径不存在
 			handler = NOT_FOUND_HANDLER;
 		}
-		FastBuf buf = BUF_POOL.borrow(4096);
+		FastBuf buf = THREAD_WRITE_BUF.get();
 		try {
 			HttpResponse resp = THREAD_HTTP_RESPONSE.get();
 			resp.setNioSession(this);
@@ -72,16 +72,14 @@ public class HttpServerNioSession extends HttpNioSession {
 
 			handler.handle(request, resp);
 
-			SocketChannel sc = getSocketChannel();
-			if (sc.isOpen()) {
-				writeToChannel(buf);
-			} else {
-				sc.close();
-			}
-		} catch (IOException e) {
+//			SocketChannel sc = getSocketChannel();
+//			if (sc.isOpen()) {
+//				writeToChannel(buf);
+//			} else {
+//				sc.close();
+//			}
+		} catch (Exception e) {
 			throw new RuntimeException(e);
-		} finally {
-			BUF_POOL.requite(buf);
 		}
 	}
 }

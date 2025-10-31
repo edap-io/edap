@@ -35,6 +35,7 @@ import java.net.SocketAddress;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.SocketChannel;
 
+import static io.edap.nio.NioSession.THREAD_WRITE_BUF;
 import static io.edap.nio.util.NetUtil.getRemoteAddress;
 
 public class DisruptorReadDispatcher implements ReadDispatcher {
@@ -45,6 +46,7 @@ public class DisruptorReadDispatcher implements ReadDispatcher {
 
     private Decoder       decoder;
     private Server        server;
+	private FastBuf       readBuf;
 
     private DisruptorManager<BizEvent> disruptorManager;
 
@@ -64,9 +66,10 @@ public class DisruptorReadDispatcher implements ReadDispatcher {
     @Override
     public void dispatch(SelectionKey readKey) {
         NioServerSession nioSession = (NioServerSession)readKey.attachment();
-        FastBuf buf = bbPool.borrow();
+        FastBuf buf = readBuf;
         if (buf == null) {
-            buf = new FastBuf(4096);
+			readBuf = new FastBuf(16384);
+			buf = readBuf;
         }
         try {
             buf.reset();
@@ -75,36 +78,40 @@ public class DisruptorReadDispatcher implements ReadDispatcher {
                 closeChannel(readKey, nioSession);
             } else {
                 nioSession.setLastReadTime(EDAP_TIME.currentTimeMillis());
+				FastBuf writeBuf = THREAD_WRITE_BUF.get();
+				writeBuf.clear();
                 while (buf.remain() > 0) {
                     ParseResult pr = decoder.decode(buf, nioSession);
                     if (!pr.isFinished()) {
                         break;
                     }
-                    boolean published;
-                    if (nioSession.isAffinityThread()) {
-                        published = disruptorManager.publishEvent(nioSession, (event, sequence) -> {
-                            event.setNioSession(nioSession);
-                            event.setServerChannelContext(nioSession.getServerChannelContext());
-                            event.setBizData(pr);
-                            nioSession.setLastSequence(sequence);
-                        });
-                    } else {
-                        published = disruptorManager.publishEvent(null, (event, sequence) -> {
-                            event.setNioSession(nioSession);
-                            event.setServerChannelContext(nioSession.getServerChannelContext());
-                            event.setBizData(pr);
-                        });
-                    }
-                    LOG.trace("DisruptorManager published {}", l-> l.arg(published));
+					nioSession.handle(pr.getMessage());
+//                    boolean published;
+//                    if (nioSession.isAffinityThread()) {
+//                        published = disruptorManager.publishEvent(nioSession, (event, sequence) -> {
+//                            event.setNioSession(nioSession);
+//                            event.setServerChannelContext(nioSession.getServerChannelContext());
+//                            event.setBizData(pr);
+//                            nioSession.setLastSequence(sequence);
+//                        });
+//                    } else {
+//                        published = disruptorManager.publishEvent(null, (event, sequence) -> {
+//                            event.setNioSession(nioSession);
+//                            event.setServerChannelContext(nioSession.getServerChannelContext());
+//                            event.setBizData(pr);
+//                        });
+//                    }
+//                    LOG.trace("DisruptorManager published {}", l-> l.arg(published));
                 }
+				nioSession.writeToChannel(writeBuf);
             }
         } catch (IOException e) {
             closeChannel(readKey, nioSession);
             LOG.warn("channel {} read error ", l -> l.arg(getRemoteAddress(readKey.channel())).arg(e));
         } finally {
-            if (buf != null) {
-                bbPool.requite(buf);
-            }
+//            if (buf != null) {
+//                bbPool.requite(buf);
+//            }
         }
     }
 
