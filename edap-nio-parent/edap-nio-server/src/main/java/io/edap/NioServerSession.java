@@ -125,6 +125,17 @@ public abstract class NioServerSession<T> extends NioSession {
         }
     }
 
+	public void writeToChannel(FastBuf buf) throws IOException {
+		int len = (int)(buf.wpos() - buf.address());
+		int wlen = fastWrite(buf);
+		while (wlen < len) {
+			System.out.println("second write");
+			buf.wpos(buf.address() + wlen);
+			wlen += fastWrite(buf);
+		}
+		buf.clear();
+	}
+
     public static Method getMethod(Class clazz, String name, Class... args) {
         return getMethod0(clazz, name, args, true);
     }

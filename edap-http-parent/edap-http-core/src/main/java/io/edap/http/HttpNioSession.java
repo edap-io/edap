@@ -102,12 +102,5 @@ public abstract class HttpNioSession extends NioServerSession<HttpRequest> {
         this.bytesDataRange = bytesDataRange;
     }
 
-    public void writeToChannel(FastBuf buf) throws IOException {
-        int len = (int)(buf.wpos() - buf.address());
-        int wlen = fastWrite(buf);
-        while (wlen < len) {
-            buf.wpos(buf.address() + wlen);
-            wlen += fastWrite(buf);
-        }
-    }
+
 }
