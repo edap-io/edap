@@ -31,8 +31,10 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
 import java.lang.reflect.Field;
+import java.nio.charset.StandardCharsets;
 
 import static io.edap.protobuf.ProtoBuf.conver2HexStr;
+import static io.edap.protobuf.writer.FastProtoBufWriter.*;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -202,5 +204,25 @@ public class TestOneString {
         oneString = ProtoBuf.toObject(epb, OneStringNoAccess.class, option);
         assertEquals(pbOf.getValue(), fieldF.get(oneString));
 
+    }
+
+    @Test
+    public void testFastEncode() {
+        ProtoBufOption option = new ProtoBufOption();
+        option.setCodecType(CodecType.FAST);
+        OneString oneString = new OneString();
+        oneString.setValue("abc");
+        byte[] epb = ProtoBuf.toByteArray(oneString, option);
+        assertEquals(epb[2], LATIN1_BYTE);
+        assertEquals(epb[3], (byte)'a');
+        assertEquals(epb[4], (byte)'b');
+        assertEquals(epb[5], (byte)'c');
+
+        oneString.setValue("中");
+        epb = ProtoBuf.toByteArray(oneString, option);
+        assertEquals(epb[2], UTF16LE_BYTE);
+        byte[] bs = "中".getBytes(StandardCharsets.UTF_16LE);
+        assertEquals(epb[3], bs[0]);
+        assertEquals(epb[4], bs[1]);
     }
 }

@@ -7,12 +7,15 @@ import io.edap.protobuf.ext.AnyCodec;
 import io.edap.protobuf.model.ProtoBufOption;
 import io.edap.protobuf.wire.Field;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Stack;
 
 import static io.edap.protobuf.wire.WireFormat.*;
 import static io.edap.protobuf.wire.WireType.END_GROUP;
+import static io.edap.protobuf.writer.FastProtoBufWriter.LATIN1_BYTE;
+import static io.edap.protobuf.writer.FastProtoBufWriter.UTF16LE_BYTE;
 
 public class ByteArrayFastReader extends ByteArrayReader {
 
@@ -42,80 +45,22 @@ public class ByteArrayFastReader extends ByteArrayReader {
         int len = readRawVarint32();
         if (len < 0) {
             return null;
+        } else if (len == 0) {
+            return "";
         }
-        char[] cs;
-        if (len < 4096 && tmp == null) {
-            cs = LOCAL_TMP_CHAR_ARRAY.get();
+        int    tmpPos = pos;
+        byte[] _buf   = buf;
+        byte charsetByte = _buf[tmpPos++];
+        String s;
+        if (charsetByte == LATIN1_BYTE) {
+            s = new String(_buf, tmpPos, len -1, StandardCharsets.ISO_8859_1);
+        } else if (charsetByte == UTF16LE_BYTE) {
+            s = new String(_buf, tmpPos, len -1, StandardCharsets.UTF_16LE);
         } else {
-            cs = new char[len];
+            s = new String(_buf, tmpPos, len -1, StandardCharsets.UTF_8);
         }
-        int index = 0;
-        int tmpPos = pos;
-        while (index < len) {
-            int b = buf[tmpPos++];
-            if ((b & 0x80) == 0) {
-                cs[index++] = (char)b;
-            } else {
-                byte b2 = buf[tmpPos++];
-                if ((b & 0xE0) == 0xC0) {
-                    cs[index++] = (char)(((b & 0x1F) << 6) + (b2 & 0x3F));
-                } else {
-                    byte b3 = buf[tmpPos++];
-                    if ((b & 0xF0) == 0xE0) {
-                        cs[index++] = (char)(((b & 0x0F) << 12)
-                                + ((b2 & 0x3F) << 6) + (b3 & 0x3F));
-                    } else {
-                        byte b4 = buf[tmpPos++];
-                        if ((b & 0xF8) == 0xF0) {
-                            b = ((b & 0x07) << 18) + ((b2 & 0x3F) << 12)
-                                    + ((b3 & 0x3F) << 6) + (b4 & 0x3F);
-                        } else {
-                            throw new RuntimeException("Not well UTF-8 String");
-                        }
-                        if (b >= 0x10000) {
-                            if (b >= 0x110000) {
-                                throw new RuntimeException("Not well UTF-8 String");
-                            }
-                            int sup = b - 0x10000;
-                            cs[index++] = (char)((sup >>> 10) + 0xd800);
-                            cs[index++] = (char)((sup & 0x3ff) + 0xdc00);
-                        }
-                    }
-                }
-            }
-        }
-        String s = new String(cs, 0, index);
-        //String s = new String(buf, pos, len, StandardCharsets.UTF_8);
-        pos = tmpPos;
+        pos += len;
         return s;
-    }
-
-    @Override
-    public List<Integer> readPackedInt32(Field.Type type) throws ProtoException {
-        List<Integer> list = new ArrayList<>();
-        int len = readRawVarint32();
-        switch (type) {
-            case INT32:
-            case UINT32:
-                for (int i=0;i<len;i++) {
-                    list.add(readRawVarint32());
-                }
-                break;
-            case SINT32:
-                for (int i=0;i<len;i++) {
-                    list.add(readSInt32());
-                }
-                break;
-            case FIXED32:
-            case SFIXED32:
-                for (int i=0;i<len;i++) {
-                    list.add(readRawLittleEndian32());
-                }
-                break;
-            default:
-                throw ProtoException.malformedVarint();
-        }
-        return list;
     }
 
     public <T extends Object> T readMessage(ProtoBufDecoder<T> decoder, int endTag)

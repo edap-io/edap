@@ -28,21 +28,26 @@ import io.edap.protobuf.wire.WireFormat;
 import io.edap.protobuf.wire.WireType;
 import io.edap.util.CollectionUtils;
 import io.edap.util.StringUtil;
+import io.edap.util.UnsafeUtil;
 
 import java.util.List;
 import java.util.Map;
 
-import static io.edap.protobuf.wire.WireFormat.MAX_VARINT_SIZE;
-import static io.edap.protobuf.wire.WireFormat.MAX_VARLONG_SIZE;
+import static io.edap.protobuf.wire.WireFormat.*;
 import static io.edap.util.CollectionUtils.isEmpty;
 import static io.edap.util.StringUtil.*;
 import static io.edap.util.StringUtil.getCharValue;
+import static io.edap.util.UnsafeUtil.copyUtf16le;
 
 public class FastProtoBufWriter extends StandardProtoBufWriter {
 
     static int START_TAG = WireFormat.makeTag(1, WireType.START_GROUP);
 
     static int END_TAG = WireFormat.makeTag(1, WireType.END_GROUP);
+
+    public static final byte LATIN1_BYTE  = 0;
+    public static final byte UTF16LE_BYTE = 1;
+    public static final byte UTF8_BYTE    = 2;
 
     public FastProtoBufWriter(BufOut out) {
         super(out);
@@ -53,80 +58,6 @@ public class FastProtoBufWriter extends StandardProtoBufWriter {
         writeInt32(START_TAG);
         codec.encode(this, v);
         writeInt32(END_TAG);
-    }
-
-    @Override
-    public void writePackedInts(byte[] fieldData, List<Integer> values, Field.Type type) {
-        if (isEmpty(values)) {
-            return;
-        }
-        int len;
-        int size;
-        int oldPos;
-        switch (type) {
-            case INT32:
-            case UINT32:
-                size = values.size();
-                len = size * 5;
-                expand((MAX_VARLONG_SIZE << 1) + len);
-                writeFieldData(fieldData);
-
-                writeInt32_0(size);
-                int i = 0;
-                writeInt32_0(values.get(i++));
-                if (size > 1) {
-                    writeInt32_0(values.get(i++));
-                }
-                if (size > 2) {
-                    writeInt32_0(values.get(i++));
-                }
-                if (size > 3) {
-                    writeInt32_0(values.get(i++));
-                }
-                if (size > 4) {
-                    writeInt32_0(values.get(i++));
-                }
-                if (size > 5) {
-                    writeInt32_0(values.get(i++));
-                }
-                if (size > 6) {
-                    writeInt32_0(values.get(i++));
-                }
-                if (size > 7) {
-                    writeUInt32_0(values.get(i++));
-                }
-                if (size > 8) {
-                    writeInt32_0(values.get(i++));
-                }
-                if (size > 9) {
-                    writeInt32_0(values.get(i++));
-                }
-                for (i=10;i<size;i++) {
-                    writeInt32_0(values.get(i));
-                }
-                return;
-            case SINT32:
-                size = values.size();
-                len = size * MAX_VARINT_SIZE;
-                expand(MAX_VARINT_SIZE << 1 + len);
-                writeFieldData(fieldData);
-                writeUInt32_0(size);
-                for (i=0;i<size;i++) {
-                    writeUInt32_0(ProtoBufWriter.encodeZigZag32(values.get(i)));
-                }
-                return;
-            case FIXED32:
-            case SFIXED32:
-                size = values.size();
-                expand(MAX_VARINT_SIZE << 1 + size << 2);
-                writeFieldData(fieldData);
-                writeUInt32_0(size);
-                for (Integer v : values) {
-                    writeFixed32_0(v);
-                }
-            default:
-                break;
-        }
     }
 
     @Override
@@ -171,44 +102,28 @@ public class FastProtoBufWriter extends StandardProtoBufWriter {
      */
     protected final void writeString0(final String value) {
         String v = value;
-        int charLen = v.length();
         // 如果jvm是9以上版本，并且字符串为Latin1的编码，长度大于5时直接copy字符串对象额value字节数组
-        if (IS_BYTE_ARRAY && isLatin1(v)) {
+        if (IS_BYTE_ARRAY) {
             byte[] data = StringUtil.getValue(v);
-            writeByteArray(data, 0, charLen);
-            return;
-        }
-        // 转为utf8后最大的所需字节数
-        int maxBytes = charLen * 3;
-        // 如果所需最大字节数小于3k + 编码int最大字节数 则直接扩容所需最大字节数
-        if (maxBytes <= 3072) {
-            expand(maxBytes + MAX_VARINT_SIZE);
-            writeUInt32_0(charLen);
-            int len;
-            if (charLen <= 16) {
-                len = writeChars(getCharValue(v), 0, charLen, pos);
+            int length = data.length;
+            expand(length + 6);
+            writeUInt32_0(length + 1);
+            int _pos = pos;
+            if (isLatin1(v)) {
+                bs[_pos++] = LATIN1_BYTE;
             } else {
-                len = writeChars(getCharValue(v), 0, charLen, pos);
+                bs[_pos++] = UTF16LE_BYTE;
             }
-            pos += len;
-            return;
+            System.arraycopy(data, 0, bs, _pos, length);
+            pos = _pos + length;
+        } else {
+            int charLen = v.length();
+            expand(charLen * 2 + 6);
+            int _pos = pos;
+            bs[_pos++] = UTF16LE_BYTE;
+            copyUtf16le((char[]) UnsafeUtil.getValue(value, VALUE_FIELD_OFFSET), 0, bs, _pos, charLen);
+            pos += charLen * 2+1;
         }
-
-        // 每次取最大为1024个字符进行写入
-        int start = 0;
-        int end = Math.min((start + 1024), charLen);
-
-        expand(MAX_VARINT_SIZE);
-        writeUInt32_0(charLen);
-        int _pos   = pos;
-        while (start < charLen) {
-            expand(3072);
-            _pos += writeChars(v, start, end, _pos);
-            pos = _pos;
-            start += 1024;
-            end = Math.min((start + 1024), charLen);
-        }
-        pos = _pos;
     }
 
     @Override
@@ -258,4 +173,5 @@ public class FastProtoBufWriter extends StandardProtoBufWriter {
         writeFieldData(fieldData);
         AnyCodec.encode(this, v, option);
     }
+
 }

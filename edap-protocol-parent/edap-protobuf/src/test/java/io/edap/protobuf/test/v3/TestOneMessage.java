@@ -28,6 +28,8 @@ import io.edap.protobuf.test.message.v3.OneMessage;
 import io.edap.protobuf.test.message.v3.OneMessageNoAccess;
 import io.edap.protobuf.test.message.v3.OneMessageOuterClass;
 import io.edap.protobuf.test.message.v3.Proj;
+import io.edap.protobuf.wire.WireFormat;
+import io.edap.protobuf.wire.WireType;
 import io.edap.util.ClazzUtil;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -116,6 +118,8 @@ public class TestOneMessage {
         System.out.println("+-fepb[" + epb.length + "]-------------------+");
         System.out.println(conver2HexStr(epb));
         System.out.println("+--------------------+");
+        assertEquals(epb[0], (byte)WireFormat.makeTag(1, WireType.START_GROUP));
+        assertEquals(epb[epb.length-1], (byte)WireFormat.makeTag(1, WireType.END_GROUP));
         oneMessage = ProtoBuf.toObject(epb, OneMessage.class, option);
 
         assertEquals(pbOf.getValue().getId(), oneMessage.getProj().getId());
