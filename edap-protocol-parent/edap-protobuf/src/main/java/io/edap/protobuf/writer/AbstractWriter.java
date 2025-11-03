@@ -632,9 +632,10 @@ public abstract class AbstractWriter implements ProtoBufWriter {
         pos++;
         int _pos   = oldPos + 1;
         expand(maxBytes + 1);
+		char[] chars = getCharValue(v);
         while (start < charLen) {
             expand(3072);
-            _pos += writeChars(v, start, end, _pos);
+            _pos += writeChars(chars, start, end, _pos);
             pos = _pos;
             start += 1024;
             end = Math.min((start + 1024), charLen);
