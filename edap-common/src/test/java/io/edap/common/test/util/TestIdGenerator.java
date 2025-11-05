@@ -16,7 +16,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-public class IdGeneratorTest {
+public class TestIdGenerator {
 
 	static Field timestampLeftShiftField;
 	static Field workIdField;

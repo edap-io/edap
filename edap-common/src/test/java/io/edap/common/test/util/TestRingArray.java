@@ -23,7 +23,7 @@ import java.lang.reflect.Field;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-public class RingArrayTest {
+public class TestRingArray {
 
 	@Test
 	public void testConstructor() throws NoSuchFieldException, IllegalAccessException {
