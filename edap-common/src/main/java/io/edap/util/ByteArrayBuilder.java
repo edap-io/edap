@@ -36,7 +36,7 @@ public class ByteArrayBuilder {
 
     private final Grisu3.FastDtoaBuilder doubleBuilder = new Grisu3.FastDtoaBuilder();
 
-    private final static int[] DIGITS = new int[1000];
+    private final static int[]  DIGITS = new int[1000];
     private final static byte[] MIN_INT_BYTES;
     private final static byte[] MIN_LONG_BYTES;
 
@@ -132,6 +132,7 @@ public class ByteArrayBuilder {
 
     public ByteArrayBuilder append(boolean bool) {
         if (bool) {
+			ensureCapacity(4);
             return uncheckAppend((byte)'t', (byte)'r', (byte)'u', (byte)'e');
         } else {
             ensureCapacity(5);
@@ -185,10 +186,7 @@ public class ByteArrayBuilder {
      */
     public ByteArrayBuilder append(byte b1, byte b2, byte b3, byte b4) {
         ensureCapacity(count+4);
-        value[count++] = b1;
-        value[count++] = b2;
-        value[count++] = b3;
-        value[count++] = b4;
+        uncheckAppend(b1, b2, b3, b4);
         return this;
     }
 
@@ -228,19 +226,19 @@ public class ByteArrayBuilder {
     }
 
     public ByteArrayBuilder uncheckAppend(byte b1, byte b2, byte b3, byte b4) {
-        value[count++] = b1;
-        value[count++] = b2;
-        value[count++] = b3;
-        value[count++] = b4;
+		byte[] _val = value;
+		int    _pos = count;
+		_val[_pos++] = b1;
+		_val[_pos++] = b2;
+		_val[_pos++] = b3;
+		_val[_pos++] = b4;
+		count = _pos;
         return this;
     }
 
     public ByteArrayBuilder appendNull() {
         ensureCapacity(count+4);
-        value[count++] = 'n';
-        value[count++] = 'u';
-        value[count++] = 'l';
-        value[count++] = 'l';
+		uncheckAppend((byte)'n', (byte)'u', (byte)'l', (byte)'l');
         return this;
     }
 
