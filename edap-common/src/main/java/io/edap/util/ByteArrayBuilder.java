@@ -467,8 +467,6 @@ public class ByteArrayBuilder {
             return append((Double)obj);
         } else if (obj instanceof Boolean) {
             return append((Boolean)obj);
-        } else if (obj instanceof Throwable) {
-
         }
         return append(obj.toString());
     }
