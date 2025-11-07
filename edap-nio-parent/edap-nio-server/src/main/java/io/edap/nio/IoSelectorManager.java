@@ -159,6 +159,7 @@ public class IoSelectorManager {
             lock.unlock();
         }
         try {
+			nioSession.setSelector(ioWorker.selector);
             key = nioSession.getSocketChannel().register(ioWorker.selector, SelectionKey.OP_READ, nioSession);
         } catch (ClosedChannelException e) {
             throw new RuntimeException(e);
