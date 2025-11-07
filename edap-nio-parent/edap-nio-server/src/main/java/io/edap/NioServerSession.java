@@ -30,6 +30,9 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.nio.channels.*;
 import java.util.List;
+import java.util.Queue;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -95,11 +98,11 @@ public abstract class NioServerSession<T> extends NioSession {
      */
     private int maxPipeline;
 
+	private BlockingQueue<FastBuf> writeBufs;
+
     private static final MethodHandle READ0_MH;
     private static final MethodHandle WRITE0_MH;
     private static final MethodHandle WRITE0_MH2;
-
-    private BytesBuf wbuf;
 
     static {
         Class<?> fdi;
@@ -125,15 +128,15 @@ public abstract class NioServerSession<T> extends NioSession {
         }
     }
 
-	public void writeToChannel(FastBuf buf) throws IOException {
+	public boolean writeToChannel(FastBuf buf) throws IOException {
 		int len = (int)(buf.wpos() - buf.address());
 		int wlen = fastWrite(buf);
-		while (wlen < len) {
-			System.out.println("second write");
-			buf.wpos(buf.address() + wlen);
-			wlen += fastWrite(buf);
+		if (wlen >= len) {
+			buf.clear();
+			return true;
 		}
-		buf.clear();
+
+		return false;
 	}
 
     public static Method getMethod(Class clazz, String name, Class... args) {
@@ -212,15 +215,19 @@ public abstract class NioServerSession<T> extends NioSession {
     }
 
     protected NioServerSession() {
-        wbuf = new BytesBuf(new byte[4096]);
     }
 
-    public BytesBuf getWbuf() {
-        return wbuf;
+    public FastBuf getWriteBuf() {
+		if (writeBufs == null) {
+			return null;
+		}
+        return writeBufs.peek();
     }
 
-    public void setWbuf(BytesBuf wbuf) {
-        this.wbuf = wbuf;
+    public void removeWriteBuf(FastBuf wbuf) {
+		if (writeBufs != null) {
+			writeBufs.remove(wbuf);
+		}
     }
 
 
@@ -454,4 +461,15 @@ public abstract class NioServerSession<T> extends NioSession {
     public void setMonitorIndex(int monitorIndex) {
         this.monitorIndex = monitorIndex;
     }
+
+	public void putToWriteQueue(FastBuf buf) {
+		if (writeBufs == null) {
+			writeBufs = new ArrayBlockingQueue(16);
+		}
+		try {
+			writeBufs.put(buf);
+		} catch (InterruptedException e) {
+			throw new RuntimeException(e);
+		}
+	}
 }

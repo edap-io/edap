@@ -66,26 +66,27 @@ public class DisruptorReadDispatcher implements ReadDispatcher {
     @Override
     public void dispatch(SelectionKey readKey) {
         NioServerSession nioSession = (NioServerSession)readKey.attachment();
-        FastBuf buf = readBuf;
-        if (buf == null) {
-			readBuf = new FastBuf(16384);
-			buf = readBuf;
-        }
-        try {
-            buf.reset();
-            int len = nioSession.fastRead(buf);
-            if (len < 0) {
-                closeChannel(readKey, nioSession);
-            } else {
-                nioSession.setLastReadTime(EDAP_TIME.currentTimeMillis());
-				FastBuf writeBuf = THREAD_WRITE_BUF.get();
-				writeBuf.clear();
-                while (buf.remain() > 0) {
-                    ParseResult pr = decoder.decode(buf, nioSession);
-                    if (!pr.isFinished()) {
-                        break;
-                    }
-					nioSession.handle(pr.getMessage());
+		if (readKey.isReadable()) {
+			FastBuf buf = readBuf;
+			if (buf == null) {
+				readBuf = new FastBuf(16384);
+				buf = readBuf;
+			}
+			try {
+				buf.reset();
+				int len = nioSession.fastRead(buf);
+				if (len < 0) {
+					closeChannel(readKey, nioSession);
+				} else {
+					nioSession.setLastReadTime(EDAP_TIME.currentTimeMillis());
+					FastBuf writeBuf = THREAD_WRITE_BUF.get();
+					writeBuf.clear();
+					while (buf.remain() > 0) {
+						ParseResult pr = decoder.decode(buf, nioSession);
+						if (!pr.isFinished()) {
+							break;
+						}
+						nioSession.handle(pr.getMessage());
 //                    boolean published;
 //                    if (nioSession.isAffinityThread()) {
 //                        published = disruptorManager.publishEvent(nioSession, (event, sequence) -> {
@@ -102,17 +103,48 @@ public class DisruptorReadDispatcher implements ReadDispatcher {
 //                        });
 //                    }
 //                    LOG.trace("DisruptorManager published {}", l-> l.arg(published));
-                }
-				nioSession.writeToChannel(writeBuf);
-            }
-        } catch (IOException e) {
-            closeChannel(readKey, nioSession);
-            LOG.warn("channel {} read error ", l -> l.arg(getRemoteAddress(readKey.channel())).arg(e));
-        } finally {
+					}
+					FastBuf wbuf = nioSession.getWriteBuf();
+					if (wbuf == null) {
+						if (!nioSession.writeToChannel(writeBuf)) {
+							nioSession.putToWriteQueue(writeBuf);
+							FastBuf nbuf = new FastBuf(16384);
+							THREAD_WRITE_BUF.set(nbuf);
+							nioSession.setSelectionKey(nioSession.getSocketChannel()
+									.register(nioSession.getSelector(), SelectionKey.OP_WRITE, nioSession));
+						}
+					} else {
+						if (nioSession.writeToChannel(wbuf)) {
+							nioSession.removeWriteBuf(wbuf);
+							SelectionKey wkey  = nioSession.getSelectionKey();
+							if (wkey != null && wkey.isWritable()) {
+								wkey.cancel();
+								nioSession.setSelectionKey(null);
+							}
+						}
+					}
+				}
+			} catch (IOException e) {
+				closeChannel(readKey, nioSession);
+				LOG.warn("channel {} read error ", l -> l.arg(getRemoteAddress(readKey.channel())).arg(e));
+			} finally {
 //            if (buf != null) {
 //                bbPool.requite(buf);
 //            }
-        }
+			}
+		} else if (readKey.isWritable()) {
+			FastBuf wbuf = nioSession.getWriteBuf();
+			try {
+				if (wbuf != null) {
+					if (nioSession.writeToChannel(wbuf)) {
+						nioSession.removeWriteBuf(wbuf);
+					}
+				}
+			} catch (IOException e) {
+				closeChannel(readKey, nioSession);
+				LOG.warn("channel {} read error ", l -> l.arg(getRemoteAddress(readKey.channel())).arg(e));
+			}
+		}
     }
 
     private void closeChannel(SelectionKey readKey, NioServerSession nioSession) {
