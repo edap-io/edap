@@ -29,6 +29,7 @@ import io.edap.util.EdapTime;
 
 import java.net.Socket;
 import java.net.SocketOption;
+import java.net.SocketOptions;
 import java.nio.channels.SocketChannel;
 
 /**
@@ -75,9 +76,10 @@ public class AcceptEventHandler implements EventHandler<AcceptEvent> {
         sc.configureBlocking(false);
 		Socket socket = sc.socket();
 		socket.setReuseAddress(true);
-		socket.setTcpNoDelay(false);
+		socket.setTcpNoDelay(true);
 		socket.setReceiveBufferSize(16 * 1024);
 		socket.setSendBufferSize(16 * 1024);
+        socket.setKeepAlive(false);
         NioServerSession<?> nioSession;
         if (nioSessionPooled) {
             nioSession = nioSessionPool.borrow();

@@ -60,6 +60,10 @@ public class DisruptorReadDispatcher implements ReadDispatcher {
         this.decoder          = server.getDecoder();
         this.disruptorManager = disruptorManager;
 
+        for (int i = 0;i < 16; i++) {
+            bbPool.requite(new FastBuf(16384));
+        }
+
         NIO_SESSION_POOLED = server.isNioSesionPooled();
     }
 
@@ -108,7 +112,10 @@ public class DisruptorReadDispatcher implements ReadDispatcher {
 					if (wbuf == null) {
 						if (!nioSession.writeToChannel(writeBuf)) {
 							nioSession.putToWriteQueue(writeBuf);
-							FastBuf nbuf = new FastBuf(16384);
+							FastBuf nbuf = bbPool.borrow();
+                            if (nbuf == null) {
+                                nbuf = new FastBuf(16384);
+                            }
 							THREAD_WRITE_BUF.set(nbuf);
 							nioSession.setSelectionKey(nioSession.getSocketChannel()
 									.register(nioSession.getSelector(), SelectionKey.OP_WRITE, nioSession));
@@ -116,11 +123,14 @@ public class DisruptorReadDispatcher implements ReadDispatcher {
 					} else {
 						if (nioSession.writeToChannel(wbuf)) {
 							nioSession.removeWriteBuf(wbuf);
-							SelectionKey wkey  = nioSession.getSelectionKey();
-							if (wkey != null && wkey.isWritable()) {
-								wkey.cancel();
-								nioSession.setSelectionKey(null);
-							}
+                            if (nioSession.getWriteBuf() == null) {
+                                SelectionKey wkey = nioSession.getSelectionKey();
+                                if (wkey != null && wkey.isWritable()) {
+                                    wkey.cancel();
+                                    nioSession.setSelectionKey(null);
+                                }
+                            }
+                            bbPool.requite(wbuf);
 						}
 					}
 				}
@@ -138,6 +148,7 @@ public class DisruptorReadDispatcher implements ReadDispatcher {
 				if (wbuf != null) {
 					if (nioSession.writeToChannel(wbuf)) {
 						nioSession.removeWriteBuf(wbuf);
+                        bbPool.requite(wbuf);
 					}
 				}
 			} catch (IOException e) {

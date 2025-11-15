@@ -69,7 +69,7 @@ public class IoSelectorManager {
         if (server.getIoThreadCount() < 1) {
             ioThreadCount = SystemUtil.getCpuCount();
         }
-		ioThreadCount *= 2;
+		//ioThreadCount += 2;
 
         ioWorkers = new IoWorker[ioThreadCount];
         for (int i=0;i<ioThreadCount;i++) {
