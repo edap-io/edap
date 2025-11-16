@@ -69,10 +69,13 @@ public class IoSelectorManager {
         if (server.getIoThreadCount() < 1) {
             ioThreadCount = SystemUtil.getCpuCount();
         }
-		ioThreadCount *= 2;
+        int reactorCount = ioThreadCount / 8;
+        if (reactorCount < 1) {
+            reactorCount = 1;
+        }
 
-        ioWorkers = new IoWorker[ioThreadCount];
-        for (int i=0;i<ioThreadCount;i++) {
+        ioWorkers = new IoWorker[reactorCount];
+        for (int i=0;i<reactorCount;i++) {
             IoWorker ioWorker = new IoWorker();
             EventDispatcherSet         eventDispatcherSet;
             Selector                   selector;
@@ -80,7 +83,7 @@ public class IoSelectorManager {
             EdapSelectorInfo           info;
             DisruptorManager<BizEvent> disruptorManager = null;
             try {
-                //disruptorManager   = createDisruptorManager();
+                disruptorManager   = createDisruptorManager();
                 readDispatcher     = dispatcherFactory.createReadDispatcher(server, disruptorManager);
                 info               = selectorProvider.openSelector(readDispatcher);
                 selector           = info.getSelector();
@@ -131,14 +134,14 @@ public class IoSelectorManager {
         return infos;
     }
 
-//    private DisruptorManager<BizEvent> createDisruptorManager() {
-//        DisruptorManager<BizEvent> manager = new RoundRobinDisruptorManager<>(
-//                BizEvent::new, new BizEventHandler(server), BIZ_THREAD_FACTORY, 32,
-//                ProducerType.SINGLE, new BlockingWaitStrategy()
-//        );
-//
-//        return manager;
-//    }
+    private DisruptorManager<BizEvent> createDisruptorManager() {
+        DisruptorManager<BizEvent> manager = new RoundRobinDisruptorManager<>(
+                BizEvent::new, new BizEventHandler(server), BIZ_THREAD_FACTORY, 16,
+                ProducerType.SINGLE, new BlockingWaitStrategy()
+        );
+
+        return manager;
+    }
 
     public void registerNioSession(NioServerSession nioSession) {
         LOG.debug("registerNioSession {}", l -> l.arg(nioSession));
