@@ -31,6 +31,8 @@ public class BizEventHandler implements EventHandler<BizEvent>  {
 
     Logger LOG = LoggerManager.getLogger(BizEventHandler.class);
 
+	NioServerSession preNioSession;
+
     public BizEventHandler(Server server) {
 
     }
@@ -44,11 +46,14 @@ public class BizEventHandler implements EventHandler<BizEvent>  {
             Object obj = pr.getMessage();
             if (obj != null) {
                 nioSession.handle(obj);
-                FastBuf buf = THREAD_WRITE_BUF.get();
-                while (nioSession.writeToChannel(buf)) {
-                    return;
-                }
+				if (endOfBatch || (preNioSession != nioSession)) {
+					FastBuf buf = THREAD_WRITE_BUF.get();
+					while (nioSession.writeToChannel(buf)) {
+						return;
+					}
+				}
             }
+			preNioSession = nioSession;
         } catch (Exception e) {
 
         } finally {
