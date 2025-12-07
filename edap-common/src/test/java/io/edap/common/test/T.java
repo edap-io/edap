@@ -5,9 +5,10 @@ import java.util.Arrays;
 
 public class T {
 
-    public static void main(String[] args) throws NoSuchMethodException {
-        Constructor cs = String.class.getDeclaredConstructor(byte[].class, byte.class);
-        System.out.println(cs);
-        cs.setAccessible(true);
+    public static void main(String[] args) {
+        for (byte i=Byte.MIN_VALUE;i<Byte.MAX_VALUE;i++) {
+            int v = (i & 0xff);
+            System.out.println(v%16 + "=" + (v & 0x0f));
+        }
     }
 }
