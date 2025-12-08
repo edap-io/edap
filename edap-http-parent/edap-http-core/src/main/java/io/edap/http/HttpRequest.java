@@ -28,6 +28,8 @@ public interface HttpRequest {
 
     ByteData getBody();
 
+	ByteData getHeaderData();
+
     String getMethod();
 
     MethodInfo getMethodInfo();

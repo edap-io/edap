@@ -26,6 +26,7 @@ import io.edap.http.server.bytesdecoder.BytesPathDecoder;
 import io.edap.http.server.bytesdecoder.BytesQueryStringDecoder;
 import io.edap.nio.ParseResult;
 import io.edap.util.ByteArrayBuilder;
+import io.edap.util.ByteData;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -122,7 +123,7 @@ public class BytesHttpRequestDecoder extends AbstractHttpDecoder implements Deco
                 request.setVersion(version);
             case READ_HEADER:
                 if (request.pathInfo.getHandlerOption() != null && request.pathInfo.getHandlerOption().isLazyParseHeader()) {
-                    byte[] headerData = HEADER_DECODER.decode(buf, sb, request);
+                    ByteData headerData = HEADER_DECODER.decode(buf, sb, request);
                     if (headerData != null) {
                         request.setHeaderData(headerData);
                         result.finish = true;

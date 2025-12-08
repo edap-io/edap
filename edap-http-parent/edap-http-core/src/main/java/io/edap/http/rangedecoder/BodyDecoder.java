@@ -25,22 +25,23 @@ import io.edap.http.HeaderValue;
 import io.edap.http.HttpNioSession;
 import io.edap.http.HttpRequest;
 import io.edap.http.headervalue.ContentTypeValue;
+import io.edap.nio.ParseResult;
 import io.edap.util.ByteData;
 
 public class BodyDecoder {
 
     public void decode(HttpRequest request, FastBuf buf, HttpFastBufDataRange dataRange,
-                       AbstractHttpDecoder.Result result, HttpNioSession httpNioSession) {
+					   ParseResult<HttpRequest> result, HttpNioSession httpNioSession) {
         String method = request.getMethod();
         int contentLength = request.getContentLength();
         String transferEncoding = null;
         if ("GET".equals(method)) {
             if (request.getContentLength() <= 0) {
-                result.finish = true;
+				result.setFinished(true);
             }
         } else {
             if (contentLength == 0) {
-                result.finish = true;
+				result.setFinished(true);
             } else if (contentLength > 0) {
                 String typeValue = "";
                 HeaderValue hv = request.getHeaderValue(ContentTypeHeader.NAME);
@@ -55,7 +56,7 @@ public class BodyDecoder {
                         typeValue = htv.getContentType();
                     }
                 }
-                result.finish = decodeFixedBody(typeValue, buf, contentLength, request, httpNioSession);
+				result.setFinished(decodeFixedBody(typeValue, buf, contentLength, request, httpNioSession));
             } else {
                 HeaderValue encodingVal = request.getHeaderValue("Transfer-Encoding");
                 if (encodingVal != null) {

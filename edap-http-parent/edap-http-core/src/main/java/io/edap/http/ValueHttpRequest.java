@@ -47,7 +47,7 @@ public class ValueHttpRequest implements HttpRequest {
     /**
      * 整个header数据区的数据
      */
-    private byte[] headerData;
+    private ByteData headerData;
 
     /**
      * HTTP请求的参数
@@ -137,11 +137,14 @@ public class ValueHttpRequest implements HttpRequest {
     /**
      * 整个header数据区的数据
      */
-    public byte[] getHeaderData() {
+    public ByteData getHeaderData() {
+		if (headerData == null) {
+			headerData = new ByteData(4096);
+		}
         return headerData;
     }
 
-    public void setHeaderData(byte[] headerData) {
+    public void setHeaderData(ByteData headerData) {
         this.headerData = headerData;
     }
 
