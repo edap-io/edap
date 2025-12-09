@@ -70,8 +70,6 @@ public abstract class NioServerSession<T> extends NioSession {
      */
     private volatile long lastWriteTime;
 
-    private FileDescriptor channelFd;
-
     private List<String> durations;
     /**
      * 该会话关联的SocketChannel的对象
@@ -100,34 +98,6 @@ public abstract class NioServerSession<T> extends NioSession {
 
 	private BlockingQueue<FastBuf> writeBufs;
 
-    private static final MethodHandle READ0_MH;
-    private static final MethodHandle WRITE0_MH;
-    private static final MethodHandle WRITE0_MH2;
-
-    static {
-        Class<?> fdi;
-        try {
-            fdi = Class.forName("sun.nio.ch.FileDispatcherImpl");
-            Method read0 = getMethod(fdi, "read0", new Class[]{FileDescriptor.class, Long.TYPE, Integer.TYPE});
-            READ0_MH = MethodHandles.lookup().unreflect(read0);
-
-            MethodHandle write0Mh = null;
-            MethodHandle write0Mh2 = null;
-            try {
-                Method write0 = getMethod(fdi, "write0", new Class[]{FileDescriptor.class, Long.TYPE, Integer.TYPE});
-                write0Mh = MethodHandles.lookup().unreflect(write0);
-            } catch (AssertionError var7) {
-                Method write0 = getMethod(fdi, "write0", new Class[]{FileDescriptor.class, Long.TYPE, Integer.TYPE, Boolean.TYPE});
-                write0Mh2 = MethodHandles.lookup().unreflect(write0);
-            }
-
-            WRITE0_MH  = write0Mh;
-            WRITE0_MH2 = write0Mh2;
-        } catch (ClassNotFoundException | IllegalAccessException e) {
-            throw new AssertionError(e);
-        }
-    }
-
 	public boolean writeToChannel(FastBuf buf) throws IOException {
 		int len = (int)(buf.wpos() - buf.address());
 		int wlen = fastWrite(buf);
@@ -138,81 +108,6 @@ public abstract class NioServerSession<T> extends NioSession {
 
 		return false;
 	}
-
-    public static Method getMethod(Class clazz, String name, Class... args) {
-        return getMethod0(clazz, name, args, true);
-    }
-
-    public static <V> V getValue(Object obj, String name) {
-        Class<?> aClass = obj.getClass();
-        for (String n : name.split("/")) {
-            Field f = getField(aClass, n);
-            try {
-                obj = f.get(obj);
-                if (obj == null) {
-                    return null;
-                }
-            } catch (IllegalAccessException e) {
-                throw new AssertionError(e);
-            }
-            aClass = obj.getClass();
-        }
-        return (V) obj;
-    }
-
-    public static Field getField(Class clazz, String name) {
-        return getField0(clazz, name, true);
-    }
-
-    static Field getField0(Class clazz, String name, boolean error) {
-        try {
-            Field field = clazz.getDeclaredField(name);
-            setAccessible(field);
-            return field;
-
-        } catch (NoSuchFieldException e) {
-            Class superclass = clazz.getSuperclass();
-            if (superclass != null) {
-                Field field = getField0(superclass, name, false);
-                if (field != null) {
-                    return field;
-                }
-            }
-            if (error) {
-                throw new AssertionError(e);
-            }
-            return null;
-        }
-    }
-
-    private static Method getMethod0(Class clazz, String name, Class[] args, boolean first) {
-        try {
-            Method method = clazz.getDeclaredMethod(name, args);
-            if (!Modifier.isPublic(method.getModifiers()) ||
-                    !Modifier.isPublic(method.getDeclaringClass().getModifiers()))
-                setAccessible(method);
-            return method;
-
-        } catch (NoSuchMethodException e) {
-            Class superclass = clazz.getSuperclass();
-            if (superclass != null)
-                try {
-                    Method m = getMethod0(superclass, name, args, false);
-                    if (m != null) {
-                        return m;
-                    }
-                } catch (Exception ignored) {
-                }
-            if (first) {
-                throw new AssertionError(e);
-            }
-            return null;
-        }
-    }
-
-    public static void setAccessible(AccessibleObject h) {
-        h.setAccessible(true);
-    }
 
     protected NioServerSession() {
     }

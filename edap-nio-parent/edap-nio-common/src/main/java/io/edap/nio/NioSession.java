@@ -3,13 +3,15 @@ package io.edap.nio;
 import io.edap.buffer.FastBuf;
 
 import java.io.FileDescriptor;
-import java.io.IOException;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.reflect.AccessibleObject;
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.nio.channels.SocketChannel;
+
+import static io.edap.util.ClazzUtil.getField;
 
 public abstract class NioSession implements ThreadAffinity {
 
@@ -22,7 +24,7 @@ public abstract class NioSession implements ThreadAffinity {
      */
     private volatile long lastWriteTime;
 
-    private FileDescriptor channelFd;
+    protected FileDescriptor channelFd;
 
     /**
      * 该会话关联的SocketChannel的对象
@@ -41,9 +43,9 @@ public abstract class NioSession implements ThreadAffinity {
 
 	public static ThreadLocal<FastBuf> THREAD_WRITE_BUF;
 
-    private static final MethodHandle READ0_MH;
-    private static final MethodHandle WRITE0_MH;
-    private static final MethodHandle WRITE0_MH2;
+    protected static final MethodHandle READ0_MH;
+    protected static final MethodHandle WRITE0_MH;
+    protected static final MethodHandle WRITE0_MH2;
 
     static {
 
@@ -55,17 +57,19 @@ public abstract class NioSession implements ThreadAffinity {
         Class<?> fdi;
         try {
             fdi = Class.forName("sun.nio.ch.FileDispatcherImpl");
-            Method read0 = getMethod(fdi, "read0", new Class[]{FileDescriptor.class, Long.TYPE, Integer.TYPE});
-            READ0_MH = MethodHandles.lookup().unreflect(read0);
+            MethodHandles.Lookup lookup = MethodHandles.lookup();
+            lookup.in(fdi);
+            Method read0 = getMethod(fdi, "read0", new Class[]{FileDescriptor.class, long.class, int.class});
+            READ0_MH = lookup.unreflect(read0);
 
             MethodHandle write0Mh = null;
             MethodHandle write0Mh2 = null;
             try {
-                Method write0 = getMethod(fdi, "write0", new Class[]{FileDescriptor.class, Long.TYPE, Integer.TYPE});
-                write0Mh = MethodHandles.lookup().unreflect(write0);
+                Method write0 = getMethod(fdi, "write0", FileDescriptor.class, long.class, int.class);
+                write0Mh = lookup.unreflect(write0);
             } catch (AssertionError var7) {
-                Method write0 = getMethod(fdi, "write0", new Class[]{FileDescriptor.class, Long.TYPE, Integer.TYPE, Boolean.TYPE});
-                write0Mh2 = MethodHandles.lookup().unreflect(write0);
+                Method write0 = getMethod(fdi, "write0", FileDescriptor.class, long.class, int.class, boolean.class);
+                write0Mh2 = lookup.unreflect(write0);
             }
 
             WRITE0_MH = write0Mh;
@@ -104,6 +108,23 @@ public abstract class NioSession implements ThreadAffinity {
 
     public static void setAccessible(AccessibleObject h) {
         h.setAccessible(true);
+    }
+
+    public static <V> V getValue(Object obj, String name) throws NoSuchFieldException {
+        Class<?> aClass = obj.getClass();
+        for (String n : name.split("/")) {
+            Field f = getField(aClass, n);
+            try {
+                obj = f.get(obj);
+                if (obj == null) {
+                    return null;
+                }
+            } catch (IllegalAccessException e) {
+                throw new AssertionError(e);
+            }
+            aClass = obj.getClass();
+        }
+        return (V) obj;
     }
 
     /**

@@ -85,8 +85,9 @@ public class DisruptorReadDispatcher implements ReadDispatcher {
 					nioSession.setLastReadTime(EDAP_TIME.currentTimeMillis());
 					FastBuf writeBuf = THREAD_WRITE_BUF.get();
 					writeBuf.clear();
+                    Decoder _decoder = decoder;
 					while (buf.remain() > 0) {
-						ParseResult pr = decoder.decode(buf, nioSession);
+						ParseResult pr = _decoder.decode(buf, nioSession);
 						if (!pr.isFinished()) {
 							break;
 						}
