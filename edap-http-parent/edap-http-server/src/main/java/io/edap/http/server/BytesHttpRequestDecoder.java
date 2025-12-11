@@ -61,6 +61,7 @@ public class BytesHttpRequestDecoder extends AbstractHttpDecoder implements Deco
         }
         int index = 0;
         ValueHttpRequest request = new ValueHttpRequest();
+        request.setResponse(new HttpResponse());
         ByteArrayBuilder sb = THREAD_BYTE_ARRAY_BUILDER.get();
 
         request.reset();

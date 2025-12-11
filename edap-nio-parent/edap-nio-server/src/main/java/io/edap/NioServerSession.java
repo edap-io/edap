@@ -202,11 +202,11 @@ public abstract class NioServerSession<T> extends NioSession {
 
     public static int write0(FileDescriptor fd, long address, int len) throws IOException {
         try {
-            if (WRITE0_MH2 == null) {
-                return (int) WRITE0_MH.invokeExact(fd, address, len);
-            } else {
-                return (int) WRITE0_MH2.invokeExact(fd, address, len, false);
-            }
+            //if (WRITE_CALLSITE != null) {
+                return (int) WRITE_CALLSITE.getTarget().invokeExact(fd, address, len);
+//            } else {
+//                return (int) WRITE_CALLSITE2.getTarget().invokeExact(fd, address, len, false);
+//            }
         } catch (IOException ioe) {
             throw ioe;
         } catch (Throwable e) {
@@ -216,7 +216,7 @@ public abstract class NioServerSession<T> extends NioSession {
 
     public static int read0(FileDescriptor fd, long address, int len) throws IOException {
         try {
-            return (int) READ0_MH.invokeExact(fd, address, len);
+            return (int) READ_CALLSITE.getTarget().invokeExact(fd, address, len);
         } catch (IOException var5) {
             throw var5;
         } catch (Throwable var6) {

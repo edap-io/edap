@@ -43,4 +43,6 @@ public interface HttpRequest {
     HttpVersion getVersion();
 
     HttpNioSession getHttpNioSession();
+
+    HttpResponse getResponse();
 }

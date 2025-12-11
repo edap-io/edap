@@ -49,6 +49,8 @@ public class ValueHttpRequest implements HttpRequest {
      */
     private ByteData headerData;
 
+    private HttpResponse response;
+
     /**
      * HTTP请求的参数
      */
@@ -69,6 +71,15 @@ public class ValueHttpRequest implements HttpRequest {
      */
     public HttpNioSession getHttpNioSession() {
         return httpNioSession;
+    }
+
+    public void setResponse(HttpResponse response) {
+        this.response = response;
+    }
+
+    @Override
+    public HttpResponse getResponse() {
+        return response;
     }
 
     public void setHttpNioSession(HttpNioSession httpNioSession) {

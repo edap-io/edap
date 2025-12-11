@@ -19,9 +19,11 @@ package io.edap.http.server.test.perf;
 import io.edap.buffer.FastBuf;
 import io.edap.http.AbstractHttpDecoder;
 import io.edap.http.HttpDecoder;
+import io.edap.http.HttpRequest;
 import io.edap.http.ValueHttpRequest;
 import io.edap.http.codec.HttpFastBufDataRange;
 import io.edap.http.server.RangeHttpRequestDecoder;
+import io.edap.nio.ParseResult;
 import org.junit.jupiter.api.Test;
 
 import java.nio.charset.StandardCharsets;
@@ -58,8 +60,9 @@ public class HttpGetParseTest {
             buf.write(httpData);
             request.reset();
             hbr.reset();
-            AbstractHttpDecoder.Result res = decoder.parseHttpRequest(buf, state, hbr, request, null);
-            assertNotNull(res);
+            ParseResult<HttpRequest> result = new ParseResult<>();
+            decoder.parseHttpRequest(buf, state, hbr, request, null, result);
+            assertNotNull(result);
 
         }
 

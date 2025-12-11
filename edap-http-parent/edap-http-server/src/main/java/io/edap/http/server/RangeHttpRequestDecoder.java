@@ -53,7 +53,11 @@ public class RangeHttpRequestDecoder extends AbstractHttpDecoder implements Deco
     static ThreadLocal<List<HttpRequest>>      THREAD_USED_REQUEST;
 
     static {
-        THREAD_RANGE_REQUEST = ThreadLocal.withInitial(() -> new ValueHttpRequest());
+        THREAD_RANGE_REQUEST = ThreadLocal.withInitial(() -> {
+            ValueHttpRequest request = new ValueHttpRequest();
+            request.setResponse(new HttpResponse());
+            return request;
+        });
 
         THREAD_USED_REQUEST = ThreadLocal.withInitial(() -> {
             List<HttpRequest> reqs = new ArrayList<>(128);

@@ -3,6 +3,7 @@ package io.edap.nio;
 import io.edap.buffer.FastBuf;
 
 import java.io.FileDescriptor;
+import java.lang.invoke.ConstantCallSite;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.reflect.AccessibleObject;
@@ -46,6 +47,9 @@ public abstract class NioSession implements ThreadAffinity {
     protected static final MethodHandle READ0_MH;
     protected static final MethodHandle WRITE0_MH;
     protected static final MethodHandle WRITE0_MH2;
+    protected static final ConstantCallSite READ_CALLSITE;
+    protected static final ConstantCallSite WRITE_CALLSITE;
+    protected static final ConstantCallSite WRITE_CALLSITE2;
 
     static {
 
@@ -61,6 +65,7 @@ public abstract class NioSession implements ThreadAffinity {
             lookup.in(fdi);
             Method read0 = getMethod(fdi, "read0", new Class[]{FileDescriptor.class, long.class, int.class});
             READ0_MH = lookup.unreflect(read0);
+            READ_CALLSITE = new ConstantCallSite(READ0_MH);
 
             MethodHandle write0Mh = null;
             MethodHandle write0Mh2 = null;
@@ -73,7 +78,17 @@ public abstract class NioSession implements ThreadAffinity {
             }
 
             WRITE0_MH = write0Mh;
+            if (WRITE0_MH != null) {
+                WRITE_CALLSITE = new ConstantCallSite(write0Mh);
+            } else {
+                WRITE_CALLSITE = null;
+            }
             WRITE0_MH2 = write0Mh2;
+            if (WRITE0_MH2  != null) {
+                WRITE_CALLSITE2 = new ConstantCallSite(write0Mh2);
+            } else {
+                WRITE_CALLSITE2 = null;
+            }
         } catch (ClassNotFoundException | IllegalAccessException e) {
             throw new AssertionError(e);
         }
@@ -114,6 +129,7 @@ public abstract class NioSession implements ThreadAffinity {
         Class<?> aClass = obj.getClass();
         for (String n : name.split("/")) {
             Field f = getField(aClass, n);
+            setAccessible(f);
             try {
                 obj = f.get(obj);
                 if (obj == null) {
