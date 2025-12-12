@@ -65,7 +65,7 @@ public class HttpServerNioSession extends HttpNioSession {
 		}
 		FastBuf buf = THREAD_WRITE_BUF.get();
 		try {
-			HttpResponse resp = THREAD_HTTP_RESPONSE.get();
+			HttpResponse resp = request.getResponse();
 			resp.setNioSession(this);
 			resp.setRequest(request);
 			resp.setBuf(buf);

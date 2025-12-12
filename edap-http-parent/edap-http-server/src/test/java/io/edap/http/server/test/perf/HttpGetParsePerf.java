@@ -26,6 +26,7 @@ import io.edap.http.rangedecoder.HeaderValueDecoder;
 import io.edap.http.server.BytesHttpRequestDecoder;
 import io.edap.http.server.RangeHttpRequestDecoder;
 import io.edap.http.server.cache.PathCache;
+import io.edap.nio.ParseResult;
 import io.edap.nio.codec.FastBufDataRange;
 import io.edap.util.ByteArrayBuilder;
 import org.openjdk.jmh.annotations.*;
@@ -148,7 +149,8 @@ public class HttpGetParsePerf {
 		fastBuf.rewind();
 		request.reset();
 		hbr.reset();
-		AbstractHttpDecoder.Result res = decoder.parseHttpRequest(fastBuf, state, hbr, request, null);
+        ParseResult<HttpRequest> result = new ParseResult<>();
+		decoder.parseHttpRequest(fastBuf, state, hbr, request, null, result);
 //        assertNotNull(res);
 	}
 
@@ -159,7 +161,8 @@ public class HttpGetParsePerf {
         buf.rewind();
         request.reset();
         hbr.reset();
-        AbstractHttpDecoder.Result res = decoder.parseHttpRequest(buf, state, hbr, request, null);
+        ParseResult<HttpRequest> result = new ParseResult<>();
+        decoder.parseHttpRequest(buf, state, hbr, request, null, result);
 //        assertNotNull(res);
     }
 
