@@ -202,11 +202,11 @@ public abstract class NioServerSession<T> extends NioSession {
 
     public static int write0(FileDescriptor fd, long address, int len) throws IOException {
         try {
-            //if (WRITE_CALLSITE != null) {
+            if (WRITE_CALLSITE != null) {
                 return (int) WRITE_CALLSITE.getTarget().invokeExact(fd, address, len);
-//            } else {
-//                return (int) WRITE_CALLSITE2.getTarget().invokeExact(fd, address, len, false);
-//            }
+            } else {
+                return (int) WRITE_CALLSITE2.getTarget().invokeExact(fd, address, len, false);
+            }
         } catch (IOException ioe) {
             throw ioe;
         } catch (Throwable e) {
