@@ -36,7 +36,7 @@ public class ByteArrayBuilder {
 
     private final Grisu3.FastDtoaBuilder doubleBuilder = new Grisu3.FastDtoaBuilder();
 
-    private final static int[]  DIGITS = new int[1000];
+    private final static int[] DIGITS = new int[1000];
     private final static byte[] MIN_INT_BYTES;
     private final static byte[] MIN_LONG_BYTES;
 

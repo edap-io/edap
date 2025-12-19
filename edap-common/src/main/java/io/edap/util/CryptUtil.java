@@ -27,7 +27,7 @@ import java.security.NoSuchAlgorithmException;
  */
 public class CryptUtil {
 
-    public final static char[] HEX_DIGITS = {
+    public final static byte[] HEX_DIGITS = {
             '0' , '1' , '2' , '3' , '4' , '5' ,
             '6' , '7' , '8' , '9' , 'a' , 'b' ,
             'c' , 'd' , 'e' , 'f' , 'g' , 'h' ,
@@ -119,14 +119,15 @@ public class CryptUtil {
     }
 
     public static String hexStr(byte[] b, int pos, int len) {
-        StringBuilder result = new StringBuilder();
+        byte[] data = new byte[len << 1];
         int end = pos + len;
+        int index = 0;
         for (int i = pos; i < end; i++) {
             int v = b[i] & 0xff;
-            result.append(HEX_DIGITS[v/16]);
-            result.append(HEX_DIGITS[v%16]);
+            data[index++] = HEX_DIGITS[v >>> 4];
+            data[index++] = HEX_DIGITS[v & 0x0f];
         }
-        return result.toString();
+        return StringUtil.fastInstance(data, (byte)0);
     }
 
 }
