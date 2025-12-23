@@ -237,9 +237,9 @@
                     <source>${java.version}</source>
                     <target>${java.version}</target>
                     <encoding>utf-8</encoding>
-                    <compilerArgs>
-                        <arg>--add-exports=java.base/sun.nio.ch=ALL-UNNAMED</arg>
-                    </compilerArgs>
+<!--                    <compilerArgs>-->
+<!--                        <arg>&#45;&#45;add-exports=java.base/sun.nio.ch=ALL-UNNAMED</arg>-->
+<!--                    </compilerArgs>-->
                 </configuration>
             </plugin>
             <plugin>
