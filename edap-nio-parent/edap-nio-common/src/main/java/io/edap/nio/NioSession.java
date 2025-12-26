@@ -1,18 +1,20 @@
 package io.edap.nio;
 
 import io.edap.buffer.FastBuf;
+import io.edap.nio.util.DirectIOLoader2;
+import io.edap.nio.util.DirectIoFactory;
 
 import java.io.FileDescriptor;
 import java.lang.invoke.ConstantCallSite;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
-import java.lang.reflect.AccessibleObject;
-import java.lang.reflect.Field;
-import java.lang.reflect.Method;
-import java.lang.reflect.Modifier;
+import java.lang.reflect.*;
 import java.nio.channels.SocketChannel;
 
+import static io.edap.nio.util.DirectIoFactory.*;
 import static io.edap.util.ClazzUtil.getField;
+import static io.edap.util.UnsafeUtil.fieldOffset;
+import static io.edap.util.UnsafeUtil.getAndSetObject;
 
 public abstract class NioSession implements ThreadAffinity {
 
@@ -61,7 +63,10 @@ public abstract class NioSession implements ThreadAffinity {
         Class<?> fdi;
         try {
             fdi = Class.forName("sun.nio.ch.FileDispatcherImpl");
+
+
             MethodHandles.Lookup lookup = MethodHandles.lookup();
+
             lookup.in(fdi);
             Method read0 = getMethod(fdi, "read0", new Class[]{FileDescriptor.class, long.class, int.class});
             READ0_MH = lookup.unreflect(read0);

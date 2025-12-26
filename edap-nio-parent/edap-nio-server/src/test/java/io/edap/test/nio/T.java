@@ -2,8 +2,8 @@ package io.edap.test.nio;
 
 public class T {
 
-	public static void main(String[] args) {
-		int i = 248;
-		System.out.println(Integer.toBinaryString(i));
+	public static void main(String[] args) throws ClassNotFoundException {
+		Class cls = Class.forName("sun.nio.ch.FileDispatcherImpl");
+        System.out.print(cls);
 	}
 }

@@ -15,6 +15,7 @@
         <module>edap-nio-server</module>
         <module>edap-nio-common</module>
         <module>edap-nio-client</module>
+        <module>edap-nio-native</module>
     </modules>
 
     <properties>
