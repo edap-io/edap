@@ -23,6 +23,7 @@ import io.edap.http.bytesdecoder.BytesHeaderDataDecoder;
 import io.edap.http.codec.HttpFastBufDataRange;
 import io.edap.http.rangedecoder.HeaderDataDecoder;
 import io.edap.util.ByteArrayBuilder;
+import io.edap.util.ByteData;
 import org.junit.jupiter.api.Test;
 
 import java.nio.charset.StandardCharsets;
@@ -41,7 +42,7 @@ public class BytesHeaderDataDecoderTest {
 
 
 		sb.setLength(0);
-		byte[] data = decoder.decode(buf, sb, request);
+		ByteData data = decoder.decode(buf, sb, request);
 		assertNull(data);
 
 		String headerStr = "Accept: application/json, text/javascript, */*; q=0.01\r\n" +
@@ -63,7 +64,9 @@ public class BytesHeaderDataDecoderTest {
 		buf.reset();
 		buf.write(headerStr.getBytes(StandardCharsets.UTF_8));
 		data = decoder.decode(buf, sb, request);
-		assertArrayEquals(data, headerStr.substring(0, headerStr.length()-4).getBytes(StandardCharsets.UTF_8));
+		byte[] bs = new byte[data.getLength()];
+		System.arraycopy(data.getBytes(), 0, bs, 0, data.getLength());
+		assertArrayEquals(bs, headerStr.substring(0, headerStr.length()-4).getBytes(StandardCharsets.UTF_8));
 
 		buf.reset();
 		buf.write(headerStr.substring(0, headerStr.length()-1).getBytes(StandardCharsets.UTF_8));

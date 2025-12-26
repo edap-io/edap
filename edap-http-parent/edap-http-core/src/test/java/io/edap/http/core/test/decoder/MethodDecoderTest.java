@@ -85,12 +85,14 @@ public class MethodDecoderTest {
 		buf.write("CO ".getBytes(StandardCharsets.UTF_8));
 
 		hbdr.buffer(buf);
+		hbdr.reset();
 		MethodInfo methodInfo = decoder.decode(buf, hbdr, request);
 		assertNotNull(methodInfo);
 		assertEquals(methodInfo.getMethod(), "CO");
 
 		buf.reset();
 		buf.write("CO      ".getBytes(StandardCharsets.UTF_8));
+		hbdr.reset();
 		methodInfo = decoder.decode(buf, hbdr, request);
 		assertNotNull(methodInfo);
 		assertEquals(methodInfo.getMethod(), "CO");
@@ -136,48 +138,56 @@ public class MethodDecoderTest {
 
 		buf.reset();
 		buf.write("CONNECT     ".getBytes(StandardCharsets.UTF_8));
+		hbdr.reset();
 		methodInfo = decoder.decode(buf, hbdr, request);
 		assertNotNull(methodInfo);
 		assertEquals(methodInfo.getMethod(), "CONNECT");
 
 		buf.reset();
 		buf.write("DONNECT     ".getBytes(StandardCharsets.UTF_8));
+		hbdr.reset();
 		methodInfo = decoder.decode(buf, hbdr, request);
 		assertNotNull(methodInfo);
 		assertEquals(methodInfo.getMethod(), "DONNECT");
 
 		buf.reset();
 		buf.write("CANNECT     ".getBytes(StandardCharsets.UTF_8));
+		hbdr.reset();
 		methodInfo = decoder.decode(buf, hbdr, request);
 		assertNotNull(methodInfo);
 		assertEquals(methodInfo.getMethod(), "CANNECT");
 
 		buf.reset();
 		buf.write("COONECT     ".getBytes(StandardCharsets.UTF_8));
+		hbdr.reset();
 		methodInfo = decoder.decode(buf, hbdr, request);
 		assertNotNull(methodInfo);
 		assertEquals(methodInfo.getMethod(), "COONECT");
 
 		buf.reset();
 		buf.write("CONOECT     ".getBytes(StandardCharsets.UTF_8));
+		hbdr.reset();
 		methodInfo = decoder.decode(buf, hbdr, request);
 		assertNotNull(methodInfo);
 		assertEquals(methodInfo.getMethod(), "CONOECT");
 
 		buf.reset();
 		buf.write("CONNFCT     ".getBytes(StandardCharsets.UTF_8));
+		hbdr.reset();
 		methodInfo = decoder.decode(buf, hbdr, request);
 		assertNotNull(methodInfo);
 		assertEquals(methodInfo.getMethod(), "CONNFCT");
 
 		buf.reset();
 		buf.write("CONNEET     ".getBytes(StandardCharsets.UTF_8));
+		hbdr.reset();
 		methodInfo = decoder.decode(buf, hbdr, request);
 		assertNotNull(methodInfo);
 		assertEquals(methodInfo.getMethod(), "CONNEET");
 
 		buf.reset();
 		buf.write("CONNECZ     ".getBytes(StandardCharsets.UTF_8));
+		hbdr.reset();
 		methodInfo = decoder.decode(buf, hbdr, request);
 		assertNotNull(methodInfo);
 		assertEquals(methodInfo.getMethod(), "CONNECZ");
@@ -189,60 +199,70 @@ public class MethodDecoderTest {
 		buf.write("OPTIONS ".getBytes(StandardCharsets.UTF_8));
 
 		hbdr.buffer(buf);
+		hbdr.reset();
 		MethodInfo methodInfo = decoder.decode(buf, hbdr, request);
 		assertNotNull(methodInfo);
 		assertEquals(methodInfo.getMethod(), "OPTIONS");
 
 		buf.reset();
 		buf.write("OPTIONS     ".getBytes(StandardCharsets.UTF_8));
+		hbdr.reset();
 		methodInfo = decoder.decode(buf, hbdr, request);
 		assertNotNull(methodInfo);
 		assertEquals(methodInfo.getMethod(), "OPTIONS");
 
 		buf.reset();
 		buf.write("PPTIONS     ".getBytes(StandardCharsets.UTF_8));
+		hbdr.reset();
 		methodInfo = decoder.decode(buf, hbdr, request);
 		assertNotNull(methodInfo);
 		assertEquals(methodInfo.getMethod(), "PPTIONS");
 
 		buf.reset();
 		buf.write("OZTIONS     ".getBytes(StandardCharsets.UTF_8));
+		hbdr.reset();
 		methodInfo = decoder.decode(buf, hbdr, request);
 		assertNotNull(methodInfo);
 		assertEquals(methodInfo.getMethod(), "OZTIONS");
 
 		buf.reset();
 		buf.write("OPWIONS     ".getBytes(StandardCharsets.UTF_8));
+		hbdr.reset();
 		methodInfo = decoder.decode(buf, hbdr, request);
 		assertNotNull(methodInfo);
 		assertEquals(methodInfo.getMethod(), "OPWIONS");
 
 		buf.reset();
 		buf.write("OPTJONS     ".getBytes(StandardCharsets.UTF_8));
+		hbdr.reset();
 		methodInfo = decoder.decode(buf, hbdr, request);
 		assertNotNull(methodInfo);
 		assertEquals(methodInfo.getMethod(), "OPTJONS");
 
 		buf.reset();
 		buf.write("OPTIPNS     ".getBytes(StandardCharsets.UTF_8));
+		hbdr.reset();
 		methodInfo = decoder.decode(buf, hbdr, request);
 		assertNotNull(methodInfo);
 		assertEquals(methodInfo.getMethod(), "OPTIPNS");
 
 		buf.reset();
 		buf.write("OPTIOBS     ".getBytes(StandardCharsets.UTF_8));
+		hbdr.reset();
 		methodInfo = decoder.decode(buf, hbdr, request);
 		assertNotNull(methodInfo);
 		assertEquals(methodInfo.getMethod(), "OPTIOBS");
 
 		buf.reset();
 		buf.write("OPTIONT     ".getBytes(StandardCharsets.UTF_8));
+		hbdr.reset();
 		methodInfo = decoder.decode(buf, hbdr, request);
 		assertNotNull(methodInfo);
 		assertEquals(methodInfo.getMethod(), "OPTIONT");
 
 		buf.reset();
 		buf.write("OPTIONTA     ".getBytes(StandardCharsets.UTF_8));
+		hbdr.reset();
 		methodInfo = decoder.decode(buf, hbdr, request);
 		assertNotNull(methodInfo);
 		assertEquals(methodInfo.getMethod(), "OPTIONTA");
@@ -254,48 +274,56 @@ public class MethodDecoderTest {
 		buf.write("DELETE ".getBytes(StandardCharsets.UTF_8));
 
 		hbdr.buffer(buf);
+		hbdr.reset();
 		MethodInfo methodInfo = decoder.decode(buf, hbdr, request);
 		assertNotNull(methodInfo);
 		assertEquals(methodInfo.getMethod(), "DELETE");
 
 		buf.reset();
 		buf.write("DELETE     ".getBytes(StandardCharsets.UTF_8));
+		hbdr.reset();
 		methodInfo = decoder.decode(buf, hbdr, request);
 		assertNotNull(methodInfo);
 		assertEquals(methodInfo.getMethod(), "DELETE");
 
 		buf.reset();
 		buf.write("AELETE     ".getBytes(StandardCharsets.UTF_8));
+		hbdr.reset();
 		methodInfo = decoder.decode(buf, hbdr, request);
 		assertNotNull(methodInfo);
 		assertEquals(methodInfo.getMethod(), "AELETE");
 
 		buf.reset();
 		buf.write("DFLETE     ".getBytes(StandardCharsets.UTF_8));
+		hbdr.reset();
 		methodInfo = decoder.decode(buf, hbdr, request);
 		assertNotNull(methodInfo);
 		assertEquals(methodInfo.getMethod(), "DFLETE");
 
 		buf.reset();
 		buf.write("DEMETE     ".getBytes(StandardCharsets.UTF_8));
+		hbdr.reset();
 		methodInfo = decoder.decode(buf, hbdr, request);
 		assertNotNull(methodInfo);
 		assertEquals(methodInfo.getMethod(), "DEMETE");
 
 		buf.reset();
 		buf.write("DELSTE     ".getBytes(StandardCharsets.UTF_8));
+		hbdr.reset();
 		methodInfo = decoder.decode(buf, hbdr, request);
 		assertNotNull(methodInfo);
 		assertEquals(methodInfo.getMethod(), "DELSTE");
 
 		buf.reset();
 		buf.write("DELEYE     ".getBytes(StandardCharsets.UTF_8));
+		hbdr.reset();
 		methodInfo = decoder.decode(buf, hbdr, request);
 		assertNotNull(methodInfo);
 		assertEquals(methodInfo.getMethod(), "DELEYE");
 
 		buf.reset();
 		buf.write("DELETB     ".getBytes(StandardCharsets.UTF_8));
+		hbdr.reset();
 		methodInfo = decoder.decode(buf, hbdr, request);
 		assertNotNull(methodInfo);
 		assertEquals(methodInfo.getMethod(), "DELETB");
@@ -307,42 +335,49 @@ public class MethodDecoderTest {
 		buf.write("TRACE ".getBytes(StandardCharsets.UTF_8));
 
 		hbdr.buffer(buf);
+		hbdr.reset();
 		MethodInfo methodInfo = decoder.decode(buf, hbdr, request);
 		assertNotNull(methodInfo);
 		assertEquals(methodInfo.getMethod(), "TRACE");
 
 		buf.reset();
 		buf.write("TRACE     ".getBytes(StandardCharsets.UTF_8));
+		hbdr.reset();
 		methodInfo = decoder.decode(buf, hbdr, request);
 		assertNotNull(methodInfo);
 		assertEquals(methodInfo.getMethod(), "TRACE");
 
 		buf.reset();
 		buf.write("TDACE     ".getBytes(StandardCharsets.UTF_8));
+		hbdr.reset();
 		methodInfo = decoder.decode(buf, hbdr, request);
 		assertNotNull(methodInfo);
 		assertEquals(methodInfo.getMethod(), "TDACE");
 
 		buf.reset();
 		buf.write("TRECE     ".getBytes(StandardCharsets.UTF_8));
+		hbdr.reset();
 		methodInfo = decoder.decode(buf, hbdr, request);
 		assertNotNull(methodInfo);
 		assertEquals(methodInfo.getMethod(), "TRECE");
 
 		buf.reset();
 		buf.write("TRAFE     ".getBytes(StandardCharsets.UTF_8));
+		hbdr.reset();
 		methodInfo = decoder.decode(buf, hbdr, request);
 		assertNotNull(methodInfo);
 		assertEquals(methodInfo.getMethod(), "TRAFE");
 
 		buf.reset();
 		buf.write("TRACT     ".getBytes(StandardCharsets.UTF_8));
+		hbdr.reset();
 		methodInfo = decoder.decode(buf, hbdr, request);
 		assertNotNull(methodInfo);
 		assertEquals(methodInfo.getMethod(), "TRACT");
 
 		buf.reset();
 		buf.write("WRACE     ".getBytes(StandardCharsets.UTF_8));
+		hbdr.reset();
 		methodInfo = decoder.decode(buf, hbdr, request);
 		assertNotNull(methodInfo);
 		assertEquals(methodInfo.getMethod(), "WRACE");
@@ -354,12 +389,14 @@ public class MethodDecoderTest {
 		buf.write("POST ".getBytes(StandardCharsets.UTF_8));
 
 		hbdr.buffer(buf);
+		hbdr.reset();
 		MethodInfo methodInfo = decoder.decode(buf, hbdr, request);
 		assertNotNull(methodInfo);
 		assertEquals(methodInfo.getMethod(), "POST");
 
 		buf.reset();
 		buf.write("POST     ".getBytes(StandardCharsets.UTF_8));
+		hbdr.reset();
 		methodInfo = decoder.decode(buf, hbdr, request);
 		assertNotNull(methodInfo);
 		assertEquals(methodInfo.getMethod(), "POST");
@@ -372,12 +409,14 @@ public class MethodDecoderTest {
 
 		buf.reset();
 		buf.write("POBT     ".getBytes(StandardCharsets.UTF_8));
+		hbdr.reset();
 		methodInfo = decoder.decode(buf, hbdr, request);
 		assertNotNull(methodInfo);
 		assertEquals(methodInfo.getMethod(), "POBT");
 
 		buf.reset();
 		buf.write("POSS     ".getBytes(StandardCharsets.UTF_8));
+		hbdr.reset();
 		methodInfo = decoder.decode(buf, hbdr, request);
 		assertNotNull(methodInfo);
 		assertEquals(methodInfo.getMethod(), "POSS");
@@ -389,12 +428,14 @@ public class MethodDecoderTest {
 		buf.write("HEAD ".getBytes(StandardCharsets.UTF_8));
 
 		hbdr.buffer(buf);
+		hbdr.reset();
 		MethodInfo methodInfo = decoder.decode(buf, hbdr, request);
 		assertNotNull(methodInfo);
 		assertEquals(methodInfo.getMethod(), "HEAD");
 
 		buf.reset();
 		buf.write("HEAD     ".getBytes(StandardCharsets.UTF_8));
+		hbdr.reset();
 		methodInfo = decoder.decode(buf, hbdr, request);
 		assertNotNull(methodInfo);
 		assertEquals(methodInfo.getMethod(), "HEAD");
@@ -407,12 +448,14 @@ public class MethodDecoderTest {
 
 		buf.reset();
 		buf.write("HEDD     ".getBytes(StandardCharsets.UTF_8));
+		hbdr.reset();
 		methodInfo = decoder.decode(buf, hbdr, request);
 		assertNotNull(methodInfo);
 		assertEquals(methodInfo.getMethod(), "HEDD");
 
 		buf.reset();
 		buf.write("HEAE     ".getBytes(StandardCharsets.UTF_8));
+		hbdr.reset();
 		methodInfo = decoder.decode(buf, hbdr, request);
 		assertNotNull(methodInfo);
 		assertEquals(methodInfo.getMethod(), "HEAE");
@@ -424,24 +467,29 @@ public class MethodDecoderTest {
 		buf.write("GET ".getBytes(StandardCharsets.UTF_8));
 
 		hbdr.buffer(buf);
+		hbdr.reset();
 		MethodInfo methodInfo = decoder.decode(buf, hbdr, request);
 		assertNotNull(methodInfo);
 		assertEquals(methodInfo.getMethod(), "GET");
 
 		buf.reset();
 		buf.write("GET     ".getBytes(StandardCharsets.UTF_8));
+		hbdr.reset();
 		methodInfo = decoder.decode(buf, hbdr, request);
 		assertNotNull(methodInfo);
 		assertEquals(methodInfo.getMethod(), "GET");
 
 		buf.reset();
 		buf.write("GST     ".getBytes(StandardCharsets.UTF_8));
+		hbdr.reset();
+		hbdr.reset();
 		methodInfo = decoder.decode(buf, hbdr, request);
 		assertNotNull(methodInfo);
 		assertEquals(methodInfo.getMethod(), "GST");
 
 		buf.reset();
 		buf.write("GES     ".getBytes(StandardCharsets.UTF_8));
+		hbdr.reset();
 		methodInfo = decoder.decode(buf, hbdr, request);
 		assertNotNull(methodInfo);
 		assertEquals(methodInfo.getMethod(), "GES");
@@ -453,24 +501,28 @@ public class MethodDecoderTest {
 		buf.write("PUT ".getBytes(StandardCharsets.UTF_8));
 
 		hbdr.buffer(buf);
+		hbdr.reset();
 		MethodInfo methodInfo = decoder.decode(buf, hbdr, request);
 		assertNotNull(methodInfo);
 		assertEquals(methodInfo.getMethod(), "PUT");
 
 		buf.reset();
 		buf.write("PUT     ".getBytes(StandardCharsets.UTF_8));
+		hbdr.reset();
 		methodInfo = decoder.decode(buf, hbdr, request);
 		assertNotNull(methodInfo);
 		assertEquals(methodInfo.getMethod(), "PUT");
 
 		buf.reset();
 		buf.write("PET     ".getBytes(StandardCharsets.UTF_8));
+		hbdr.reset();
 		methodInfo = decoder.decode(buf, hbdr, request);
 		assertNotNull(methodInfo);
 		assertEquals(methodInfo.getMethod(), "PET");
 
 		buf.reset();
 		buf.write("PUS     ".getBytes(StandardCharsets.UTF_8));
+		hbdr.reset();
 		methodInfo = decoder.decode(buf, hbdr, request);
 		assertNotNull(methodInfo);
 		assertEquals(methodInfo.getMethod(), "PUS");
