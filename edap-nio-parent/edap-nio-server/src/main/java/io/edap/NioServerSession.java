@@ -16,21 +16,13 @@
 
 package io.edap;
 
-import io.edap.buffer.BytesBuf;
 import io.edap.buffer.FastBuf;
 import io.edap.nio.NioSession;
 
 import java.io.FileDescriptor;
 import java.io.IOException;
-import java.lang.invoke.MethodHandle;
-import java.lang.invoke.MethodHandles;
-import java.lang.reflect.AccessibleObject;
-import java.lang.reflect.Field;
-import java.lang.reflect.Method;
-import java.lang.reflect.Modifier;
 import java.nio.channels.*;
 import java.util.List;
-import java.util.Queue;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -202,11 +194,7 @@ public abstract class NioServerSession<T> extends NioSession {
 
     public static int write0(FileDescriptor fd, long address, int len) throws IOException {
         try {
-            if (WRITE0_MH != null) {
-                return (int) WRITE0_MH.invokeExact(fd, address, len);
-            } else {
-                return (int) WRITE0_MH2.invokeExact(fd, address, len, false);
-            }
+            return EDAP_NET_IO.write(fd, address, len);
         } catch (IOException ioe) {
             throw ioe;
         } catch (Throwable e) {
@@ -216,7 +204,7 @@ public abstract class NioServerSession<T> extends NioSession {
 
     public static int read0(FileDescriptor fd, long address, int len) throws IOException {
         try {
-            return (int) READ0_MH.invokeExact(fd, address, len);
+            return EDAP_NET_IO.read(fd, address, len);
         } catch (IOException var5) {
             throw var5;
         } catch (Throwable var6) {

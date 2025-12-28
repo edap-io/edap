@@ -6,9 +6,14 @@
 
 #if defined(__linux__)
 #include <linux/fs.h>
+#endif
+
+#define IOS_UNAVAILABLE -2L
+#define IOS_INTERRUPTED -3L
+#define IOS_THROWN      -5L
+
 #include <sys/ioctl.h>
 #include <errno.h>
-#endif
 
 
 static jfieldID fd_fdID;
@@ -57,7 +62,7 @@ convertReturnVal(JNIEnv *env, jint n, int reading)
         return IOS_INTERRUPTED;
     else {
         const char *msg = reading == 1? "Read failed" : "Write failed";
-        JNU_ThrowIOExceptionWithLastError(env, msg);
+        // JNU_ThrowIOExceptionWithLastError(env, msg);
         return IOS_THROWN;
     }
 }
