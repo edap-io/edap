@@ -49,6 +49,9 @@ public class HeaderDataDecoder implements RangeTokenDecoder<ByteData> {
                     buf.get(data, i);
                     _buf.rpos(rpos+3);
                     return headerData;
+                } else {
+                    i    += 4;
+                    rpos += 4;
                 }
             }
         }
