@@ -35,8 +35,15 @@ public class FastNetIO {
         String archKey = "os.arch";
         String osKey   = "os.name";
         String os      = (String)props.get(osKey);
-        if (os != null && os.length() > 0 && os.toUpperCase(Locale.ENGLISH).indexOf("MAC") != -1) {
+        if (os == null) {
+            os = "";
+        } else {
+            os = os.toUpperCase(Locale.ENGLISH);
+        }
+        if (os.toUpperCase(Locale.ENGLISH).indexOf("MAC") != -1) {
             os = "macos";
+        } else if (os.toUpperCase(Locale.ENGLISH).indexOf("SunOS") != -1) {
+            os = "SunOS";
         } else {
             os = "linux";
         }
@@ -49,7 +56,7 @@ public class FastNetIO {
             nativeTmpFile.delete();
             initIDs();
             ENABLE_NATIVE_RW = true;
-        } catch (IOException e) {
+        } catch (Throwable e) {
             e.printStackTrace();
             ENABLE_NATIVE_RW = false;
         }
