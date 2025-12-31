@@ -63,10 +63,13 @@ public class JsonCodecRegister {
     private JsonCodecRegister() {}
 
     public <T> JsonEncoder<T> getEncoder(Class<T> tClass) {
-        JsonEncoder encoder = ENCODER_MAP.get(tClass);
-        if (encoder == null) {
-            encoder = generateEncoder(tClass);
-            ENCODER_MAP.put(tClass, encoder);
+        JsonEncoder encoder;
+        synchronized (tClass) {
+            encoder = ENCODER_MAP.get(tClass);
+            if (encoder == null) {
+                encoder = generateEncoder(tClass);
+                ENCODER_MAP.put(tClass, encoder);
+            }
         }
         return encoder;
     }
@@ -77,22 +80,24 @@ public class JsonCodecRegister {
 
     public <T> JsonDecoder<T> getDecoder(Class<T> tClass, DataType dataType, JsonVersion version) {
         String key = dataType + "-" + version;
-        Map<String, JsonDecoder> decoders = DECODER_MAP.get(tClass);
-        if (decoders == null) {
-            decoders = new HashMap<>();
-            DECODER_MAP.put(tClass, decoders);
-        }
-        JsonDecoder decoder = decoders.get(key);
-        if (decoder == null) {
-            decoder = generateDecoder(tClass, dataType, version);
-            decoders.put(key, decoder);
-        }
+        synchronized (tClass) {
+            Map<String, JsonDecoder> decoders = DECODER_MAP.get(tClass);
+            if (decoders == null) {
+                decoders = new HashMap<>();
+                DECODER_MAP.put(tClass, decoders);
+            }
+            JsonDecoder decoder = decoders.get(key);
+            if (decoder == null) {
+                decoder = generateDecoder(tClass, dataType, version);
+                decoders.put(key, decoder);
+            }
 
-        if (decoder == null) {
-            decoder = new ReflectDecoder(tClass, dataType);
-            decoders.put(key, decoder);
+            if (decoder == null) {
+                decoder = new ReflectDecoder(tClass, dataType);
+                decoders.put(key, decoder);
+            }
+            return decoder;
         }
-        return decoder;
     }
 
     private JsonDecoder generateDecoder(Class cls, DataType dataType, JsonVersion version) {
@@ -110,40 +115,42 @@ public class JsonCodecRegister {
     }
 
     public <K, V> MapEncoder<K, V> getMapEncoder(Type mapType, Class ownerClass, DataType dataType) {
-        MapEncoder encoder = MAP_ENCODER_MAP.get(mapType);
-        if (encoder != null) {
+        synchronized (mapType) {
+            MapEncoder encoder = MAP_ENCODER_MAP.get(mapType);
+            if (encoder != null) {
+                return encoder;
+            }
+            Lock lock = getMapTypeLock(mapType);
+            lock.lock();
+            try {
+                String encoderName = buildMapDecoderName(mapType);
+                JsonCodecLoader codecLoader = MAP_ENCODER_LOADER.get(mapType);
+                if (codecLoader == null) {
+                    ClassLoader loader = getClassLoader(ownerClass);
+                    codecLoader = new JsonCodecLoader(loader);
+                    MAP_ENCODER_LOADER.put(mapType, codecLoader);
+                }
+                Class encoderCls;
+                try {
+                    encoderCls = codecLoader.loadClass(encoderName);
+                } catch (ClassNotFoundException e) {
+                    encoderCls = generateMapEncoderClass(mapType, dataType, codecLoader);
+                }
+                encoder = (MapEncoder) encoderCls.getDeclaredConstructors()[0].newInstance();
+                if (encoder != null) {
+                    MAP_ENCODER_MAP.put(mapType, encoder);
+                }
+            } catch (InvocationTargetException e) {
+                throw new RuntimeException(e);
+            } catch (InstantiationException e) {
+                throw new RuntimeException(e);
+            } catch (IllegalAccessException e) {
+                throw new RuntimeException(e);
+            } finally {
+                lock.unlock();
+            }
             return encoder;
         }
-        Lock lock = getMapTypeLock(mapType);
-        lock.lock();
-        try {
-            String encoderName = buildMapDecoderName(mapType);
-            JsonCodecLoader codecLoader = MAP_ENCODER_LOADER.get(mapType);
-            if (codecLoader == null) {
-                ClassLoader loader = getClassLoader(ownerClass);
-                codecLoader = new JsonCodecLoader(loader);
-                MAP_ENCODER_LOADER.put(mapType, codecLoader);
-            }
-            Class encoderCls;
-            try {
-                encoderCls = codecLoader.loadClass(encoderName);
-            } catch (ClassNotFoundException e) {
-                encoderCls = generateMapEncoderClass(mapType, dataType, codecLoader);
-            }
-            encoder = (MapEncoder)encoderCls.getDeclaredConstructors()[0].newInstance();
-            if (encoder != null) {
-                MAP_ENCODER_MAP.put(mapType, encoder);
-            }
-        } catch (InvocationTargetException e) {
-            throw new RuntimeException(e);
-        } catch (InstantiationException e) {
-            throw new RuntimeException(e);
-        } catch (IllegalAccessException e) {
-            throw new RuntimeException(e);
-        } finally {
-            lock.unlock();
-        }
-        return encoder;
     }
 
     private Class generateMapEncoderClass(Type mapType, DataType dataType, JsonCodecLoader loader) {
@@ -208,7 +215,7 @@ public class JsonCodecRegister {
         Class encoderCls = generateEncoderClass(cls);
         if (encoderCls != null) {
             try {
-                codec = (JsonEncoder)encoderCls.newInstance();
+                codec = (JsonEncoder) encoderCls.newInstance();
             } catch (InstantiationException | IllegalAccessException ex) {
                 throw new RuntimeException("generateDecoder "
                         + cls.getName() + " error", ex);
