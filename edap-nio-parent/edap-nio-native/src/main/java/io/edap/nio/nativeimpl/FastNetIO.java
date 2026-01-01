@@ -67,7 +67,7 @@ public class FastNetIO {
             initIDs();
             ENABLE_NATIVE_RW = true;
         } catch (Throwable e) {
-            e.printStackTrace();
+            System.out.println("os " + os + " arch " + props.get(archKey) + " not match lib file!");
             ENABLE_NATIVE_RW = false;
         }
     }
