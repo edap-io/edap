@@ -40,14 +40,24 @@ public class FastNetIO {
         } else {
             os = os.toUpperCase(Locale.ENGLISH);
         }
+        String arch = (String)props.get(archKey);
+
+        if (arch == null) {
+            arch = "";
+        } else {
+            arch = arch.toLowerCase(Locale.ENGLISH);
+        }
         if (os.toUpperCase(Locale.ENGLISH).indexOf("MAC") != -1) {
             os = "macos";
         } else if (os.toUpperCase(Locale.ENGLISH).indexOf("SunOS") != -1) {
             os = "SunOS";
         } else {
             os = "linux";
+            if (arch.equals("amd64")) {
+                arch = "x86_64";
+            }
         }
-        String libPath = "/edap-nio-native-" + os + "_" + props.get(archKey) + ".o";
+        String libPath = "/edap-nio-native-" + os + "_" + arch + ".o";
 
         try (InputStream in = FastNetIO.class.getResourceAsStream(libPath)) {
             File nativeTmpFile = File.createTempFile(UUID.randomUUID().toString(), ".o");

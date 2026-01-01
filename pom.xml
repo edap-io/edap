@@ -47,7 +47,6 @@
         <module>edap-common</module>
         <module>edap-bean-convert</module>
         <module>edap-toml</module>
-        <module>edap-json</module>
         <module>edap-data-parent</module>
         <module>edap-rpc-parent</module>
         <module>edap-http-parent</module>
@@ -58,6 +57,7 @@
         <module>edap-codec</module>
         <module>edap-dbtools-parent</module>
         <module>edap-asm-utils</module>
+        <module>edap-json-parent</module>
 
     </modules>
 
