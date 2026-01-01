@@ -121,7 +121,7 @@ public class HttpResponse {
                 JsonWriter writer = Eson.THREAD_WRITER.get();
                 try {
                     writer.reset();
-                    Eson.serialize(obj, writer);
+                    Eson.serializeMsg(obj, writer);
                     int len = writer.size();
                     write0(_buf, version.bytes());
                     write0(_buf, ResponseStatusCode.get(200));
@@ -171,7 +171,7 @@ public class HttpResponse {
 
     private boolean write0(FastBuf buf, byte[] data) throws IOException {
         int len = data.length;
-        int wlen = buf.write(data, 0, data.length);
+        int wlen = buf.write(data, 0, len);
         if (wlen >= len) {
             return true;
         }

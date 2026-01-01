@@ -134,7 +134,7 @@ public class UnsafeUtil {
         return UNSAFE.getByte(value, offset);
     }
 
-    public static int readByte(long address) {
+    public static byte readByte(long address) {
         return UNSAFE.getByte(address);
     }
 
@@ -152,5 +152,9 @@ public class UnsafeUtil {
 
     public static void writeByte(byte[] bs, int offset, byte b) {
         UNSAFE.putByte(bs, (long)(UNSAFE.ARRAY_BYTE_BASE_OFFSET + offset), b);
+    }
+
+    public static void getAndSetObject(Object obj, long offset, Object newValue) {
+        UNSAFE.getAndSetObject(obj, offset, newValue);
     }
 }

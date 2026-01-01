@@ -70,6 +70,11 @@ public class Eson {
         return "";
     }
 
+	public static void serializeMsg(Object obj, JsonWriter writer) {
+		JsonEncoder codec = JsonCodecRegister.instance().getEncoder(obj.getClass());
+		codec.encode(writer, obj);
+	}
+
     public static void serialize(Object obj, JsonWriter writer) {
         if (obj == null) {
             return;

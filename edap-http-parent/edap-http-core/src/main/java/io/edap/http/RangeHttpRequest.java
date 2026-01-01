@@ -31,6 +31,8 @@ public class RangeHttpRequest implements HttpRequest {
     private int contentLength = -2;
     protected MethodInfo methodInfo;
     protected PathInfo pathInfo;
+	protected ByteData headerData;
+    protected HttpResponse response;
 
     public void setHttpNioSession(HttpNioSession httpNioSession) {
         this.httpNioSession = httpNioSession;
@@ -51,7 +53,15 @@ public class RangeHttpRequest implements HttpRequest {
         return null;
     }
 
-    @Override
+	@Override
+	public ByteData getHeaderData() {
+		if (headerData == null) {
+			headerData = new ByteData(4096);
+		}
+		return headerData;
+	}
+
+	@Override
     public String getMethod() {
         return methodInfo==null?null:methodInfo.getMethod();
     }
@@ -86,5 +96,14 @@ public class RangeHttpRequest implements HttpRequest {
     @Override
     public HttpNioSession getHttpNioSession() {
         return httpNioSession;
+    }
+
+    public void setResponse(HttpResponse response) {
+        this.response = response;
+    }
+
+    @Override
+    public HttpResponse getResponse() {
+        return response;
     }
 }

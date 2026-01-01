@@ -19,10 +19,11 @@ package io.edap.http.bytesdecoder;
 import io.edap.buffer.FastBuf;
 import io.edap.http.HttpRequest;
 import io.edap.util.ByteArrayBuilder;
+import io.edap.util.ByteData;
 
-public class BytesHeaderDataDecoder implements BytesTokenDecoder<byte[]> {
+public class BytesHeaderDataDecoder implements BytesTokenDecoder<ByteData> {
     @Override
-    public byte[] decode(FastBuf buf, ByteArrayBuilder sb, HttpRequest request) {
+    public ByteData decode(FastBuf buf, ByteArrayBuilder sb, HttpRequest request) {
         FastBuf _buf = buf;
         int remain = _buf.remain();
         if (remain <= 0) {
@@ -32,10 +33,16 @@ public class BytesHeaderDataDecoder implements BytesTokenDecoder<byte[]> {
         for (int i=0;i<remain;i++) {
             if (_buf.get(rpos+i) == '\r' && i < remain - 3) {
                 if (_buf.get(rpos+i+1) == '\n' && _buf.get(rpos+i+2) == '\r' && _buf.get(rpos+i+3) == '\n') {
-                    byte[] data = new byte[i];
-                    buf.get(data);
+					ByteData headerData = request.getHeaderData();
+                    byte[] data = headerData.getBytes();
+					if (data.length < i) {
+						data = new byte[i];
+						headerData.setBytes(data);
+					}
+                    buf.get(data, i);
+					headerData.setLength(i);
                     _buf.rpos(rpos+i+4);
-                    return data;
+                    return headerData;
                 }
             }
         }
