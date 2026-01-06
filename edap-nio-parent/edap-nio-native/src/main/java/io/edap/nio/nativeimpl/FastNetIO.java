@@ -84,10 +84,10 @@ public class FastNetIO {
         return write0(fd, address, len);
     }
 
-    static native int read0(FileDescriptor fd, long address, int len)
+    public static native int read0(FileDescriptor fd, long address, int len)
             throws IOException;
 
-    static native int write0(FileDescriptor fd, long address, int len)
+    public static native int write0(FileDescriptor fd, long address, int len)
             throws IOException;
 
     static native void initIDs();

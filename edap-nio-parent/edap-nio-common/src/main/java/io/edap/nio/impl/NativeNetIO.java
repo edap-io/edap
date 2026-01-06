@@ -17,19 +17,21 @@
 package io.edap.nio.impl;
 
 import io.edap.nio.EdapNetIO;
-import io.edap.nio.nativeimpl.FastNetIO;
 
 import java.io.FileDescriptor;
 import java.io.IOException;
 
+import static io.edap.nio.nativeimpl.FastNetIO.read0;
+import static io.edap.nio.nativeimpl.FastNetIO.write0;
+
 public class NativeNetIO implements EdapNetIO {
     @Override
     public int read(FileDescriptor fd, long address, int len) throws IOException {
-        return FastNetIO.read(fd, address, len);
+        return read0(fd, address, len);
     }
 
     @Override
     public int write(FileDescriptor fd, long address, int len) throws IOException {
-        return FastNetIO.write(fd, address, len);
+        return write0(fd, address, len);
     }
 }

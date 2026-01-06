@@ -29,9 +29,9 @@ public class EdapNetIOFactory {
             return EDAP_NET_IO;
         }
         boolean enableNative = FastNetIO.isEnableNativeRw();
-        System.out.println("enableNative=" + enableNative);
-        String disableNative = System.getProperty("disableNative", "false");
-        if (enableNative && !"true".equalsIgnoreCase(disableNative)) {
+        System.out.println("arch has NativeImpl =" + enableNative);
+        String dEnableNative = System.getProperty("enableNative", "false");
+        if (enableNative && "true".equalsIgnoreCase(dEnableNative)) {
             EDAP_NET_IO = new NativeNetIO();
             System.out.println("EDAP_NET_IO=" + EDAP_NET_IO);
         } else {
