@@ -18,14 +18,11 @@ package io.edap.nio.handler;
 
 import com.lmax.disruptor.EventHandler;
 import io.edap.NioServerSession;
-import io.edap.buffer.FastBuf;
 import io.edap.nio.ParseResult;
 import io.edap.Server;
 import io.edap.log.Logger;
 import io.edap.log.LoggerManager;
 import io.edap.nio.event.BizEvent;
-
-import static io.edap.nio.NioSession.THREAD_WRITE_BUF;
 
 public class BizEventHandler implements EventHandler<BizEvent>  {
 
@@ -44,13 +41,7 @@ public class BizEventHandler implements EventHandler<BizEvent>  {
             Object obj = pr.getMessage();
             if (obj != null) {
                 nioSession.handle(obj);
-                FastBuf buf = THREAD_WRITE_BUF.get();
-                while (nioSession.writeToChannel(buf)) {
-                    return;
-                }
             }
-        } catch (Exception e) {
-
         } finally {
             if (nioSession.isAffinityThread() && sequence == nioSession.getLastSequence()) {
                 nioSession.setThreadIndex(-1);

@@ -34,21 +34,18 @@ public class HeaderDataDecoder implements RangeTokenDecoder<ByteData> {
             return null;
         }
         long rpos = _buf.rpos();
-
-        int  headerRemain = remain - 2;
-        ByteData headerData = request.getHeaderData();
-        byte[] data = headerData.getBytes();
-        if (data.length < remain) {
-            headerRemain = data.length - 2;
-        }
-        byte b;
-        for (int i=0;i<headerRemain;i++) {
-            b = _buf.get(rpos++);
-            data[i] = b;
-            if (b == '\n') {
-                if (_buf.get(rpos) == '\r' && _buf.get(rpos+1) == '\n') {
-					headerData.setLength(i-1);
-                    _buf.rpos(rpos+2);
+        for (int i=0;i<remain;i++) {
+            if (_buf.get(rpos+i) == '\r' && i < remain - 3) {
+                if (_buf.get(rpos+i+1) == '\n' && _buf.get(rpos+i+2) == '\r' && _buf.get(rpos+i+3) == '\n') {
+					ByteData headerData = request.getHeaderData();
+                    byte[] data = headerData.getBytes();
+					if (data.length < i) {
+						data = new byte[i];
+						headerData.setBytes(data);
+					}
+					headerData.setLength(i);
+                    buf.get(data, i);
+                    _buf.rpos(rpos+i+4);
                     return headerData;
                 }
             }
