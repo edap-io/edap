@@ -9,19 +9,11 @@
         <version>${edap.version}</version>
     </parent>
 
-    <artifactId>edap-nio-parent</artifactId>
+    <artifactId>edap-json-parent</artifactId>
     <packaging>pom</packaging>
-    <modules>
-        <module>edap-nio-server</module>
-        <module>edap-nio-common</module>
-        <module>edap-nio-client</module>
-        <module>edap-nio-native</module>
-    </modules>
 
-    <properties>
-        <maven.compiler.source>21</maven.compiler.source>
-        <maven.compiler.target>21</maven.compiler.target>
-        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    </properties>
+    <modules>
+        <module>edap-json</module>
+    </modules>
 
 </project>

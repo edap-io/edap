@@ -19,10 +19,8 @@ package io.edap.http.core.test.decoder;
 import io.edap.buffer.FastBuf;
 import io.edap.http.HttpRequest;
 import io.edap.http.ValueHttpRequest;
-import io.edap.http.bytesdecoder.BytesHeaderDataDecoder;
 import io.edap.http.codec.HttpFastBufDataRange;
-import io.edap.http.rangedecoder.HeaderDataDecoder;
-import io.edap.util.ByteArrayBuilder;
+import io.edap.http.rangedecoder.HeaderDataFastDecoder;
 import io.edap.util.ByteData;
 import org.junit.jupiter.api.Test;
 
@@ -31,18 +29,18 @@ import java.nio.charset.StandardCharsets;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
-public class BytesHeaderDataDecoderTest {
+public class HeaderDataFastDecoderTest {
 
 	@Test
 	public void testDecoder() {
-		BytesHeaderDataDecoder decoder = new BytesHeaderDataDecoder();
+		HeaderDataFastDecoder decoder = new HeaderDataFastDecoder();
 		FastBuf buf = new FastBuf(1024);
-		ByteArrayBuilder sb = new ByteArrayBuilder();
+		HttpFastBufDataRange hbdr = new HttpFastBufDataRange();
 		HttpRequest request = new ValueHttpRequest();
 
 
-		sb.setLength(0);
-		ByteData data = decoder.decode(buf, sb, request);
+		hbdr.buffer(buf);
+		ByteData data = decoder.decode(buf, hbdr, request);
 		assertNull(data);
 
 		String headerStr = "Accept: application/json, text/javascript, */*; q=0.01\r\n" +
@@ -63,14 +61,14 @@ public class BytesHeaderDataDecoderTest {
 
 		buf.reset();
 		buf.write(headerStr.getBytes(StandardCharsets.UTF_8));
-		data = decoder.decode(buf, sb, request);
+		data = decoder.decode(buf, hbdr, request);
 		byte[] bs = new byte[data.getLength()];
 		System.arraycopy(data.getBytes(), 0, bs, 0, data.getLength());
 		assertArrayEquals(bs, headerStr.substring(0, headerStr.length()-4).getBytes(StandardCharsets.UTF_8));
 
 		buf.reset();
 		buf.write(headerStr.substring(0, headerStr.length()-1).getBytes(StandardCharsets.UTF_8));
-		data = decoder.decode(buf, sb, request);
+		data = decoder.decode(buf, hbdr, request);
 		assertNull(data);
 
 		headerStr = "Accept: application/json, text/javascript, */*; q=0.01\r\n" +
@@ -91,7 +89,7 @@ public class BytesHeaderDataDecoderTest {
 
 		buf.reset();
 		buf.write(headerStr.getBytes(StandardCharsets.UTF_8));
-		data = decoder.decode(buf, sb, request);
+		data = decoder.decode(buf, hbdr, request);
 		assertNull(data);
 
 		headerStr = "Accept: application/json, text/javascript, */*; q=0.01\r\n" +
@@ -112,7 +110,7 @@ public class BytesHeaderDataDecoderTest {
 
 		buf.reset();
 		buf.write(headerStr.getBytes(StandardCharsets.UTF_8));
-		data = decoder.decode(buf, sb, request);
+		data = decoder.decode(buf, hbdr, request);
 		assertNull(data);
 
 		headerStr = "Accept: application/json, text/javascript, */*; q=0.01\r\n" +
@@ -133,7 +131,7 @@ public class BytesHeaderDataDecoderTest {
 
 		buf.reset();
 		buf.write(headerStr.getBytes(StandardCharsets.UTF_8));
-		data = decoder.decode(buf, sb, request);
+		data = decoder.decode(buf, hbdr, request);
 		assertNull(data);
 	}
 }

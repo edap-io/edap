@@ -3,13 +3,7 @@ package io.edap.nio;
 import io.edap.buffer.FastBuf;
 
 import java.io.FileDescriptor;
-import java.lang.invoke.ConstantCallSite;
-import java.lang.invoke.MethodHandle;
-import java.lang.invoke.MethodHandles;
-import java.lang.reflect.AccessibleObject;
-import java.lang.reflect.Field;
-import java.lang.reflect.Method;
-import java.lang.reflect.Modifier;
+import java.lang.reflect.*;
 import java.nio.channels.SocketChannel;
 
 import static io.edap.util.ClazzUtil.getField;
@@ -44,12 +38,7 @@ public abstract class NioSession implements ThreadAffinity {
 
 	public static ThreadLocal<FastBuf> THREAD_WRITE_BUF;
 
-    protected static final MethodHandle READ0_MH;
-    protected static final MethodHandle WRITE0_MH;
-    protected static final MethodHandle WRITE0_MH2;
-    protected static final ConstantCallSite READ_CALLSITE;
-    protected static final ConstantCallSite WRITE_CALLSITE;
-    protected static final ConstantCallSite WRITE_CALLSITE2;
+    public static EdapNetIO EDAP_NET_IO;
 
     static {
 
@@ -58,40 +47,7 @@ public abstract class NioSession implements ThreadAffinity {
 			return buf;
 		});
 
-        Class<?> fdi;
-        try {
-            fdi = Class.forName("sun.nio.ch.FileDispatcherImpl");
-            MethodHandles.Lookup lookup = MethodHandles.lookup();
-            lookup.in(fdi);
-            Method read0 = getMethod(fdi, "read0", new Class[]{FileDescriptor.class, long.class, int.class});
-            READ0_MH = lookup.unreflect(read0);
-            READ_CALLSITE = new ConstantCallSite(READ0_MH);
-
-            MethodHandle write0Mh = null;
-            MethodHandle write0Mh2 = null;
-            try {
-                Method write0 = getMethod(fdi, "write0", FileDescriptor.class, long.class, int.class);
-                write0Mh = lookup.unreflect(write0);
-            } catch (AssertionError var7) {
-                Method write0 = getMethod(fdi, "write0", FileDescriptor.class, long.class, int.class, boolean.class);
-                write0Mh2 = lookup.unreflect(write0);
-            }
-
-            WRITE0_MH = write0Mh;
-            if (WRITE0_MH != null) {
-                WRITE_CALLSITE = new ConstantCallSite(write0Mh);
-            } else {
-                WRITE_CALLSITE = null;
-            }
-            WRITE0_MH2 = write0Mh2;
-            if (WRITE0_MH2  != null) {
-                WRITE_CALLSITE2 = new ConstantCallSite(write0Mh2);
-            } else {
-                WRITE_CALLSITE2 = null;
-            }
-        } catch (ClassNotFoundException | IllegalAccessException e) {
-            throw new AssertionError(e);
-        }
+        EDAP_NET_IO = EdapNetIOFactory.createEdapNetIO();
     }
 
     private static Method getMethod(Class clazz, String name, Class... args) {

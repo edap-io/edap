@@ -24,7 +24,7 @@ import io.edap.util.ByteData;
 /**
  *
  */
-public class HeaderDataDecoder implements RangeTokenDecoder<ByteData> {
+public class HeaderDataFastDecoder implements RangeTokenDecoder<ByteData> {
 
     @Override
     public ByteData decode(FastBuf buf, HttpFastBufDataRange dataRange, HttpRequest request) {
@@ -33,27 +33,25 @@ public class HeaderDataDecoder implements RangeTokenDecoder<ByteData> {
         if (remain <= 0) {
             return null;
         }
-        long rpos = _buf.rpos();
-        long old  = rpos;
-        int  headerRemain = remain - 2;
-        ByteData headerData = request.getHeaderData();
-        byte[] data = headerData.getBytes();
-        for (int i=0;i<headerRemain;i++) {
-            if (_buf.get(rpos++) == '\n') {
-                if (_buf.get(rpos) == '\r' && _buf.get(rpos+1) == '\n') {
-                    int len = i - 1;
-                    if (data.length < len) {
-                        data = new byte[len];
-                        headerData.setBytes(data);
-                    }
-                    headerData.setLength(len);
-                    _buf.get(old, data, 0, len);
-                    _buf.rpos(rpos+2);
-                    return headerData;
-                }
+        long old  = _buf.rpos();
+        long rpos = old + remain-4;
+        byte b1 = _buf.get(rpos);
+        byte b2 = _buf.get(rpos+1);
+        byte b3 = _buf.get(rpos+2);
+        byte b4 = _buf.get(rpos+3);
+        if (b1 == '\r' && b2 == '\n' && b3 == '\r' && b4 == '\n') {
+            ByteData headerData = request.getHeaderData();
+            byte[] data = headerData.getBytes();
+            int len = (int)(rpos - old);
+            if (data.length < len) {
+                data = new byte[len];
+                headerData.setBytes(data);
             }
+            headerData.setLength(len);
+            _buf.get(old, data, 0, len);
+            _buf.rpos(rpos);
+            return headerData;
         }
-
         return null;
     }
 }

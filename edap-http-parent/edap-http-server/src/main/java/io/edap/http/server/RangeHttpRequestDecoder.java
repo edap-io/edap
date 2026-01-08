@@ -36,14 +36,15 @@ import java.util.List;
  */
 public class RangeHttpRequestDecoder extends AbstractHttpDecoder implements Decoder<HttpRequest, HttpNioSession> {
 
-    static MethodDecoder      METHOD_DECODER      = new MethodDecoder();
-    static PathDecoder        PATH_DECODER        = new PathDecoder();
-    static QueryStringDecoder QUERY_DECODER       = new QueryStringDecoder();
-    static HttpVersionDecoder VERSION_DECODER     = new HttpVersionDecoder();
-    static HeaderDataDecoder  HEADER_DECODER      = new HeaderDataDecoder();
-    static HeaderNameDecoder  HEADERNAME_DECODER  = new HeaderNameDecoder();
-    static HeaderValueDecoder HEADERVALUE_DECODER = new HeaderValueDecoder();
-    static BodyDecoder        BODY_DECODER        = new BodyDecoder();
+    static MethodDecoder         METHOD_DECODER      = new MethodDecoder();
+    static PathDecoder           PATH_DECODER        = new PathDecoder();
+    static QueryStringDecoder    QUERY_DECODER       = new QueryStringDecoder();
+    static HttpVersionDecoder    VERSION_DECODER     = new HttpVersionDecoder();
+    static HeaderDataDecoder     HEADER_DECODER      = new HeaderDataDecoder();
+    static HeaderDataFastDecoder HEADER_FAST_DECODER = new HeaderDataFastDecoder();
+    static HeaderNameDecoder     HEADERNAME_DECODER  = new HeaderNameDecoder();
+    static HeaderValueDecoder    HEADERVALUE_DECODER = new HeaderValueDecoder();
+    static BodyDecoder           BODY_DECODER        = new BodyDecoder();
 
     static ContentTypeValueDecoder CONTENT_TYPE_VALUE_DECODER = new ContentTypeValueDecoder();
     static HeaderValueCacheDecoder HEADER_VALUE_CACHE_DECODER = new HeaderValueCacheDecoder();
@@ -155,12 +156,22 @@ public class RangeHttpRequestDecoder extends AbstractHttpDecoder implements Deco
                 request.setVersion(version);
             case READ_HEADER:
                 if (request.pathInfo.getHandlerOption() != null && request.pathInfo.getHandlerOption().isLazyParseHeader()) {
-                    ByteData headerData = HEADER_DECODER.decode(buf, dataRange, request);
-                    if (headerData != null) {
-                        request.setHeaderData(headerData);
-                        result.setFinished(true);
+                    if (!request.pathInfo.getHandlerOption().isEnablePipelining() && "GET".equals(request.methodInfo.getMethod())) {
+                        ByteData headerData = HEADER_FAST_DECODER.decode(buf, dataRange, request);
+                        if (headerData != null) {
+                            request.setHeaderData(headerData);
+                            result.setFinished(true);
+                        } else {
+                            break;
+                        }
                     } else {
-                        break;
+                        ByteData headerData = HEADER_DECODER.decode(buf, dataRange, request);
+                        if (headerData != null) {
+                            request.setHeaderData(headerData);
+                            result.setFinished(true);
+                        } else {
+                            break;
+                        }
                     }
                 } else {
                     HeaderNameDecoder nameDecoder = HEADERNAME_DECODER;

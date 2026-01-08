@@ -33,13 +33,11 @@ public class BodyDecoder {
     public void decode(HttpRequest request, FastBuf buf, HttpFastBufDataRange dataRange,
 					   ParseResult<HttpRequest> result, HttpNioSession httpNioSession) {
         String method = request.getMethod();
-        int contentLength = request.getContentLength();
-        String transferEncoding = null;
         if ("GET".equals(method)) {
-            if (request.getContentLength() <= 0) {
-				result.setFinished(true);
-            }
+            result.setFinished(true);
         } else {
+            int contentLength = request.getContentLength();
+            String transferEncoding = null;
             if (contentLength == 0) {
 				result.setFinished(true);
             } else if (contentLength > 0) {

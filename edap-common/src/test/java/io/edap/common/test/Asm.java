@@ -36,7 +36,7 @@ public class Asm {
 
         System.out.println("short Max=" + Short.MAX_VALUE);
 
-        String clsPath = FastGenericList.class.getName();
+        String clsPath = T.class.getName();
         ClassReader cr;
         if (clsPath.endsWith(".class") || clsPath.indexOf('\\') > -1
                 || clsPath.indexOf('/') > -1) {

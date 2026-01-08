@@ -47,7 +47,6 @@
         <module>edap-common</module>
         <module>edap-bean-convert</module>
         <module>edap-toml</module>
-        <module>edap-json</module>
         <module>edap-data-parent</module>
         <module>edap-rpc-parent</module>
         <module>edap-http-parent</module>
@@ -58,6 +57,7 @@
         <module>edap-codec</module>
         <module>edap-dbtools-parent</module>
         <module>edap-asm-utils</module>
+        <module>edap-json-parent</module>
 
     </modules>
 
@@ -83,6 +83,11 @@
             <dependency>
                 <groupId>io.edap</groupId>
                 <artifactId>edap-common</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.edap</groupId>
+                <artifactId>edap-nio-native</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
@@ -239,6 +244,7 @@
                     <encoding>utf-8</encoding>
 <!--                    <compilerArgs>-->
 <!--                        <arg>&#45;&#45;add-exports=java.base/sun.nio.ch=ALL-UNNAMED</arg>-->
+<!--                        <arg>&#45;&#45;add-opens=java.base/sun.nio.ch=ALL-UNNAMED</arg>-->
 <!--                    </compilerArgs>-->
                 </configuration>
             </plugin>
