@@ -26,6 +26,7 @@ import io.edap.buffer.FastBuf;
 import io.edap.http.cache.HeaderNameCache;
 import io.edap.http.codec.HttpFastBufDataRange;
 import io.edap.http.model.QueryInfo;
+import io.edap.util.ByteData;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -35,29 +36,28 @@ import java.util.List;
  */
 public class RangeHttpRequestDecoder extends AbstractHttpDecoder implements Decoder<HttpRequest, HttpNioSession> {
 
-    static MethodDecoder      METHOD_DECODER      = new MethodDecoder();
-    static PathDecoder        PATH_DECODER        = new PathDecoder();
-    static QueryStringDecoder QUERY_DECODER       = new QueryStringDecoder();
-    static HttpVersionDecoder VERSION_DECODER     = new HttpVersionDecoder();
-    static HeaderDataDecoder  HEADER_DECODER      = new HeaderDataDecoder();
-    static HeaderNameDecoder  HEADERNAME_DECODER  = new HeaderNameDecoder();
-    static HeaderValueDecoder HEADERVALUE_DECODER = new HeaderValueDecoder();
-    static BodyDecoder        BODY_DECODER        = new BodyDecoder();
+    static MethodDecoder         METHOD_DECODER      = new MethodDecoder();
+    static PathDecoder           PATH_DECODER        = new PathDecoder();
+    static QueryStringDecoder    QUERY_DECODER       = new QueryStringDecoder();
+    static HttpVersionDecoder    VERSION_DECODER     = new HttpVersionDecoder();
+    static HeaderDataDecoder     HEADER_DECODER      = new HeaderDataDecoder();
+    static HeaderDataFastDecoder HEADER_FAST_DECODER = new HeaderDataFastDecoder();
+    static HeaderNameDecoder     HEADERNAME_DECODER  = new HeaderNameDecoder();
+    static HeaderValueDecoder    HEADERVALUE_DECODER = new HeaderValueDecoder();
+    static BodyDecoder           BODY_DECODER        = new BodyDecoder();
 
     static ContentTypeValueDecoder CONTENT_TYPE_VALUE_DECODER = new ContentTypeValueDecoder();
     static HeaderValueCacheDecoder HEADER_VALUE_CACHE_DECODER = new HeaderValueCacheDecoder();
     static ConnectionValueDecoder  CONNECTION_VALUE_DECODER   = new ConnectionValueDecoder();
 
-    static ThreadLocal<List<ValueHttpRequest>> THREAD_RANGE_REQUEST;
+    static ThreadLocal<ValueHttpRequest> THREAD_RANGE_REQUEST;
     static ThreadLocal<List<HttpRequest>>      THREAD_USED_REQUEST;
 
     static {
         THREAD_RANGE_REQUEST = ThreadLocal.withInitial(() -> {
-            List<ValueHttpRequest> reqs = new ArrayList(32);
-            for (int i=0;i<32;i++) {
-                reqs.add(new ValueHttpRequest());
-            }
-            return reqs;
+            ValueHttpRequest request = new ValueHttpRequest();
+            request.setResponse(new HttpResponse());
+            return request;
         });
 
         THREAD_USED_REQUEST = ThreadLocal.withInitial(() -> {
@@ -90,16 +90,15 @@ public class RangeHttpRequestDecoder extends AbstractHttpDecoder implements Deco
         if (state == null) {
             state = State.SKIP_CONTROL_CHARS;
         }
-        int index = 0;
-        ValueHttpRequest request = new ValueHttpRequest();
+        ValueHttpRequest request = THREAD_RANGE_REQUEST.get();
         HttpFastBufDataRange dataRange = httpNioSession.getDataRange();
         if (dataRange == null) {
             dataRange = new HttpFastBufDataRange();
             httpNioSession.setDataRange(dataRange);
         }
         request.reset();
-        Result res = parseHttpRequest(buf, state, dataRange, request, httpNioSession);
-        if (res.finish) {
+       	parseHttpRequest(buf, state, dataRange, request, httpNioSession, result);
+        if (result.isFinished()) {
             result.setMessage(request);
             result.setFinished(true);
         } else {
@@ -110,16 +109,15 @@ public class RangeHttpRequestDecoder extends AbstractHttpDecoder implements Deco
     }
 
 
-    public Result parseHttpRequest(FastBuf buf, State state, HttpFastBufDataRange dataRange,
-                                   ValueHttpRequest request, HttpNioSession httpNioSession) {
-        Result result = new Result();
-        result.state = state;
+    public void parseHttpRequest(FastBuf buf, State state, HttpFastBufDataRange dataRange,
+                                   ValueHttpRequest request, HttpNioSession httpNioSession,
+								   ParseResult<HttpRequest> result) {
         dataRange.buffer(buf);
         switch (state) {
             case SKIP_CONTROL_CHARS:
                 long pos = skipControlCharacters(buf);
                 if (pos == -1) {
-                    result.state = State.SKIP_CONTROL_CHARS;
+					httpNioSession.setDecodeState(State.SKIP_CONTROL_CHARS);
                     break;
                 } else {
                     buf.rpos();
@@ -127,7 +125,7 @@ public class RangeHttpRequestDecoder extends AbstractHttpDecoder implements Deco
             case READ_METHOD:
                 MethodInfo methodInfo = METHOD_DECODER.decode(buf, dataRange, request);
                 if (methodInfo == null) {
-                    result.state = State.READ_METHOD;
+					httpNioSession.setDecodeState(State.READ_METHOD);
                     break;
                 } else {
                     request.methodInfo = methodInfo;
@@ -136,7 +134,7 @@ public class RangeHttpRequestDecoder extends AbstractHttpDecoder implements Deco
             case READ_PATH:
                 PathInfo path = PATH_DECODER.decode(buf, dataRange, request);
                 if (path == null) {
-                    result.state = State.READ_PATH;
+					httpNioSession.setDecodeState(State.READ_PATH);
                     break;
                 } else {
                     request.pathInfo = path;
@@ -145,23 +143,23 @@ public class RangeHttpRequestDecoder extends AbstractHttpDecoder implements Deco
             case READ_QUERY_STRING:
                 QueryInfo query = QUERY_DECODER.decode(buf, dataRange, request);
                 if (query == null) {
-                    result.state = State.READ_QUERY_STRING;
+					httpNioSession.setDecodeState(State.READ_QUERY_STRING);
                     break;
                 }
                 request.queryInfo = query;
             case READ_HTTP_VERSION:
                 HttpVersion version = VERSION_DECODER.decode(buf, dataRange, request);
                 if (version == null) {
-                    result.state = State.READ_HTTP_VERSION;
+					httpNioSession.setDecodeState(State.READ_HTTP_VERSION);
                     break;
                 }
                 request.setVersion(version);
             case READ_HEADER:
                 if (request.pathInfo.getHandlerOption() != null && request.pathInfo.getHandlerOption().isLazyParseHeader()) {
-                    byte[] headerData = HEADER_DECODER.decode(buf, dataRange, request);
+                    ByteData headerData = HEADER_DECODER.decode(buf, dataRange, request);
                     if (headerData != null) {
                         request.setHeaderData(headerData);
-                        result.finish = true;
+                        result.setFinished(true);
                     } else {
                         break;
                     }
@@ -174,15 +172,15 @@ public class RangeHttpRequestDecoder extends AbstractHttpDecoder implements Deco
                         dataRange.reset();
                         value = valueDecoder.decode(buf, dataRange, request);
                         if (value == null) {
-                            result.state = State.READ_HEADER;
+							httpNioSession.setDecodeState(State.READ_HEADER);
                             break;
                         }
                         request.putHeader(name.name, value);
                         dataRange.reset();
                         name = nameDecoder.decode(buf, dataRange, request);
                         if (name == null) {
-                            result.finish = false;
-                            return result;
+                            result.setFinished(false);
+                            return;
                         }
                     }
                 }
@@ -193,7 +191,6 @@ public class RangeHttpRequestDecoder extends AbstractHttpDecoder implements Deco
 
         }
 
-        return result;
     }
 
     @Override

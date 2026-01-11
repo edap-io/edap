@@ -134,7 +134,7 @@ public class UnsafeUtil {
         return UNSAFE.getByte(value, offset);
     }
 
-    public static int readByte(long address) {
+    public static byte readByte(long address) {
         return UNSAFE.getByte(address);
     }
 

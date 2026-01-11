@@ -9,6 +9,8 @@ public class HttpHandleOption {
 	 */
 	private boolean lazyParseHeader;
 
+    private boolean enablePipelining;
+
 	/**
 	 * 延迟解析header，加快http协议解码的效率
 	 */
@@ -23,4 +25,12 @@ public class HttpHandleOption {
 	public static HttpHandleOption defaultHttpHandleOption() {
 		return HTTP_HANDLE_OPTION;
 	}
+
+    public boolean isEnablePipelining() {
+        return enablePipelining;
+    }
+
+    public void setEnablePipelining(boolean enablePipelining) {
+        this.enablePipelining = enablePipelining;
+    }
 }

@@ -28,6 +28,8 @@ public interface HttpRequest {
 
     ByteData getBody();
 
+	ByteData getHeaderData();
+
     String getMethod();
 
     MethodInfo getMethodInfo();
@@ -41,4 +43,6 @@ public interface HttpRequest {
     HttpVersion getVersion();
 
     HttpNioSession getHttpNioSession();
+
+    HttpResponse getResponse();
 }

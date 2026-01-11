@@ -171,7 +171,7 @@ public class HttpResponse {
 
     private boolean write0(FastBuf buf, byte[] data) throws IOException {
         int len = data.length;
-        int wlen = buf.write(data, 0, data.length);
+        int wlen = buf.write(data, 0, len);
         if (wlen >= len) {
             return true;
         }
