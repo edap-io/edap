@@ -42,9 +42,9 @@ public class JsonCodecRegister {
 
     private static final Map<Class<?>, Map<String, JsonDecoder>> DECODER_MAP = new ConcurrentHashMap<>();
 
-    private static final Map<Class<?>, JsonEncoder> ENCODER_MAP = new ConcurrentHashMap<>();
-    private static final Map<Type, MapEncoder> MAP_ENCODER_MAP = new ConcurrentHashMap<>();
-    private static final Map<Type, Lock> MAP_TYPE_LOCKS = new ConcurrentHashMap();
+    private static final Map<Class<?>, JsonEncoder> ENCODER_MAP        = new HashMap<>();
+    private static final Map<Type, MapEncoder>      MAP_ENCODER_MAP    = new HashMap<>();
+    private static final Map<Type, Lock>            MAP_TYPE_LOCKS     = new HashMap<>();
     private static final Map<Type, JsonCodecLoader> MAP_ENCODER_LOADER = new HashMap<>();
 
     static {
@@ -64,11 +64,18 @@ public class JsonCodecRegister {
 
     public <T> JsonEncoder<T> getEncoder(Class<T> tClass) {
         JsonEncoder encoder = ENCODER_MAP.get(tClass);
-        if (encoder == null) {
+        if (encoder != null) {
+            return encoder;
+        }
+        synchronized (tClass) {
+            encoder = ENCODER_MAP.get(tClass);
+            if (encoder != null) {
+                return encoder;
+            }
             encoder = generateEncoder(tClass);
             ENCODER_MAP.put(tClass, encoder);
+            return encoder;
         }
-        return encoder;
     }
 
     public <T> JsonDecoder<T> getDecoder(Class<T> tClass, DataType dataType) {
