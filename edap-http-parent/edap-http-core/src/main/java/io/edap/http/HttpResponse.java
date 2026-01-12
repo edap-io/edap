@@ -109,6 +109,24 @@ public class HttpResponse {
         return this;
     }
 
+    public HttpResponse write(BufWriter writer) {
+        int bodyLen = writer.size();
+        FastBuf _buf = buf;
+        try {
+            write0(_buf, version.bytes());
+            write0(_buf, ResponseStatusCode.get(200));
+            write0(_buf, contentType.getBytes());
+            write0(_buf, ContentLength.getByteData(bodyLen));
+            write0(_buf, HEADER_DATE.getBytes());
+            write0(_buf, HEADER_SERVER.getBytes());
+            write0(_buf, LINE);
+            write0(_buf, writer);
+        } catch (IOException ioe) {
+            ioe.printStackTrace();
+        }
+        return this;
+    }
+
     public HttpResponse write(Object obj) {
         if (contentType == null) {
             contentType = ContentTypeHeader.from("application/json; charset=UTF-8");
