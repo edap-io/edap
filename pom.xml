@@ -27,7 +27,7 @@
 
     <properties>
         <java.version>21</java.version>
-        <edap.version>0.1-SNAPSHOT</edap.version>
+        <edap.version>0.1.1-SNAPSHOT</edap.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven.compiler.source>21</maven.compiler.source>
         <maven.compiler.target>21</maven.compiler.target>
@@ -47,7 +47,7 @@
         <module>edap-common</module>
         <module>edap-bean-convert</module>
         <module>edap-toml</module>
-        <module>edap-json</module>
+        <module>edap-json-parent</module>
         <module>edap-data-parent</module>
         <module>edap-rpc-parent</module>
         <module>edap-http-parent</module>
