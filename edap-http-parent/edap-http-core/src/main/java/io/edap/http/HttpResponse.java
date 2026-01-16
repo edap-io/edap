@@ -254,4 +254,8 @@ public class HttpResponse {
     public void setBuf(FastBuf buf) {
         this.buf = buf;
     }
+
+    public FastBuf getBuf() {
+        return buf;
+    }
 }

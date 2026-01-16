@@ -31,6 +31,8 @@ import io.edap.util.ByteData;
 import java.util.ArrayList;
 import java.util.List;
 
+import static io.edap.nio.NioSession.THREAD_WRITE_BUF;
+
 /**
  * HTTP协议解析器
  */
@@ -50,14 +52,18 @@ public class RangeHttpRequestDecoder extends AbstractHttpDecoder implements Deco
     static HeaderValueCacheDecoder HEADER_VALUE_CACHE_DECODER = new HeaderValueCacheDecoder();
     static ConnectionValueDecoder  CONNECTION_VALUE_DECODER   = new ConnectionValueDecoder();
 
-    static ThreadLocal<ValueHttpRequest> THREAD_RANGE_REQUEST;
+    static ThreadLocal<DecodeContext> THREAD_DECODE_CONTEXT;
     static ThreadLocal<List<HttpRequest>>      THREAD_USED_REQUEST;
 
     static {
-        THREAD_RANGE_REQUEST = ThreadLocal.withInitial(() -> {
+        THREAD_DECODE_CONTEXT = ThreadLocal.withInitial(() -> {
+            DecodeContext dc = new DecodeContext();
             ValueHttpRequest request = new ValueHttpRequest();
             request.setResponse(new HttpResponse());
-            return request;
+            dc.dataRange = new HttpFastBufDataRange();
+            dc.request = request;
+            dc.result = new ParseResult<>();
+            return dc;
         });
 
         THREAD_USED_REQUEST = ThreadLocal.withInitial(() -> {
@@ -85,17 +91,18 @@ public class RangeHttpRequestDecoder extends AbstractHttpDecoder implements Deco
     @Override
     public ParseResult<HttpRequest> decode(FastBuf buf, HttpNioSession httpNioSession) {
 
-        ParseResult<HttpRequest> result = new ParseResult<>();
         HttpDecoder.State state = httpNioSession.getDecodeState();
         if (state == null) {
             state = State.SKIP_CONTROL_CHARS;
         }
-        ValueHttpRequest request = THREAD_RANGE_REQUEST.get();
-        HttpFastBufDataRange dataRange = httpNioSession.getDataRange();
-        if (dataRange == null) {
-            dataRange = new HttpFastBufDataRange();
-            httpNioSession.setDataRange(dataRange);
+        DecodeContext dc = THREAD_DECODE_CONTEXT.get();
+        HttpFastBufDataRange dataRange = dc.dataRange;
+        ValueHttpRequest request = dc.request;
+        HttpResponse response = request.getResponse();
+        if (response.getBuf() == null) {
+            response.setBuf(THREAD_WRITE_BUF.get());
         }
+        ParseResult<HttpRequest> result = dc.result;
         request.reset();
        	parseHttpRequest(buf, state, dataRange, request, httpNioSession, result);
         if (result.isFinished()) {
@@ -106,6 +113,12 @@ public class RangeHttpRequestDecoder extends AbstractHttpDecoder implements Deco
         }
 
         return result;
+    }
+
+    static class DecodeContext {
+        ParseResult<HttpRequest> result;
+        ValueHttpRequest request;
+        HttpFastBufDataRange dataRange;
     }
 
 
