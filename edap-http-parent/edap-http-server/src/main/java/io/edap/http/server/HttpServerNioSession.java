@@ -63,12 +63,10 @@ public class HttpServerNioSession extends HttpNioSession {
 		} else { // 请求的路径不存在
 			handler = NOT_FOUND_HANDLER;
 		}
-		FastBuf buf = THREAD_WRITE_BUF.get();
 		try {
 			HttpResponse resp = request.getResponse();
 			resp.setNioSession(this);
 			resp.setRequest(request);
-			resp.setBuf(buf);
 
 			handler.handle(request, resp);
 

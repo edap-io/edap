@@ -78,6 +78,7 @@ public class QueryStringDecoderTest {
         buf.reset();
         buf.write("?test=123 ".getBytes(StandardCharsets.UTF_8));
         query = decoder.decode(buf, hbdr, request);
+        assertEquals(buf.rpos(), buf.limit());
         assertNotNull(query);
         assertEquals(query.getQuery(), "test=123");
         assertNotNull(request.getParameters());

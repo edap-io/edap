@@ -36,12 +36,12 @@ public class HeaderDataDecoder implements RangeTokenDecoder<ByteData> {
         long rpos = _buf.rpos();
         long old  = rpos;
         int  headerRemain = remain - 2;
-        ByteData headerData = request.getHeaderData();
-        byte[] data = headerData.getBytes();
         for (int i=0;i<headerRemain;i++) {
             if (_buf.get(rpos++) == '\n') {
                 if (_buf.get(rpos) == '\r' && _buf.get(rpos+1) == '\n') {
                     int len = i - 1;
+                    ByteData headerData = request.getHeaderData();
+                    byte[] data = headerData.getBytes();
                     if (data.length < len) {
                         data = new byte[len];
                         headerData.setBytes(data);

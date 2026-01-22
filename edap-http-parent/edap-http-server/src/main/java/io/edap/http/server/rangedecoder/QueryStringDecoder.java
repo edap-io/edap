@@ -6,10 +6,8 @@ import io.edap.http.ParameterValue;
 import io.edap.http.ValueHttpRequest;
 import io.edap.http.cache.ParamKeyCache;
 import io.edap.http.codec.HttpFastBufDataRange;
-import io.edap.http.model.ParamPair;
 import io.edap.http.model.QueryInfo;
 import io.edap.http.rangedecoder.RangeTokenDecoder;
-import io.edap.util.ByteArrayBuilder;
 import io.edap.util.FastList;
 import io.edap.util.StringUtil;
 
@@ -56,6 +54,7 @@ public class QueryStringDecoder implements RangeTokenDecoder<QueryInfo> {
         int             remain     = _buf.remain();
         long            rpos       = _buf.rpos();
         long            queryPos   = rpos;
+        dataRange.reset();
         dataRange.buffer(_buf);
         dataRange.start(rpos);
         dataRange.first(_buf.get(rpos));
@@ -64,6 +63,7 @@ public class QueryStringDecoder implements RangeTokenDecoder<QueryInfo> {
         long  hashCode = FNV_1a_INIT_VAL;
         byte  decodeByte;
         int   len = 0;
+        boolean parseKey = true;
         for (int i=0;i<remain;i++) {
             b = _buf.get(rpos++);
             switch (b) {
@@ -80,6 +80,7 @@ public class QueryStringDecoder implements RangeTokenDecoder<QueryInfo> {
                     dataRange.start(rpos);
                     hashCode = FNV_1a_INIT_VAL;
                     len = 0;
+                    parseKey = false;
                     break;
                 case '&':
                     dataRange.length(len);
@@ -106,6 +107,7 @@ public class QueryStringDecoder implements RangeTokenDecoder<QueryInfo> {
                         list.add(pv);
                         parameters.put(key, list);
                     }
+                    parseKey = true;
                     key = null;
                     len = 0;
                     dataRange.reset();
@@ -141,6 +143,7 @@ public class QueryStringDecoder implements RangeTokenDecoder<QueryInfo> {
                     _buf.rpos(queryPos);
                     _buf.get(queryPos, queryBytes);
                     query.setQueryBytes(queryBytes);
+                    _buf.rpos(queryPos + i +1);
                     return query;
                 case '+':
                     decodeByte = ' ';
@@ -166,8 +169,10 @@ public class QueryStringDecoder implements RangeTokenDecoder<QueryInfo> {
                         return null;
                     }
                 default:
-                    hashCode ^= b;
-                    hashCode *= FNV_1a_FACTOR_VAL;
+                    if (parseKey) {
+                        hashCode ^= b;
+                        hashCode *= FNV_1a_FACTOR_VAL;
+                    }
                     len++;
             }
         }

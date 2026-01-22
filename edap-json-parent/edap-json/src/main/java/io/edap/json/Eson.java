@@ -36,6 +36,8 @@ public class Eson {
 
     private static final ThreadLocal<ByteArrayJson5Reader> THREAD_BYTEARRAY_JSON5READER;
 
+    static JsonCodecRegister REGISTER;
+
     static  {
         THREAD_STRING_JSONREADER  = ThreadLocal.withInitial(() -> new StringJsonReader(""));
 
@@ -44,6 +46,8 @@ public class Eson {
         THREAD_STRING_JSON5READER  = ThreadLocal.withInitial(() -> new StringJson5Reader(""));
 
         THREAD_BYTEARRAY_JSON5READER  = ThreadLocal.withInitial(() -> new ByteArrayJson5Reader(new byte[0]));
+
+        REGISTER = JsonCodecRegister.instance();
     }
 
     /**
@@ -131,7 +135,7 @@ public class Eson {
         } else if (obj.getClass().isEnum()) {
             writer.write(obj.toString());
         } else {
-            JsonEncoder codec = JsonCodecRegister.instance().getEncoder(obj.getClass());
+            JsonEncoder codec = REGISTER.getEncoder(obj.getClass());
             codec.encode(writer, obj);
         }
     }
