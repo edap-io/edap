@@ -58,6 +58,8 @@
         <module>edap-dbtools-parent</module>
         <module>edap-asm-utils</module>
         <module>edap-json-parent</module>
+        <module>edap-mqtt-parent</module>
+        <module>edap-mqtt-parent/edap-mqtt-wire</module>
 
     </modules>
 
@@ -154,6 +156,12 @@
             <dependency>
                 <groupId>io.edap</groupId>
                 <artifactId>edap-rpc-api</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>io.edap</groupId>
+                <artifactId>edap-mqtt-wire</artifactId>
                 <version>${project.version}</version>
             </dependency>
 
