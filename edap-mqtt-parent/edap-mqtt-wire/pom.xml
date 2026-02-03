@@ -12,6 +12,10 @@
     <artifactId>edap-mqtt-wire</artifactId>
 
     <dependencies>
+        <dependency>
+            <groupId>io.edap</groupId>
+            <artifactId>edap-common</artifactId>
+        </dependency>
 
         <!-- 单元测试相关依赖 -->
         <dependency>

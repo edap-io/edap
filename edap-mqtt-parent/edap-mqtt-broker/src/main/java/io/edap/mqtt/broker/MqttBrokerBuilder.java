@@ -1,11 +1,14 @@
 package io.edap.mqtt.broker;
 
+import io.edap.mqtt.QoSLevel;
+
 import java.util.ArrayList;
 import java.util.List;
 
 public class MqttBrokerBuilder {
 
     List<String> addrs = new ArrayList<>();
+    private QoSLevel qoSLevel;
 
     public MqttBrokerBuilder listen(int... ports) {
         if (ports == null) {
@@ -22,6 +25,11 @@ public class MqttBrokerBuilder {
         if (!addrs.contains(addr) && !addrs.contains(":" + port)) {
             addrs.add(addr);
         }
+        return this;
+    }
+
+    public MqttBrokerBuilder supportQoSLevel(QoSLevel qoSLevel) {
+        this.qoSLevel = qoSLevel;
         return this;
     }
 

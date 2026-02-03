@@ -17,6 +17,8 @@
 package io.edap;
 
 import io.edap.buffer.FastBuf;
+import io.edap.log.Logger;
+import io.edap.log.LoggerManager;
 import io.edap.nio.NioSession;
 
 import java.io.FileDescriptor;
@@ -33,6 +35,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * @date 2019-07-07 22:29
  */
 public abstract class NioServerSession<T> extends NioSession {
+
+    static Logger LOG = LoggerManager.getLogger(NioServerSession.class);
 
     private final AtomicBoolean readLock = new AtomicBoolean();
     private final AtomicBoolean writeLock = new AtomicBoolean();
@@ -355,4 +359,12 @@ public abstract class NioServerSession<T> extends NioSession {
 			throw new RuntimeException(e);
 		}
 	}
+
+    public void close() {
+        try {
+            socketChannel.close();
+        } catch (IOException e) {
+            LOG.error(this.getClass().getName() + " close error", e);
+        }
+    }
 }

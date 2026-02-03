@@ -13,6 +13,8 @@
     <packaging>pom</packaging>
     <modules>
         <module>edap-mqtt-broker</module>
+        <module>edap-mqtt-core</module>
+        <module>edap-mqtt-wire</module>
     </modules>
 
 </project>
