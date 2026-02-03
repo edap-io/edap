@@ -65,4 +65,11 @@ public interface MqttEncoder {
         }
         writer.setPos(pos);
     }
+
+    default void encode(MqttWriter writer, UnsubAck unsubAck) {
+        int pi = unsubAck.getPacketIdentifier();
+        writer.writeByte((byte)(UNSUBACK.getValue() << 4 | unsubAck.getLowFourBits()));
+        writer.writeVarInt(2);
+        writer.writeBytes((byte)(pi >> 8), (byte)(pi & 0xFF));
+    }
 }

@@ -5,7 +5,9 @@ import io.edap.mqtt.*;
 import io.edap.mqtt.packet.*;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 
 import static io.edap.mqtt.ControlPacketType.*;
 import static io.edap.mqtt.MqttEncoder.LOCAL_MQTT_WRITER;
@@ -48,11 +50,55 @@ public interface MqttHandler {
     }
 
     default void handleUnsubscribe(MqttNioSession session, Unsubscribe unsubscribe) {
-
+        MqttEncoder encoder = session.getMqttEncoder();
+        if (encoder == null) {
+            Disconnect disconnect = new Disconnect(DISCONNECT_VALUE << 4);
+            disconnect.setReasonCode(ReasonCode.NOT_AUTHORIZED_V3.getCode());
+            handleDisconnect(session, disconnect);
+            return;
+        }
+        UnsubAck unsubAck = new UnsubAck(UNSUBACK_VALUE << 4);
+        unsubAck.setPacketIdentifier(unsubscribe.getPacketIdentifier());
+        int size = unsubscribe.getTopicFilterList().size();
+        List<String> topicList = unsubscribe.getTopicFilterList();
+        List<String> tppics = new ArrayList<>();
+        for (int i=0;i<size;i++) {
+            tppics.add(topicList.get(i));
+        }
+        MqttWriter writer = LOCAL_MQTT_WRITER.get();
+        FastBuf writeBuf = THREAD_WRITE_BUF.get();
+        writer.reset();
+        encoder.encode(writer, unsubAck);
+        int len = writer.getLength();
+        if (writeBuf.writeRemain() > len) {
+            writeBuf.write(writer.getData(), writer.getStart(), len);
+        }
     }
 
     default void handleSubscribe(MqttNioSession session, Subscribe subscribe) {
-
+        MqttEncoder encoder = session.getMqttEncoder();
+        if (encoder == null) {
+            Disconnect disconnect = new Disconnect(DISCONNECT_VALUE << 4);
+            disconnect.setReasonCode(ReasonCode.NOT_AUTHORIZED_V3.getCode());
+            handleDisconnect(session, disconnect);
+            return;
+        }
+        SubAck subAck = new SubAck(SUBACK_VALUE << 4);
+        subAck.setPacketIdentifier(subscribe.getPacketIdentifier());
+        int size = subscribe.getTopicFilterList().size();
+        List<Integer> codes = new ArrayList<>();
+        for (int i=0;i<size;i++) {
+            codes.add(0);
+        }
+        subAck.setRespCodes(codes);
+        MqttWriter writer = LOCAL_MQTT_WRITER.get();
+        FastBuf writeBuf = THREAD_WRITE_BUF.get();
+        writer.reset();
+        encoder.encode(writer, subAck);
+        int len = writer.getLength();
+        if (writeBuf.writeRemain() > len) {
+            writeBuf.write(writer.getData(), writer.getStart(), len);
+        }
     }
 
     default void handlePublish(MqttNioSession session, Publish publish) {
