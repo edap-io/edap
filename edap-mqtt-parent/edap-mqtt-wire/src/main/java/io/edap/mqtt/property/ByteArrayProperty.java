@@ -32,7 +32,6 @@ public abstract class ByteArrayProperty implements PacketProperty<byte[]> {
         if (len > TWO_BYTE_INT_MAX_VALUE) {
             throw new ByteArrayToLongException("byte array data too lang!");
         }
-        writer.writeBytes((byte)(len >> 8), (byte)(len & 0xFF));
         writer.write(value);
     }
 

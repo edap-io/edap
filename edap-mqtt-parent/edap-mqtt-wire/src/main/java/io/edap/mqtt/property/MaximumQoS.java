@@ -7,6 +7,12 @@ public class MaximumQoS extends ByteProperty {
 
     static final String NAME = "Maximum QoS";
 
+    public MaximumQoS() {}
+
+    public MaximumQoS(byte val) {
+        value(val);
+    }
+
     @Override
     public String name() {
         return NAME;

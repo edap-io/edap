@@ -7,6 +7,12 @@ public class AssignedClientIdentifier extends StringProperty {
 
     static final String NAME = "Assigned Client Identifier";
 
+    public AssignedClientIdentifier() {}
+
+    public AssignedClientIdentifier(String val) {
+        value(val);
+    }
+
     @Override
     public String name() {
         return NAME;

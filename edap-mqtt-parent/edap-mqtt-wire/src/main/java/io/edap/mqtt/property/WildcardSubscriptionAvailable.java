@@ -7,6 +7,12 @@ public class WildcardSubscriptionAvailable extends ByteProperty {
 
     static final String NAME = "Wildcard Subscription Available";
 
+    public WildcardSubscriptionAvailable() {}
+
+    public WildcardSubscriptionAvailable(byte val) {
+        value(val);
+    }
+
     @Override
     public String name() {
         return NAME;

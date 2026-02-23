@@ -1,12 +1,12 @@
 package io.edap.mqtt;
 
-import io.edap.mqtt.packet.ControlPacket;
 import io.edap.nio.ParseResult;
 
 public class ParseContext {
     private byte[]                     parseData;
     private ParseResult<ControlPacket> result;
     private MqttNioSession             session;
+    private long                       rpos;
 
     public byte[] getParseData() {
         return parseData;
@@ -30,5 +30,13 @@ public class ParseContext {
 
     public void setSession(MqttNioSession session) {
         this.session = session;
+    }
+
+    public long getRpos() {
+        return rpos;
+    }
+
+    public void setRpos(long rpos) {
+        this.rpos = rpos;
     }
 }

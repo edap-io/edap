@@ -7,6 +7,12 @@ public class ServerReference extends StringProperty {
 
     static final String NAME = "Server Reference";
 
+    public ServerReference() {}
+
+    public ServerReference(String val) {
+        value(val);
+    }
+
     @Override
     public String name() {
         return NAME;

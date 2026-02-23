@@ -1,11 +1,11 @@
 package io.edap.mqtt.packet;
 
+import io.edap.mqtt.ControlPacket;
 import io.edap.mqtt.ControlPacketType;
 import io.edap.mqtt.PacketProperty;
 import io.edap.mqtt.PropertyType;
 
 import java.util.LinkedHashMap;
-import java.util.List;
 
 public class Disconnect extends ControlPacket {
     /**

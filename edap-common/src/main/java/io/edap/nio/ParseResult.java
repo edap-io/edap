@@ -1,7 +1,5 @@
 package io.edap.nio;
 
-import java.util.List;
-
 /**
  * 网络协议解析结果
  * @param <T> 协议消息体类型

@@ -38,4 +38,12 @@ public class PubAckTest {
 
     }
 
+    @Test
+    public void testReasonCode() {
+        PubAck pubAck = new PubAck(56);
+        int reasonCode = new Random().nextInt(Byte.MAX_VALUE);
+        pubAck.setReasonCode(reasonCode);
+        assertEquals(pubAck.getReasonCode(), reasonCode);
+    }
+
 }

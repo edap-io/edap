@@ -7,6 +7,12 @@ public class ContentType extends StringProperty {
 
     static final String NAME = "Content Type";
 
+    public ContentType() {}
+
+    public ContentType(String val) {
+        value(val);
+    }
+
     @Override
     public String name() {
         return NAME;

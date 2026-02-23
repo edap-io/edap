@@ -9,6 +9,15 @@ public class StringPair {
     private String name;
     private String value;
 
+    public StringPair() {
+
+    }
+
+    public StringPair(String name, String value) {
+        this.name = name;
+        this.value = value;
+    }
+
     public String getName() {
         return name;
     }

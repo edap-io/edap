@@ -111,16 +111,16 @@ public class ConnectTest {
     public void testTopic() {
         Connect connect = new Connect(52);
         String topic = randomStr(new Random().nextInt(50));
-        connect.setTopic(topic);
-        assertEquals(connect.getTopic(), topic);
+        connect.setWillTopic(topic);
+        assertEquals(connect.getWillTopic(), topic);
     }
 
     @Test
-    public void testMessage() {
+    public void testWillPayloade() {
         Connect connect = new Connect(52);
         String message = randomStr(new Random().nextInt(50));
-        connect.setMessage(message);
-        assertEquals(connect.getMessage(), message);
+        connect.setWillPayload(message.getBytes(StandardCharsets.UTF_8));
+        assertArrayEquals(connect.getWillPayload(), message.getBytes(StandardCharsets.UTF_8));
     }
 
     @Test
@@ -137,14 +137,6 @@ public class ConnectTest {
         String password = randomStr(new Random().nextInt(50));
         connect.setPassword(password);
         assertEquals(connect.getPassword(), password);
-    }
-
-    @Test
-    public void testPayload() {
-        Connect connect = new Connect(52);
-        String payload = randomStr(new Random().nextInt(100));
-        connect.setPayload(payload.getBytes(StandardCharsets.UTF_8));
-        assertArrayEquals(connect.getPayload(), payload.getBytes(StandardCharsets.UTF_8));
     }
 
     @Test

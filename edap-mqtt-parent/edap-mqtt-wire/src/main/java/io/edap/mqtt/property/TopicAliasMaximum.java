@@ -7,6 +7,14 @@ public class TopicAliasMaximum extends TwoByteIntegerProperty {
 
     static final String NAME = "Topic Alias Maximum";
 
+    public TopicAliasMaximum() {
+
+    }
+
+    public TopicAliasMaximum(int val) {
+        value(val);
+    }
+
     @Override
     public String name() {
         return NAME;

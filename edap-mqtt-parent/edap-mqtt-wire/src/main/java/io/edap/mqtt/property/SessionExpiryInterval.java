@@ -7,6 +7,14 @@ public class SessionExpiryInterval extends IntegerProperty {
 
     static final String NAME = "Session Expiry Interval";
 
+    public SessionExpiryInterval() {
+        super();
+    }
+
+    public SessionExpiryInterval(int val) {
+        value(val);
+    }
+
     @Override
     public String name() {
         return NAME;

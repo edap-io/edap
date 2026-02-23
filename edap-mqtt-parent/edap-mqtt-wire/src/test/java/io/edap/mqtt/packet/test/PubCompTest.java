@@ -3,6 +3,7 @@ package io.edap.mqtt.packet.test;
 import io.edap.mqtt.ControlPacketType;
 import io.edap.mqtt.PacketProperty;
 import io.edap.mqtt.PropertyType;
+import io.edap.mqtt.packet.PubAck;
 import io.edap.mqtt.packet.PubComp;
 import org.junit.jupiter.api.Test;
 
@@ -38,4 +39,11 @@ public class PubCompTest {
 
     }
 
+    @Test
+    public void testReasonCode() {
+        PubComp pubComp = new PubComp(57);
+        int reasonCode = new Random().nextInt(Byte.MAX_VALUE);
+        pubComp.setReasonCode(reasonCode);
+        assertEquals(pubComp.getReasonCode(), reasonCode);
+    }
 }

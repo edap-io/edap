@@ -25,7 +25,7 @@ public class MqttBrokerSession extends NioServerSession<ControlPacket> implement
 
     private QoSLevel qosLevel;
 
-    private Map<ProtocolLevel, MqttHandler> mqttHandlers;
+    private Map<ProtocolLevel, MqttBrokerHandler> mqttHandlers;
 
     private MqttEncoder encoder;
 
@@ -44,13 +44,13 @@ public class MqttBrokerSession extends NioServerSession<ControlPacket> implement
             if (!connected) {
                 if (message instanceof Connect) {
                     Connect connect = (Connect) message;
-                    MqttHandler handler = mqttHandlers.get(connect.getProtocolLevel());
+                    MqttBrokerHandler handler = mqttHandlers.get(connect.getProtocolLevel());
                     handler.handleConnect(this, connect);
                 }
                 return;
             }
             int packetType = message.getType().getValue();
-            MqttHandler handler = mqttHandlers.get(getProtocolLevel());
+            MqttBrokerHandler handler = mqttHandlers.get(getProtocolLevel());
             switch (packetType) {
                 case DISCONNECT_VALUE:
                     handler.handleDisconnect(this, (Disconnect)message);
@@ -75,6 +75,9 @@ public class MqttBrokerSession extends NioServerSession<ControlPacket> implement
                     break;
                 case UNSUBSCRIBE_VALUE:
                     handler.handleUnsubscribe(this, (Unsubscribe)message);
+                    break;
+                case PINGREQ_VALUE:
+                    handler.handlePing(this, (PingReq)message);
                     break;
             }
 
@@ -121,11 +124,11 @@ public class MqttBrokerSession extends NioServerSession<ControlPacket> implement
         this.encoder = MQTT_ENCODERS.get(protocolLevel);
     }
 
-    public Map<ProtocolLevel, MqttHandler> getMqttHandlers() {
+    public Map<ProtocolLevel, MqttBrokerHandler> getMqttHandlers() {
         return mqttHandlers;
     }
 
-    public void setMqttHandlers(Map<ProtocolLevel, MqttHandler> mqttHandlers) {
+    public void setMqttHandlers(Map<ProtocolLevel, MqttBrokerHandler> mqttHandlers) {
         this.mqttHandlers = mqttHandlers;
     }
 }

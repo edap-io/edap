@@ -7,6 +7,12 @@ public class MessageExpiryInterval extends IntegerProperty {
 
     static final String NAME = "Message Expiry Interval";
 
+    public MessageExpiryInterval() {}
+
+    public MessageExpiryInterval(int val) {
+        value(val);
+    }
+
     @Override
     public String name() {
         return NAME;

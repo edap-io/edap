@@ -13,6 +13,12 @@ public class SubscriptionIdentifier implements PacketProperty<Integer> {
 
     private int value;
 
+    public SubscriptionIdentifier() {}
+
+    public SubscriptionIdentifier(int val) {
+        value(val);
+    }
+
     @Override
     public Integer value() {
         return value;

@@ -7,16 +7,10 @@ public class CorrelationData extends ByteArrayProperty {
 
     static final String NAME = "Correlation Data";
 
-    private byte[] value;
+    public CorrelationData() {}
 
-    @Override
-    public byte[] value() {
-        return value;
-    }
-
-    @Override
-    public void value(byte[] value) {
-        this.value = value;
+    public CorrelationData(byte[] val) {
+        value(val);
     }
 
     @Override

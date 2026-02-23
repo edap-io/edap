@@ -4,19 +4,19 @@ import io.edap.Decoder;
 import io.edap.Server;
 import io.edap.mqtt.ProtocolLevel;
 import io.edap.mqtt.QoSLevel;
-import io.edap.mqtt.broker.mqtthandler.MqttHandler_V31;
-import io.edap.mqtt.broker.mqtthandler.MqttHandler_V311;
-import io.edap.mqtt.broker.mqtthandler.MqttHandler_V5;
-import io.edap.mqtt.packet.ControlPacket;
+import io.edap.mqtt.broker.mqtthandler.MqttBrokerHandler_V31;
+import io.edap.mqtt.broker.mqtthandler.MqttBrokerHandler_V311;
+import io.edap.mqtt.broker.mqtthandler.MqttBrokerHandler_V5;
+import io.edap.mqtt.ControlPacket;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class MqttBroker extends Server<ControlPacket, MqttBrokerSession> {
 
-    private static Decoder<ControlPacket, MqttBrokerSession> BASE_DECODER = new MqttBaseDecoder();
+    private static Decoder<ControlPacket, MqttBrokerSession> BASE_DECODER = new MqttBrokerBaseDecoder();
 
-    private static Map<ProtocolLevel, MqttHandler> MQTT_HANDLERS = new ConcurrentHashMap<>();
+    private static Map<ProtocolLevel, MqttBrokerHandler> MQTT_HANDLERS = new ConcurrentHashMap<>();
 
     private QoSLevel qoSLevel;
 
@@ -24,9 +24,9 @@ public class MqttBroker extends Server<ControlPacket, MqttBrokerSession> {
     public void init() {
         super.init();
         setDecoder(BASE_DECODER);
-        MQTT_HANDLERS.put(ProtocolLevel.VERSION_3_1,    new MqttHandler_V31());
-        MQTT_HANDLERS.put(ProtocolLevel.VERSION_3_1_1, new MqttHandler_V311());
-        MQTT_HANDLERS.put(ProtocolLevel.VERSION_5,     new MqttHandler_V5());
+        MQTT_HANDLERS.put(ProtocolLevel.VERSION_3_1,   new MqttBrokerHandler_V31());
+        MQTT_HANDLERS.put(ProtocolLevel.VERSION_3_1_1, new MqttBrokerHandler_V311());
+        MQTT_HANDLERS.put(ProtocolLevel.VERSION_5,     new MqttBrokerHandler_V5());
         if (qoSLevel == null) {
             qoSLevel = QoSLevel.EXACTLY_ONCE;
         }

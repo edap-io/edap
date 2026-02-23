@@ -53,8 +53,18 @@ public class MqttWriter {
 
     public void write(byte[] bs) {
         int len = bs.length;
+        expand(len + 2);
+        byte[] _data = data;
+        _data[pos++] = (byte)(len >> 8);
+        _data[pos++] = (byte)(len & 0xFF);
+        System.arraycopy(bs, 0, _data, pos, len);
+        pos += len;
+    }
+
+    public void writeByteArray(byte[] bs) {
+        int len = bs.length;
         expand(len);
-        System.arraycopy(bs, 0, data, pos, len);
+        System.arraycopy(bs, 0, data, pos, bs.length);
         pos += len;
     }
 
@@ -83,6 +93,34 @@ public class MqttWriter {
         }
     }
 
+    public void writeBytes(int pos, byte b1, byte b2, byte b3) {
+        if (pos + 3 < cap) {
+            data[pos++] = b1;
+            data[pos++] = b2;
+            data[pos]   = b3;
+        } else {
+            expand(3, pos);
+            data[pos++] = b1;
+            data[pos++] = b2;
+            data[pos]   = b3;
+        }
+    }
+
+    public void writeBytes(int pos, byte b1, byte b2, byte b3, byte b4) {
+        if (pos + 4 < cap) {
+            data[pos++] = b1;
+            data[pos++] = b2;
+            data[pos++] = b3;
+            data[pos]   = b4;
+        } else {
+            expand(4, pos);
+            data[pos++] = b1;
+            data[pos++] = b2;
+            data[pos++] = b3;
+            data[pos]   = b4;
+        }
+    }
+
     public void writeString(String value) {
         String _val = value;
         if (IS_BYTE_ARRAY && isLatin1(_val)) {
@@ -92,7 +130,8 @@ public class MqttWriter {
                 throw new StringToLongException("String to long!");
             }
             writeBytes((byte)(len >> 8), (byte)(len & 0xFF));
-            write(bs);
+            System.arraycopy(bs, 0, data, pos, len);
+            pos += len;
             return;
         }
         int len  = _val.length();
@@ -147,17 +186,17 @@ public class MqttWriter {
             byte b1 = (byte) ((val & 0x7F) | 0x80);
             val >>>= 7;
             if ((val & ~0x7F) == 0) {
-                writeBytes((byte) val, b1);
+                writeBytes(b1, (byte) val);
             } else {
                 byte b2 = (byte) ((val & 0x7F) | 0x80);
                 val >>>= 7;
                 if ((val & ~0x7F) == 0) {
-                    writeBytes((byte) val, b2, b1);
+                    writeBytes(b1, b2, (byte) val);
                 } else {
                     byte b3 = (byte) ((val & 0x7F) | 0x80);
                     val >>>= 7;
                     if ((val & ~0x7F) == 0) {
-                        writeBytes((byte) val, b3, b2, b1);
+                        writeBytes(b1, b2, b3, (byte) val);
                     } else {
                         throw new IntegerToLongException("Integer " + i + " too big");
                     }
@@ -166,31 +205,42 @@ public class MqttWriter {
         }
     }
 
-    public void writeLength(int len) {
+    public void writeLength(int fixedByte, int len) {
         int val = len;
+        int _start = start - 1;
         if ((val & ~0x7F) == 0) {
-            writeByte(start--, (byte)(val & 0x7F));
+            writeByte(_start--, (byte)(val & 0x7F));
+            start = _start;
         } else {
-            writeByte(start--, (byte) ((val & 0x7F) | 0x80));
+            byte b1 = (byte) ((val & 0x7F) | 0x80);
+            //writeByte(_start--, (byte) ((val & 0x7F) | 0x80));
             val >>>= 7;
             if ((val & ~0x7F) == 0) {
-                writeByte(start--, (byte) val);
+                _start--;
+                writeBytes(_start--, b1, (byte) val);
+                start = _start;
             } else {
-                writeByte(start--, (byte) ((val & 0x7F) | 0x80));
+                byte b2 = (byte) ((val & 0x7F) | 0x80);
+                //writeByte(_start--, (byte) ((val & 0x7F) | 0x80));
                 val >>>= 7;
                 if ((val & ~0x7F) == 0) {
-                    writeByte(start--, (byte) val);
+                    _start -= 2;
+                    writeBytes(_start--, b1, b2, (byte) val);
                 } else {
-                    writeByte(start--, (byte) ((val & 0x7F) | 0x80));
+                    byte b3 = (byte) ((val & 0x7F) | 0x80);
+                    //writeByte(_start--, (byte) ((val & 0x7F) | 0x80));
                     val >>>= 7;
                     if ((val & ~0x7F) == 0) {
-                        writeByte(start--, (byte) val);
+                        _start -= 3;
+                        writeBytes(_start--, b1, b2, b3, (byte) val);
                     } else {
                         throw new IntegerToLongException("Integer " + len + " too big");
                     }
                 }
             }
         }
+        writeByte(_start, (byte)fixedByte);
+        start = _start;
     }
 
     public void writeBytes(byte b1, byte b2, byte b3) {
@@ -226,6 +276,41 @@ public class MqttWriter {
         pos = _pos;
     }
 
+    public void checkMoveAndWriteLen(int oldPos, int len) {
+        if (len <= 127) {
+            writeByte(oldPos, (byte) len);
+        } else if (len <= 16383) {
+            expand(1);
+            byte[] _data = data;
+            System.arraycopy(_data, oldPos + 1, _data, oldPos + 2, len);
+            pos += 1;
+            byte b1 = (byte) ((len & 0x7F) | 0x80);
+            len >>>= 7;
+            writeBytes(oldPos, b1, (byte) len);
+        } else if (len <= 2097151) {
+            expand(2);
+            byte[] _data = data;
+            System.arraycopy(_data, oldPos + 1, _data, oldPos + 3, len);
+            pos += 2;
+            byte b1 = (byte) ((len & 0x7F) | 0x80);
+            len >>>= 7;
+            byte b2 = (byte) ((len & 0x7F) | 0x80);
+            len >>>= 7;
+            writeBytes(oldPos, b1, b2, (byte) len);
+        } else {
+            expand(3);
+            byte[] _data = data;
+            System.arraycopy(_data, oldPos + 1, _data, oldPos + 4, len);
+            pos += 3;
+            byte b1 = (byte) ((len & 0x7F) | 0x80);
+            len >>>= 7;
+            byte b2 = (byte) ((len & 0x7F) | 0x80);
+            len >>>= 7;
+            byte b3 = (byte) ((len & 0x7F) | 0x80);
+            len >>>= 7;
+            writeBytes(oldPos, b1, b2, b3, (byte) len);
+        }
+    }
 
     public void expand(int minLength) {
         expand(minLength, pos);

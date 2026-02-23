@@ -7,6 +7,12 @@ public class SubscriptionIdentifierAvailable extends ByteProperty {
 
     static final String NAME = "Subscription Identifier Available";
 
+    public SubscriptionIdentifierAvailable() {}
+
+    public SubscriptionIdentifierAvailable(byte val) {
+        value(val);
+    }
+
     @Override
     public String name() {
         return NAME;

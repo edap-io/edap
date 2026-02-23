@@ -6,5 +6,6 @@ public class T {
         System.out.println("1<<14 = " + (1<<14));
         System.out.println("1<<21 = " + (1<<21));
         System.out.println("1<<28 = " + (1<<28));
+        System.out.println("11 = " + Integer.parseInt("11", 2));
     }
 }

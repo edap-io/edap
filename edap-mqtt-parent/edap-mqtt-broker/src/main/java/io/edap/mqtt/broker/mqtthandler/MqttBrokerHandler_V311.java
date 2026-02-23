@@ -1,0 +1,6 @@
+package io.edap.mqtt.broker.mqtthandler;
+
+import io.edap.mqtt.broker.MqttBrokerHandler;
+
+public class MqttBrokerHandler_V311 implements MqttBrokerHandler {
+}

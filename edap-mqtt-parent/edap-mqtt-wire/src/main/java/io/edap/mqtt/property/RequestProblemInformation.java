@@ -7,6 +7,14 @@ public class RequestProblemInformation extends ByteProperty {
 
     static final String NAME = "Request Problem Information";
 
+    public RequestProblemInformation() {
+
+    }
+
+    public RequestProblemInformation(byte val) {
+        value(val);
+    }
+
     @Override
     public String name() {
         return NAME;

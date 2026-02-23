@@ -1,5 +1,6 @@
 package io.edap.mqtt.packet;
 
+import io.edap.mqtt.ControlPacket;
 import io.edap.mqtt.ControlPacketType;
 import io.edap.mqtt.PacketProperty;
 import io.edap.mqtt.PropertyType;

@@ -16,31 +16,49 @@ public interface MqttPacketDecoder<ControlPacket> {
 
     ParseResult<ControlPacket> parse(FastBuf buf, int fixedHeaderByte, ParseContext parseContext);
 
-    default LinkedHashMap<PropertyType, PacketProperty> parseProperties(FastBuf bufIn, ParseContext parseContext) {
-        LinkedHashMap<PropertyType, PacketProperty> props = new LinkedHashMap<>();
-        FastBuf _buf = bufIn;
-        long rpos = _buf.rpos();
+    static int parseRemain(FastBuf buf, ParseContext parseContext) {
         int remain;
-        byte varFirst = _buf.get(rpos++);
-        if (varFirst >= 0) {
-            remain = varFirst;
+        long rpos  = parseContext.getRpos();
+        long limit = buf.limit();
+        byte b1 = buf.get(rpos++);
+        if (b1 >= 0) {
+            remain = b1;
         } else {
-            int varTwo = _buf.get(rpos++);
-            if (varTwo > 0) {
-                remain = (varTwo & 0x7F) << 7 | (varFirst & 0x7F);
+            if (rpos >= limit) {
+                return -1;
+            }
+            byte b2 = buf.get(rpos++);
+            if (b2 > 0) {
+                remain = (b2 & 0x7F) << 7 | (b1 & 0x7F);
             } else {
-                int varThree = _buf.get(rpos++);
-                if (varThree > 0) {
-                    remain = (varThree & 0x7F) << 14 | (varTwo & 0x7F) << 7 | varFirst & 0x7F;
+                if (rpos >= limit) {
+                    return -1;
+                }
+                byte b3 = buf.get(rpos++);
+                if (b3 > 0) {
+                    remain = (b3 & 0x7F) << 14 | (b2 & 0x7F) << 7 | (b1 & 0x7F);
                 } else {
-                    remain = (_buf.get(rpos++) & 0x7F) << 21 | (varThree & 0x7F) << 14 | (varTwo & 0x7F) << 7 | (varFirst & 0x7F);
+                    if (rpos >= limit) {
+                        return -1;
+                    }
+                    remain = (buf.get(rpos++) & 0x7F) << 21 | (b3 & 0x7F) << 14 | (b2 & 0x7F) << 7 | (b1 & 0x7F);
                 }
             }
         }
+        parseContext.setRpos(rpos);
+        return remain;
+    }
+
+    default LinkedHashMap<PropertyType, PacketProperty> parseProperties(FastBuf bufIn, ParseContext parseContext) {
+        LinkedHashMap<PropertyType, PacketProperty> props = new LinkedHashMap<>();
+        FastBuf _buf = bufIn;
+        long rpos = parseContext.getRpos();
+        int remain = MqttPacketDecoder.parseRemain(_buf, parseContext);
         if (remain <= 0) {
-            _buf.rpos(rpos);
+            parseContext.setRpos(rpos + 1);
             return props;
         }
+        rpos = parseContext.getRpos();
         long end = rpos + remain;
         while (rpos < end) {
             int key = _buf.get(rpos++) & 0xFF;
@@ -86,13 +104,13 @@ public interface MqttPacketDecoder<ControlPacket> {
                     CorrelationData cd = new CorrelationData();
                     len = (_buf.get(rpos++) & 0xFF) << 8 | _buf.get(rpos++) & 0xFF;
                     data = new byte[len];
-                    _buf.get(rpos, data);
+                    rpos += _buf.get(rpos, data);
                     cd.value(data);
                     props.put(CORRELATION_DATA, cd);
                     break;
                 case SUBSCRIPTION_INDENTIFIER_ID:
                     SubscriptionIdentifier si = new SubscriptionIdentifier();
-                    varFirst = _buf.get(rpos++);
+                    byte varFirst = _buf.get(rpos++);
                     if (varFirst >= 0) {
                         remain = varFirst;
                     } else {
@@ -132,7 +150,7 @@ public interface MqttPacketDecoder<ControlPacket> {
                     props.put(ASSIGNED_CLIENT_IDENTIFIER, aci);
                     break;
                 case SERVER_KEEP_ALIVE_ID:
-                    len = (short)((_buf.get(rpos++) & 0xFF) << 8 | _buf.get(rpos++) & 0xFF);
+                    len = ((_buf.get(rpos++) & 0xFF) << 8 | _buf.get(rpos++) & 0xFF);
                     ServerKeepAlive ski = new ServerKeepAlive();
                     ski.value(len);
                     props.put(SERVER_KEEP_ALIVE, ski);
@@ -197,7 +215,7 @@ public interface MqttPacketDecoder<ControlPacket> {
                     rpos += _buf.get(rpos, data, 0, len);
                     ServerReference sr = new ServerReference();
                     sr.value(new String(data, 0, len, StandardCharsets.UTF_8));
-                    props.put(RESPONSE_INFORMATION, sr);
+                    props.put(SERVER_REFERENCE, sr);
                     break;
                 case REASON_STRING_ID:
                     len = (_buf.get(rpos++) & 0xFF) << 8 | _buf.get(rpos++) & 0xFF;
@@ -294,7 +312,7 @@ public interface MqttPacketDecoder<ControlPacket> {
                     break;
             }
         }
-        _buf.rpos(rpos);
+        parseContext.setRpos(rpos);
         return props;
     }
 }

@@ -7,6 +7,14 @@ public class MaximumPacketSize extends IntegerProperty {
 
     static final String NAME = "Maximum Packet Size";
 
+    public MaximumPacketSize() {
+
+    }
+
+    public MaximumPacketSize(int val) {
+        value(val);
+    }
+
     @Override
     public String name() {
         return NAME;

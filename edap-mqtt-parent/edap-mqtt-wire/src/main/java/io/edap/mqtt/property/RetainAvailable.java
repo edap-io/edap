@@ -7,6 +7,12 @@ public class RetainAvailable extends ByteProperty {
 
     static final String NAME = "Retain Available";
 
+    public RetainAvailable() {}
+
+    public RetainAvailable(byte val) {
+        value(val);
+    }
+
     @Override
     public String name() {
         return NAME;

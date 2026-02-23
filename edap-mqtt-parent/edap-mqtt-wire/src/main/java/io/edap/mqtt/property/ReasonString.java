@@ -7,6 +7,12 @@ public class ReasonString extends StringProperty {
 
     static final String NAME = "Reason String";
 
+    public ReasonString() {}
+
+    public ReasonString(String val) {
+        value(val);
+    }
+
     @Override
     public String name() {
         return NAME;

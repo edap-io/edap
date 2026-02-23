@@ -37,4 +37,12 @@ public class PubRecTest {
         assertEquals(pubRec.getProperties().size(), 0);
 
     }
+
+    @Test
+    public void testReasonCode() {
+        PubRec pubRec = new PubRec(59);
+        int reasonCode = new Random().nextInt(Byte.MAX_VALUE);
+        pubRec.setReasonCode(reasonCode);
+        assertEquals(pubRec.getReasonCode(), reasonCode);
+    }
 }

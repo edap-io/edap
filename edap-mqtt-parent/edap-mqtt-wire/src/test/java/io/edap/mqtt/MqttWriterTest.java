@@ -187,50 +187,50 @@ public class MqttWriterTest {
         writer.setStart(12);
         writer.writeVarInt(128);
         data = writer.getData();
-        assertEquals(data[13], -128);
-        assertEquals(data[12], 1);
+        assertEquals(data[12], -128);
+        assertEquals(data[13], 1);
 
 
         writer.reset();
         writer.setStart(12);
         writer.writeVarInt(16383);
         data = writer.getData();
-        assertEquals(data[13], -1);
-        assertEquals(data[12], 127);
+        assertEquals(data[12], -1);
+        assertEquals(data[13], 127);
 
         writer.reset();
         writer.setStart(12);
         writer.writeVarInt(16384);
         data = writer.getData();
-        assertEquals(data[14], -128);
+        assertEquals(data[12], -128);
         assertEquals(data[13], -128);
-        assertEquals(data[12], 1);
+        assertEquals(data[14], 1);
 
         writer.reset();
         writer.setStart(12);
         writer.writeVarInt(2097151);
         data = writer.getData();
-        assertEquals(data[14], -1);
+        assertEquals(data[12], -1);
         assertEquals(data[13], -1);
-        assertEquals(data[12], 127);
+        assertEquals(data[14], 127);
 
         writer.reset();
         writer.setStart(12);
         writer.writeVarInt(2097152);
         data = writer.getData();
-        assertEquals(data[15], -128);
-        assertEquals(data[14], -128);
+        assertEquals(data[12], -128);
         assertEquals(data[13], -128);
-        assertEquals(data[12], 1);
+        assertEquals(data[14], -128);
+        assertEquals(data[15], 1);
 
         writer.reset();
         writer.setStart(12);
         writer.writeVarInt(268435455);
         data = writer.getData();
-        assertEquals(data[15], -1);
-        assertEquals(data[14], -1);
+        assertEquals(data[12], -1);
         assertEquals(data[13], -1);
-        assertEquals(data[12], 127);
+        assertEquals(data[14], -1);
+        assertEquals(data[15], 127);
 
 
         IntegerToLongException thrown = assertThrows(IntegerToLongException.class,
@@ -246,71 +246,71 @@ public class MqttWriterTest {
     public void testWriteLength() {
         MqttWriter writer = new MqttWriter(40);
         writer.setStart(12);
-        writer.writeLength(1);
+        writer.writeLength(0, 1);
         byte[] data = writer.getData();
-        assertEquals(data[12], 1);
+        assertEquals(data[11], 1);
 
         writer.reset();
         writer.setStart(12);
-        writer.writeLength(127);
+        writer.writeLength(0, 127);
         data = writer.getData();
-        assertEquals(data[12], 127);
+        assertEquals(data[11], 127);
 
         writer.reset();
         writer.setStart(12);
-        writer.writeLength(128);
+        writer.writeLength(0, 128);
         data = writer.getData();
-        assertEquals(data[12], -128);
+        assertEquals(data[10], -128);
         assertEquals(data[11], 1);
 
 
         writer.reset();
         writer.setStart(12);
-        writer.writeLength(16383);
+        writer.writeLength(0, 16383);
         data = writer.getData();
-        assertEquals(data[12], -1);
+        assertEquals(data[10], -1);
         assertEquals(data[11], 127);
 
         writer.reset();
         writer.setStart(12);
-        writer.writeLength(16384);
+        writer.writeLength(0, 16384);
         data = writer.getData();
-        assertEquals(data[12], -128);
-        assertEquals(data[11], -128);
-        assertEquals(data[10], 1);
-
-        writer.reset();
-        writer.setStart(12);
-        writer.writeLength(2097151);
-        data = writer.getData();
-        assertEquals(data[12], -1);
-        assertEquals(data[11], -1);
-        assertEquals(data[10], 127);
-
-        writer.reset();
-        writer.setStart(12);
-        writer.writeLength(2097152);
-        data = writer.getData();
-        assertEquals(data[12], -128);
-        assertEquals(data[11], -128);
+        assertEquals(data[9], -128);
         assertEquals(data[10], -128);
-        assertEquals(data[9], 1);
+        assertEquals(data[11], 1);
 
         writer.reset();
         writer.setStart(12);
-        writer.writeLength(268435455);
+        writer.writeLength(0, 2097151);
         data = writer.getData();
-        assertEquals(data[12], -1);
-        assertEquals(data[11], -1);
+        assertEquals(data[9], -1);
         assertEquals(data[10], -1);
-        assertEquals(data[9], 127);
+        assertEquals(data[11], 127);
+
+        writer.reset();
+        writer.setStart(12);
+        writer.writeLength(0, 2097152);
+        data = writer.getData();
+        assertEquals(data[8], -128);
+        assertEquals(data[9], -128);
+        assertEquals(data[10], -128);
+        assertEquals(data[11], 1);
+
+        writer.reset();
+        writer.setStart(12);
+        writer.writeLength(0, 268435455);
+        data = writer.getData();
+        assertEquals(data[8], -1);
+        assertEquals(data[9], -1);
+        assertEquals(data[10], -1);
+        assertEquals(data[11], 127);
 
 
         IntegerToLongException thrown = assertThrows(IntegerToLongException.class,
                 () -> {
                     writer.reset();
                     writer.setStart(12);
-                    writer.writeLength(268435458);
+                    writer.writeLength(0, 268435458);
                 });
         assertTrue(thrown.getMessage().contains("Integer 268435458 too big"));
     }

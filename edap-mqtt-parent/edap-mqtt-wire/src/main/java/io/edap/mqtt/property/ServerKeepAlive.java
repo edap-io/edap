@@ -7,6 +7,12 @@ public class ServerKeepAlive extends TwoByteIntegerProperty {
 
     static final String NAME = "Server Keep Alive";
 
+    public ServerKeepAlive() {}
+
+    public ServerKeepAlive(int val) {
+        value(val);
+    }
+
     @Override
     public String name() {
         return NAME;

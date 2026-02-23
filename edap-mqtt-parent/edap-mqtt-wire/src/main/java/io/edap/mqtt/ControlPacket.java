@@ -14,10 +14,7 @@
  * under the License.
  */
 
-package io.edap.mqtt.packet;
-
-import io.edap.mqtt.ControlPacketType;
-import io.edap.mqtt.QoSLevel;
+package io.edap.mqtt;
 
 public abstract class ControlPacket {
 
@@ -29,7 +26,7 @@ public abstract class ControlPacket {
 
     private int retain;
 
-    private int lowFourBits;
+    private Integer lowFourBits;
 
     public ControlPacket(ControlPacketType type, int fixedHeaderByte) {
         this.type = type;
@@ -45,6 +42,12 @@ public abstract class ControlPacket {
     }
 
     public int getLowFourBits() {
+        if (lowFourBits == null) {
+            int lowFour = retain & 0x1;
+            lowFour |= (qos.getValue() & 0x3) << 1;
+            lowFour |= (dup & 0x1) << 3;
+            lowFourBits = lowFour;
+        }
         return this.lowFourBits;
     }
 
@@ -56,11 +59,35 @@ public abstract class ControlPacket {
         return dup;
     }
 
+    public void setDup(int dup) {
+        if (this.dup == dup) {
+            return;
+        }
+        lowFourBits = null;
+        this.dup = dup;
+    }
+
     public QoSLevel getQos() {
         return qos;
     }
 
+    public void setQos(QoSLevel qos) {
+        if (this.qos == qos) {
+            return;
+        }
+        lowFourBits = null;
+        this.qos = qos;
+    }
+
     public int getRetain() {
         return retain;
+    }
+
+    public void setRetain(int retain) {
+        if (this.retain == retain) {
+            return;
+        }
+        lowFourBits = null;
+        this.retain = retain;
     }
 }

@@ -7,6 +7,12 @@ public class TopicAlias extends TwoByteIntegerProperty {
 
     static final String NAME = "Topic Alias";
 
+    public TopicAlias() {}
+
+    public TopicAlias(int val) {
+        value(val);
+    }
+
     @Override
     public String name() {
         return NAME;

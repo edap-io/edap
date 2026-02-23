@@ -16,13 +16,9 @@
 
 package io.edap.mqtt.packet;
 
-import io.edap.mqtt.ControlPacketType;
-import io.edap.mqtt.PacketProperty;
-import io.edap.mqtt.PropertyType;
-import io.edap.mqtt.ProtocolLevel;
+import io.edap.mqtt.*;
 
 import java.util.LinkedHashMap;
-import java.util.List;
 
 public class Connect extends ControlPacket {
 
@@ -44,12 +40,8 @@ public class Connect extends ControlPacket {
     private LinkedHashMap<PropertyType, PacketProperty> connProperties;
 
     private String clientIdentifier;
-    private String topic;
-    private String message;
-    /**
-     * @since mqtt-v5.0
-     */
-    private byte[] payload;
+    private String willTopic;
+    private byte[] willPayload;
     private String userName;
     private String password;
 
@@ -151,20 +143,12 @@ public class Connect extends ControlPacket {
         this.clientIdentifier = clientIdentifier;
     }
 
-    public String getTopic() {
-        return topic;
+    public String getWillTopic() {
+        return willTopic;
     }
 
-    public void setTopic(String topic) {
-        this.topic = topic;
-    }
-
-    public String getMessage() {
-        return message;
-    }
-
-    public void setMessage(String message) {
-        this.message = message;
+    public void setWillTopic(String willTopic) {
+        this.willTopic = willTopic;
     }
 
     public String getUserName() {
@@ -199,14 +183,11 @@ public class Connect extends ControlPacket {
         this.properties = properties;
     }
 
-    /**
-     * @since mqtt-v5.0
-     */
-    public byte[] getPayload() {
-        return payload;
+    public byte[] getWillPayload() {
+        return willPayload;
     }
 
-    public void setPayload(byte[] payload) {
-        this.payload = payload;
+    public void setWillPayload(byte[] willPayload) {
+        this.willPayload = willPayload;
     }
 }

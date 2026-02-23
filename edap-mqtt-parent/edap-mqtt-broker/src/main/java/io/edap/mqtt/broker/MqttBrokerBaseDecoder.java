@@ -4,12 +4,12 @@ import io.edap.Decoder;
 import io.edap.buffer.FastBuf;
 import io.edap.mqtt.MqttPacketDecoder;
 import io.edap.mqtt.ParseContext;
-import io.edap.mqtt.packet.ControlPacket;
+import io.edap.mqtt.ControlPacket;
 import io.edap.nio.ParseResult;
 
 import static io.edap.mqtt.MqttPacketDecoderFactory.*;
 
-public class MqttBaseDecoder implements Decoder<ControlPacket, MqttBrokerSession> {
+public class MqttBrokerBaseDecoder implements Decoder<ControlPacket, MqttBrokerSession> {
 
     static ThreadLocal<io.edap.mqtt.ParseContext> TRL_PARSE_CONTEXT;
 
@@ -24,7 +24,7 @@ public class MqttBaseDecoder implements Decoder<ControlPacket, MqttBrokerSession
 
     private MqttPacketDecoder[] decoders;
 
-    public MqttBaseDecoder() {
+    public MqttBrokerBaseDecoder() {
         decoders = new MqttPacketDecoder[16];
         decoders[0]  = UNSUPPORT_DECODER;
         decoders[1]  = CONNECT_DECODER;
@@ -47,11 +47,13 @@ public class MqttBaseDecoder implements Decoder<ControlPacket, MqttBrokerSession
     @Override
     public ParseResult<ControlPacket> decode(FastBuf bufIn, MqttBrokerSession nioSession) {
         FastBuf _buf        = bufIn;
-        int     fixedHeader = _buf.get() & 0xFF;
+        long    rpos        = _buf.rpos();
+        int     fixedHeader = _buf.get(rpos++) & 0xFF;
         int     typeValue   = fixedHeader >> 4;
         MqttPacketDecoder decoder = decoders[typeValue];
         ParseContext parseContext = TRL_PARSE_CONTEXT.get();
         parseContext.setSession(nioSession);
+        parseContext.setRpos(rpos);
         return decoder.parse(bufIn, fixedHeader, parseContext);
     }
 
