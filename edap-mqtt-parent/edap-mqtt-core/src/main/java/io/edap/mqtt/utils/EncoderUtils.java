@@ -155,13 +155,25 @@ public class EncoderUtils {
     public static void encodeSubAckData(MqttWriter writer, SubAck subAck, ProtocolLevel level) {
         int pi = subAck.getPacketIdentifier();
         writer.writeBytes((byte)(pi >> 8), (byte)(pi & 0xFF));
+        boolean greatV311;
         if (level.getValue() > ProtocolLevel.VERSION_3_1_1.getValue()) {
             encodeProperties(writer, subAck.getProperties());
+            greatV311 = true;
+        } else  {
+            greatV311 = false;
         }
         List<Integer> codes = subAck.getRespCodes();
         if (!CollectionUtils.isEmpty(codes)) {
             for (Integer code : codes) {
-                writer.writeByte(code.byteValue());
+                if (greatV311) {
+                    writer.writeByte(code.byteValue());
+                } else {
+                    if (code.byteValue() > 128) {
+                        writer.writeByte((byte)128);
+                    } else {
+                        writer.writeByte(code.byteValue());
+                    }
+                }
             }
         }
     }

@@ -17,7 +17,7 @@ public interface MqttBrokerHandler {
 
     byte[] PING_RESP_DATA = new byte[]{(byte)(PINGRESP.getValue() << 4), 0};
 
-    default void handleConnect(MqttNioSession session, Connect connect) throws IOException {
+    default void handleConnect(MqttBrokerSession session, Connect connect) throws IOException {
         ConnAck connAck = new ConnAck(0);
         byte ackFlag = 0;
         connAck.setConnAckCode(0);
@@ -97,6 +97,8 @@ public interface MqttBrokerHandler {
         }
         session.setProtocolLevel(connect.getProtocolLevel());
         session.setConnected(true);
+        session.setClientId(connect.getClientIdentifier());
+
         MqttEncoder encoder = session.getMqttEncoder();
         if (encoder == null) {
             Disconnect disconnect = new Disconnect(DISCONNECT_VALUE << 4);
@@ -115,7 +117,7 @@ public interface MqttBrokerHandler {
         //session.fastWrite(writeBuf);
     }
 
-    default void handlePublish(MqttNioSession session, Publish publish) {
+    default void handlePublish(MqttBrokerSession session, Publish publish) {
         QoSLevel qoSLevel = publish.getQos();
         if (session.getQoSLevel().getValue() < qoSLevel.getValue()) {
             Disconnect disconnect = new Disconnect(DISCONNECT_VALUE << 4);
@@ -129,6 +131,8 @@ public interface MqttBrokerHandler {
             handleDisconnect(session, disconnect);
             return;
         }
+        SubscribeManager subManager = session.getSubscribeManager();
+        subManager.checkAndAddTopic(publish.getTopic());
         if (qoSLevel == QoSLevel.LEAST_ONCE) {
             PubAck pubAck = new PubAck(PUBACK.getValue() << 4);
             pubAck.setPacketIdentifier(publish.getPacketIdentifier());

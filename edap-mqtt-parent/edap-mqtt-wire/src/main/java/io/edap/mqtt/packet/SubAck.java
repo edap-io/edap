@@ -8,6 +8,8 @@ import io.edap.mqtt.PropertyType;
 import java.util.LinkedHashMap;
 import java.util.List;
 
+import static io.edap.mqtt.ControlPacketType.SUBACK_VALUE;
+
 public class SubAck extends ControlPacket {
 
     private int packetIdentifier;
@@ -18,6 +20,10 @@ public class SubAck extends ControlPacket {
      * @since mqtt-v5.0
      */
     private LinkedHashMap<PropertyType, PacketProperty> properties;
+
+    public SubAck() {
+        super(ControlPacketType.SUBACK, SUBACK_VALUE);
+    }
 
     public SubAck(int fixedHeaderByte) {
         super(ControlPacketType.SUBACK, fixedHeaderByte);

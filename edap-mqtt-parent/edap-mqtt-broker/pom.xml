@@ -24,6 +24,18 @@
             <groupId>io.edap</groupId>
             <artifactId>edap-nio-server</artifactId>
         </dependency>
+
+        <!-- 单元测试相关依赖 -->
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.github.stefanbirkner</groupId>
+            <artifactId>system-lambda</artifactId>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
 </project>
