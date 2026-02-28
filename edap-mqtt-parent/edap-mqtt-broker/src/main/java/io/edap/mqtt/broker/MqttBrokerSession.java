@@ -29,6 +29,10 @@ public class MqttBrokerSession extends NioServerSession<ControlPacket> implement
 
     private MqttEncoder encoder;
 
+    private String clientId;
+
+    private SubscribeManager subscribeManager;
+
     private static final Map<ProtocolLevel, MqttEncoder> MQTT_ENCODERS;
 
     static {
@@ -130,5 +134,21 @@ public class MqttBrokerSession extends NioServerSession<ControlPacket> implement
 
     public void setMqttHandlers(Map<ProtocolLevel, MqttBrokerHandler> mqttHandlers) {
         this.mqttHandlers = mqttHandlers;
+    }
+
+    public String getClientId() {
+        return clientId;
+    }
+
+    public void setClientId(String clientId) {
+        this.clientId = clientId;
+    }
+
+    public SubscribeManager getSubscribeManager() {
+        return subscribeManager;
+    }
+
+    public void setSubscribeManager(SubscribeManager subscribeManager) {
+        this.subscribeManager = subscribeManager;
     }
 }

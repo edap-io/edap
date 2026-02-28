@@ -8,6 +8,7 @@ import io.edap.mqtt.broker.mqtthandler.MqttBrokerHandler_V31;
 import io.edap.mqtt.broker.mqtthandler.MqttBrokerHandler_V311;
 import io.edap.mqtt.broker.mqtthandler.MqttBrokerHandler_V5;
 import io.edap.mqtt.ControlPacket;
+import io.edap.mqtt.broker.submgt.MemorySubMgt;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -18,7 +19,11 @@ public class MqttBroker extends Server<ControlPacket, MqttBrokerSession> {
 
     private static Map<ProtocolLevel, MqttBrokerHandler> MQTT_HANDLERS = new ConcurrentHashMap<>();
 
+    private LockPool lockPool;
+
     private QoSLevel qoSLevel;
+
+    private SubscribeManager subscribeManager;
 
     @Override
     public void init() {
@@ -30,7 +35,8 @@ public class MqttBroker extends Server<ControlPacket, MqttBrokerSession> {
         if (qoSLevel == null) {
             qoSLevel = QoSLevel.EXACTLY_ONCE;
         }
-
+        lockPool = new LockPool();
+        subscribeManager = new MemorySubMgt();
     }
 
     public void setQoSLevel(QoSLevel qoSLevel) {
@@ -44,6 +50,15 @@ public class MqttBroker extends Server<ControlPacket, MqttBrokerSession> {
         session.setDecoder(BASE_DECODER);
         session.setMqttHandlers(MQTT_HANDLERS);
         session.setQoSLevel(qoSLevel);
+        session.setSubscribeManager(subscribeManager);
         return session;
+    }
+
+    public LockPool getLockPool() {
+        return lockPool;
+    }
+
+    public SubscribeManager getSubscribeManager() {
+        return subscribeManager;
     }
 }
