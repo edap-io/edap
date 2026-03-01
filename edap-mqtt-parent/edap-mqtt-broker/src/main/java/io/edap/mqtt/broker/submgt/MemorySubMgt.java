@@ -1,5 +1,7 @@
 package io.edap.mqtt.broker.submgt;
 
+import io.edap.log.Logger;
+import io.edap.log.LoggerManager;
 import io.edap.mqtt.QoSLevel;
 import io.edap.mqtt.broker.LockPool;
 import io.edap.mqtt.broker.MqttBroker;
@@ -19,6 +21,8 @@ import static io.edap.mqtt.broker.utils.WildcardUtils.matchTopics;
 
 public class MemorySubMgt implements SubscribeManager {
 
+    static Logger LOG = LoggerManager.getLogger(MemorySubMgt.class);
+
     private Set<String> TOPICS = new HashSet<>();
 
     private Map<String, List<SubscribeInfo>> TOPIC_TO_SUBSCRIBE_INFOS = new HashMap<>();
@@ -30,6 +34,8 @@ public class MemorySubMgt implements SubscribeManager {
     }
 
     public SubAck subscribe(Subscribe subscribe, MqttBrokerSession session) {
+        LOG.info("client {} subscribe packetIdentifier {}",
+                l -> l.arg(session.getClientId()).arg(subscribe.getPacketIdentifier()));
         SubAck subAck = new SubAck();
         LockPool lockPool = ((MqttBroker)session.getServer()).getLockPool();
         subAck.setPacketIdentifier(subscribe.getPacketIdentifier());

@@ -35,7 +35,7 @@ public class MqttBroker extends Server<ControlPacket, MqttBrokerSession> {
         if (qoSLevel == null) {
             qoSLevel = QoSLevel.EXACTLY_ONCE;
         }
-        lockPool = new LockPool();
+        lockPool         = new LockPool();
         subscribeManager = new MemorySubMgt();
     }
 

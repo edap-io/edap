@@ -204,7 +204,7 @@ public interface MqttBrokerHandler {
 
     }
 
-    default void handleSubscribe(MqttNioSession session, Subscribe subscribe) {
+    default void handleSubscribe(MqttBrokerSession session, Subscribe subscribe) {
         MqttEncoder encoder = session.getMqttEncoder();
         if (encoder == null) {
             Disconnect disconnect = new Disconnect(DISCONNECT_VALUE << 4);
@@ -212,16 +212,18 @@ public interface MqttBrokerHandler {
             handleDisconnect(session, disconnect);
             return;
         }
-        SubAck subAck = new SubAck(SUBACK_VALUE << 4);
-        subAck.setPacketIdentifier(subscribe.getPacketIdentifier());
-        int size = subscribe.getTopicFilterList().size();
-        List<Integer> codes = new ArrayList<>();
-        for (int i=0;i<size;i++) {
-            codes.add(0);
-        }
-        subAck.setRespCodes(codes);
-        MqttWriter writer = LOCAL_MQTT_WRITER.get();
-        FastBuf writeBuf = THREAD_WRITE_BUF.get();
+        SubscribeManager subMgt = session.getSubscribeManager();
+        SubAck subAck = subMgt.subscribe(subscribe, session);
+//        SubAck subAck = new SubAck(SUBACK_VALUE << 4);
+//        subAck.setPacketIdentifier(subscribe.getPacketIdentifier());
+//        int size = subscribe.getTopicFilterList().size();
+//        List<Integer> codes = new ArrayList<>();
+//        for (int i=0;i<size;i++) {
+//            codes.add(0);
+//        }
+//        subAck.setRespCodes(codes);
+        MqttWriter writer   = LOCAL_MQTT_WRITER.get();
+        FastBuf    writeBuf = THREAD_WRITE_BUF.get();
         writer.reset();
         encoder.encode(writer, subAck);
         int len = writer.getLength();
