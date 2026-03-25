@@ -22,6 +22,14 @@
             <groupId>io.edap</groupId>
             <artifactId>edap-common</artifactId>
         </dependency>
+        <dependency>
+            <groupId>io.edap</groupId>
+            <artifactId>edap-log-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.edap</groupId>
+            <artifactId>edap-log</artifactId>
+        </dependency>
 
 
         <dependency>
