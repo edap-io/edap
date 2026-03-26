@@ -1,5 +1,6 @@
 package io.edap.http.server.client.method;
 
+import io.edap.http.server.client.HttpBody;
 import io.edap.http.server.client.HttpReq;
 
 import java.net.URI;
@@ -9,8 +10,9 @@ import java.util.Map;
 public abstract class AbtractMethod implements HttpReq {
 
     private Map<String, String> headers = new HashMap<>();
-    private String url;
-    private URI uri;
+    protected String url;
+    protected URI uri;
+    protected HttpBody body;
 
     public String getHeader(String name) {
         return headers.get(name);
@@ -27,5 +29,15 @@ public abstract class AbtractMethod implements HttpReq {
 
     public URI getUri() {
         return uri;
+    }
+
+    public HttpBody getBody() {
+        return this.body;
+    }
+
+    public AbtractMethod setBody(HttpBody body) {
+        this.body = body;
+
+        return this;
     }
 }
