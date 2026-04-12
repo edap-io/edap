@@ -1,0 +1,2 @@
+io.edap.log.test.spi.LogbackDemoAdapter
+io.edap.log.test.spi.EdapJson5LogConfigParser

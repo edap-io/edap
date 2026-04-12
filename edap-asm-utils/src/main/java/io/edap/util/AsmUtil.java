@@ -1,0 +1,620 @@
+/*
+ * Copyright 2020 The edap Project
+ *
+ * The Netty Project licenses this file to you under the Apache License,
+ * version 2.0 (the "License"); you may not use this file except in compliance
+ * with the License. You may obtain a copy of the License at:
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+ * License for the specific language governing permissions and limitations
+ * under the License.
+ */
+
+package io.edap.util;
+
+import org.objectweb.asm.MethodVisitor;
+import org.objectweb.asm.Opcodes;
+
+import java.io.File;
+import java.io.IOException;
+import java.io.RandomAccessFile;
+import java.lang.reflect.*;
+import java.nio.file.Files;
+
+import static org.objectweb.asm.Opcodes.*;
+
+
+public class AsmUtil {
+
+    private AsmUtil() {}
+
+    public static void saveJavaFile(String javaFilePath, byte[] data)
+            throws IOException {
+        String saveClassFile = System.getProperty("edap.debug.saveClassFile");
+        if (saveClassFile == null || saveClassFile.trim().length() == 0) {
+            saveClassFile = System.getenv("edap.debug.saveClassFile");
+        }
+        saveClassFile = "true";
+        if ("true".equalsIgnoreCase(saveClassFile) || "t".equalsIgnoreCase(saveClassFile)
+                || "1".equalsIgnoreCase(saveClassFile)) {
+            File f = new File(javaFilePath);
+            if (f.exists()) {
+                Files.delete(f.toPath());
+            } else {
+                if (!f.getParentFile().exists()) {
+                    f.getParentFile().mkdirs();
+                }
+            }
+
+            try (RandomAccessFile java = new RandomAccessFile(javaFilePath, "rw")) {
+                java.write(data);
+            }
+        }
+    }
+
+    public static boolean isArray(Type type) {
+        if (type instanceof Class) {
+            Class arrayCls = (Class)type;
+            return arrayCls.isArray() && !"[B".equals(arrayCls.getName());
+        }
+        return false;
+    }
+
+    public static void visitIntInsn(int value, MethodVisitor mv) {
+        visitMethodVisitIntValue(mv, value);
+    }
+
+    public static boolean isPojo(Type type) {
+        if (type == null) {
+            return false;
+        }
+        if (type instanceof ParameterizedType) {
+            return false;
+        }
+        if (type instanceof TypeVariable) {
+            return false;
+        }
+        if (type instanceof GenericArrayType) {
+            return false;
+        }
+        if (type instanceof WildcardType) {
+            return false;
+        }
+        Class tClass = (Class)type;
+        if (tClass.isPrimitive()) {
+            return false;
+        }
+        if (tClass.isEnum()) {
+            return false;
+        }
+        if (tClass.isArray()) {
+            return false;
+        }
+        return !isJvmType(tClass);
+    }
+
+    public static boolean isJvmType(Class type) {
+        return type.getName().startsWith("java.")
+                || type.getName().startsWith("javax.");
+    }
+
+    public static boolean isEnum(Type type) {
+        if (type instanceof Class) {
+            Class cls = (Class)type;
+            return cls.isEnum();
+        }
+        return false;
+    }
+
+    /**
+     * 将以'.'分割的类名改为以'/'为分割的类名
+     *
+     * @param sourceName
+     * @return
+     */
+    public static String toInternalName(String sourceName) {
+        StringBuilder sb = new StringBuilder();
+        int start = 0;
+        int index = sourceName.indexOf('.', start);
+        while (index != -1) {
+            sb.append(sourceName.substring(start, index)).append('/');
+            start = index + 1;
+            index = sourceName.indexOf('.', start);
+        }
+        sb.append(sourceName.substring(start));
+        return sb.toString();
+    }
+
+    public static void visitMethod(MethodVisitor mv, int type, String clsName,
+                                   String methodName, String desc, boolean isType) {
+        mv.visitMethodInsn(type, clsName, methodName, desc, isType);
+    }
+
+    public static String toLangName(String internalName) {
+        StringBuilder sb = new StringBuilder();
+        int start = 0;
+        int index = internalName.indexOf('/', start);
+        while (index != -1) {
+            sb.append(internalName, start, index).append('.');
+            start = index + 1;
+            index = internalName.indexOf('/', start);
+        }
+        sb.append(internalName.substring(start));
+        return sb.toString();
+    }
+
+    public static void visitMethodVisitIntValue(MethodVisitor mv, int tag) {
+        switch (tag) {
+            case 0:
+                mv.visitInsn(ICONST_0);
+                break;
+            case 1:
+                mv.visitInsn(ICONST_1);
+                break;
+            case 2:
+                mv.visitInsn(ICONST_2);
+                break;
+            case 3:
+                mv.visitInsn(ICONST_3);
+                break;
+            case 4:
+                mv.visitInsn(ICONST_4);
+                break;
+            case 5:
+                mv.visitInsn(ICONST_5);
+                break;
+            default:
+                if (tag <= Short.MAX_VALUE) {
+                    mv.visitIntInsn(SIPUSH, tag);
+                } else {
+                    mv.visitLdcInsn(new Integer(tag));
+                }
+                break;
+        }
+    }
+
+    public static int getAloadNum(String type) {
+        switch (type) {
+            case "I":  //int
+                return Opcodes.IALOAD;
+            case "J":
+                return Opcodes.LALOAD;
+            case "F":
+                return Opcodes.FALOAD;
+            case "D":
+                return Opcodes.DALOAD;
+            case "Z":
+                return Opcodes.BALOAD;
+            case "C":
+                return Opcodes.CALOAD;
+            case "S":
+                return Opcodes.SALOAD;
+            default:
+                return Opcodes.AALOAD;
+        }
+    }
+
+    public static int getLoadNum(String type) {
+        switch (type) {
+            case "I":  //int
+                return Opcodes.ILOAD;
+            case "J":
+                return Opcodes.LLOAD;
+            case "F":
+                return Opcodes.FLOAD;
+            case "D":
+                return Opcodes.DLOAD;
+            case "Z":
+                return Opcodes.ILOAD;
+            case "C":
+                return Opcodes.ILOAD;
+            case "S":
+                return Opcodes.ILOAD;
+            default:
+                return Opcodes.ALOAD;
+        }
+    }
+
+    public static int getAstoreNum(String type) {
+        switch (type) {
+            case "I":  //int
+                return Opcodes.IASTORE;
+            case "J":
+                return Opcodes.LASTORE;
+            case "F":
+                return Opcodes.FASTORE;
+            case "D":
+                return Opcodes.DASTORE;
+            case "Z":
+                return Opcodes.BASTORE;
+            case "C":
+                return Opcodes.CASTORE;
+            case "S":
+                return Opcodes.SASTORE;
+            default:
+                return Opcodes.AASTORE;
+        }
+    }
+
+    public static Type buildType(Class rawType, final Type[] actualTypes) {
+        Type parameterizedType = new ParameterizedType() {
+            @Override
+            public Type[] getActualTypeArguments() {
+                return actualTypes;
+            }
+
+            @Override
+            public Type getRawType() {
+                return rawType;
+            }
+
+            @Override
+            public Type getOwnerType() {
+                return null;
+            }
+        };
+        return parameterizedType;
+    }
+
+    public static int getStoreNum(String type) {
+        switch (type) {
+            case "I":  //int
+                return Opcodes.ISTORE;
+            case "J":
+                return Opcodes.LSTORE;
+            case "F":
+                return Opcodes.FSTORE;
+            case "D":
+                return Opcodes.DSTORE;
+            case "Z":
+                return Opcodes.ISTORE;
+            case "C":
+                return Opcodes.ISTORE;
+            case "S":
+                return Opcodes.ISTORE;
+            default:
+                return Opcodes.ASTORE;
+        }
+    }
+
+    public static boolean isIterable(Type type) {
+        if (type instanceof ParameterizedType) {
+            ParameterizedType ptype = (ParameterizedType)type;
+            Class tclass = (Class)ptype.getRawType();
+            return isIterable(tclass);
+        } else if (type instanceof Class) {
+            return isIterable((Class)type);
+        }
+        return false;
+    }
+
+    public static boolean isIterable(Class cls) {
+        if (cls.getName().equals("java.lang.Iterable")) {
+            return true;
+        }
+        Class[] ifaces = cls.getInterfaces();
+        for (Class c : ifaces) {
+            if (isIterableInterface(c)) {
+                return true;
+            }
+        }
+        Class pCls = cls.getSuperclass();
+        while (pCls != null) {
+            //System.out.println("pCls=" + pCls.getName());
+            if (pCls.getName().equals("java.lang.Iterable")) {
+                return true;
+            }
+            ifaces = pCls.getInterfaces();
+            for (Class c : ifaces) {
+                if (isIterableInterface(c)) {
+                    return true;
+                }
+            }
+            pCls = pCls.getSuperclass();
+        }
+        return false;
+    }
+
+    public static boolean isIterableInterface(Class cls) {
+        if (cls.getName().equals("java.lang.Iterable")) {
+            return true;
+        }
+        Class[] ifaces = cls.getInterfaces();
+        for (Class c : ifaces) {
+            if (c.getName().equals("java.lang.Iterable")) {
+                return true;
+            }
+        }
+        Class pCls = cls.getSuperclass();
+        while (pCls != null) {
+            if (pCls.getName().equals("java.lang.Iterable")) {
+                return true;
+            }
+            pCls = pCls.getSuperclass();
+        }
+        return false;
+    }
+
+    public static boolean isSet(Type type) {
+        if (type instanceof ParameterizedType) {
+            ParameterizedType ptype = (ParameterizedType)type;
+            Class tclass = (Class)ptype.getRawType();
+            return isSet(tclass);
+        }
+        return false;
+    }
+
+    public static boolean isSet(Class cls) {
+        if (cls.getName().equals("java.util.Set")) {
+            return true;
+        }
+        Class[] ifaces = cls.getInterfaces();
+        for (Class c : ifaces) {
+            if (isSetInterface(c)) {
+                return true;
+            }
+        }
+        Class pCls = cls.getSuperclass();
+        while (pCls != null) {
+            //System.out.println("pCls=" + pCls.getName());
+            if (pCls.getName().equals("java.util.Set")) {
+                return true;
+            }
+            if (isSetInterface(pCls)) {
+                return true;
+            }
+            pCls = pCls.getSuperclass();
+        }
+        return false;
+    }
+
+    public static boolean isSetInterface(Class cls) {
+        if (cls.getName().equals("java.util.Set")) {
+            return true;
+        }
+        Class[] ifaces = cls.getInterfaces();
+        for (Class c : ifaces) {
+            if (c.getName().equals("java.util.Set")) {
+                return true;
+            }
+        }
+        Class pCls = cls.getSuperclass();
+        while (pCls != null) {
+            if (pCls.getName().equals("java.util.Set")) {
+                return true;
+            }
+            pCls = pCls.getSuperclass();
+        }
+        return false;
+    }
+
+    public static boolean isList(Type type) {
+        if (type instanceof ParameterizedType) {
+            ParameterizedType ptype = (ParameterizedType)type;
+            Class tclass = (Class)ptype.getRawType();
+
+            boolean isL = isList(tclass);
+//            Type[] ts = ptype.getActualTypeArguments();
+//            switch (ts[0].getTypeName()) {
+//                case "java.lang.Long":
+//                case "java.lang.Integer":
+//                    return false;
+//            }
+            return isL;
+        } else if (type instanceof Class) {
+            return isList((Class)type);
+        }
+        return false;
+    }
+
+    public static boolean isListField(Type type) {
+        if (type instanceof ParameterizedType) {
+            ParameterizedType ptype = (ParameterizedType)type;
+            Class tclass = (Class)ptype.getRawType();
+            return isList(tclass);
+        }
+        return false;
+    }
+
+    public static boolean isList(Class cls) {
+        if (cls.getName().equals("java.util.List")) {
+            return true;
+        }
+        Class[] ifaces = cls.getInterfaces();
+        for (Class c : ifaces) {
+            if (isListInterface(c)) {
+                return true;
+            }
+        }
+        Class pCls = cls.getSuperclass();
+        while (pCls != null) {
+            //System.out.println("pCls=" + pCls.getName());
+            if (pCls.getName().equals("java.util.List")) {
+                return true;
+            }
+            ifaces = pCls.getInterfaces();
+            for (Class c : ifaces) {
+                if (isListInterface(c)) {
+                    return true;
+                }
+            }
+            pCls = pCls.getSuperclass();
+        }
+        return false;
+    }
+
+    public static boolean isListInterface(Class cls) {
+        if (cls.getName().equals("java.util.List")) {
+            return true;
+        }
+        Class[] ifaces = cls.getInterfaces();
+        for (Class c : ifaces) {
+            if (c.getName().equals("java.util.List")) {
+                return true;
+            }
+        }
+        Class pCls = cls.getSuperclass();
+        while (pCls != null) {
+            if (pCls.getName().equals("java.util.List")) {
+                return true;
+            }
+            pCls = pCls.getSuperclass();
+        }
+        return false;
+    }
+
+    public static boolean isMap(Type type) {
+        if (type instanceof ParameterizedType) {
+            ParameterizedType ptype = (ParameterizedType)type;
+            Class tclass = (Class)ptype.getRawType();
+            return isMap(tclass);
+        } else if (type instanceof Class) {
+            Class clazz = (Class)type;
+            return isMap(clazz);
+        }
+        return false;
+    }
+
+    public static boolean isMap(Class cls) {
+        if ("java.util.Map".equals(cls.getName())) {
+            return true;
+        }
+        Class[] ifaces = cls.getInterfaces();
+        for (Class c : ifaces) {
+            if (isMapInterface(c)) {
+                return true;
+            }
+        }
+        Class pCls = cls.getSuperclass();
+        while (pCls != null) {
+            if ("java.util.Map".equals(cls.getName())) {
+                return true;
+            }
+            if (isMapInterface(pCls)) {
+                return true;
+            }
+            pCls = pCls.getSuperclass();
+        }
+        return false;
+    }
+
+    public static boolean isMapInterface(Class cls) {
+        if (cls.getName().equals("java.util.Map")) {
+            return true;
+        }
+        Class[] ifaces = cls.getInterfaces();
+        for (Class c : ifaces) {
+            if (c.getName().equals("java.util.Map")) {
+                return true;
+            }
+        }
+        Class pCls = cls.getSuperclass();
+        while (pCls != null) {
+            if (pCls.getName().equals("java.util.Map")) {
+                return true;
+            }
+            pCls = pCls.getSuperclass();
+        }
+        return false;
+    }
+
+    public static MapEntryTypeInfo getMapEntryTypeInfo(java.lang.reflect.Type mapType) {
+        MapEntryTypeInfo info = new MapEntryTypeInfo();
+        Type keyType;
+        Type valueType;
+        if (mapType instanceof ParameterizedType) {
+            ParameterizedType ptype = (ParameterizedType)mapType;
+            if (ptype.getActualTypeArguments() != null
+                    && ptype.getActualTypeArguments().length == 2) {
+                keyType = ptype.getActualTypeArguments()[0];
+                valueType = ptype.getActualTypeArguments()[1];
+            } else {
+                throw new RuntimeException("MapType define error");
+            }
+        } else if (mapType instanceof Class) {
+            Class clazz = (Class)mapType;
+            if (isMap(clazz)) {
+                keyType   = Object.class;
+                valueType = Object.class;
+            } else {
+                throw new RuntimeException("MapType [" + mapType + "] not Map");
+            }
+        } else {
+            if (isMap(mapType)) {
+                keyType   = Object.class;
+                valueType = Object.class;
+            } else {
+                throw new RuntimeException("MapType define error");
+            }
+        }
+        info.setKeyType(keyType);
+        info.setValueType(valueType);
+        return info;
+    }
+
+    public static class MapEntryTypeInfo {
+        private Type keyType;
+        private Type valueType;
+
+        public java.lang.reflect.Type getKeyType() {
+            return keyType;
+        }
+
+        public void setKeyType(java.lang.reflect.Type keyType) {
+            this.keyType = keyType;
+        }
+
+        public java.lang.reflect.Type getValueType() {
+            return valueType;
+        }
+
+        public void setValueType(java.lang.reflect.Type valueType) {
+            this.valueType = valueType;
+        }
+    }
+
+    public static Type getFieldType(Class cls, String fieldName) {
+        try {
+            Field field;
+            try {
+                field = cls.getDeclaredField(fieldName);
+                return field.getGenericType();
+            } catch (NoSuchFieldException e) {
+                System.err.println(e);
+            }
+            Class pcls = cls.getSuperclass();
+            while (!pcls.getName().equals("java.lang.Object")) {
+                Class lpcls = pcls;
+                try {
+                    field = pcls.getDeclaredField(fieldName);
+                    return field.getGenericType();
+                } catch (NoSuchFieldException e) {
+                    System.err.println(e);
+                }
+                pcls = pcls.getSuperclass();
+            }
+        } catch (Exception e) {
+            throw new RuntimeException(e.getMessage(), e);
+        }
+        return null;
+    }
+
+    public static Type getMapType(java.lang.reflect.Type type) {
+        if (isMap(type)) {
+            return type;
+        }
+        if (isList(type)) {
+            if (type instanceof ParameterizedType) {
+                ParameterizedType ptype = (ParameterizedType)type;
+                if (isMap(ptype.getActualTypeArguments()[0])) {
+                    return ptype.getActualTypeArguments()[0];
+                }
+            }
+        }
+        return null;
+    }
+}

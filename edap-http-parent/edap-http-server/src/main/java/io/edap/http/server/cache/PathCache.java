@@ -1,0 +1,114 @@
+/*
+ * Copyright 2023 The edap Project
+ *
+ * The Netty Project licenses this file to you under the Apache License,
+ * version 2.0 (the "License"); you may not use this file except in compliance
+ * with the License. You may obtain a copy of the License at:
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+ * License for the specific language governing permissions and limitations
+ * under the License.
+ */
+
+package io.edap.http.server.cache;
+
+import io.edap.http.HttpHandleOption;
+import io.edap.http.cache.MethodCache;
+import io.edap.nio.codec.FastBufDataRange;
+import io.edap.http.HttpHandler;
+import io.edap.http.PathInfo;
+import io.edap.http.server.handler.NotFoundHandler;
+
+import java.util.HashMap;
+import java.util.Map;
+
+public class PathCache {
+
+    /**
+     * 路径的缓存方便解析path，并获取HttpHandler数组的下标
+     */
+    private Map<FastBufDataRange, PathInfo> pathCache;
+
+    private Map<String, PathInfo> stringPathCache;
+
+    public static PathInfo NOT_FOUND_PATH;
+    static {
+        NOT_FOUND_PATH = new PathInfo();
+        NOT_FOUND_PATH.setFound(false);
+        NOT_FOUND_PATH.setHttpHandlers(new HttpHandler[]{new NotFoundHandler()});
+    }
+
+    private PathCache() {
+        pathCache       = new HashMap<>();
+        stringPathCache = new HashMap<>();
+    }
+
+    public PathInfo get(FastBufDataRange dataRange) {
+        PathInfo pi = pathCache.get(dataRange);
+        if (pi != null) {
+            return pi;
+        }
+        return pi;
+    }
+
+    public PathInfo get(String path) {
+        PathInfo pi = stringPathCache.get(path);
+        if (pi != null) {
+            return pi;
+        }
+        return pi;
+    }
+
+    /**
+     * 向系统中注册一个路径和HttpHandler的对应关系
+     * @param path
+     * @param handler
+     */
+    public synchronized void registerHandler(String path, HttpHandler handler, String... methods) {
+        registerHandler(path, handler, HttpHandleOption.defaultHttpHandleOption(), methods);
+    }
+
+    /**
+     * 向系统中注册一个路径和HttpHandler的对应关系
+     * @param path
+     * @param handler
+     */
+    public synchronized void registerHandler(String path, HttpHandler handler, HttpHandleOption option, String... methods) {
+        FastBufDataRange key         = FastBufDataRange.from(path);
+        PathInfo         pathInfo    = pathCache.get(key);
+        MethodCache methodCache = MethodCache.instance();
+        HttpHandler[]    handlers;
+        if (pathInfo == null) {
+            pathInfo = new PathInfo();
+            pathInfo.setPath(path);
+            pathInfo.setFound(true);
+            handlers = new HttpHandler[16];
+            pathInfo.setHttpHandlers(handlers);
+            pathInfo.setHandlerOption(option);
+            pathCache.put(key, pathInfo);
+            stringPathCache.put(path, pathInfo);
+        } else {
+            handlers = pathInfo.getHttpHandlers();
+            pathInfo.setHandlerOption(option);
+        }
+        for (String method : methods) {
+            int methodIndex = methodCache.getMethodIndex(method);
+            if (methodIndex > handlers.length - 1) {
+                handlers = new HttpHandler[methodIndex + 1];
+            }
+            handlers[methodIndex] = handler;
+        }
+    }
+
+    public static final PathCache instance() {
+        return SingletonHolder.INSTANCE;
+    }
+
+    private static class SingletonHolder {
+        private static final PathCache INSTANCE = new PathCache();
+    }
+}

@@ -21,7 +21,7 @@
     <parent>
         <artifactId>edap</artifactId>
         <groupId>io.edap</groupId>
-        <version>0.1-SNAPSHOT</version>
+        <version>${edap.version}</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
@@ -37,6 +37,16 @@
             <groupId>io.edap</groupId>
             <artifactId>edap-common</artifactId>
         </dependency>
+        <dependency>
+            <groupId>io.edap</groupId>
+            <artifactId>edap-log-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.edap</groupId>
+            <artifactId>edap-asm-utils</artifactId>
+        </dependency>
+
+        <!-- 单元测试相关依赖 -->
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter</artifactId>

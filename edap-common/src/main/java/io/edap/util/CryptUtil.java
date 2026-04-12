@@ -18,6 +18,7 @@ package io.edap.util;
 
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
+import java.security.GeneralSecurityException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 
@@ -25,6 +26,15 @@ import java.security.NoSuchAlgorithmException;
  * 加解密相关的工具类
  */
 public class CryptUtil {
+
+    public final static byte[] HEX_DIGITS = {
+            '0' , '1' , '2' , '3' , '4' , '5' ,
+            '6' , '7' , '8' , '9' , 'a' , 'b' ,
+            'c' , 'd' , 'e' , 'f' , 'g' , 'h' ,
+            'i' , 'j' , 'k' , 'l' , 'm' , 'n' ,
+            'o' , 'p' , 'q' , 'r' , 's' , 't' ,
+            'u' , 'v' , 'w' , 'x' , 'y' , 'z'
+    };
 
     private CryptUtil() {}
 
@@ -43,6 +53,55 @@ public class CryptUtil {
         return md5code;
     }
 
+    public static byte[] sha1(String input) {
+        return sha1(input.getBytes(StandardCharsets.UTF_8));
+    }
+
+    public static byte[] sha1(byte[] input) {
+        return digest(input, "SHA-1", (byte[])null, 1);
+    }
+
+    public static byte[] sha1(byte[] input, byte[] salt) {
+        return digest(input, "SHA-1", salt, 1);
+    }
+
+    public static byte[] sha1(byte[] input, byte[] salt, int iterations) {
+        return digest(input, "SHA-1", salt, iterations);
+    }
+
+    private static byte[] digest(byte[] input, String algorithm, byte[] salt, int iterations) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance(algorithm);
+            if (salt != null) {
+                digest.update(salt);
+            }
+
+            byte[] result = digest.digest(input);
+
+            for(int i = 1; i < iterations; ++i) {
+                digest.reset();
+                result = digest.digest(result);
+            }
+
+            return result;
+        } catch (GeneralSecurityException var7) {
+            GeneralSecurityException e = var7;
+            throw new RuntimeException(e);
+        }
+    }
+
+    public static String sha256(String plain) {
+        MessageDigest md = null;
+        try {
+            md = MessageDigest.getInstance("SHA-256");
+            byte[] digest = md.digest(plain.getBytes(StandardCharsets.UTF_8));
+            return hexStr(digest);
+        } catch (NoSuchAlgorithmException e) {
+            e.printStackTrace();
+        }
+        return "";
+    }
+
     public static String sha256(String salt, String plain) {
         MessageDigest md = null;
         try {
@@ -54,12 +113,21 @@ public class CryptUtil {
         }
         return "";
     }
+
     public static String hexStr(byte[] b) {
-        StringBuilder result = new StringBuilder();
-        for (int i = 0; i < b.length; i++) {
-            result.append(Long.toString(b[i] & 0xff, 16));
+        return hexStr(b, 0, b.length);
+    }
+
+    public static String hexStr(byte[] b, int pos, int len) {
+        byte[] data = new byte[len << 1];
+        int end = pos + len;
+        int index = 0;
+        for (int i = pos; i < end; i++) {
+            int v = b[i] & 0xff;
+            data[index++] = HEX_DIGITS[v >>> 4];
+            data[index++] = HEX_DIGITS[v & 0x0f];
         }
-        return result.toString();
+        return StringUtil.fastInstance(data, (byte)0);
     }
 
 }

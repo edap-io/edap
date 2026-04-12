@@ -1,0 +1,62 @@
+/*
+ * Copyright 2023 The edap Project
+ *
+ * The Netty Project licenses this file to you under the Apache License,
+ * version 2.0 (the "License"); you may not use this file except in compliance
+ * with the License. You may obtain a copy of the License at:
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+ * License for the specific language governing permissions and limitations
+ * under the License.
+ */
+
+package io.edap.json.test;
+
+import io.edap.json.JsonCodecRegister;
+import io.edap.json.JsonEncoder;
+import io.edap.json.JsonWriter;
+import io.edap.json.MapEncoder;
+import io.edap.json.test.model.DemoOneString;
+import io.edap.util.CollectionUtils;
+
+import java.util.Iterator;
+import java.util.Map;
+
+public class MapEncoder_223 implements MapEncoder<String, DemoOneString> {
+
+    JsonEncoder<DemoOneString> valueEncoder;
+
+    public MapEncoder_223() {
+        valueEncoder = JsonCodecRegister.instance().getEncoder(DemoOneString.class);
+    }
+
+    @Override
+    public void encode(JsonWriter writer, Map<String, DemoOneString> map) {
+        if (map == null) {
+            return;
+        }
+        if (map.isEmpty()) {
+            writer.write((byte)'{', (byte)'}');
+            return;
+        }
+        JsonEncoder<DemoOneString> encoder = valueEncoder;
+        writer.write((byte)'{');
+        Iterator<Map.Entry<String, DemoOneString>> itr = map.entrySet().iterator();
+        Map.Entry<String, DemoOneString> first = itr.next();
+        writer.write(String.valueOf(first.getKey()));
+        writer.write((byte)':');
+        encoder.encode(writer, first.getValue());
+        while (itr.hasNext()) {
+            first = itr.next();
+            writer.write((byte)',');
+            writer.write(String.valueOf(first.getKey()));
+            writer.write((byte)':');
+            encoder.encode(writer, first.getValue());
+        }
+        writer.write((byte)'}');
+    }
+}
