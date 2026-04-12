@@ -59,6 +59,7 @@
         <module>edap-asm-utils</module>
         <module>edap-json-parent</module>
         <module>edap-mqtt-parent</module>
+        <module>edap-ai-parent</module>
 
     </modules>
 
