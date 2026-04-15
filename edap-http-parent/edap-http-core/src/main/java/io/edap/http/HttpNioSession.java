@@ -79,6 +79,9 @@ public abstract class HttpNioSession extends NioServerSession<HttpRequest> {
     }
 
     public ByteData getTmpData() {
+        if (tmpData == null) {
+            tmpData = new ByteData();
+        }
         return tmpData;
     }
 

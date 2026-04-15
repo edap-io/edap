@@ -16,10 +16,12 @@
 
 package io.edap.protocol.telnet;
 
+import io.edap.Decoder;
 import io.edap.NioServerSession;
 import io.edap.buffer.FastBuf;
 import io.edap.log.Logger;
 import io.edap.log.LoggerManager;
+import io.edap.nio.ParseResult;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -36,6 +38,20 @@ public class TelnetServerNioSession extends NioServerSession {
     private volatile boolean taskRunning = false;
     private ScheduledExecutorService scheduledExecutorService;
     private Map<String, ShellCmdHandler> shellCmdHandlerMap;
+
+    public boolean decode(FastBuf fastBuf, boolean threadSwitch) {
+        Decoder _decoder = decoder;
+        boolean hasMsg = false;
+        while (fastBuf.remain() > 0) {
+            ParseResult pr = _decoder.decode(fastBuf, this);
+            if (!pr.isFinished()) {
+                break;
+            }
+            hasMsg = true;
+            handle(pr.getMessage());
+        }
+        return hasMsg;
+    }
 
     @Override
     public void handle(Object message) {

@@ -90,7 +90,6 @@ public class RangeHttpRequestDecoder extends AbstractHttpDecoder implements Deco
 
     @Override
     public ParseResult<HttpRequest> decode(FastBuf buf, HttpNioSession httpNioSession) {
-
         HttpDecoder.State state = httpNioSession.getDecodeState();
         if (state == null) {
             state = State.SKIP_CONTROL_CHARS;

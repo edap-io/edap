@@ -28,8 +28,10 @@ import io.edap.protobuf.EncodeException;
 import io.edap.protobuf.ProtoBufEncoder;
 import io.edap.protobuf.ProtoBufWriter;
 import io.edap.util.ByteData;
+import io.edap.util.CollectionUtils;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -54,6 +56,30 @@ public class HttpResponse {
 
     public HttpResponse() {
         headers = new HashMap<>();
+    }
+
+    public void setSimpleResponse(int code, Map<String, String> headers, Header... header) {
+        FastBuf _buf = buf;
+        try {
+            write0(_buf, version.bytes());
+            write0(_buf, ResponseStatusCode.get(code));
+            for (Header h : header) {
+                write0(_buf, h.getBytes());
+            }
+            if (!CollectionUtils.isEmpty(headers)) {
+                for (Map.Entry<String, String> entry : headers.entrySet()) {
+                    write0(_buf, entry.getKey().getBytes(StandardCharsets.UTF_8));
+                    write0(_buf, new byte[]{':', ' '});
+                    write0(_buf, entry.getValue().getBytes(StandardCharsets.UTF_8));
+                    write0(_buf, LINE);
+                }
+            }
+            write0(_buf, HEADER_DATE.getBytes());
+            write0(_buf, HEADER_SERVER.getBytes());
+            write0(_buf, LINE);
+        } catch (IOException ioe) {
+            ioe.printStackTrace();
+        }
     }
 
     public HttpResponse setRequest(HttpRequest request) {

@@ -19,4 +19,12 @@ public interface HttpDecoder {
 		BAD_MESSAGE,               // 不符合标准的消息
 		UPGRADED                   // 用于升级为websocket请求的升级标示
 	}
+
+	enum WSState {
+		OPCODE,
+		PAYLOAD_LENGTH,
+		PAYLOAD_LENGTH_EXTEND,
+		MASK_KEY,
+		PAYLOAD
+	}
 }

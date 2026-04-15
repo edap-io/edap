@@ -85,29 +85,8 @@ public class DisruptorReadDispatcher implements ReadDispatcher {
 					nioSession.setLastReadTime(EDAP_TIME.currentTimeMillis());
 					FastBuf writeBuf = THREAD_WRITE_BUF.get();
 					writeBuf.clear();
-                    Decoder _decoder = decoder;
-					while (buf.remain() > 0) {
-						ParseResult pr = _decoder.decode(buf, nioSession);
-						if (!pr.isFinished()) {
-							break;
-						}
-						nioSession.handle(pr.getMessage());
-//                    boolean published;
-//                    if (nioSession.isAffinityThread()) {
-//                        published = disruptorManager.publishEvent(nioSession, (event, sequence) -> {
-//                            event.setNioSession(nioSession);
-//                            event.setServerChannelContext(nioSession.getServerChannelContext());
-//                            event.setBizData(pr);
-//                            nioSession.setLastSequence(sequence);
-//                        });
-//                    } else {
-//                        published = disruptorManager.publishEvent(null, (event, sequence) -> {
-//                            event.setNioSession(nioSession);
-//                            event.setServerChannelContext(nioSession.getServerChannelContext());
-//                            event.setBizData(pr);
-//                        });
-//                    }
-//                    LOG.trace("DisruptorManager published {}", l-> l.arg(published));
+                    if (!nioSession.decode(buf, false)) {
+						return;
 					}
 					FastBuf wbuf = nioSession.getWriteBuf();
 					if (wbuf == null) {

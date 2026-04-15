@@ -20,9 +20,11 @@ import io.edap.buffer.FastBuf;
 import io.edap.log.Logger;
 import io.edap.log.LoggerManager;
 import io.edap.nio.NioSession;
+import io.edap.nio.ParseResult;
 
 import java.io.FileDescriptor;
 import java.io.IOException;
+import java.net.http.HttpRequest;
 import java.nio.channels.*;
 import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
@@ -49,7 +51,7 @@ public abstract class NioServerSession<T> extends NioSession {
      * 该会话Edap容器的引用
      */
     private Edap edap;
-    private Decoder<T, ? extends NioServerSession> decoder;
+    protected Decoder<T, ? extends NioServerSession> decoder;
     private BufPool bufPool;
     private int monitorIndex;
 
@@ -300,6 +302,13 @@ public abstract class NioServerSession<T> extends NioSession {
     public void setChannelFd(FileDescriptor channelFd) {
         this.channelFd = channelFd;
     }
+
+    /**
+     * 解码从网络输入的数据，解码成功后，将解码后的数据封装成Message对象，并返回给业务处理线程
+     * @param fastBuf
+     * @return 是否成功解码消息
+     */
+    public abstract boolean decode(FastBuf fastBuf, boolean threadSwitch);
 
     public abstract void handle(T message);
 

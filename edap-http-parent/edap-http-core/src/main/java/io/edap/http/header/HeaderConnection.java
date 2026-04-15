@@ -20,6 +20,7 @@ public class HeaderConnection extends Header {
 
     public static HeaderConnection KEEP_ALIVE = new HeaderConnection("Connection","keep-alive");
     public static HeaderConnection CLOSE      = new HeaderConnection("Connection","close");
+    public static HeaderConnection UPGRADE    = new HeaderConnection("Connection","Upgrade");
 
     private HeaderConnection(String name, String value) {
         super(name, value);

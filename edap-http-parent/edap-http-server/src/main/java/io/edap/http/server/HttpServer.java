@@ -30,6 +30,7 @@ import io.edap.http.server.handler.NotSupportMethodHandler;
 public class HttpServer extends Server {
 
     private static Decoder<HttpRequest, HttpNioSession> VALUE_DECODER = new RangeHttpRequestDecoder();
+    private static WebsocketDecoder WEBSOCKET_DECODER = new WebsocketDecoder();
 
     static final HttpHandler NOT_SUPPORT_METHO_HANDLER = new NotSupportMethodHandler();
     static final HttpHandler NOT_FOUND_HANDLER = new NotFoundHandler();
@@ -57,6 +58,7 @@ public class HttpServer extends Server {
         HttpServerNioSession nioSession = new HttpServerNioSession();
         nioSession.setServer(this);
         nioSession.setDecoder(VALUE_DECODER);
+        nioSession.setWsDecoder(WEBSOCKET_DECODER);
         nioSession.setBufPool(getBufPool());
         return nioSession;
     }

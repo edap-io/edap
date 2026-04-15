@@ -1,11 +1,14 @@
 package io.edap.mqtt.broker;
 
+import io.edap.Decoder;
 import io.edap.NioServerSession;
+import io.edap.buffer.FastBuf;
 import io.edap.mqtt.*;
 import io.edap.mqtt.encoder.V311Encoder;
 import io.edap.mqtt.encoder.V31Encoder;
 import io.edap.mqtt.encoder.V5Encoder;
 import io.edap.mqtt.packet.*;
+import io.edap.nio.ParseResult;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -40,6 +43,20 @@ public class MqttBrokerSession extends NioServerSession<ControlPacket> implement
         MQTT_ENCODERS.put(ProtocolLevel.VERSION_3_1, new V31Encoder());
         MQTT_ENCODERS.put(ProtocolLevel.VERSION_3_1_1, new V311Encoder());
         MQTT_ENCODERS.put(ProtocolLevel.VERSION_5, new V5Encoder());
+    }
+
+    public boolean decode(FastBuf fastBuf, boolean threadSwitch) {
+        Decoder _decoder = decoder;
+        boolean hasMsg = false;
+        while (fastBuf.remain() > 0) {
+            ParseResult pr = _decoder.decode(fastBuf, this);
+            if (!pr.isFinished()) {
+                break;
+            }
+            hasMsg = true;
+            handle((ControlPacket) pr.getMessage());
+        }
+        return hasMsg;
     }
 
     @Override
