@@ -18,6 +18,8 @@ package io.edap.container;
 
 import io.edap.Edap;
 import io.edap.ServerGroup;
+import io.edap.http.WSConnection;
+import io.edap.http.WSHandler;
 import io.edap.http.server.HttpServerBuilder;
 
 import java.io.IOException;
@@ -33,6 +35,12 @@ public class Bootstrap {
         ServerGroup serverGroup = new ServerGroup();
         HttpServerBuilder builder = new HttpServerBuilder();
         builder.listen(8080, 8081);
+        builder.websocket("/chat", new WSHandler() {
+            @Override
+            public void onOpen(WSConnection webSocket) {
+                System.out.println(webSocket.toString());
+            }
+        });
         serverGroup.addServer(builder.build());
         serverGroup.setName("edap-manager");
         manager.addServerGroup(serverGroup);

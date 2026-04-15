@@ -19,6 +19,8 @@ package io.edap.http.server;
 import io.edap.BufPool;
 import io.edap.http.HttpHandleOption;
 import io.edap.http.HttpHandler;
+import io.edap.http.PathInfo;
+import io.edap.http.WSHandler;
 import io.edap.http.server.cache.PathCache;
 import io.edap.pool.SimpleFastBufPool;
 import io.edap.util.StringUtil;
@@ -163,6 +165,17 @@ public class HttpServerBuilder {
 
     public HttpServerBuilder serve(String path, String method, HttpHandler handler, HttpHandleOption option) {
         addPathHandler(path, handler, option, method);
+        return this;
+    }
+
+    public HttpServerBuilder websocket(String path, WSHandler wsHandler) {
+        PathCache pathCache = PathCache.instance();
+        PathInfo pathInfo = new PathInfo();
+        pathInfo.setPath(path);
+        pathInfo.setFound(true);
+        pathInfo.setWsHandler(wsHandler);
+        pathCache.registerPathInfo(path, pathInfo);
+
         return this;
     }
 

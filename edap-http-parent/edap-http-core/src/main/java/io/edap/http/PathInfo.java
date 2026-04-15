@@ -32,6 +32,10 @@ public class PathInfo {
     private HttpHandler[] httpHandlers;
 
     private HttpHandleOption handlerOption;
+    /**
+     * WebSocket协议处理器
+     */
+    private WSHandler wsHandler;
 
     /**
      * http的路径信息
@@ -78,5 +82,16 @@ public class PathInfo {
 
     public void setHandlerOption(HttpHandleOption handlerOption) {
         this.handlerOption = handlerOption;
+    }
+
+    /**
+     * WebSocket协议处理器
+     */
+    public WSHandler getWsHandler() {
+        return wsHandler;
+    }
+
+    public void setWsHandler(WSHandler wsHandler) {
+        this.wsHandler = wsHandler;
     }
 }

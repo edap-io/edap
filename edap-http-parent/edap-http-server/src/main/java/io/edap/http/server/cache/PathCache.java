@@ -72,6 +72,12 @@ public class PathCache {
         registerHandler(path, handler, HttpHandleOption.defaultHttpHandleOption(), methods);
     }
 
+    public synchronized void registerPathInfo(String path, PathInfo pathInfo) {
+        FastBufDataRange key = FastBufDataRange.from(path);
+        pathCache.put(key, pathInfo);
+        stringPathCache.put(path, pathInfo);
+    }
+
     /**
      * 向系统中注册一个路径和HttpHandler的对应关系
      * @param path
