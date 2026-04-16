@@ -1,9 +1,15 @@
 package io.edap.http;
 
+import io.edap.http.ws.Ping;
+import io.edap.http.ws.Pong;
+
 /**
  * WebSocket处理器的接口定义
  */
 public interface WSHandler {
+
+    static final Pong PONG = new Pong();
+
     /**
      * 有新的连接创建时触发的操作
      * @param webSocket
@@ -18,7 +24,7 @@ public interface WSHandler {
      * @param message 文本消息
      */
     default void onMessage(WSConnection webSocket, String message) {
-
+        System.out.println("text message: " + message);
     }
 
     /**
@@ -36,6 +42,11 @@ public interface WSHandler {
      */
     default void onError(WSConnection webSocket, Throwable throwable) {
 
+    }
+
+    default void onPing(WSConnection webSocket, Ping ping) {
+        System.out.println("ping msg: ");
+        webSocket.sendFrame(PONG);
     }
     /**
      * 连接关闭时触发的操作

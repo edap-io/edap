@@ -6,9 +6,12 @@ public class TextFrame extends AbstractFrame {
 
     public String message;
 
-    public TextFrame() {}
+    public TextFrame() {
+        opcode = TEXT_OPCODE;
+    }
 
     public TextFrame(byte[] payload) {
+        opcode = TEXT_OPCODE;
         this.setPayload(payload);
     }
 

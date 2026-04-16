@@ -5,17 +5,11 @@ import io.edap.http.HttpDecoder;
 import io.edap.http.ws.*;
 import io.edap.util.ByteData;
 
+import static io.edap.http.ws.AbstractFrame.*;
+
 public class WebsocketDecoder {
 
-    static final byte TEXT_OPCODE   = 0x01;
-    static final byte BINARY_OPCODE = 0x02;
-    static final byte CLOSE_OPCODE  = 0x08;
-    static final byte PING_OPCODE   = 0x09;
-    static final byte PONG_OPCODE   = 0x0a;
-
     static final int MASK_KEY_LEN = 4;
-
-
 
     public AbstractFrame decode(FastBuf buf, HttpServerNioSession session) {
         HttpDecoder.WSState wsState = session.getWsState();
@@ -79,7 +73,7 @@ public class WebsocketDecoder {
                                 (buf.get() & 0xffl) << 24 |
                                 (buf.get() & 0xffl) << 16 |
                                 (buf.get() & 0xffl) <<  8 |
-                                (buf.get() & 0xffl) & 0xff;
+                                (buf.get() & 0xffl);
                 frame.setPayloadLength(payloadLength);
             }
         }
@@ -116,13 +110,195 @@ public class WebsocketDecoder {
     }
 
     private AbstractFrame decodeIncomplete(FastBuf buf, HttpServerNioSession session) {
+        AbstractFrame frame = session.getTmpWSFrame();
+        if (buf.remain() < 1) {
+            return null;
+        }
         HttpDecoder.WSState wsState = session.getWsState();
         ByteData data = session.getTmpData();
-        AbstractFrame frame = session.getTmpWSFrame();
-        switch (wsState) {
-            case PAYLOAD_LENGTH:
+        long payloadLength;
+        int remain = buf.remain();
+        while (remain > 0) {
+            switch (wsState) {
+                case PAYLOAD_LENGTH:
+                    int second = buf.get() & 0xff;
+                    boolean masked = (second & 0x80) != 0;
+                    payloadLength = second & 0x7f;
+                    frame.setPayloadLength(payloadLength);
+                    frame.setMasked(masked);
+                    if (payloadLength < 126) {
+                        if (masked) {
+                            wsState = HttpDecoder.WSState.MASK_KEY;
+                        } else {
+                            wsState = HttpDecoder.WSState.PAYLOAD;
+                        }
+                        session.setWsState(wsState);
+                    } else {
+                        wsState = HttpDecoder.WSState.PAYLOAD_LENGTH_EXTEND;
+                        session.setWsState(wsState);
+                    }
+                    remain = buf.remain();
+                    break;
+                case PAYLOAD_LENGTH_EXTEND:
+                    if (frame.getPayloadLength() == 126) {
+                        if (data.getLength() > 0) {
+                            payloadLength = (data.getBytes()[0] & 0xff) << 8 | buf.get() & 0xff;
+                            frame.setPayloadLength(payloadLength);
+                            if (frame.isMasked()) {
+                                wsState = HttpDecoder.WSState.MASK_KEY;
+                            } else {
+                                wsState = HttpDecoder.WSState.PAYLOAD;
+                            }
+                            session.setWsState(wsState);
+                        } else {
+                            if (remain > 1) {
+                                payloadLength = (buf.get() & 0xff) << 8 | buf.get() & 0xff;
+                                frame.setPayloadLength(payloadLength);
 
+                                if (frame.isMasked()) {
+                                    wsState = HttpDecoder.WSState.MASK_KEY;
+                                } else {
+                                    wsState = HttpDecoder.WSState.PAYLOAD;
+                                }
+                                session.setWsState(wsState);
+                            } else {
+                                data.setBytes(new byte[]{buf.get()});
+                                data.setLength(1);
+                            }
+                            remain = buf.remain();
+                        }
+                    } else {
+                        int len = data.getLength();
+                        if (len > 0) {
+                            if (remain + len > 7) {
+                                buf.get(data.getBytes(), len, 8 - len);
+                                payloadLength =
+                                        (data.getBytes()[0] & 0xffl) << 56 |
+                                        (data.getBytes()[1] & 0xffl) << 48 |
+                                        (data.getBytes()[2] & 0xffl) << 40 |
+                                        (data.getBytes()[3] & 0xffl) << 32 |
+                                        (data.getBytes()[4] & 0xffl) << 24 |
+                                        (data.getBytes()[5] & 0xffl) << 16 |
+                                        (data.getBytes()[6] & 0xffl) <<  8 |
+                                        (data.getBytes()[7] & 0xffl);
+                                frame.setPayloadLength(payloadLength);
+                                if (frame.isMasked()) {
+                                    wsState = HttpDecoder.WSState.MASK_KEY;
+                                } else {
+                                    wsState = HttpDecoder.WSState.PAYLOAD;
+                                }
+                            } else {
+                                len += buf.get(data.getBytes(), len, 8);
+                                data.setLength(len);
+                            }
+                            remain = buf.remain();
+                        } else {
+                            if (remain > 7) {
+                                payloadLength =
+                                        (buf.get() & 0xffl) << 56 |
+                                        (buf.get() & 0xffl) << 48 |
+                                        (buf.get() & 0xffl) << 40 |
+                                        (buf.get() & 0xffl) << 32 |
+                                        (buf.get() & 0xffl) << 24 |
+                                        (buf.get() & 0xffl) << 16 |
+                                        (buf.get() & 0xffl) <<  8 |
+                                        (buf.get() & 0xffl);
+                                frame.setPayloadLength(payloadLength);
+                                if (frame.isMasked()) {
+                                    wsState = HttpDecoder.WSState.MASK_KEY;
+                                } else {
+                                    wsState = HttpDecoder.WSState.PAYLOAD;
+                                }
 
+                            } else {
+                                if (data.getBytes().length < 8) {
+                                    data.setBytes(new byte[8]);
+                                }
+                                len = buf.get(data.getBytes());
+                                data.setLength(len);
+                            }
+                            remain = buf.remain();
+                        }
+                    }
+                    break;
+                case MASK_KEY:
+                    int len = data.getLength();
+                    if (len > 0) {
+                        if (remain + len > 3) {
+                            byte[] maskKey = new byte[4];
+                            System.arraycopy(data.getBytes(), 0, maskKey, 0, len);
+                            buf.get(maskKey, len, 4 -len);
+                            frame.setMaskingKey(maskKey);
+                            wsState = HttpDecoder.WSState.PAYLOAD;
+                            session.setWsState(wsState);
+                        } else {
+                            len += buf.get(data.getBytes(), len);
+                            data.setLength(len);
+                        }
+                    } else {
+                        if (remain > 3) {
+                            byte[] maskKey = new byte[4];
+                            buf.get(maskKey);
+                            frame.setMaskingKey(maskKey);
+                            wsState = HttpDecoder.WSState.PAYLOAD;
+                            session.setWsState(wsState);
+                        } else {
+                            len += buf.get(data.getBytes(),  len, 4);
+                            data.setLength(len);
+                        }
+                    }
+                    remain = buf.remain();
+                    break;
+                case PAYLOAD:
+                    len = data.getLength();
+                    int payloadIntLen = (int)frame.getPayloadLength();
+                    if (len > 0) {
+                        if (len + remain >= payloadIntLen) {
+                            byte[] payload = new byte[payloadIntLen];
+                            System.arraycopy(data.getBytes(), 0, payload, 0, len);
+                            buf.get(payload, len, payloadIntLen - len);
+                            fillFramePayload(frame, payload, frame.getMaskingKey());
+                            session.setWsState(HttpDecoder.WSState.OPCODE);
+                            session.setTmpWSFrame(null);
+                            session.getTmpData().setLength(0);
+                            return frame;
+                        } else {
+                            byte[] ds = data.getBytes();
+                            if (ds.length - data.getLength() < remain) {
+                                byte[] nds = new byte[remain + data.getLength()];
+                                System.arraycopy(ds, 0, nds, 0, len);
+                                buf.get(nds, len, remain);
+                                data.setBytes(nds);
+                                data.setLength(len + remain);
+                            } else {
+                                len += buf.get(ds, len, remain);
+                                data.setLength(len);
+                            }
+                            remain = buf.remain();
+                        }
+                    } else {
+                        if (remain >= payloadIntLen) {
+                            byte[] payload = new byte[payloadIntLen];
+                            buf.get(payload, payloadIntLen);
+                            fillFramePayload(frame, payload, frame.getMaskingKey());
+                            session.setWsState(HttpDecoder.WSState.OPCODE);
+                            session.setTmpWSFrame(null);
+                            session.getTmpData().setLength(0);
+                            return frame;
+                        } else {
+                            byte[] ds = data.getBytes();
+                            if (ds.length < remain) {
+                                ds = new byte[remain];
+                                data.setBytes(ds);
+                            }
+                            data.setLength(buf.get(ds, remain));
+                            remain = buf.remain();
+                        }
+                    }
+                    break;
+                default:
+                    break;
+            }
         }
         return null;
     }

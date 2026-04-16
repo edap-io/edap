@@ -2,9 +2,15 @@ package io.edap.http.ws;
 
 public abstract class AbstractFrame {
 
+    public static final byte TEXT_OPCODE   = 0x01;
+    public static final byte BINARY_OPCODE = 0x02;
+    public static final byte CLOSE_OPCODE  = 0x08;
+    public static final byte PING_OPCODE   = 0x09;
+    public static final byte PONG_OPCODE   = 0x0a;
+
     private boolean fin;
     private byte rsv;
-    private byte opcode;
+    protected byte opcode;
     private boolean masked;
     private long payloadLength;
     private byte[] maskingKey;
@@ -64,5 +70,6 @@ public abstract class AbstractFrame {
 
     public void setPayload(byte[] payload) {
         this.payload = payload;
+        this.payloadLength = payload.length;
     }
 }

@@ -119,6 +119,17 @@ public class FastBuf extends BasePoolEntry {
             len = (int)(writePos - pos);
         }
         UnsafeUtil.copyMemory(pos, data, 0, len);
+        readPos += len;
+        return len;
+    }
+
+    public int get(byte[] data, int start, int len) {
+        long pos = readPos;
+        if (pos + len > writePos) {
+            len = (int)(writePos - pos);
+        }
+        UnsafeUtil.copyMemory(pos, data, start, len);
+        readPos += len;
         return len;
     }
 

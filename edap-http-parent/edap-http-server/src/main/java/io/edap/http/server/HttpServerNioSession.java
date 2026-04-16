@@ -22,18 +22,24 @@ import io.edap.buffer.FastBuf;
 import io.edap.http.*;
 import io.edap.http.header.HeaderConnection;
 import io.edap.http.ws.AbstractFrame;
+import io.edap.http.ws.CloseFrame;
+import io.edap.http.ws.Ping;
 import io.edap.log.Logger;
 import io.edap.log.LoggerManager;
 import io.edap.nio.ParseResult;
+import io.edap.nio.util.BytesBuilder;
+import io.edap.util.ByteArrayBuilder;
+import io.edap.util.CollectionUtils;
 import io.edap.util.CryptUtil;
 
-import java.util.Base64;
-import java.util.HashMap;
-import java.util.Map;
+import java.nio.charset.StandardCharsets;
+import java.util.*;
 
 import static io.edap.http.header.UpgradeHeader.UPGRADE_WEBSOCKET;
 import static io.edap.http.server.HttpServer.NOT_FOUND_HANDLER;
 import static io.edap.http.server.HttpServer.NOT_SUPPORT_METHO_HANDLER;
+import static io.edap.http.server.WebsocketDecoder.*;
+import static io.edap.http.ws.AbstractFrame.*;
 
 public class HttpServerNioSession extends HttpNioSession implements WSConnection {
 
@@ -55,6 +61,8 @@ public class HttpServerNioSession extends HttpNioSession implements WSConnection
 	private HttpDecoder.WSState wsState;
 
 	private AbstractFrame tmpWSFrame;
+
+	private List<AbstractFrame> tmpWSFrames;
 	static {
 		THREAD_HTTP_RESPONSE = ThreadLocal.withInitial(() -> {
 			HttpResponse response = new HttpResponse();
@@ -70,7 +78,59 @@ public class HttpServerNioSession extends HttpNioSession implements WSConnection
 	public boolean decode(FastBuf fastBuf, boolean threadSwitch) {
 		boolean hasMsg = false;
 		if (upgraded) {
-			wsDecoder.decode(fastBuf, this);
+			AbstractFrame frame = wsDecoder.decode(fastBuf, this);
+			if (frame == null) {
+				return false;
+			}
+			switch (frame.getOpcode()) {
+				case TEXT_OPCODE:
+					if (frame.isFin()) {
+						if (!CollectionUtils.isEmpty(tmpWSFrames)) {
+							StringBuilder sb = new StringBuilder();
+							for (AbstractFrame f : tmpWSFrames) {
+								sb.append(new String(f.getPayload(), StandardCharsets.UTF_8));
+							}
+							sb.append(new String(frame.getPayload(), StandardCharsets.UTF_8));
+							tmpWSFrames.clear();
+							wsHandler.onMessage(this, sb.toString());
+						} else {
+							wsHandler.onMessage(this, new String(frame.getPayload(), StandardCharsets.UTF_8));
+						}
+					} else {
+						if (tmpWSFrames == null) {
+							tmpWSFrames = new ArrayList<>();
+						}
+						tmpWSFrames.add(frame);
+					}
+					break;
+				case BINARY_OPCODE:
+					if (frame.isFin()) {
+						if (!CollectionUtils.isEmpty(tmpWSFrames)) {
+							ByteArrayBuilder bb = new ByteArrayBuilder();
+							for (AbstractFrame f : tmpWSFrames) {
+								bb.append(f.getPayload());
+							}
+							bb.append(frame.getPayload());
+							tmpWSFrames.clear();
+							wsHandler.onMessage(this, bb.toByteArray());
+						} else {
+							wsHandler.onMessage(this, frame.getPayload());
+						}
+					} else {
+						if (tmpWSFrames == null) {
+							tmpWSFrames = new ArrayList<>();
+						}
+						tmpWSFrames.add(frame);
+					}
+					break;
+				case PING_OPCODE:
+					wsHandler.onPing(this, (Ping)frame);
+					break;
+				case CLOSE_OPCODE:
+					wsHandler.onClose( this);
+					break;
+			}
+			return true;
 		} else {
 			Decoder _decoder = decoder;
 			while (fastBuf.remain() > 0) {
@@ -181,5 +241,48 @@ public class HttpServerNioSession extends HttpNioSession implements WSConnection
 
 	public void setTmpWSFrame(AbstractFrame tmpWSFrame) {
 		this.tmpWSFrame = tmpWSFrame;
+	}
+
+	@Override
+	public void sendFrame(AbstractFrame frame) {
+		FastBuf buf = THREAD_WRITE_BUF.get();
+		int first = 1 << 7 | (frame.getRsv() & 0x7) << 4 | frame.getOpcode() & 0xf;
+		int len = (int)frame.getPayloadLength();
+		if (len <= 125) {
+			if (buf.writeRemain() < len + 2) {
+				FastBuf nbuf = new FastBuf(len + 2);
+				THREAD_WRITE_BUF.set(nbuf);
+				buf = nbuf;
+			}
+			buf.write((byte)first);
+			buf.write((byte)frame.getPayloadLength());
+			buf.write(frame.getPayload());
+		} else if (len <= 65536) {
+			if (buf.writeRemain() < len + 4) {
+				FastBuf nbuf = new FastBuf(len + 4);
+				THREAD_WRITE_BUF.set(nbuf);
+				buf = nbuf;
+			}
+			buf.write((byte)first);
+			buf.write((byte)126);
+			buf.write((byte)(len >> 8));
+			buf.write((byte)(len & 0xff));
+			buf.write(frame.getPayload());
+		} else {
+			if (buf.writeRemain() < len + 10) {
+				FastBuf nbuf = new FastBuf(len + 10);
+				THREAD_WRITE_BUF.set(nbuf);
+				buf = nbuf;
+			}
+			buf.write((byte)(len >> 56));
+			buf.write((byte)(len >> 48));
+			buf.write((byte)(len >> 40));
+			buf.write((byte)(len >> 32));
+			buf.write((byte)(len >> 24));
+			buf.write((byte)(len >> 16));
+			buf.write((byte)(len >>  8));
+			buf.write((byte)(len & 0xff));
+			buf.write(frame.getPayload());
+		}
 	}
 }

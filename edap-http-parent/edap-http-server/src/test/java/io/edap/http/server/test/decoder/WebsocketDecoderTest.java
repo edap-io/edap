@@ -265,6 +265,562 @@ public class WebsocketDecoderTest {
         assertArrayEquals(frame.getPayload(), payloadOrignal);
     }
 
+    @Test
+    public void testDecodeIncompleteNoMask() {
+        WebsocketDecoder decoder = new WebsocketDecoder();
+        FastBuf buf = new FastBuf(4096);
+        HttpServerNioSession session = new HttpServerNioSession();
+        String opstr = Integer.toString(1, 2);
+        opstr = getRightStr(opstr, 4);
+        byte[] data = new byte[3];
+        byte d = (byte)new Random().nextInt(Byte.MAX_VALUE);
+        data[0] = (byte)Integer.parseInt("1111" + opstr, 2);
+        String payloadLenStr = Integer.toString(1, 2);
+        payloadLenStr = getRightStr(payloadLenStr, 7);
+        data[1] = (byte)Integer.parseInt("0" + payloadLenStr, 2);
+        data[2] = d;
+        buf.write(data, 0, 1);
+
+        AbstractFrame frame = decoder.decode(buf, session);
+        assertNull(frame);
+
+        buf.clear();
+        buf.write(data, 1, 1);
+        frame = decoder.decode(buf, session);
+        assertNull(frame);
+
+        buf.clear();
+        frame = decoder.decode(buf, session);
+        assertNull(frame);
+
+        buf.clear();
+        buf.write(data, 2, 1);
+        frame = decoder.decode(buf, session);
+        assertNotNull(frame);
+        assertTrue(frame instanceof TextFrame);
+        assertEquals(((TextFrame) frame).getMessage(), new String(new byte[] {d}));
+
+
+        session.setWsState(HttpDecoder.WSState.OPCODE);
+        session.setTmpWSFrame(null);
+        session.getTmpData().setLength(0);
+        buf.clear();
+        byte[] payload = new byte[5];
+        Random random = new Random();
+        for (int i=0;i<payload.length;i++) {
+            payload[i] = (byte) random.nextInt(Byte.MAX_VALUE);
+        }
+        data = new byte[payload.length + 2];
+        data[0] = (byte)Integer.parseInt("1111" + opstr, 2);
+        payloadLenStr = Integer.toString(payload.length, 2);
+        payloadLenStr = getRightStr(payloadLenStr, 7);
+        data[1] = (byte)Integer.parseInt("0" + payloadLenStr, 2);
+        System.arraycopy(payload, 0, data, 2, payload.length);
+        buf.write(data, 0, 1);
+
+        session.getTmpData().setBytes(new byte[2]);
+        frame = decoder.decode(buf, session);
+        assertNull(frame);
+
+        buf.clear();
+        buf.write(data, 1, 1);
+        frame = decoder.decode(buf, session);
+        assertNull(frame);
+
+        buf.clear();
+        buf.write(data, 2, 1);
+        frame = decoder.decode(buf, session);
+        assertNull(frame);
+
+        buf.clear();
+        buf.write(data, 3, 4);
+        frame = decoder.decode(buf, session);
+        assertNotNull(frame);
+        assertTrue(frame instanceof TextFrame);
+        assertArrayEquals((frame).getPayload(), payload);
+
+        buf.clear();
+        payload = new byte[10];
+        for (int i=0;i<payload.length;i++) {
+            payload[i] = (byte) random.nextInt(Byte.MAX_VALUE);
+        }
+        data = new byte[payload.length + 2];
+        data[0] = (byte)Integer.parseInt("1111" + opstr, 2);
+        payloadLenStr = Integer.toString(payload.length, 2);
+        payloadLenStr = getRightStr(payloadLenStr, 7);
+        data[1] = (byte)Integer.parseInt("0" + payloadLenStr, 2);
+        System.arraycopy(payload, 0, data, 2, payload.length);
+        buf.write(data, 0, 1);
+
+        session.getTmpData().setBytes(new byte[2]);
+        frame = decoder.decode(buf, session);
+        assertNull(frame);
+
+        buf.clear();
+        buf.write(data, 1, 1);
+        frame = decoder.decode(buf, session);
+        assertNull(frame);
+
+        buf.clear();
+        buf.write(data, 2, 3);
+        frame = decoder.decode(buf, session);
+        assertNull(frame);
+
+
+
+        buf.clear();
+        buf.write(data, 5, 7);
+        frame = decoder.decode(buf, session);
+        assertNotNull(frame);
+        assertTrue(frame instanceof TextFrame);
+        assertArrayEquals((frame).getPayload(), payload);
+
+
+        buf.clear();
+        payload = new byte[10];
+        for (int i=0;i<payload.length;i++) {
+            payload[i] = (byte) random.nextInt(Byte.MAX_VALUE);
+        }
+        data = new byte[payload.length + 2];
+        data[0] = (byte)Integer.parseInt("1111" + opstr, 2);
+        payloadLenStr = Integer.toString(payload.length, 2);
+        payloadLenStr = getRightStr(payloadLenStr, 7);
+        data[1] = (byte)Integer.parseInt("0" + payloadLenStr, 2);
+        System.arraycopy(payload, 0, data, 2, payload.length);
+        buf.write(data, 0, 1);
+
+        session.getTmpData().setBytes(new byte[20]);
+        frame = decoder.decode(buf, session);
+        assertNull(frame);
+
+        buf.clear();
+        buf.write(data, 1, 1);
+        frame = decoder.decode(buf, session);
+        assertNull(frame);
+
+        buf.clear();
+        buf.write(data, 2, 3);
+        frame = decoder.decode(buf, session);
+        assertNull(frame);
+
+        buf.clear();
+        buf.write(data, 5, 2);
+        frame = decoder.decode(buf, session);
+        assertNull(frame);
+
+        buf.clear();
+        buf.write(data, 7, 5);
+        frame = decoder.decode(buf, session);
+        assertNotNull(frame);
+        assertTrue(frame instanceof TextFrame);
+        assertArrayEquals((frame).getPayload(), payload);
+
+
+        buf.clear();
+        payload = new byte[10];
+        for (int i=0;i<payload.length;i++) {
+            payload[i] = (byte) random.nextInt(Byte.MAX_VALUE);
+        }
+        data = new byte[payload.length + 2];
+        data[0] = (byte)Integer.parseInt("1111" + opstr, 2);
+        payloadLenStr = Integer.toString(payload.length, 2);
+        payloadLenStr = getRightStr(payloadLenStr, 7);
+        data[1] = (byte)Integer.parseInt("0" + payloadLenStr, 2);
+        System.arraycopy(payload, 0, data, 2, payload.length);
+        buf.write(data, 0, 1);
+
+        session.getTmpData().setBytes(new byte[2]);
+        frame = decoder.decode(buf, session);
+        assertNull(frame);
+
+        buf.clear();
+        buf.write(data, 1, 1);
+        frame = decoder.decode(buf, session);
+        assertNull(frame);
+
+        buf.clear();
+        buf.write(data, 2, 1);
+        frame = decoder.decode(buf, session);
+        assertNull(frame);
+
+
+        buf.clear();
+        buf.write(data, 3, 2);
+        frame = decoder.decode(buf, session);
+        assertNull(frame);
+
+        buf.clear();
+        buf.write(data, 5, 7);
+        frame = decoder.decode(buf, session);
+        assertNotNull(frame);
+        assertTrue(frame instanceof TextFrame);
+        assertArrayEquals((frame).getPayload(), payload);
+
+
+        buf.clear();
+        payload = new byte[10];
+        for (int i=0;i<payload.length;i++) {
+            payload[i] = (byte) random.nextInt(Byte.MAX_VALUE);
+        }
+        data = new byte[payload.length + 2];
+        data[0] = (byte)Integer.parseInt("1111" + opstr, 2);
+        payloadLenStr = Integer.toString(payload.length, 2);
+        payloadLenStr = getRightStr(payloadLenStr, 7);
+        data[1] = (byte)Integer.parseInt("1" + payloadLenStr, 2);
+        System.arraycopy(payload, 0, data, 2, payload.length);
+        buf.write(data, 0, 1);
+
+        session.getTmpData().setBytes(new byte[2]);
+        frame = decoder.decode(buf, session);
+        assertNull(frame);
+
+        buf.clear();
+        buf.write(data, 1, 1);
+        frame = decoder.decode(buf, session);
+        assertNull(frame);
+    }
+
+    @Test
+    public void testDecodeIncompleteWithTwoBytesLen() {
+        WebsocketDecoder decoder = new WebsocketDecoder();
+        FastBuf buf = new FastBuf(4096);
+        HttpServerNioSession session = new HttpServerNioSession();
+        Random random = new Random();
+        int payloadLen = 126 + random.nextInt(Byte.MAX_VALUE);
+        String opstr = Integer.toString(1, 2);
+        opstr = getRightStr(opstr, 4);
+        byte[] data = new byte[4];
+        byte d = (byte) new Random().nextInt(Byte.MAX_VALUE);
+        data[0] = (byte) Integer.parseInt("1111" + opstr, 2);
+        String payloadLenStr = Integer.toString(126, 2);
+        payloadLenStr = getRightStr(payloadLenStr, 7);
+        data[1] = (byte) Integer.parseInt("1" + payloadLenStr, 2);
+        data[2] = (byte)((payloadLen & 0xff) << 8);
+        data[3] = (byte)(payloadLen & 0xff);
+        buf.write(data, 0, 1);
+
+        AbstractFrame frame = decoder.decode(buf, session);
+        assertNull(frame);
+
+        buf.clear();
+        buf.write(data, 1, 1);
+        frame = decoder.decode(buf, session);
+        assertNull(frame);
+
+        buf.clear();
+        buf.write(data, 2, 1);
+        frame = decoder.decode(buf, session);
+        assertNull(frame);
+
+        buf.clear();
+        buf.write(data, 3, 1);
+        frame = decoder.decode(buf, session);
+        assertNull(frame);
+
+
+        session.setWsState(HttpDecoder.WSState.OPCODE);
+        session.getTmpData().setLength(0);
+        session.setTmpWSFrame(null);
+        payloadLen = 126 + random.nextInt(Byte.MAX_VALUE);
+        opstr = Integer.toString(1, 2);
+        opstr = getRightStr(opstr, 4);
+        data = new byte[5];
+        d = (byte) new Random().nextInt(Byte.MAX_VALUE);
+        data[0] = (byte) Integer.parseInt("1111" + opstr, 2);
+        payloadLenStr = Integer.toString(126, 2);
+        payloadLenStr = getRightStr(payloadLenStr, 7);
+        data[1] = (byte) Integer.parseInt("1" + payloadLenStr, 2);
+        data[2] = (byte)((payloadLen & 0xff) << 8);
+        data[3] = (byte)(payloadLen & 0xff);
+        data[4] = (byte)1;
+        buf.write(data, 0, 1);
+
+        frame = decoder.decode(buf, session);
+        assertNull(frame);
+
+        buf.clear();
+        buf.write(data, 1, 1);
+        frame = decoder.decode(buf, session);
+        assertNull(frame);
+
+        buf.clear();
+        buf.write(data, 2, 3);
+        frame = decoder.decode(buf, session);
+        assertNull(frame);
+
+        session.setWsState(HttpDecoder.WSState.OPCODE);
+        session.getTmpData().setLength(0);
+        session.setTmpWSFrame(null);
+        payloadLen = 126 + random.nextInt(Byte.MAX_VALUE);
+        opstr = Integer.toString(1, 2);
+        opstr = getRightStr(opstr, 4);
+        data = new byte[5];
+        d = (byte) new Random().nextInt(Byte.MAX_VALUE);
+        data[0] = (byte) Integer.parseInt("1111" + opstr, 2);
+        payloadLenStr = Integer.toString(126, 2);
+        payloadLenStr = getRightStr(payloadLenStr, 7);
+        data[1] = (byte) Integer.parseInt("0" + payloadLenStr, 2);
+        data[2] = (byte)((payloadLen & 0xff) << 8);
+        data[3] = (byte)(payloadLen & 0xff);
+        data[4] = (byte)1;
+        buf.write(data, 0, 1);
+
+        frame = decoder.decode(buf, session);
+        assertNull(frame);
+
+        buf.clear();
+        buf.write(data, 1, 1);
+        frame = decoder.decode(buf, session);
+        assertNull(frame);
+
+        buf.clear();
+        buf.write(data, 2, 3);
+        frame = decoder.decode(buf, session);
+        assertNull(frame);
+
+        session.setWsState(HttpDecoder.WSState.OPCODE);
+        session.getTmpData().setLength(0);
+        session.setTmpWSFrame(null);
+        payloadLen = 126 + random.nextInt(Byte.MAX_VALUE);
+        opstr = Integer.toString(1, 2);
+        opstr = getRightStr(opstr, 4);
+        data = new byte[5];
+        d = (byte) new Random().nextInt(Byte.MAX_VALUE);
+        data[0] = (byte) Integer.parseInt("1111" + opstr, 2);
+        payloadLenStr = Integer.toString(126, 2);
+        payloadLenStr = getRightStr(payloadLenStr, 7);
+        data[1] = (byte) Integer.parseInt("0" + payloadLenStr, 2);
+        data[2] = (byte)((payloadLen & 0xff) << 8);
+        data[3] = (byte)(payloadLen & 0xff);
+        data[4] = (byte)1;
+        buf.write(data, 0, 1);
+
+        frame = decoder.decode(buf, session);
+        assertNull(frame);
+
+        buf.clear();
+        buf.write(data, 1, 1);
+        frame = decoder.decode(buf, session);
+        assertNull(frame);
+
+        buf.clear();
+        buf.write(data, 2, 1);
+        frame = decoder.decode(buf, session);
+        assertNull(frame);
+
+        buf.clear();
+        buf.write(data, 3, 2);
+        frame = decoder.decode(buf, session);
+        assertNull(frame);
+
+    }
+
+    @Test
+    public void testDecodeIncompleteWithEightBytesLen() {
+        WebsocketDecoder decoder = new WebsocketDecoder();
+        FastBuf buf = new FastBuf(4096);
+        HttpServerNioSession session = new HttpServerNioSession();
+        Random random = new Random();
+        int payloadLen = 126 + random.nextInt(Byte.MAX_VALUE);
+        String opstr = Integer.toString(1, 2);
+        opstr = getRightStr(opstr, 4);
+        byte[] data = new byte[10];
+        byte d = (byte) new Random().nextInt(Byte.MAX_VALUE);
+        data[0] = (byte) Integer.parseInt("1111" + opstr, 2);
+        String payloadLenStr = Integer.toString(127, 2);
+        payloadLenStr = getRightStr(payloadLenStr, 7);
+        data[1] = (byte) Integer.parseInt("1" + payloadLenStr, 2);
+        data[2] = (byte)((payloadLen & 0xff) << 8);
+        data[3] = (byte)(payloadLen & 0xff);
+        buf.write(data, 0, 1);
+
+        AbstractFrame frame = decoder.decode(buf, session);
+        assertNull(frame);
+
+        buf.clear();
+        buf.write(data, 1, 1);
+        frame = decoder.decode(buf, session);
+        assertNull(frame);
+
+        buf.clear();
+        buf.write(data, 2, 1);
+        frame = decoder.decode(buf, session);
+        assertNull(frame);
+
+        buf.clear();
+        buf.write(data, 3, 1);
+        frame = decoder.decode(buf, session);
+        assertNull(frame);
+
+
+        session.setWsState(HttpDecoder.WSState.OPCODE);
+        session.getTmpData().setLength(0);
+        session.setTmpWSFrame(null);
+        payloadLen = 65536 + random.nextInt(Byte.MAX_VALUE);
+        byte[] payload = new byte[payloadLen];
+        for (int i=0;i<payloadLen;i++) {
+            payload[i] = (byte) random.nextInt(Byte.MAX_VALUE);
+        }
+        opstr = Integer.toString(1, 2);
+        opstr = getRightStr(opstr, 4);
+        data = new byte[payloadLen + 14];
+        data[0] = (byte) Integer.parseInt("1111" + opstr, 2);
+        payloadLenStr = Integer.toString(127, 2);
+        payloadLenStr = getRightStr(payloadLenStr, 7);
+        data[1] = (byte) Integer.parseInt("1" + payloadLenStr, 2);
+        data[2] = (byte)((payloadLen & 0xff) << 56);
+        data[3] = (byte)((payloadLen & 0xff) << 48);
+        data[4] = (byte)((payloadLen & 0xff) << 40);
+        data[5] = (byte)((payloadLen & 0xff) << 32);
+        data[6] = (byte)((payloadLen & 0xff) << 24);
+        data[7] = (byte)((payloadLen & 0xff) << 16);
+        data[8] = (byte)((payloadLen & 0xff) << 8);
+        data[9] = (byte)(payloadLen & 0xff);
+        System.arraycopy(payload, 0, data, 10, payload.length);
+        buf.write(data, 0, 1);
+        session.getTmpData().setBytes(new byte[4]);
+        frame = decoder.decode(buf, session);
+        assertNull(frame);
+
+        buf.clear();
+        buf.write(data, 1, 1);
+        frame = decoder.decode(buf, session);
+        assertNull(frame);
+
+        buf.clear();
+        buf.write(data, 2, 15);
+        frame = decoder.decode(buf, session);
+        assertNull(frame);
+
+        session.setWsState(HttpDecoder.WSState.OPCODE);
+        session.getTmpData().setLength(0);
+        session.setTmpWSFrame(null);
+        payloadLen = 65536 + random.nextInt(Byte.MAX_VALUE);
+        payload = new byte[payloadLen];
+        for (int i=0;i<payloadLen;i++) {
+            payload[i] = (byte) random.nextInt(Byte.MAX_VALUE);
+        }
+        opstr = Integer.toString(1, 2);
+        opstr = getRightStr(opstr, 4);
+        data = new byte[payloadLen + 14];
+        data[0] = (byte) Integer.parseInt("1111" + opstr, 2);
+        payloadLenStr = Integer.toString(127, 2);
+        payloadLenStr = getRightStr(payloadLenStr, 7);
+        data[1] = (byte) Integer.parseInt("0" + payloadLenStr, 2);
+        data[2] = (byte)((payloadLen & 0xff) << 56);
+        data[3] = (byte)((payloadLen & 0xff) << 48);
+        data[4] = (byte)((payloadLen & 0xff) << 40);
+        data[5] = (byte)((payloadLen & 0xff) << 32);
+        data[6] = (byte)((payloadLen & 0xff) << 24);
+        data[7] = (byte)((payloadLen & 0xff) << 16);
+        data[8] = (byte)((payloadLen & 0xff) << 8);
+        data[9] = (byte)(payloadLen & 0xff);
+        System.arraycopy(payload, 0, data, 10, payload.length);
+        buf.write(data, 0, 1);
+        session.getTmpData().setBytes(new byte[4]);
+        frame = decoder.decode(buf, session);
+        assertNull(frame);
+
+        buf.clear();
+        buf.write(data, 1, 1);
+        frame = decoder.decode(buf, session);
+        assertNull(frame);
+
+        buf.clear();
+        buf.write(data, 2, 15);
+        frame = decoder.decode(buf, session);
+        assertNull(frame);
+
+        session.setWsState(HttpDecoder.WSState.OPCODE);
+        session.getTmpData().setLength(0);
+        session.setTmpWSFrame(null);
+        payloadLen = 65536 + random.nextInt(Byte.MAX_VALUE);
+        payload = new byte[payloadLen];
+        for (int i=0;i<payloadLen;i++) {
+            payload[i] = (byte) random.nextInt(Byte.MAX_VALUE);
+        }
+        opstr = Integer.toString(1, 2);
+        opstr = getRightStr(opstr, 4);
+        data = new byte[payloadLen + 14];
+        data[0] = (byte) Integer.parseInt("1111" + opstr, 2);
+        payloadLenStr = Integer.toString(127, 2);
+        payloadLenStr = getRightStr(payloadLenStr, 7);
+        data[1] = (byte) Integer.parseInt("0" + payloadLenStr, 2);
+        data[2] = (byte)((payloadLen & 0xff) << 56);
+        data[3] = (byte)((payloadLen & 0xff) << 48);
+        data[4] = (byte)((payloadLen & 0xff) << 40);
+        data[5] = (byte)((payloadLen & 0xff) << 32);
+        data[6] = (byte)((payloadLen & 0xff) << 24);
+        data[7] = (byte)((payloadLen & 0xff) << 16);
+        data[8] = (byte)((payloadLen & 0xff) << 8);
+        data[9] = (byte)(payloadLen & 0xff);
+        System.arraycopy(payload, 0, data, 10, payload.length);
+        buf.write(data, 0, 1);
+        session.getTmpData().setBytes(new byte[4]);
+        frame = decoder.decode(buf, session);
+        assertNull(frame);
+
+        buf.clear();
+        buf.write(data, 1, 1);
+        frame = decoder.decode(buf, session);
+        assertNull(frame);
+
+        buf.clear();
+        buf.write(data, 2, 3);
+        frame = decoder.decode(buf, session);
+        assertNull(frame);
+
+        buf.clear();
+        buf.write(data, 5, 15);
+        frame = decoder.decode(buf, session);
+        assertNull(frame);
+
+        session.setWsState(HttpDecoder.WSState.OPCODE);
+        session.getTmpData().setLength(0);
+        session.setTmpWSFrame(null);
+        payloadLen = 65536 + random.nextInt(Byte.MAX_VALUE);
+        payload = new byte[payloadLen];
+        for (int i=0;i<payloadLen;i++) {
+            payload[i] = (byte) random.nextInt(Byte.MAX_VALUE);
+        }
+        opstr = Integer.toString(1, 2);
+        opstr = getRightStr(opstr, 4);
+        data = new byte[payloadLen + 14];
+        data[0] = (byte) Integer.parseInt("1111" + opstr, 2);
+        payloadLenStr = Integer.toString(127, 2);
+        payloadLenStr = getRightStr(payloadLenStr, 7);
+        data[1] = (byte) Integer.parseInt("1" + payloadLenStr, 2);
+        data[2] = (byte)((payloadLen & 0xff) << 56);
+        data[3] = (byte)((payloadLen & 0xff) << 48);
+        data[4] = (byte)((payloadLen & 0xff) << 40);
+        data[5] = (byte)((payloadLen & 0xff) << 32);
+        data[6] = (byte)((payloadLen & 0xff) << 24);
+        data[7] = (byte)((payloadLen & 0xff) << 16);
+        data[8] = (byte)((payloadLen & 0xff) << 8);
+        data[9] = (byte)(payloadLen & 0xff);
+        System.arraycopy(payload, 0, data, 10, payload.length);
+        buf.write(data, 0, 1);
+        session.getTmpData().setBytes(new byte[4]);
+        frame = decoder.decode(buf, session);
+        assertNull(frame);
+
+        buf.clear();
+        buf.write(data, 1, 1);
+        frame = decoder.decode(buf, session);
+        assertNull(frame);
+
+        buf.clear();
+        buf.write(data, 2, 3);
+        frame = decoder.decode(buf, session);
+        assertNull(frame);
+
+        buf.clear();
+        buf.write(data, 5, 15);
+        frame = decoder.decode(buf, session);
+        assertNull(frame);
+
+    }
+
     private String getRightStr(String text, int len) {
         if (text.length() >= len) {
             return text.substring(text.length() - len, text.length());

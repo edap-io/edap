@@ -23,6 +23,8 @@ import io.edap.http.WSHandler;
 import io.edap.http.server.HttpServerBuilder;
 
 import java.io.IOException;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 
 /**
  * edap微服务容器的启动程序，容器启动包含容器的管理接口以及部署接口
@@ -39,6 +41,12 @@ public class Bootstrap {
             @Override
             public void onOpen(WSConnection webSocket) {
                 System.out.println(webSocket.toString());
+            }
+
+            @Override
+            public void onMessage(WSConnection webSocket, String message) {
+                System.out.println("Override tmsg: " + message);
+                webSocket.sendText(new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date()) + " reply:" + message);
             }
         });
         serverGroup.addServer(builder.build());
