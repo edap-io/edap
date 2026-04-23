@@ -92,9 +92,33 @@ public class MethodHandleNetIO implements EdapNetIO {
     public int write(FileDescriptor fd, long address, int len) throws IOException {
         try {
             if (WRITE0_MH != null) {
-                return (int)WRITE0_MH.invokeExact(fd, address, len);
+                int wlen = (int)WRITE0_MH.invokeExact(fd, address, len);
+                if (wlen >= len) {
+                   return wlen;
+                }
+                int remain = len - wlen;
+                address += wlen;
+                while (remain > 0) {
+                    int tmpLen = (int)WRITE0_MH.invokeExact(fd, address, remain);
+                    remain  -= tmpLen;
+                    address += tmpLen;
+                    wlen    += tmpLen;
+                }
+                return wlen;
             } else {
-                return (int)WRITE0_MH2.invokeExact(fd, address, len);
+                int wlen = (int)WRITE0_MH2.invokeExact(fd, address, len);
+                if (wlen >= len) {
+                    return wlen;
+                }
+                int remain = len - wlen;
+                address += wlen;
+                while (remain > 0) {
+                    int tmpLen = (int)WRITE0_MH2.invokeExact(fd, address, remain);
+                    remain  -= tmpLen;
+                    address += tmpLen;
+                    wlen    += tmpLen;
+                }
+                return wlen;
             }
         } catch (Throwable e) {
             throw new IOException(e);
