@@ -34,6 +34,8 @@ public class PathInfoMatcher {
 
 	static PathCache        CACHE   = PathCache.instance();
 	static List<PathRouter> ROUTERS = new CopyOnWriteArrayList<>();
+	static PostfixWildcardPathRouter POSTFIX_ROUTER;
+	static PrefixWildcardPathRouter PREFIX_ROUTER;
 
 	private PathInfoMatcher() {
 		if (!CollectionUtils.isEmpty(ROUTERS)) {
@@ -51,6 +53,8 @@ public class PathInfoMatcher {
 		PrefixWildcardPathRouter  prefixRoute   = new PrefixWildcardPathRouter();
 		ROUTERS.add(prefixRoute);
 		ROUTERS.add(postfixRouter);
+		POSTFIX_ROUTER = postfixRouter;
+		PREFIX_ROUTER  = prefixRoute;
 	}
 
 	public PathInfo match(HttpFastBufDataRange dataRange) {
@@ -76,6 +80,20 @@ public class PathInfoMatcher {
         pathInfo.setMatchPath(null);
         pathInfo.setFound(false);
 		return pathInfo;
+	}
+
+	public void registerPostfixMatcher(PathInfo pathInfo) {
+		if (POSTFIX_ROUTER != null) {
+			pathInfo.setFound(true);
+			POSTFIX_ROUTER.registerPathInfo(pathInfo);
+		}
+	}
+
+	public void registerPrefixMatcher(PathInfo pathInfo) {
+		if (PREFIX_ROUTER != null) {
+			pathInfo.setFound(true);
+			PREFIX_ROUTER.registerPathInfo(pathInfo);
+		}
 	}
 
     public PathInfo match(String path) {

@@ -22,6 +22,7 @@ import io.edap.http.HttpHandler;
 import io.edap.http.PathInfo;
 import io.edap.http.WSHandler;
 import io.edap.http.server.cache.PathCache;
+import io.edap.http.server.handler.FaviconHandler;
 import io.edap.pool.SimpleFastBufPool;
 import io.edap.util.StringUtil;
 
@@ -189,11 +190,39 @@ public class HttpServerBuilder {
     }
 
     private void addPathHandler(String path, HttpHandler handler, HttpHandleOption option, String... methods) {
-        PathCache pathCache = PathCache.instance();
-        pathCache.registerHandler(path, handler, option, methods);
+        if (path.startsWith("*")) {
+            PathInfoMatcher pim = PathInfoMatcher.instance();
+            PathInfo pathInfo = new PathInfo();
+            pathInfo.setMatchPath(path);
+            pathInfo.setPath(path);
+            pathInfo.setHttpHandlers(new HttpHandler[]{handler});
+            pathInfo.setHandlerOption(option);
+            pim.registerPrefixMatcher(pathInfo);
+        } else if (path.endsWith("*")) {
+            PathInfoMatcher pim = PathInfoMatcher.instance();
+            PathInfo pathInfo = new PathInfo();
+            pathInfo.setMatchPath(path);
+            pathInfo.setPath(path);
+            pathInfo.setHttpHandlers(new HttpHandler[]{handler});
+            pathInfo.setHandlerOption(option);
+            pim.registerPostfixMatcher(pathInfo);
+        } else {
+            PathCache pathCache = PathCache.instance();
+            pathCache.registerHandler(path, handler, option, methods);
+        }
     }
 
     public HttpServer build() {
+        PathCache pathCache = PathCache.instance();
+        if (pathCache.get("/favicon.ico") == null) {
+            this.get("/favicon.ico", new FaviconHandler());
+        }
+        if (pathCache.get("/icon.svg") == null) {
+            this.get("/icon.svg", new FaviconHandler());
+        }
+        if (pathCache.get("/icon.svg") == null) {
+            this.get("/favicon.ico", new FaviconHandler());
+        }
         HttpServer server = new HttpServer();
         String httpDecoderType = System.getProperty("edap.http.decoder.type");
         if (!StringUtil.isEmpty(httpDecoderType) && "fast".equalsIgnoreCase(httpDecoderType)) {
