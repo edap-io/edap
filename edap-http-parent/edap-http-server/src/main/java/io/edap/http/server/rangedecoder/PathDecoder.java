@@ -60,6 +60,7 @@ public class PathDecoder implements RangeTokenDecoder<PathInfo> {
                         dataRange.setUrlEncoderLen(i);
                     }
                     _buf.rpos(pos+i);
+                    request.setPath(dataRange.getString());
                     return PATH_INFO_MATCHER.match(dataRange);
                 case '+':
                     decodeByte = (byte)' ';
