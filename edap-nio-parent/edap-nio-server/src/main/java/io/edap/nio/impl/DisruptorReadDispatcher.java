@@ -18,7 +18,6 @@ package io.edap.nio.impl;
 
 import io.edap.Decoder;
 import io.edap.NioServerSession;
-import io.edap.nio.ParseResult;
 import io.edap.Server;
 import io.edap.buffer.FastBuf;
 import io.edap.log.Logger;
@@ -44,7 +43,6 @@ public class DisruptorReadDispatcher implements ReadDispatcher {
 
     private Pool<FastBuf> bbPool;
 
-    private Decoder       decoder;
     private Server        server;
 	private FastBuf       readBuf;
 
@@ -57,11 +55,10 @@ public class DisruptorReadDispatcher implements ReadDispatcher {
     public DisruptorReadDispatcher(Server server, DisruptorManager<BizEvent> disruptorManager) {
         this.server           = server;
         this.bbPool           = new ThreadLocalPool<>();
-        this.decoder          = server.getDecoder();
         this.disruptorManager = disruptorManager;
 
         for (int i = 0;i < 16; i++) {
-            bbPool.requite(new FastBuf(16384));
+            bbPool.requite(new FastBuf(32768));
         }
 
         NIO_SESSION_POOLED = server.isNioSesionPooled();
@@ -94,7 +91,7 @@ public class DisruptorReadDispatcher implements ReadDispatcher {
 							nioSession.putToWriteQueue(writeBuf);
 							FastBuf nbuf = bbPool.borrow();
                             if (nbuf == null) {
-                                nbuf = new FastBuf(16384);
+                                nbuf = new FastBuf(32768);
                             }
 							THREAD_WRITE_BUF.set(nbuf);
 							nioSession.setSelectionKey(nioSession.getSocketChannel()
