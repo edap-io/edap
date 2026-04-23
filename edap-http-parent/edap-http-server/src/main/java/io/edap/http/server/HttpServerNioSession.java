@@ -22,12 +22,10 @@ import io.edap.buffer.FastBuf;
 import io.edap.http.*;
 import io.edap.http.header.HeaderConnection;
 import io.edap.http.ws.AbstractFrame;
-import io.edap.http.ws.CloseFrame;
 import io.edap.http.ws.Ping;
 import io.edap.log.Logger;
 import io.edap.log.LoggerManager;
 import io.edap.nio.ParseResult;
-import io.edap.nio.util.BytesBuilder;
 import io.edap.util.ByteArrayBuilder;
 import io.edap.util.CollectionUtils;
 import io.edap.util.CryptUtil;
@@ -38,7 +36,6 @@ import java.util.*;
 import static io.edap.http.header.UpgradeHeader.UPGRADE_WEBSOCKET;
 import static io.edap.http.server.HttpServer.NOT_FOUND_HANDLER;
 import static io.edap.http.server.HttpServer.NOT_SUPPORT_METHO_HANDLER;
-import static io.edap.http.server.WebsocketDecoder.*;
 import static io.edap.http.ws.AbstractFrame.*;
 
 public class HttpServerNioSession extends HttpNioSession implements WSConnection {
@@ -49,6 +46,8 @@ public class HttpServerNioSession extends HttpNioSession implements WSConnection
 	static BufPool BUF_POOL;
 	static String WEBSOCKET_SEC_KEY = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 	static Base64.Encoder BASE64_ENCODER = Base64.getEncoder();
+
+	private Map<String, Object> sessionContext;
 	/**
 	 * 是否已经升级到WebSocket
 	 */
@@ -63,6 +62,8 @@ public class HttpServerNioSession extends HttpNioSession implements WSConnection
 	private AbstractFrame tmpWSFrame;
 
 	private List<AbstractFrame> tmpWSFrames;
+
+	private HttpRequest httpRequest;
 	static {
 		THREAD_HTTP_RESPONSE = ThreadLocal.withInitial(() -> {
 			HttpResponse response = new HttpResponse();
@@ -165,6 +166,7 @@ public class HttpServerNioSession extends HttpNioSession implements WSConnection
 				headers.put("Sec-WebSocket-Accept", secAccept);
 				resp.setSimpleResponse(101, headers, HeaderConnection.UPGRADE, UPGRADE_WEBSOCKET);
 				upgraded = true;
+				this.httpRequest = request;
 				wsHandler.onOpen(this);
 			}
 		} else {
@@ -174,7 +176,7 @@ public class HttpServerNioSession extends HttpNioSession implements WSConnection
 
 	@Override
 	public void handle(HttpRequest request) {
-		PathInfo pathInfo = request.getPath();
+		PathInfo pathInfo = request.getPathInfo();
 		HttpHandler handler = null;
 		HttpResponse resp = request.getResponse();
 		resp.setNioSession(this);
@@ -241,6 +243,43 @@ public class HttpServerNioSession extends HttpNioSession implements WSConnection
 
 	public void setTmpWSFrame(AbstractFrame tmpWSFrame) {
 		this.tmpWSFrame = tmpWSFrame;
+	}
+
+	@Override
+	public HttpRequest getHttpRequest() {
+		return httpRequest;
+	}
+
+	@Override
+	public void setSessionContext(String key, Object value) {
+		synchronized (this) {
+			if (sessionContext == null) {
+				sessionContext = new HashMap<>();
+			}
+			sessionContext.put(key, value);
+		}
+	}
+
+	@Override
+	public Object getSessionContext(String key) {
+		return sessionContext == null ? null : sessionContext.get(key);
+	}
+
+	@Override
+	public void clearSessionContext() {
+		synchronized (this) {
+			if (sessionContext != null) {
+				sessionContext.clear();
+			}
+		}
+	}
+
+	@Override
+	public Set<String> getSessionContextKeys() {
+		if (sessionContext == null || sessionContext.isEmpty()) {
+			return Collections.EMPTY_SET;
+		}
+		return sessionContext.keySet();
 	}
 
 	@Override

@@ -98,9 +98,7 @@ public class RangeHttpRequestDecoder extends AbstractHttpDecoder implements Deco
         HttpFastBufDataRange dataRange = dc.dataRange;
         ValueHttpRequest request = dc.request;
         HttpResponse response = request.getResponse();
-        if (response.getBuf() == null) {
-            response.setBuf(THREAD_WRITE_BUF.get());
-        }
+        response.setBuf(THREAD_WRITE_BUF.get());
         ParseResult<HttpRequest> result = dc.result;
         request.reset();
        	parseHttpRequest(buf, state, dataRange, request, httpNioSession, result);
@@ -186,6 +184,7 @@ public class RangeHttpRequestDecoder extends AbstractHttpDecoder implements Deco
                         }
                     }
                 } else {
+                    dataRange.reset();
                     HeaderNameDecoder nameDecoder = HEADERNAME_DECODER;
                     HeaderValueDecoder valueDecoder = HEADERVALUE_DECODER;
                     HeaderName name = nameDecoder.decode(buf, dataRange, request);

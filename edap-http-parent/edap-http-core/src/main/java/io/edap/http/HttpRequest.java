@@ -22,7 +22,9 @@ import io.edap.util.ByteData;
  */
 public interface HttpRequest {
 
-    PathInfo getPath();
+    String getPath();
+
+    PathInfo getPathInfo();
 
     HeaderValue getHeaderValue(String name);
 
@@ -45,4 +47,6 @@ public interface HttpRequest {
     HttpNioSession getHttpNioSession();
 
     HttpResponse getResponse();
+
+    void setPath(String string);
 }

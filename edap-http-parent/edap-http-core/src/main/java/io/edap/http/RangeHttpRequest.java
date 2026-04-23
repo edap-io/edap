@@ -31,6 +31,7 @@ public class RangeHttpRequest implements HttpRequest {
     private int contentLength = -2;
     protected MethodInfo methodInfo;
     protected PathInfo pathInfo;
+    protected String path;
 	protected ByteData headerData;
     protected HttpResponse response;
 
@@ -39,7 +40,16 @@ public class RangeHttpRequest implements HttpRequest {
     }
 
     @Override
-    public PathInfo getPath() {
+    public String getPath() {
+        return path;
+    }
+
+    public void setPath(String path) {
+        this.path = path;
+    }
+
+    @Override
+    public PathInfo getPathInfo() {
         return pathInfo;
     }
 

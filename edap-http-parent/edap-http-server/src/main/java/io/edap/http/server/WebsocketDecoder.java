@@ -42,6 +42,7 @@ public class WebsocketDecoder {
         long    payloadLength = second & 0x7f;
         frame.setRsv(rsv);
         frame.setPayloadLength(payloadLength);
+        frame.setMasked(masked);
         if (payloadLength == 126) {
             if (buf.remain() < 2) {
                 ByteData tmpData = session.getTmpData();

@@ -15,7 +15,6 @@ public class ValueHttpRequest implements HttpRequest {
      * 该请求对应的HttpNioSession的对象
      */
     private HttpNioSession httpNioSession;
-
     public PathInfo pathInfo;
     /**
      * Http请求的方法信息
@@ -96,7 +95,16 @@ public class ValueHttpRequest implements HttpRequest {
     }
 
     @Override
-    public PathInfo getPath() {
+    public String getPath() {
+        return path;
+    }
+
+    public void setPath(String path) {
+        this.path = path;
+    }
+
+    @Override
+    public PathInfo getPathInfo() {
         return pathInfo;
     }
 
