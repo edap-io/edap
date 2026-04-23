@@ -43,7 +43,7 @@ public abstract class NioSession implements ThreadAffinity {
     static {
 
 		THREAD_WRITE_BUF = ThreadLocal.withInitial(() -> {
-			FastBuf buf = new FastBuf(16384);
+			FastBuf buf = new FastBuf(32768);
 			return buf;
 		});
 
