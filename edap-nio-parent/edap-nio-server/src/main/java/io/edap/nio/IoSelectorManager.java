@@ -98,7 +98,7 @@ public class IoSelectorManager {
                             eventDispatcherSet.reset();
                             int count = selector.select(50);
                             if (count > 0) {
-                                LOG.info("selector.select() count: {}", l -> l.arg(count));
+                                LOG.trace("selector.select() count: {}", l -> l.arg(count));
                             }
                         } catch (Throwable e) {
                             LOG.warn("selector.select() error", e);
@@ -144,9 +144,8 @@ public class IoSelectorManager {
     }
 
     public void registerNioSession(NioServerSession nioSession) {
-        LOG.debug("registerNioSession {}", l -> l.arg(nioSession));
+        LOG.trace("registerNioSession {}", l -> l.arg(nioSession));
         SelectionKey key;
-        LOG.info("seq=" + seq++);
         lock.lock();
         IoWorker ioWorker;
         try {

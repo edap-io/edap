@@ -16,6 +16,9 @@
 
 package io.edap.nio.nativeimpl;
 
+import io.edap.log.Logger;
+import io.edap.log.LoggerManager;
+
 import java.io.File;
 import java.io.FileDescriptor;
 import java.io.IOException;
@@ -29,6 +32,8 @@ import static io.edap.util.FileUtil.inputStreamToFile;
 public class FastNetIO {
 
     static boolean ENABLE_NATIVE_RW;
+
+    static Logger LOG = LoggerManager.getLogger(FastNetIO.class);
 
     static {
         Properties props = System.getProperties();
@@ -67,7 +72,8 @@ public class FastNetIO {
             initIDs();
             ENABLE_NATIVE_RW = true;
         } catch (Throwable e) {
-            System.out.println("os " + os + " arch " + props.get(archKey) + " not match lib file!");
+            String finalOs = os;
+            LOG.info("os {} arch {} not match lib file!", l -> l.arg(finalOs).arg(props.get(archKey)));
             ENABLE_NATIVE_RW = false;
         }
     }

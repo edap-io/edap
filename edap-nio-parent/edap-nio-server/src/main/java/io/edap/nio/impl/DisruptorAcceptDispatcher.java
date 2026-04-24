@@ -44,16 +44,15 @@ public class DisruptorAcceptDispatcher implements AcceptDispatcher {
 
     @Override
     public void dispatch(SelectionKey acceptKey) {
-        LOG.info("selectKey {}", l -> l.arg(acceptKey));
+        LOG.trace("selectKey {}", l -> l.arg(acceptKey));
         SocketChannel clientChan;
         try {
             clientChan = ((ServerSocketChannel)acceptKey.channel()).accept();
-            LOG.info("seq {}", l -> l.arg(seq));
 
             boolean published = disruptorManager.publishEvent(null, (event, sequence)
                     -> event.setChannel(clientChan)
                     .setServerChannelCtx((ServerChannelContext) acceptKey.attachment()));
-            LOG.debug("seq{} published {}", l-> l.arg(seq).arg(published));
+            LOG.trace("seq{} published {}", l-> l.arg(seq).arg(published));
             seq++;
         } catch (IOException e) {
             LOG.warn("accept error", e);

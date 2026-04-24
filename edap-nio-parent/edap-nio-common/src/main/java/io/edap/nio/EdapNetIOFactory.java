@@ -16,11 +16,15 @@
 
 package io.edap.nio;
 
+import io.edap.log.Logger;
+import io.edap.log.LoggerManager;
 import io.edap.nio.impl.MethodHandleNetIO;
 import io.edap.nio.impl.NativeNetIO;
 import io.edap.nio.nativeimpl.FastNetIO;
 
 public class EdapNetIOFactory {
+
+    private static final Logger LOG = LoggerManager.getLogger(EdapNetIOFactory.class);
 
     private static EdapNetIO EDAP_NET_IO;
 
@@ -29,14 +33,14 @@ public class EdapNetIOFactory {
             return EDAP_NET_IO;
         }
         boolean enableNative = FastNetIO.isEnableNativeRw();
-        System.out.println("arch has NativeImpl =" + enableNative);
+        LOG.info("arch has NativeImpl {}", l -> l.arg(enableNative));
         String dEnableNative = System.getProperty("enableNative", "false");
         if (enableNative && "true".equalsIgnoreCase(dEnableNative)) {
             EDAP_NET_IO = new NativeNetIO();
-            System.out.println("EDAP_NET_IO=" + EDAP_NET_IO);
+            LOG.info("EDAP_NET_IO {}", l -> l.arg(EDAP_NET_IO));
         } else {
             EDAP_NET_IO = new MethodHandleNetIO();
-            System.out.println("EDAP_NET_IO=" + EDAP_NET_IO);
+            LOG.info("EDAP_NET_IO {}", l -> l.arg(EDAP_NET_IO));
         }
 
         return EDAP_NET_IO;
