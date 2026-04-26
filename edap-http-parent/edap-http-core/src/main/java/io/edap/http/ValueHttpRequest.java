@@ -3,7 +3,10 @@ package io.edap.http;
 import io.edap.http.header.ContentLength;
 import io.edap.http.model.QueryInfo;
 import io.edap.util.ByteData;
+import io.edap.util.CollectionUtils;
+import io.edap.util.StringUtil;
 
+import java.io.InputStream;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -50,11 +53,14 @@ public class ValueHttpRequest implements HttpRequest {
 
     private HttpResponse response;
 
+    private boolean headerKeyLowerCase = false;
+
     /**
      * HTTP请求的参数
      */
     private Map<String, List<ParameterValue>> parameters = new HashMap<>();
 
+    protected InputStream inputStream;
     @Override
     public String getMethod() {
         return methodInfo.getMethod();
@@ -104,6 +110,39 @@ public class ValueHttpRequest implements HttpRequest {
     }
 
     @Override
+    public String getClientAddr() {
+        HeaderValue hv = getHeaderValue("X-Forwarded-For");
+        String addr = "";
+        if (hv != null) {
+            addr = hv.getValue();
+            if (!StringUtil.isEmpty(addr)) {
+                int index = addr.lastIndexOf(",");
+                if (index != -1) {
+                    addr = addr.substring(index + 1);
+                }
+            }
+        }
+        if (StringUtil.isEmpty(addr)) {
+            hv = getHeaderValue("X-Real-IP");
+            if (hv != null) {
+                addr = hv.getValue();
+            }
+        }
+        if (StringUtil.isEmpty(addr)) {
+            try {
+                addr = httpNioSession.getSocketChannel().getRemoteAddress().toString();
+            } catch (Throwable t) {
+                addr = "";
+            }
+        }
+        hv = getHeaderValue("X-Forwarded-Port");
+        if (hv != null && !StringUtil.isEmpty(hv.getValue())) {
+            addr += ":" + hv.getValue();
+        }
+        return addr;
+    }
+
+    @Override
     public PathInfo getPathInfo() {
         return pathInfo;
     }
@@ -128,7 +167,7 @@ public class ValueHttpRequest implements HttpRequest {
     @Override
     public int getContentLength() {
         if (contentLength == -2) {
-            HeaderValue lengthVal = getHeaderValue(ContentLength.NAME);
+            HeaderValue lengthVal = getHeaderValue(ContentLength.NAME_LOWER_CASE);
             if (lengthVal != null && lengthVal.getData().length > 0) {
                 contentLength = lengthVal.getIntValue();
             } else {
@@ -149,6 +188,7 @@ public class ValueHttpRequest implements HttpRequest {
 
     @Override
     public void reset() {
+        contentLength = -2;
         headers.clear();
         parameters.clear();
     }
@@ -165,6 +205,17 @@ public class ValueHttpRequest implements HttpRequest {
 
     public void setHeaderData(ByteData headerData) {
         this.headerData = headerData;
+    }
+
+    @Override
+    public String getParameter(String name) {
+        if (!CollectionUtils.isEmpty(parameters)) {
+            List<ParameterValue> vs = parameters.get(name);
+            if (!CollectionUtils.isEmpty(vs)) {
+                return vs.get(0).getValue();
+            }
+        }
+        return null;
     }
 
     /**

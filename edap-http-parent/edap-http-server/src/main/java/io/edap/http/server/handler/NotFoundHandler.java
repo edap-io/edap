@@ -26,7 +26,7 @@ import java.nio.charset.StandardCharsets;
 
 public class NotFoundHandler implements HttpHandler {
 
-    private static byte[] NOT_FOUND_CONTENT;
+    protected static byte[] NOT_FOUND_CONTENT;
 
     @Override
     public void handle(HttpRequest req, HttpResponse resp) {
@@ -34,10 +34,10 @@ public class NotFoundHandler implements HttpHandler {
             initData();
         }
         resp.contentType(ContentTypeHeader.HTML);
-        resp.write(NOT_FOUND_CONTENT);
+        resp.write(404, NOT_FOUND_CONTENT);
     }
 
-    private static void initData() {
+    protected static void initData() {
         NOT_FOUND_CONTENT = loadData("/404.html", (" <!DOCTYPE html>\n" +
                 " <html lang=\"zh-CN\">\n" +
                 " <head>\n" +

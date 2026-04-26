@@ -26,6 +26,8 @@ public class ContentLength extends Header {
 
     public static String NAME = "Content-Length";
 
+    public static String NAME_LOWER_CASE = "content-length";
+
     private static final ThreadLocal<ByteData> BYTE_CACHE_LOCAL = new ThreadLocal<ByteData>() {
         @Override
         protected ByteData initialValue() {

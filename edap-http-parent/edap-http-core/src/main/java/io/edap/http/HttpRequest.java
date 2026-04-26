@@ -49,4 +49,8 @@ public interface HttpRequest {
     HttpResponse getResponse();
 
     void setPath(String string);
+
+    String getClientAddr();
+
+    String getParameter(String name);
 }

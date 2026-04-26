@@ -49,6 +49,16 @@ public class RangeHttpRequest implements HttpRequest {
     }
 
     @Override
+    public String getClientAddr() {
+        return "";
+    }
+
+    @Override
+    public String getParameter(String name) {
+        return "";
+    }
+
+    @Override
     public PathInfo getPathInfo() {
         return pathInfo;
     }

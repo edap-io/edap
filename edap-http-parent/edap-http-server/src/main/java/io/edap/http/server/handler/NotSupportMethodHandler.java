@@ -20,11 +20,20 @@ package io.edap.http.server.handler;
 import io.edap.http.HttpHandler;
 import io.edap.http.HttpRequest;
 import io.edap.http.HttpResponse;
+import io.edap.http.ResponseStatusCode;
+import io.edap.http.header.ContentTypeHeader;
+
+import static io.edap.http.server.handler.NotFoundHandler.NOT_FOUND_CONTENT;
+import static io.edap.http.server.handler.NotFoundHandler.initData;
 
 public class NotSupportMethodHandler implements HttpHandler {
 
     @Override
     public void handle(HttpRequest req, HttpResponse resp) {
-
+        resp.contentType(ContentTypeHeader.HTML);
+        if (NOT_FOUND_CONTENT == null) {
+            initData();
+        }
+        resp.write(405, NOT_FOUND_CONTENT);
     }
 }

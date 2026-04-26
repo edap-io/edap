@@ -97,6 +97,7 @@ public class RangeHttpRequestDecoder extends AbstractHttpDecoder implements Deco
         DecodeContext dc = THREAD_DECODE_CONTEXT.get();
         HttpFastBufDataRange dataRange = dc.dataRange;
         ValueHttpRequest request = dc.request;
+        request.setHttpNioSession(httpNioSession);
         HttpResponse response = request.getResponse();
         response.setBuf(THREAD_WRITE_BUF.get());
         ParseResult<HttpRequest> result = dc.result;

@@ -24,6 +24,7 @@ import io.edap.http.HttpNioSession;
 import io.edap.http.HttpRequest;
 import io.edap.http.server.handler.NotFoundHandler;
 import io.edap.http.server.handler.NotSupportMethodHandler;
+import io.edap.util.StringUtil;
 
 /**
  */
@@ -41,6 +42,8 @@ public class HttpServer extends Server {
     }
 
     private DecoderType decoderType = DecoderType.NORMAL;
+
+    private static Boolean HEADER_KEY_LOWER_CASE = null;
 
     public void setDecoderType(DecoderType decoderType) {
         this.decoderType = decoderType;

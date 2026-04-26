@@ -75,14 +75,14 @@ public class BodyDecoder {
             hasLen = data.getLength();
         }
         if (buf.remain() + hasLen >= length) {
-            int readLen = buf.get(data.getBytes(), hasLen);
+            int readLen = buf.get(data.getBytes(), hasLen, length);
             buf.rpos(buf.rpos() + (length - hasLen));
             data.setLength(data.getLength() + readLen);
             request.setBody(data);
             httpNioSession.setTmpData(null);
             return true;
         } else {
-            int readLen = buf.get(data.getBytes(), hasLen);
+            int readLen = buf.get(data.getBytes(), hasLen, length);
             buf.rpos(buf.rpos() + readLen);
         }
         return false;

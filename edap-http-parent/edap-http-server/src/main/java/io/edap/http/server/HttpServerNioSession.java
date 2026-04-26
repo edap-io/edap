@@ -64,6 +64,7 @@ public class HttpServerNioSession extends HttpNioSession implements WSConnection
 	private List<AbstractFrame> tmpWSFrames;
 
 	private HttpRequest httpRequest;
+
 	static {
 		THREAD_HTTP_RESPONSE = ThreadLocal.withInitial(() -> {
 			HttpResponse response = new HttpResponse();
@@ -190,7 +191,8 @@ public class HttpServerNioSession extends HttpNioSession implements WSConnection
 				try {
 					handler = pathInfo.getHttpHandlers()[request.getMethodInfo().getMethodIndex()];
 				} catch (Exception e) {
-					log.warn("get HttpHandler error", e);
+					log.warn("[] get method {} HttpHandler error {}", (l -> l.arg(request.getPath())
+							.arg(request.getMethod()).arg(e)));
 				}
 				if (handler == null) {
 					handler = NOT_SUPPORT_METHO_HANDLER;
