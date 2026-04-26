@@ -65,6 +65,12 @@ public class ByteArrayJsonReader implements JsonReader {
         this.end = json.length;
     }
 
+    public void setJsonData(byte[] json, int offset, int length) {
+        this.json = json;
+        this.pos = offset;
+        this.end = offset + length;
+    }
+
     @Override
     public Object readObject() {
         NodeType nodeType = readStart();

@@ -186,6 +186,18 @@ public class Eson {
         return reader.readObjectValue();
     }
 
+    public static JsonObject parseJsonObject(byte[] json, int offset, int len) {
+        ByteArrayJsonReader reader = THREAD_BYTEARRAY_JSONREADER.get();
+        reader.reset();
+        reader.setJsonData(json, offset, len);
+        char c = reader.firstNotSpaceChar();
+        if (c != '{') {
+            throw new JsonParseException("不是JsonObject的数据");
+        }
+        reader.nextPos(1);
+        return reader.readObjectValue();
+    }
+
     public static <T> T parseObject(byte[] json, Class<T> clazz) {
         ByteArrayJsonReader reader = THREAD_BYTEARRAY_JSONREADER.get();
         reader.reset();
