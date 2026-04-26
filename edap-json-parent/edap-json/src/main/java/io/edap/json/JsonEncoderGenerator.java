@@ -2,8 +2,6 @@ package io.edap.json;
 
 import io.edap.json.model.JsonFieldInfo;
 import io.edap.json.util.JsonUtil;
-import io.edap.util.AsmUtil;
-import io.edap.util.ClazzUtil;
 import io.edap.util.CollectionUtils;
 import io.edap.util.internal.GeneratorClassInfo;
 import org.objectweb.asm.*;
@@ -156,16 +154,6 @@ public class JsonEncoderGenerator {
             mv.visitMethodInsn(INVOKEINTERFACE, WRITER_NAME, "writeField", "([BII)V", true);
 
             if (jfi.isMap) {
-                AsmUtil.MapEntryTypeInfo info = getMapEntryTypeInfo(jfi.field.getGenericType());
-                String keySign = getDescriptor(info.getKeyType());
-                String valSign = getDescriptor(info.getValueType());
-                FieldVisitor fv = cw.visitField(ACC_PRIVATE | ACC_STATIC, jfi.field.getName() + "MapEncoder",
-                        "L" + MAP_ENCOER_NAME + ";",
-                        "L" + MAP_ENCOER_NAME + "<" + keySign + valSign + ">;", null);
-                fv.visitEnd();
-
-                //mv.visitVarInsn(ALOAD, 0);
-                mv.visitFieldInsn(GETSTATIC, encoderName, jfi.field.getName() + "MapEncoder", "L" + MAP_ENCOER_NAME + ";");
                 mv.visitVarInsn(ALOAD, 1);
                 mv.visitVarInsn(ALOAD, 2);
                 if (jfi.method != null) {
@@ -173,17 +161,9 @@ public class JsonEncoderGenerator {
                 } else {
                     mv.visitFieldInsn(GETFIELD, pojoName, jfi.field.getName(), typeString);
                 }
-                visitMethod(mv, INVOKEINTERFACE, MAP_ENCOER_NAME, "encode", "(L" + WRITER_NAME + ";Ljava/util/Map;)V", true);
-//                mv.visitFieldInsn(GETSTATIC, encoderName,  ENCODER_PREFIX+ jfi.field.getName().toUpperCase(Locale.ENGLISH),
-//                        "L" + IFACE_NAME + ";");
-//                mv.visitVarInsn(ALOAD, 1);
-//                mv.visitVarInsn(ALOAD, 2);
-//                if (jfi.method != null) {
-//                    visitMethod(mv, INVOKEVIRTUAL, pojoName, jfi.method.getName(), "()" + typeString, false);
-//                } else {
-//                    mv.visitFieldInsn(GETFIELD, pojoName, jfi.field.getName(), typeString);
-//                }
-//                visitMethod(mv, INVOKEINTERFACE, IFACE_NAME, "encode", "(L" + WRITER_NAME + ";Ljava/lang/Object;)V", true);
+                String writeMethod = "writeObject";
+                typeString = "Ljava/lang/Object;";
+                visitMethod(mv, INVOKEINTERFACE, WRITER_NAME, writeMethod, "(" + typeString + ")V", true);
             } else if (isPojo(jfi.field.getGenericType())) {
                 if (!jfi.field.getType().getName().equals(pojoCls.getName())) {
                     mv.visitFieldInsn(GETSTATIC, encoderName, getCodecFieldName(jfi.field.getGenericType()),
@@ -601,28 +581,9 @@ public class JsonEncoderGenerator {
 
     private void visitClInit(List<JsonFieldInfo> fields, List<Type> allPojos) {
 
-        if (!CollectionUtils.isEmpty(mapFields)) {
-            for (int i=0;i<mapFields.size();i++) {
-                JsonFieldInfo jfi = mapFields.get(i);
-                FieldVisitor fv = cw.visitField(ACC_PRIVATE + ACC_FINAL + ACC_STATIC,
-                        ENCODER_PREFIX + jfi.field.getName().toUpperCase(Locale.ENGLISH),
-                        "L" + IFACE_NAME + ";", "L" + IFACE_NAME + ";", null);
-                fv.visitEnd();
-            }
-        }
-
         MethodVisitor mv;
         mv = cw.visitMethod(ACC_STATIC, "<clinit>", "()V", null, null);
         mv.visitCode();
-        Label l0 = null;
-        Label l1 = null;
-        Label l2 = null;
-        if (!CollectionUtils.isEmpty(mapFields)) {
-            l0 = new Label();
-            l1 = new Label();
-            l2 = new Label();
-            mv.visitTryCatchBlock(l0, l1, l2, "java/lang/NoSuchFieldException");
-        }
 
         //为Field的名称char[]数组赋值赋值
         fields.forEach(e -> {
@@ -637,50 +598,6 @@ public class JsonEncoderGenerator {
                 assignPojoEncoders(mv, t);
             }
         });
-
-        if (!CollectionUtils.isEmpty(mapFields)) {
-            for (int i=0;i<mapFields.size();i++) {
-                JsonFieldInfo jfi = mapFields.get(i);
-                mv.visitLabel(l0);
-                mv.visitLdcInsn(org.objectweb.asm.Type.getType("L" + pojoName + ";"));
-                mv.visitLdcInsn("methods");
-                mv.visitMethodInsn(INVOKESTATIC, toInternalName(ClazzUtil.class.getName()), "getField", "(Ljava/lang/Class;Ljava/lang/String;)Ljava/lang/reflect/Field;", false);
-                mv.visitVarInsn(ASTORE, 2);
-                mv.visitFieldInsn(GETSTATIC, REGISTER_NAME, "INSTANCE", "L" + REGISTER_NAME + ";");
-                mv.visitVarInsn(ALOAD, 2);
-                mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/reflect/Field", "getGenericType", "()Ljava/lang/reflect/Type;", false);
-                mv.visitMethodInsn(INVOKEVIRTUAL, REGISTER_NAME, "getMapEncoder",
-                        "(Ljava/lang/reflect/Type;)L" + IFACE_NAME + ";", false);
-                mv.visitVarInsn(ASTORE, i);
-            }
-
-            mv.visitLabel(l1);
-            Label l3 = new Label();
-            mv.visitJumpInsn(GOTO, l3);
-            mv.visitLabel(l2);
-            mv.visitFrame(Opcodes.F_SAME1, 0, null, 1, new Object[] {"java/lang/NoSuchFieldException"});
-            mv.visitVarInsn(ASTORE, mapFields.size());
-            mv.visitVarInsn(ALOAD, mapFields.size());
-            mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/NoSuchFieldException", "printStackTrace", "()V", false);
-            for (int i=0;i<mapFields.size();i++) {
-                mv.visitInsn(ACONST_NULL);
-                mv.visitVarInsn(ASTORE, i);
-            }
-
-            mv.visitLabel(l3);
-            Object[] ifaceNames = new Object[mapFields.size()];
-            for (int i=0;i<mapFields.size();i++) {
-                ifaceNames[i] = IFACE_NAME;
-            }
-            mv.visitFrame(Opcodes.F_APPEND,mapFields.size(), ifaceNames, 0, null);
-            for (int i=0;i<mapFields.size();i++) {
-                JsonFieldInfo jfi = mapFields.get(i);
-                mv.visitVarInsn(ALOAD, i);
-                mv.visitFieldInsn(PUTSTATIC, encoderName,
-                        ENCODER_PREFIX + jfi.field.getName().toUpperCase(Locale.ENGLISH), "L" + IFACE_NAME + ";");
-            }
-        }
-
 
         mv.visitInsn(RETURN);
         mv.visitMaxs(0, 0);
@@ -759,22 +676,22 @@ public class JsonEncoderGenerator {
         mv.visitVarInsn(ALOAD, 0);
         visitMethod(mv, INVOKESPECIAL, PARENT_NAME, "<init>", "()V", false);
 
-        for (JsonFieldInfo jfi : fields) {
-            if (!isMap(jfi.field.getGenericType())) {
-                continue;
-            }
-            //mv.visitVarInsn(ALOAD, 0);
-            mv.visitMethodInsn(INVOKESTATIC, REGISTER_NAME, "instance", "()L" + REGISTER_NAME + ";", false);
-            mv.visitLdcInsn(org.objectweb.asm.Type.getType("L" + pojoName + ";"));
-            mv.visitLdcInsn(jfi.field.getName());
-            mv.visitMethodInsn(INVOKESTATIC, "io/edap/util/AsmUtil", "getFieldType",
-                    "(Ljava/lang/Class;Ljava/lang/String;)Ljava/lang/reflect/Type;", false);
-            mv.visitLdcInsn(org.objectweb.asm.Type.getType("L" + pojoName + ";"));
-            mv.visitFieldInsn(GETSTATIC, "io/edap/json/enums/DataType", "BYTE_ARRAY", "Lio/edap/json/enums/DataType;");
-            mv.visitMethodInsn(INVOKEVIRTUAL, REGISTER_NAME, "getMapEncoder", "" +
-                    "(Ljava/lang/reflect/Type;Ljava/lang/Class;Lio/edap/json/enums/DataType;)L" + MAP_ENCOER_NAME + ";", false);
-            mv.visitFieldInsn(PUTSTATIC, encoderName, jfi.field.getName() + "MapEncoder", "L" + MAP_ENCOER_NAME + ";");
-        }
+//        for (JsonFieldInfo jfi : fields) {
+//            if (!isMap(jfi.field.getGenericType())) {
+//                continue;
+//            }
+//            //mv.visitVarInsn(ALOAD, 0);
+//            mv.visitMethodInsn(INVOKESTATIC, REGISTER_NAME, "instance", "()L" + REGISTER_NAME + ";", false);
+//            mv.visitLdcInsn(org.objectweb.asm.Type.getType("L" + pojoName + ";"));
+//            mv.visitLdcInsn(jfi.field.getName());
+//            mv.visitMethodInsn(INVOKESTATIC, "io/edap/util/AsmUtil", "getFieldType",
+//                    "(Ljava/lang/Class;Ljava/lang/String;)Ljava/lang/reflect/Type;", false);
+//            mv.visitLdcInsn(org.objectweb.asm.Type.getType("L" + pojoName + ";"));
+//            mv.visitFieldInsn(GETSTATIC, "io/edap/json/enums/DataType", "BYTE_ARRAY", "Lio/edap/json/enums/DataType;");
+//            mv.visitMethodInsn(INVOKEVIRTUAL, REGISTER_NAME, "getMapEncoder", "" +
+//                    "(Ljava/lang/reflect/Type;Ljava/lang/Class;Lio/edap/json/enums/DataType;)L" + MAP_ENCOER_NAME + ";", false);
+//            mv.visitFieldInsn(PUTSTATIC, encoderName, jfi.field.getName() + "MapEncoder", "L" + MAP_ENCOER_NAME + ";");
+//        }
 
         mv.visitInsn(RETURN);
         mv.visitMaxs(0, 0);
