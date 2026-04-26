@@ -119,6 +119,7 @@ public class ConfigManager {
         // 添加FileAppender的默认Encoder
         String logFileName = "./app.log";
         args.add(createDefaultFileEncoderNode(logFileName));
+        args.add(createSimpleNode("file", logFileName));
         args.add(createDayRolloverNode(logFileName));
         config.setArgs(args);
 
@@ -159,7 +160,6 @@ public class ConfigManager {
 
         List<LogConfig.ArgNode> children = new ArrayList<>();
         children.add(createDefaultFileEncoderPattern());
-        children.add(createSimpleNode("file", logFileName));
         node.setChilds(children);
 
         return node;
