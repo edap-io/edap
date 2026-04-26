@@ -100,13 +100,6 @@ public class DisruptorReadDispatcher implements ReadDispatcher {
 					} else {
 						if (nioSession.writeToChannel(wbuf)) {
 							nioSession.removeWriteBuf(wbuf);
-                            if (nioSession.getWriteBuf() == null) {
-                                SelectionKey wkey = nioSession.getSelectionKey();
-                                if (wkey != null && wkey.isWritable()) {
-                                    wkey.cancel();
-                                    nioSession.setSelectionKey(null);
-                                }
-                            }
                             bbPool.requite(wbuf);
 						}
 					}
