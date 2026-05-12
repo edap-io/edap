@@ -95,7 +95,7 @@ edap-protobuf 为protocol buffer协议的实现框架，可以直接序列化反
 4. 该框架对protobuf协议做了扩展，可以作为序列化反序列化框架来使用，编码方式类似hession。
 
 ```java
-// 序列化对象为
+// 序列化对象为二进制字节数组
 byte[] bs = ProtoBuf.ser(Object obj);
 // 反序列化为java对象，由于编码时将类型信息写入序列化的数据中，所以可以直接反序列化为相应类型的对象，只需强转为相应类型即可
 Object obj = ProtoBuf.der(byte[] bs);
