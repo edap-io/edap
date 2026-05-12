@@ -8,7 +8,7 @@ edap-protobuf 为protocol buffer协议的实现框架，可以直接序列化反
     <dependency>
         <groupId>io.edap</groupId>
         <artifactId>edap-protobuf</artifactId>
-        <version>0.1-SNAPSHOT</version>
+        <version>${last.version}</version>
     </dependency>
     ```
 
