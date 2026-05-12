@@ -26,34 +26,58 @@ public class Convertor {
     }
 
     public static java.time.LocalDate toJavaTimeLocalDate(java.sql.Date sqlDate) {
+        if (sqlDate == null) {
+            return null;
+        }
         return sqlDate.toLocalDate();
     }
 
     public static java.sql.Date toJavaSqlDate(java.time.LocalDate localDate) {
+        if (localDate == null) {
+            return null;
+        }
         return java.sql.Date.valueOf(localDate);
     }
 
     public static java.time.LocalTime toJavaTimeLocalTime(java.sql.Time sqlTime) {
+        if (sqlTime == null) {
+            return null;
+        }
         return sqlTime.toLocalTime();
     }
 
     public static java.sql.Time toJavaSqlTime(java.time.LocalTime localTime) {
+        if (localTime == null) {
+            return null;
+        }
         return java.sql.Time.valueOf(localTime);
     }
 
     public static java.time.LocalDateTime toJavaTimeLocalDateTime(java.sql.Timestamp sqlts) {
+        if (sqlts == null) {
+            return null;
+        }
         return sqlts.toLocalDateTime();
     }
 
     public static java.sql.Timestamp toJavaSqlTimestamp(java.time.LocalDateTime localDateTime) {
+        if (localDateTime == null) {
+            return null;
+        }
         return java.sql.Timestamp.valueOf(localDateTime);
     }
 
     public static java.sql.Timestamp toJavaSqlTimestamp(java.util.Date date) {
+        if (date == null) {
+            return null;
+        }
         return new java.sql.Timestamp(date.getTime());
     }
 
     public static java.util.Date toJavaUtilDate(java.sql.Timestamp sqlDate) {
+        if (sqlDate == null) {
+            return null;
+        }
         return new java.util.Date(sqlDate.getTime());
     }
 

@@ -18,6 +18,7 @@ package io.edap.util;
 
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
+import java.security.DigestException;
 import java.security.GeneralSecurityException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -100,6 +101,18 @@ public class CryptUtil {
             e.printStackTrace();
         }
         return "";
+    }
+
+    public static byte[] sha256(byte[] plain, int offset, int len) {
+        MessageDigest md;
+        try {
+            md = MessageDigest.getInstance("SHA-256");
+            md.update(plain, offset, len);
+            return md.digest();
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException(e);
+        }
+
     }
 
     public static String sha256(String salt, String plain) {

@@ -221,6 +221,17 @@ public class JsonDecoderGenerator {
                 mv.visitMethodInsn(INVOKEVIRTUAL, pojoDecoderName, "readList",
                         "(L" + READER_NAME + ";Ljava/lang/Class;)Ljava/util/List;", false);
                 visitSetValueOpcode(mv, jfi);
+            } else if (isMap(jfi.field.getGenericType())) {
+                mv.visitVarInsn(ALOAD, 3);
+                mv.visitVarInsn(ALOAD, 1);
+                String readMethod = "readObject";
+                mv.visitMethodInsn(INVOKEINTERFACE, READER_NAME, readMethod,
+                        "()Ljava/lang/Object;", true);
+
+//            mv.visitMethodInsn(INVOKEVIRTUAL, pojoName, "setField1",
+//                    "(Ljava/lang/String;)V", false);
+                mv.visitTypeInsn(CHECKCAST, "java/util/Map");
+                visitSetValueOpcode(mv, jfi);
             } else {
                 mv.visitVarInsn(ALOAD, 3);
                 mv.visitVarInsn(ALOAD, 1);
@@ -289,6 +300,17 @@ public class JsonDecoderGenerator {
                 mv.visitLdcInsn(Type.getType(getDescriptor(itemType)));
                 mv.visitMethodInsn(INVOKEVIRTUAL, pojoDecoderName, "readList",
                         "(L" + READER_NAME + ";Ljava/lang/Class;)Ljava/util/List;", false);
+                visitSetValueOpcode(mv, jfi);
+            } else if (isMap(jfi.field.getGenericType())) {
+                mv.visitVarInsn(ALOAD, 3);
+                mv.visitVarInsn(ALOAD, 1);
+                String readMethod = "readObject";
+                mv.visitMethodInsn(INVOKEINTERFACE, READER_NAME, readMethod,
+                        "()Ljava/lang/Object;", true);
+
+//            mv.visitMethodInsn(INVOKEVIRTUAL, pojoName, "setField1",
+//                    "(Ljava/lang/String;)V", false);
+                mv.visitTypeInsn(CHECKCAST, "java/util/Map");
                 visitSetValueOpcode(mv, jfi);
             } else {
                 mv.visitFrame(Opcodes.F_SAME, 0, null, 0, null);

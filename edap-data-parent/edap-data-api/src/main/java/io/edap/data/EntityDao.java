@@ -17,6 +17,7 @@
 package io.edap.data;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * 数据访问接口的定时
@@ -70,9 +71,19 @@ public interface EntityDao<T> extends ViewDao<T> {
      * @param sql 更新语句
      * @param params 更新语句绑定的变量
      * @return 返回更新的条数
-     * @throws Exception 更新时抛出的异常s
+     * @throws Exception 更新时抛出的异常
      */
     int update(String sql, Object... params) throws Exception;
+
+    /**
+     * 根据给定的键值对来更新数据，针对某些场景只更新个别字段的场景,给定默认空实现，兼容早期版本没这个api报错的问题
+     * @param updateMap 需要更新字段以及对应的值
+     * @param whereMap 符合条件的字段以及应对的值
+     * @return
+     */
+    default int update(Map<String, Object> updateMap, Map<String, Object> whereMap) throws Exception {
+        return 0;
+    }
 
     /**
      * 根据删除的语句从持久化介质中删除符合条件的数据

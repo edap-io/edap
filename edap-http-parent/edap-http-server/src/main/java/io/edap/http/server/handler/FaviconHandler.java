@@ -7,6 +7,8 @@ import io.edap.http.header.ContentTypeHeader;
 import io.edap.log.Logger;
 import io.edap.log.LoggerManager;
 
+import java.io.IOException;
+
 public class FaviconHandler implements HttpHandler {
 
     Logger log = LoggerManager.getLogger(FaviconHandler.class);
@@ -15,7 +17,7 @@ public class FaviconHandler implements HttpHandler {
     private static byte[] FAVICON_SVG_DATA;
     private static byte[] FAVICON_PNG_DATA;
     @Override
-    public void handle(HttpRequest req, HttpResponse resp) {
+    public void handle(HttpRequest req, HttpResponse resp) throws IOException {
         String path = req.getPath();
         if ("/favicon.ico".equals(path)) {
             if (FAVICON_ICO_DATA == null) {

@@ -17,6 +17,7 @@
 package io.edap.data.jdbc.jdbc.test;
 
 import io.edap.data.jdbc.DaoOption;
+import io.edap.data.jdbc.DatabaseType;
 import io.edap.data.jdbc.JdbcDaoRegister;
 import io.edap.data.jdbc.JdbcEntityDao;
 import io.edap.data.jdbc.jdbc.test.entity.*;
@@ -25,19 +26,21 @@ public class DaoTest {
 
     public static void main(String[] args) {
 
-        JdbcEntityDao<Demo> demoDao = JdbcDaoRegister.instance()
-                .getEntityDao(Demo.class, new DaoOption());
+        DaoOption option = new DaoOption();
+        option.setDatabaseType(DatabaseType.POSTGRESQL);
+//        JdbcEntityDao<Demo> demoDao = JdbcDaoRegister.instance()
+//                .getEntityDao(Demo.class, option);
 
         JdbcEntityDao<DemoIntId> demoIntIdDao = JdbcDaoRegister.instance()
-                .getEntityDao(DemoIntId.class, new DaoOption());
-
-        JdbcEntityDao<DemoLongId> demoILongIdDao = JdbcDaoRegister.instance()
-                .getEntityDao(DemoLongId.class, new DaoOption());
-
-        JdbcEntityDao<DemoLongObjId> demoILongObjIdDao = JdbcDaoRegister.instance()
-                .getEntityDao(DemoLongObjId.class, new DaoOption());
-
-        JdbcEntityDao<DemoAllType> demoAllTypeDao = JdbcDaoRegister.instance()
-                .getEntityDao(DemoAllType.class, new DaoOption());
+                .getEntityDao(DemoIntId.class, option);
+//
+//        JdbcEntityDao<DemoLongId> demoILongIdDao = JdbcDaoRegister.instance()
+//                .getEntityDao(DemoLongId.class, new DaoOption());
+//
+//        JdbcEntityDao<DemoLongObjId> demoILongObjIdDao = JdbcDaoRegister.instance()
+//                .getEntityDao(DemoLongObjId.class, new DaoOption());
+//
+//        JdbcEntityDao<DemoAllType> demoAllTypeDao = JdbcDaoRegister.instance()
+//                .getEntityDao(DemoAllType.class, new DaoOption());
     }
 }

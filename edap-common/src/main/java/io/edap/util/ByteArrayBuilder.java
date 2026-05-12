@@ -549,7 +549,19 @@ public class ByteArrayBuilder {
         byte[] _bs = value;
         char c;
         int p = count;
+        if (_bs.length - p < (end - start) * 3) {
+            byte [] _nbs = new byte[p + (end - start) * 3];
+            System.arraycopy(_bs, 0, _nbs, 0, p);
+            _bs = _nbs;
+            value = _nbs;
+        }
         for (int i=start;i<end;i++) {
+            if (p >= _bs.length) {
+                byte[] nbs = new byte[_bs.length << 1];
+                System.arraycopy(_bs, 0, nbs, 0, _bs.length);
+                this.value = nbs;
+                _bs = nbs;
+            }
             c = v.charAt(i);
             if (c < 128) {
                 _bs[p++] = (byte) c;

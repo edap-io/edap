@@ -22,6 +22,8 @@ import io.edap.log.LoggerManager;
 import io.edap.util.CollectionUtils;
 import io.edap.util.internal.GeneratorClassInfo;
 
+import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
 import java.util.*;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -137,8 +139,9 @@ public class JdbcDaoRegister {
             }
             if (daoClazz != null) {
                 try {
-                    dao = (JdbcEntityDao) daoClazz.newInstance();
-                } catch (InstantiationException | IllegalAccessException ex) {
+                    Constructor constructor = daoClazz.getConstructor(DaoOption.class);
+                    dao = (JdbcEntityDao) constructor.newInstance(daoOption);
+                } catch (NoSuchMethodException | InvocationTargetException | InstantiationException | IllegalAccessException ex) {
                     throw new RuntimeException("generateEntityDao "
                             + daoClazz.getName() + " error", ex);
                 }
@@ -186,10 +189,15 @@ public class JdbcDaoRegister {
             }
             if (daoClazz != null) {
                 try {
-                    dao = (JdbcViewDao) daoClazz.newInstance();
+                    Constructor constructor = daoClazz.getConstructor(DaoOption.class);
+                    dao = (JdbcViewDao) constructor.newInstance(daoOption);
                 } catch (InstantiationException | IllegalAccessException ex) {
                     throw new RuntimeException("generateEntityDao "
                             + daoClazz.getName() + " error", ex);
+                } catch (InvocationTargetException e) {
+                    throw new RuntimeException(e);
+                } catch (NoSuchMethodException e) {
+                    throw new RuntimeException(e);
                 }
             }
             return dao;

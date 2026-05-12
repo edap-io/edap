@@ -93,6 +93,7 @@ public class JdbcEntityDaoGenerator extends BaseDaoGenerator {
 
         visitUpdateByIdBridgeMethod();
         visitUpdateByIdMethod();
+        visitUpdateMapMethod();
 
         visitFindByIdBridgeMethod();
         visitFindByIdMethod();
@@ -105,6 +106,234 @@ public class JdbcEntityDaoGenerator extends BaseDaoGenerator {
 
         gci.clazzBytes = cw.toByteArray();
         return gci;
+    }
+
+    private void visitUpdateMapMethod() {
+        MethodVisitor mv;
+        mv = cw.visitMethod(ACC_PUBLIC, "update", "(Ljava/util/Map;Ljava/util/Map;)I",
+                "(Ljava/util/Map<Ljava/lang/String;Ljava/lang/Object;>;Ljava/util/Map<Ljava/lang/String;Ljava/lang/Object;>;)I",
+                new String[] { "java/lang/Exception" });
+        mv.visitCode();
+
+        Label label0 = new Label();
+        Label label1 = new Label();
+        Label label2 = new Label();
+        mv.visitTryCatchBlock(label0, label1, label2, null);
+        Label label3 = new Label();
+        mv.visitTryCatchBlock(label2, label3, label2, null);
+
+        mv.visitVarInsn(ALOAD, 1);
+        mv.visitMethodInsn(INVOKESTATIC, COLLECTION_UTIL_NAME, "isEmpty", "(Ljava/util/Map;)Z", false);
+
+        Label lbIsEmpty = new Label();
+        mv.visitJumpInsn(IFNE, lbIsEmpty);
+        mv.visitVarInsn(ALOAD, 2);
+        mv.visitMethodInsn(INVOKESTATIC, COLLECTION_UTIL_NAME, "isEmpty", "(Ljava/util/Map;)Z", false);
+        Label lbIsNotEmpty = new Label();
+        mv.visitJumpInsn(IFEQ, lbIsNotEmpty);
+
+        // 如果需要更新的为空或者条件为空则直接返回0
+        mv.visitLabel(lbIsEmpty);
+        mv.visitFrame(Opcodes.F_SAME, 0, null, 0, null);
+        mv.visitInsn(ICONST_0);
+        mv.visitInsn(IRETURN);
+
+        int varSession = 3;
+        mv.visitLabel(lbIsNotEmpty);
+        mv.visitVarInsn(ALOAD, 0);
+        mv.visitMethodInsn(INVOKEVIRTUAL, daoName, "getStatementSession", "()L" + STMT_SESSION_NAME + ";", false);
+        mv.visitVarInsn(ASTORE, varSession);
+        mv.visitLabel(label0);
+        mv.visitTypeInsn(NEW, "java/lang/StringBuilder");
+        mv.visitInsn(DUP);
+        mv.visitLdcInsn("update " + DaoUtil.getTableName(entity) + " set ");
+        mv.visitMethodInsn(INVOKESPECIAL, "java/lang/StringBuilder", "<init>", "(Ljava/lang/String;)V", false);
+        int varSql = varSession + 1;
+        mv.visitVarInsn(ASTORE, varSql);
+        int varArrayIndex = varSql + 1;
+        mv.visitInsn(ICONST_0);
+        mv.visitVarInsn(ISTORE, varArrayIndex);
+        mv.visitVarInsn(ALOAD, 1);
+        mv.visitMethodInsn(INVOKEINTERFACE, "java/util/Map", "size", "()I", true);
+        mv.visitVarInsn(ALOAD, 2);
+        mv.visitMethodInsn(INVOKEINTERFACE, "java/util/Map", "size", "()I", true);
+        mv.visitInsn(IADD);
+        mv.visitTypeInsn(ANEWARRAY, "java/lang/Object");
+        int varArray = varArrayIndex + 1;
+        mv.visitVarInsn(ASTORE, varArray);
+        int varHasVal = varArray + 1;
+        mv.visitInsn(ICONST_0);
+        mv.visitVarInsn(ISTORE, varHasVal);
+        mv.visitVarInsn(ALOAD, 1);
+        mv.visitMethodInsn(INVOKEINTERFACE, "java/util/Map", "entrySet", "()Ljava/util/Set;", true);
+        mv.visitMethodInsn(INVOKEINTERFACE, "java/util/Set", "iterator", "()Ljava/util/Iterator;", true);
+        int varUpdateItr = varHasVal + 1;
+        mv.visitVarInsn(ASTORE, varUpdateItr);
+        Label lbUpdateItrLoop = new Label();
+        mv.visitLabel(lbUpdateItrLoop);
+        mv.visitVarInsn(ALOAD, varUpdateItr);
+        mv.visitMethodInsn(INVOKEINTERFACE, "java/util/Iterator", "hasNext", "()Z", true);
+        Label lbUpdateEndLoop = new Label();
+        mv.visitJumpInsn(IFEQ, lbUpdateEndLoop);
+        mv.visitVarInsn(ALOAD, varUpdateItr);
+        mv.visitMethodInsn(INVOKEINTERFACE, "java/util/Iterator", "next", "()Ljava/lang/Object;", true);
+        mv.visitTypeInsn(CHECKCAST, "java/util/Map$Entry");
+        int varMapEntry = varUpdateItr + 1;
+        mv.visitVarInsn(ASTORE, varMapEntry);
+        // 判断是否已经有set的语句
+        mv.visitVarInsn(ILOAD, varHasVal);
+        Label lbNoHasSet = new Label();
+        mv.visitJumpInsn(IFEQ, lbNoHasSet);
+        mv.visitVarInsn(ALOAD, varSql);
+        mv.visitIntInsn(BIPUSH, 44);
+        mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/StringBuilder", "append", "(C)Ljava/lang/StringBuilder;", false);
+        mv.visitInsn(POP);
+        Label lbAppendSet = new Label();
+        mv.visitJumpInsn(GOTO, lbAppendSet);
+
+        // 如果没有set值则设置set值为true
+        mv.visitLabel(lbNoHasSet);
+        mv.visitInsn(ICONST_1);
+        mv.visitVarInsn(ISTORE, varHasVal);
+
+        mv.visitLabel(lbAppendSet);
+        mv.visitFrame(Opcodes.F_SAME, 0, null, 0, null);
+        mv.visitVarInsn(ALOAD, varSql);
+        mv.visitVarInsn(ALOAD, varMapEntry);
+        mv.visitMethodInsn(INVOKEINTERFACE, "java/util/Map$Entry", "getKey", "()Ljava/lang/Object;", true);
+        mv.visitTypeInsn(CHECKCAST, "java/lang/String");
+        mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/StringBuilder", "append", "(Ljava/lang/String;)Ljava/lang/StringBuilder;", false);
+        mv.visitLdcInsn("=?");
+        mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/StringBuilder", "append", "(Ljava/lang/String;)Ljava/lang/StringBuilder;", false);
+        mv.visitInsn(POP);
+
+        // 保存绑定参数的值到数组中
+        mv.visitVarInsn(ALOAD, varArray);
+        mv.visitVarInsn(ILOAD, varArrayIndex);
+        mv.visitIincInsn(varArrayIndex, 1);
+        mv.visitVarInsn(ALOAD, varMapEntry);
+        mv.visitMethodInsn(INVOKEINTERFACE, "java/util/Map$Entry", "getValue", "()Ljava/lang/Object;", true);
+        mv.visitInsn(AASTORE);
+        mv.visitJumpInsn(GOTO, lbUpdateItrLoop);
+
+        mv.visitLabel(lbUpdateEndLoop);
+        mv.visitVarInsn(ALOAD, varSql);
+        mv.visitLdcInsn(" where ");
+        mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/StringBuilder", "append", "(Ljava/lang/String;)Ljava/lang/StringBuilder;", false);
+        mv.visitInsn(POP);
+
+
+        mv.visitInsn(ICONST_0);
+        mv.visitVarInsn(ISTORE, varHasVal);
+        mv.visitVarInsn(ALOAD, 2);
+        mv.visitMethodInsn(INVOKEINTERFACE, "java/util/Map", "entrySet", "()Ljava/util/Set;", true);
+        mv.visitMethodInsn(INVOKEINTERFACE, "java/util/Set", "iterator", "()Ljava/util/Iterator;", true);
+        mv.visitVarInsn(ASTORE, varUpdateItr);
+
+        Label lbWhereItrLoop = new Label();
+        mv.visitLabel(lbWhereItrLoop);
+        mv.visitVarInsn(ALOAD, varUpdateItr);
+        mv.visitMethodInsn(INVOKEINTERFACE, "java/util/Iterator", "hasNext", "()Z", true);
+
+        Label lbWhereEndLoop = new Label();
+        mv.visitJumpInsn(IFEQ, lbWhereEndLoop);
+        mv.visitVarInsn(ALOAD, varUpdateItr);
+        mv.visitMethodInsn(INVOKEINTERFACE, "java/util/Iterator", "next", "()Ljava/lang/Object;", true);
+        mv.visitTypeInsn(CHECKCAST, "java/util/Map$Entry");
+        mv.visitVarInsn(ASTORE, varMapEntry);
+
+        mv.visitVarInsn(ILOAD, varHasVal);
+        Label lbNoHasWhere = new Label();
+        mv.visitJumpInsn(IFEQ, lbNoHasWhere);
+        mv.visitVarInsn(ALOAD, varSql);
+        mv.visitLdcInsn(" and ");
+        mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/StringBuilder", "append", "(Ljava/lang/String;)Ljava/lang/StringBuilder;", false);
+        mv.visitInsn(POP);
+
+        Label lbAppendWhere = new Label();
+        mv.visitJumpInsn(GOTO, lbAppendWhere);
+        mv.visitLabel(lbNoHasWhere);
+        mv.visitInsn(ICONST_1);
+        mv.visitVarInsn(ISTORE, varHasVal);
+
+        // 拼接 where后面的 field=? 字符串
+        mv.visitLabel(lbAppendWhere);
+        mv.visitFrame(Opcodes.F_SAME, 0, null, 0, null);
+        mv.visitVarInsn(ALOAD, varSql);
+        mv.visitVarInsn(ALOAD, varMapEntry);
+        mv.visitMethodInsn(INVOKEINTERFACE, "java/util/Map$Entry", "getKey", "()Ljava/lang/Object;", true);
+        mv.visitTypeInsn(CHECKCAST, "java/lang/String");
+        mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/StringBuilder", "append", "(Ljava/lang/String;)Ljava/lang/StringBuilder;", false);
+        mv.visitLdcInsn("=?");
+        mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/StringBuilder", "append", "(Ljava/lang/String;)Ljava/lang/StringBuilder;", false);
+        mv.visitInsn(POP);
+
+        mv.visitVarInsn(ALOAD, varArray);
+        mv.visitVarInsn(ILOAD, varArrayIndex);
+        mv.visitIincInsn(varArrayIndex, 1);
+        mv.visitVarInsn(ALOAD, varMapEntry);
+        mv.visitMethodInsn(INVOKEINTERFACE, "java/util/Map$Entry", "getValue", "()Ljava/lang/Object;", true);
+        mv.visitInsn(AASTORE);
+        mv.visitJumpInsn(GOTO, lbWhereItrLoop);
+
+        mv.visitLabel(lbWhereEndLoop);
+        mv.visitVarInsn(ALOAD, varSession);
+        mv.visitVarInsn(ALOAD, varSql);
+        mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/StringBuilder", "toString", "()Ljava/lang/String;", false);
+        mv.visitMethodInsn(INVOKEINTERFACE, "io/edap/data/jdbc/StatementSession", "prepareStatement", "(Ljava/lang/String;)Ljava/sql/PreparedStatement;", true);
+        mv.visitVarInsn(ASTORE, varUpdateItr);
+
+        mv.visitInsn(ICONST_1);
+        mv.visitVarInsn(ISTORE, varArrayIndex);
+        mv.visitVarInsn(ALOAD, varArray);
+        mv.visitVarInsn(ASTORE, varMapEntry);
+        mv.visitVarInsn(ALOAD, varMapEntry);
+        mv.visitInsn(ARRAYLENGTH);
+
+        int varArrayLength = varMapEntry + 1;
+        mv.visitVarInsn(ISTORE, varArrayLength);
+        mv.visitInsn(ICONST_0);
+        int varForIndex = varArrayLength + 1;
+        mv.visitVarInsn(ISTORE, varForIndex);
+        Label lbForLoop = new Label();
+        mv.visitLabel(lbForLoop);
+        mv.visitVarInsn(ILOAD, varForIndex);
+        mv.visitVarInsn(ILOAD, varArrayLength);
+        Label lbForEndLoop = new Label();
+        mv.visitJumpInsn(IF_ICMPGE, lbForEndLoop);
+        mv.visitVarInsn(ALOAD, varArray);
+        mv.visitVarInsn(ILOAD, varForIndex);
+        mv.visitInsn(AALOAD);
+        int varObj = varForIndex + 1;
+        mv.visitVarInsn(ASTORE, varObj);
+        mv.visitVarInsn(ALOAD, varUpdateItr);
+        mv.visitVarInsn(ILOAD, varArrayIndex);
+        mv.visitIincInsn(varArrayIndex, 1);
+        mv.visitVarInsn(ALOAD, varObj);
+        mv.visitMethodInsn(INVOKEINTERFACE, "java/sql/PreparedStatement", "setObject", "(ILjava/lang/Object;)V", true);
+        mv.visitIincInsn(varForIndex, 1);
+        mv.visitJumpInsn(GOTO, lbForLoop);
+
+        mv.visitLabel(lbForEndLoop);
+        mv.visitVarInsn(ALOAD, varUpdateItr);
+        mv.visitMethodInsn(INVOKEINTERFACE, "java/sql/PreparedStatement", "executeUpdate", "()I", true);
+        mv.visitVarInsn(ISTORE, varUpdateItr);
+        mv.visitLabel(label1);
+        mv.visitVarInsn(ALOAD, 3);
+        mv.visitMethodInsn(INVOKEINTERFACE, "io/edap/data/jdbc/StatementSession", "close", "()V", true);
+        mv.visitVarInsn(ILOAD, varUpdateItr);
+        mv.visitInsn(IRETURN);
+
+        mv.visitLabel(label2);
+        //mv.visitFrame(Opcodes.F_FULL, 4, new Object[] {"io/edap/data/jdbc/jdbc/test/dao/DemoIntIdEntityDao", "java/util/Map", "java/util/Map", "io/edap/data/jdbc/StatementSession"}, 1, new Object[] {"java/lang/Throwable"});
+        mv.visitVarInsn(ASTORE, 13);
+        mv.visitLabel(label3);
+        mv.visitVarInsn(ALOAD, 3);
+        mv.visitMethodInsn(INVOKEINTERFACE, "io/edap/data/jdbc/StatementSession", "close", "()V", true);
+        mv.visitVarInsn(ALOAD, 13);
+        mv.visitInsn(ATHROW);
+        mv.visitMaxs(3, 14);
+        mv.visitEnd();
     }
 
     private void visitUpdateByIdMethod() {
@@ -168,8 +397,11 @@ public class JdbcEntityDaoGenerator extends BaseDaoGenerator {
         if (!CollectionUtils.isEmpty(idFields)) {
             for (int i=0;i<idFields.size();i++) {
                 JdbcInfo jdbcInfo = idFields.get(i);
+                if (jdbcInfo == null) {
+                    continue;
+                }
                 mv.visitVarInsn(ALOAD, varPstmt);
-                visitIntInsn(count+i+1, mv);
+                visitIntInsn(count + i + 1, mv);
                 mv.visitVarInsn(ALOAD, 1);
                 mv.visitMethodInsn(INVOKEVIRTUAL, entityName, jdbcInfo.getValueMethod().getName(),
                         "()" + jdbcInfo.getFieldType(), false);
@@ -275,18 +507,22 @@ public class JdbcEntityDaoGenerator extends BaseDaoGenerator {
         mv.visitInsn(ARETURN);
 
         mv.visitLabel(lbInnerTry2);
-        // 判断是否设置了主键
-        mv.visitVarInsn(ALOAD, 0);
-        mv.visitVarInsn(ALOAD, 1);
-        mv.visitInsn(ICONST_0);
-        mv.visitMethodInsn(INVOKEINTERFACE, "java/util/List", "get",
-                "(I)Ljava/lang/Object;", true);
-        mv.visitTypeInsn(CHECKCAST, entityName);
-        String idType = getDescriptor(idGetMethod.getReturnType());
-        mv.visitMethodInsn(INVOKEVIRTUAL, entityName, idGetMethod.getName(),
-                "()" + idType, false);
-        mv.visitMethodInsn(INVOKEVIRTUAL, daoName, "hasIdValue", "(" + idType + ")Z",
-                false);
+        if (idGetMethod != null) {
+            // 判断是否设置了主键
+            mv.visitVarInsn(ALOAD, 0);
+            mv.visitVarInsn(ALOAD, 1);
+            mv.visitInsn(ICONST_0);
+            mv.visitMethodInsn(INVOKEINTERFACE, "java/util/List", "get",
+                    "(I)Ljava/lang/Object;", true);
+            mv.visitTypeInsn(CHECKCAST, entityName);
+            String idType = getDescriptor(idGetMethod.getReturnType());
+            mv.visitMethodInsn(INVOKEVIRTUAL, entityName, idGetMethod.getName(),
+                    "()" + idType, false);
+            mv.visitMethodInsn(INVOKEVIRTUAL, daoName, "hasIdValue", "(" + idType + ")Z",
+                    false);
+        } else {
+            mv.visitInsn(ICONST_1);
+        }
         mv.visitVarInsn(ISTORE, varHasIdVal);
         mv.visitVarInsn(ILOAD, varHasIdVal);
 
@@ -370,7 +606,7 @@ public class JdbcEntityDaoGenerator extends BaseDaoGenerator {
             pos++;
         }
         // 如果主键不为空则为jdbc设置主键的值
-        if (DaoUtil.isAutoIncrementType(idField.getType()) && idJdbcInfo != null) {
+        if (idField != null && DaoUtil.isAutoIncrementType(idField.getType()) && idJdbcInfo != null) {
             mv.visitVarInsn(ILOAD, varHasIdVal);
             Label varLbSetIdJdbc = new Label();
             mv.visitJumpInsn(IFEQ, varLbSetIdJdbc);
@@ -398,7 +634,7 @@ public class JdbcEntityDaoGenerator extends BaseDaoGenerator {
         mv.visitVarInsn(ASTORE, varRows);
 
         // 如果没有设置主键则获取自增主键并将主键赋值给对应的持久化对象
-        if (DaoUtil.isAutoIncrementType(idField.getType())) {
+        if (idField != null && DaoUtil.isAutoIncrementType(idField.getType())) {
             Label lbAutoCommit = new Label();
             mv.visitVarInsn(ILOAD, varHasIdVal);
             mv.visitJumpInsn(IFNE, lbAutoCommit);
@@ -564,7 +800,7 @@ public class JdbcEntityDaoGenerator extends BaseDaoGenerator {
         // 如果主键是int，lang类型没有设置值的话忽略jdbc的主键的赋值使用自增主键的方式填充主键的值
         Label varLbHasIdValue;
         Label varLbJdbcSet;
-        if (DaoUtil.isAutoIncrementType(idField.getType())) {
+        if (idField != null && DaoUtil.isAutoIncrementType(idField.getType())) {
             mv.visitVarInsn(ALOAD, 0);
             mv.visitVarInsn(ALOAD, varEntity);
             mv.visitMethodInsn(INVOKEVIRTUAL, entityName, idGetMethod.getName(),
@@ -627,7 +863,7 @@ public class JdbcEntityDaoGenerator extends BaseDaoGenerator {
             pos++;
         }
         // 如果主键不为空则为jdbc设置主键的值
-        if (DaoUtil.isAutoIncrementType(idField.getType()) && idJdbcInfo != null) {
+        if (idField != null && DaoUtil.isAutoIncrementType(idField.getType()) && idJdbcInfo != null) {
             mv.visitVarInsn(ILOAD, varHasIdValue);
             Label varLbSetIdJdbc = new Label();
             mv.visitJumpInsn(IFEQ, varLbSetIdJdbc);
@@ -647,7 +883,7 @@ public class JdbcEntityDaoGenerator extends BaseDaoGenerator {
         mv.visitMethodInsn(INVOKEINTERFACE, "java/sql/PreparedStatement", "executeUpdate", "()I", true);
         mv.visitVarInsn(ISTORE, varRows);
 
-        if (DaoUtil.isAutoIncrementType(idField.getType())) {
+        if (idField != null && DaoUtil.isAutoIncrementType(idField.getType())) {
             mv.visitVarInsn(ILOAD, varHasIdValue);
             Label varLbNoId = new Label();
             mv.visitJumpInsn(IFNE, varLbNoId);

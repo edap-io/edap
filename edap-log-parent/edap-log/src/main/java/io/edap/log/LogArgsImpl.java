@@ -126,9 +126,9 @@ public class LogArgsImpl implements LogArgs {
 
     @Override
     public LogArgs threw(Throwable cause) {
-        if (this.getThrowable() != null) {
-            throw new DuplicateValueException("Duplicate call to threw()");
-        }
+//        if (this.getThrowable() != null) {
+//            throw new DuplicateValueException("Duplicate call to threw()");
+//        }
         this.setThrowable(cause);
         return this;
     }
@@ -140,9 +140,6 @@ public class LogArgsImpl implements LogArgs {
 
     @Override
     public LogArgs format(String format) {
-        if (this.getFormat() != null) {
-            throw new DuplicateValueException("Duplicate call to format()");
-        }
         this.setFormat(format);
         return this;
     }

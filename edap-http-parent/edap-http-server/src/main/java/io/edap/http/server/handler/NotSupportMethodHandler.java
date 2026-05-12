@@ -23,13 +23,15 @@ import io.edap.http.HttpResponse;
 import io.edap.http.ResponseStatusCode;
 import io.edap.http.header.ContentTypeHeader;
 
+import java.io.IOException;
+
 import static io.edap.http.server.handler.NotFoundHandler.NOT_FOUND_CONTENT;
 import static io.edap.http.server.handler.NotFoundHandler.initData;
 
 public class NotSupportMethodHandler implements HttpHandler {
 
     @Override
-    public void handle(HttpRequest req, HttpResponse resp) {
+    public void handle(HttpRequest req, HttpResponse resp) throws IOException {
         resp.contentType(ContentTypeHeader.HTML);
         if (NOT_FOUND_CONTENT == null) {
             initData();

@@ -500,7 +500,7 @@ public class BaseDaoGenerator {
 
         MethodVisitor mv;
         mv = cw.visitMethod(ACC_PRIVATE, "getSqlFieldSetFunc", "(Ljava/sql/ResultSet;Ljava/lang/String;)L" + FIELD_SET_FUNC_NAME + ";",
-                "(Ljava/sql/ResultSet;)L" + FIELD_SET_FUNC_NAME +"<L" + entityName + ";>;",
+                "(Ljava/sql/ResultSet;Ljava/lang/String;)L" + FIELD_SET_FUNC_NAME +"<L" + entityName + ";>;",
                 new String[] { "java/sql/SQLException" });
         mv.visitCode();
         mv.visitVarInsn(ALOAD, 1);
@@ -587,18 +587,18 @@ public class BaseDaoGenerator {
                 new String[] { "java/lang/Exception" });
         mv.visitCode();
         int varSql       = 1;
-        int varStart     = 2;
-        int varCount     = 3;
-        int varParam     = 4;
-        int varSession   = 5;
-        int varLimitInfo = 6;
-        int varPstmt     = 7;
-        int varResultSet = 8;
-        int varFieldKey  = 9;
-        int varFunc      = 10;
-        int varResList   = 11;
-        int varEntity    = 12;
-        int varEx        = 13;
+        int varStart     = varSql + 1;
+        int varCount     = varStart + 1;
+        int varParam     = varCount + 1;
+        int varSession   = varParam + 1;
+        int varLimitInfo = varSession + 1;
+        int varPstmt     = varLimitInfo + 1;
+        int varResultSet = varPstmt + 1;
+        int varFieldKey  = varResultSet + 1;
+        int varFunc      = varFieldKey + 1;
+        int varResList   = varFunc + 1;
+        int varEntity    = varResList + 1;
+        int varEx        = varEntity + 1;
 
         Label label0 = new Label();
         Label label1 = new Label();
@@ -765,17 +765,18 @@ public class BaseDaoGenerator {
 
     protected void visitQueryPageMethod() {
         MethodVisitor mv;
-        mv = cw.visitMethod(ACC_PUBLIC, "queryPage", "(Ljava/lang/String;II)Lio/edap/data/PageResult;",
-                "(Ljava/lang/String;II)Lio/edap/data/PageResult<L" + entityName + ";>;",
+        mv = cw.visitMethod(ACC_PUBLIC, "queryPage", "(Ljava/lang/String;Ljava/lang/String;II)Lio/edap/data/PageResult;",
+                "(Ljava/lang/String;Ljava/lang/String;II)Lio/edap/data/PageResult<L" + entityName + ";>;",
                 new String[] { "java/lang/Exception" });
         mv.visitCode();
         mv.visitVarInsn(ALOAD, 0);
         mv.visitVarInsn(ALOAD, 1);
-        mv.visitVarInsn(ILOAD, 2);
+        mv.visitVarInsn(ALOAD, 2);
         mv.visitVarInsn(ILOAD, 3);
+        mv.visitVarInsn(ILOAD, 4);
         mv.visitFieldInsn(GETSTATIC, CONSTANTS_NAME, "EMPTY_ARRAY", "[Ljava/lang/Object;");
         mv.visitMethodInsn(INVOKEVIRTUAL, daoName, "queryPage",
-                "(Ljava/lang/String;II[Ljava/lang/Object;)Lio/edap/data/PageResult;", false);
+                "(Ljava/lang/String;Ljava/lang/String;II[Ljava/lang/Object;)Lio/edap/data/PageResult;", false);
         mv.visitInsn(ARETURN);
         mv.visitMaxs(5, 4);
         mv.visitEnd();
@@ -783,8 +784,8 @@ public class BaseDaoGenerator {
 
     protected void visitQueryPageObjectParamMethod() {
         MethodVisitor mv = cw.visitMethod(ACC_PUBLIC | ACC_VARARGS, "queryPage",
-                "(Ljava/lang/String;II[Ljava/lang/Object;)Lio/edap/data/PageResult;",
-                "(Ljava/lang/String;II[Ljava/lang/Object;)Lio/edap/data/PageResult<L" + entityName + ";>;",
+                "(Ljava/lang/String;Ljava/lang/String;II[Ljava/lang/Object;)Lio/edap/data/PageResult;",
+                "(Ljava/lang/String;Ljava/lang/String;II[Ljava/lang/Object;)Lio/edap/data/PageResult<L" + entityName + ";>;",
                 new String[] { "java/lang/Exception" });
         mv.visitCode();
         Label label0 = new Label();
@@ -795,21 +796,22 @@ public class BaseDaoGenerator {
         mv.visitTryCatchBlock(label2, label3, label2, null);
 
         int varSql         = 1;
-        int varPageNum     = 2;
-        int varPageSize    = 3;
-        int varParams      = 4;
-        int varStart       = 5;
-        int varPageRes     = 6;
-        int varStmtSession = 7;
-        int varTotalSql    = 8;
-        int varPstmt       = 9;
-        int varResultSet   = 10;
-        int varLimitInfo   = 11;
-        int varFieldsKey   = 12;
-        int varFunc        = 13;
-        int varResList     = 14;
-        int varEntity      = 15;
-        int varEx          = 16;
+        int varOrderBy     = varSql + 1;
+        int varPageNum     = varOrderBy + 1;
+        int varPageSize    = varPageNum + 1;
+        int varParams      = varPageSize + 1;
+        int varStart       = varParams + 1;
+        int varPageRes     = varStart + 1;
+        int varStmtSession = varPageRes + 1;
+        int varTotalSql    = varStmtSession + 1;
+        int varPstmt       = varTotalSql + 1;
+        int varResultSet   = varPstmt + 1;
+        int varLimitInfo   = varResultSet + 1;
+        int varFieldsKey   = varLimitInfo + 1;
+        int varFunc        = varFieldsKey + 1;
+        int varResList     = varFunc + 1;
+        int varEntity      = varResList + 1;
+        int varEx          = varEntity + 1;
 
         // 如果pageSize 小于1 则赋值为1
         mv.visitVarInsn(ILOAD, varPageSize);
@@ -906,8 +908,9 @@ public class BaseDaoGenerator {
         mv.visitVarInsn(ALOAD, varSql);
         mv.visitVarInsn(ILOAD, varStart);
         mv.visitVarInsn(ILOAD, varPageSize);
+        mv.visitVarInsn(ALOAD, varOrderBy);
         mv.visitMethodInsn(INVOKEINTERFACE, LIMIT_DIALECT_NAME, "process",
-                "(Ljava/lang/String;II)L" + LIMIT_QUERYINFO_NAME + ";", true);
+                "(Ljava/lang/String;IILjava/lang/String;)L" + LIMIT_QUERYINFO_NAME + ";", true);
         mv.visitVarInsn(ASTORE, varLimitInfo);
 
         // 生成PreparedStatement并执行查询
@@ -1023,8 +1026,8 @@ public class BaseDaoGenerator {
 
     protected void visitQueryPageQueryParamParamMethod() {
         MethodVisitor mv = cw.visitMethod(ACC_PUBLIC | ACC_VARARGS, "queryPage",
-                "(Ljava/lang/String;II[L" + QUERY_PARAM_NAME + ";)Lio/edap/data/PageResult;",
-                "(Ljava/lang/String;II[L" + QUERY_PARAM_NAME + ";)Lio/edap/data/PageResult<L" + entityName + ";>;",
+                "(Ljava/lang/String;Ljava/lang/String;II[L" + QUERY_PARAM_NAME + ";)Lio/edap/data/PageResult;",
+                "(Ljava/lang/String;Ljava/lang/String;II[L" + QUERY_PARAM_NAME + ";)Lio/edap/data/PageResult<L" + entityName + ";>;",
                 new String[] { "java/lang/Exception" });
         mv.visitCode();
         Label label0 = new Label();
@@ -1035,21 +1038,22 @@ public class BaseDaoGenerator {
         mv.visitTryCatchBlock(label2, label3, label2, null);
 
         int varSql         = 1;
-        int varPageNum     = 2;
-        int varPageSize    = 3;
-        int varParams      = 4;
-        int varStart       = 5;
-        int varPageRes     = 6;
-        int varStmtSession = 7;
-        int varTotalSql    = 8;
-        int varPstmt       = 9;
-        int varResultSet   = 10;
-        int varLimitInfo   = 11;
-        int varFieldsKey   = 12;
-        int varFunc        = 13;
-        int varResList     = 14;
-        int varEntity      = 15;
-        int varEx          = 16;
+        int varOrderBy     = varSql + 1;
+        int varPageNum     = varOrderBy + 1;
+        int varPageSize    = varPageNum + 1;
+        int varParams      = varPageSize + 1;
+        int varStart       = varParams + 1;
+        int varPageRes     = varStart + 1;
+        int varStmtSession = varPageRes + 1;
+        int varTotalSql    = varStmtSession + 1;
+        int varPstmt       = varTotalSql + 1;
+        int varResultSet   = varPstmt + 1;
+        int varLimitInfo   = varResultSet + 1;
+        int varFieldsKey   = varLimitInfo + 1;
+        int varFunc        = varFieldsKey + 1;
+        int varResList     = varFunc + 1;
+        int varEntity      = varResList + 1;
+        int varEx          = varEntity + 1;
 
         // 如果pageSize 小于1 则赋值为1
         mv.visitVarInsn(ILOAD, varPageSize);
@@ -1146,8 +1150,9 @@ public class BaseDaoGenerator {
         mv.visitVarInsn(ALOAD, varSql);
         mv.visitVarInsn(ILOAD, varStart);
         mv.visitVarInsn(ILOAD, varPageSize);
+        mv.visitVarInsn(ALOAD, varOrderBy);
         mv.visitMethodInsn(INVOKEINTERFACE, LIMIT_DIALECT_NAME, "process",
-                "(Ljava/lang/String;II)L" + LIMIT_QUERYINFO_NAME + ";", true);
+                "(Ljava/lang/String;IILjava/lang/String;)L" + LIMIT_QUERYINFO_NAME + ";", true);
         mv.visitVarInsn(ASTORE, varLimitInfo);
 
         // 生成PreparedStatement并执行查询

@@ -18,11 +18,15 @@ package io.edap.data.jdbc.dialect;
 
 import io.edap.data.jdbc.LimitDialect;
 import io.edap.data.jdbc.LimitQueryInfo;
+import io.edap.util.StringUtil;
 
 public class PostgresqlLimitDialect implements LimitDialect {
 
-	public LimitQueryInfo process(String sql, int offset, int limit) {
+	public LimitQueryInfo process(String sql, int offset, int limit, String orderBy) {
 		LimitQueryInfo info =  new LimitQueryInfo();
+		if (!StringUtil.isEmpty(orderBy)) {
+			sql += " " + orderBy;
+		}
 		info.setSql(sql + " limit ? offset ?");
 		info.setParams(new Object[]{limit, offset});
 		return info;

@@ -646,6 +646,7 @@ public class StringJsonReader implements JsonReader {
         JsonObjectImpl jsonObject = new JsonObjectImpl();
         char c = firstNotSpaceChar();
         if (c == '}') {
+            pos++;
             return jsonObject;
         }
         String key = readKey(c);

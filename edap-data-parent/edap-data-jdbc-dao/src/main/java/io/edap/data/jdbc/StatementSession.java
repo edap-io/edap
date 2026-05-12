@@ -65,6 +65,8 @@ public interface StatementSession {
 
     void commit() throws SQLException;
 
+    void rollback() throws SQLException;
+
     ConnectionHolder getConHolder();
 
     void setConHolder(ConnectionHolder conHolderer);

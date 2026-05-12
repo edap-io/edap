@@ -101,7 +101,9 @@ public class RangeHttpRequestDecoder extends AbstractHttpDecoder implements Deco
         HttpResponse response = request.getResponse();
         response.setBuf(THREAD_WRITE_BUF.get());
         ParseResult<HttpRequest> result = dc.result;
-        request.reset();
+        if (state == State.SKIP_CONTROL_CHARS) {
+            request.reset();
+        }
        	parseHttpRequest(buf, state, dataRange, request, httpNioSession, result);
         if (result.isFinished()) {
             result.setMessage(request);

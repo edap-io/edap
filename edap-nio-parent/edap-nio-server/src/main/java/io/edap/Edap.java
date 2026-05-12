@@ -18,7 +18,6 @@ package io.edap;
 
 import io.edap.config.EdapConfig;
 import io.edap.nio.SelectorProvider;
-import io.edap.nio.enums.ThreadType;
 import io.edap.util.CollectionUtils;
 
 import java.io.IOException;

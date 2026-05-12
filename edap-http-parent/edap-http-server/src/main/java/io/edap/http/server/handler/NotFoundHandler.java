@@ -22,6 +22,7 @@ import io.edap.http.HttpRequest;
 import io.edap.http.HttpResponse;
 import io.edap.http.header.ContentTypeHeader;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
 public class NotFoundHandler implements HttpHandler {
@@ -29,7 +30,7 @@ public class NotFoundHandler implements HttpHandler {
     protected static byte[] NOT_FOUND_CONTENT;
 
     @Override
-    public void handle(HttpRequest req, HttpResponse resp) {
+    public void handle(HttpRequest req, HttpResponse resp) throws IOException {
         if (NOT_FOUND_CONTENT == null) {
             initData();
         }

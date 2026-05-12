@@ -222,7 +222,7 @@ public class DemoIntIdEntityDao extends JdbcBaseEntityDao implements JdbcEntityD
     }
 
     @Override
-    public PageResult<DemoIntId> queryPage(String sql, int pageNum, int pageSize) throws Exception {
+    public PageResult<DemoIntId> queryPage(String sql, String orderBy, int pageNum, int pageSize) throws Exception {
         if (pageNum < 1) {
             pageNum = 1;
         }
@@ -239,7 +239,7 @@ public class DemoIntIdEntityDao extends JdbcBaseEntityDao implements JdbcEntityD
             if (rs.next()) {
                 result.setTotal(rs.getInt(1));
             }
-            LimitQueryInfo limitInfo = limitDialect.process(sql, offseet, pageSize);
+            LimitQueryInfo limitInfo = limitDialect.process(sql, offseet, pageSize, orderBy);
             pstmt = session.prepareStatement(limitInfo.getSql());
             setPreparedParams(pstmt, limitInfo.getParams());
 
@@ -250,12 +250,12 @@ public class DemoIntIdEntityDao extends JdbcBaseEntityDao implements JdbcEntityD
     }
 
     @Override
-    public PageResult<DemoIntId> queryPage(String sql, int pageNum, int pageSize, QueryParam... params) throws Exception {
+    public PageResult<DemoIntId> queryPage(String sql, String oderBy, int pageNum, int pageSize, QueryParam... params) throws Exception {
         return null;
     }
 
     @Override
-    public PageResult<DemoIntId> queryPage(String sql, int pageNum, int pageSize, Object... params) throws Exception {
+    public PageResult<DemoIntId> queryPage(String sql, String orderBy, int pageNum, int pageSize, Object... params) throws Exception {
         return null;
     }
 
@@ -331,6 +331,49 @@ public class DemoIntIdEntityDao extends JdbcBaseEntityDao implements JdbcEntityD
     @Override
     public int delete(String sql) {
         return 0;
+    }
+
+    @Override
+    public int update(Map<String, Object> setMap, Map<String, Object> wheremap) throws Exception {
+        if (CollectionUtils.isEmpty(setMap) || CollectionUtils.isEmpty(wheremap)) {
+            return 0;
+        }
+        StatementSession session = getStatementSession();
+        try {
+            StringBuilder sql = new StringBuilder("update demo set ");
+            boolean hasSet = false;
+            Object[] params = new Object[setMap.size() + wheremap.size()];
+            int i = 0;
+            for (Map.Entry<String, Object> entry : setMap.entrySet()) {
+                if (hasSet) {
+                    sql.append(',');
+                } else {
+                    hasSet = true;
+                }
+                sql.append(entry.getKey()).append("=?");
+                params[i++] = entry.getValue();
+            }
+            sql.append(" where ");
+            hasSet = false;
+            for (Map.Entry<String, Object> entry : wheremap.entrySet()) {
+                if (hasSet) {
+                    sql.append(" and ");
+                } else {
+                    hasSet = true;
+                }
+                sql.append(entry.getKey()).append("=?");
+                params[i++] = entry.getValue();
+            }
+            PreparedStatement pstmt = session.prepareStatement(sql.toString());
+            i = 1;
+            for (Object param : params) {
+                pstmt.setObject(i++, param);
+            }
+
+            return pstmt.executeUpdate();
+        } finally {
+            session.close();
+        }
     }
 
     @Override

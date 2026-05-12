@@ -13,6 +13,7 @@ import java.util.Map;
  */
 public interface JsonWriter extends BufWriter {
 
+    byte[] getBuf();
     void write(boolean bool);
     void write(Boolean bool);
 
@@ -48,4 +49,6 @@ public interface JsonWriter extends BufWriter {
 
     void toStream(OutputStream stream) throws IOException;
     void reset();
+    int getFeatureValue();
+    void setFeatureValue(int featureValue);
 }

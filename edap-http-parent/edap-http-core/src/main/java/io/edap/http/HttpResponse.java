@@ -24,6 +24,8 @@ import io.edap.io.BufOut;
 import io.edap.io.BufWriter;
 import io.edap.json.Eson;
 import io.edap.json.JsonWriter;
+import io.edap.log.Logger;
+import io.edap.log.LoggerManager;
 import io.edap.protobuf.EncodeException;
 import io.edap.protobuf.ProtoBufEncoder;
 import io.edap.protobuf.ProtoBufWriter;
@@ -44,6 +46,8 @@ import static io.edap.protobuf.ProtoBufCodecRegister.INSTANCE;
  */
 public class HttpResponse {
 
+    static final Logger LOG = LoggerManager.getLogger(HttpResponse.class);
+
     private Map<String, String> headers;
     private HttpVersion version;
     private FastBuf buf;
@@ -58,7 +62,7 @@ public class HttpResponse {
         headers = new HashMap<>();
     }
 
-    public void setSimpleResponse(int code, Map<String, String> headers, Header... header) {
+    public void setSimpleResponse(int code, Map<String, String> headers, Header... header) throws IOException {
         FastBuf _buf = buf;
         try {
             write0(_buf, version.bytes());
@@ -78,7 +82,8 @@ public class HttpResponse {
             write0(_buf, HEADER_SERVER.getBytes());
             write0(_buf, LINE);
         } catch (IOException ioe) {
-            ioe.printStackTrace();
+            LOG.error("write error: ", ioe);
+            throw ioe;
         }
     }
 
@@ -98,7 +103,7 @@ public class HttpResponse {
         return this;
     }
 
-    public HttpResponse write(String body) {
+    public HttpResponse write(String body) throws IOException {
         byte[] data = body.getBytes(DEFAULT_CHARSET);
         int bodyLen = data.length;
         FastBuf _buf = buf;
@@ -112,12 +117,13 @@ public class HttpResponse {
             write0(_buf, LINE);
             write0(_buf, data);
         } catch (IOException ioe) {
-            ioe.printStackTrace();
+            LOG.error("write error: ", ioe);
+            throw ioe;
         }
         return this;
     }
 
-    public HttpResponse write(byte[] data) {
+    public HttpResponse write(byte[] data) throws IOException {
         int bodyLen = data.length;
         FastBuf _buf = buf;
         try {
@@ -130,12 +136,13 @@ public class HttpResponse {
             write0(_buf, LINE);
             write0(_buf, data);
         } catch (IOException ioe) {
-            ioe.printStackTrace();
+            LOG.error("write error: ", ioe);
+            throw ioe;
         }
         return this;
     }
 
-    public HttpResponse write(int code, byte[] data) {
+    public HttpResponse write(int code, byte[] data) throws IOException {
         int bodyLen = data.length;
         FastBuf _buf = buf;
         try {
@@ -148,12 +155,13 @@ public class HttpResponse {
             write0(_buf, LINE);
             write0(_buf, data);
         } catch (IOException ioe) {
-            ioe.printStackTrace();
+            LOG.error("write error: ", ioe);
+            throw ioe;
         }
         return this;
     }
 
-    public HttpResponse write(BufWriter writer) {
+    public HttpResponse write(BufWriter writer) throws IOException {
         int bodyLen = writer.size();
         FastBuf _buf = buf;
         try {
@@ -166,12 +174,13 @@ public class HttpResponse {
             write0(_buf, LINE);
             write0(_buf, writer);
         } catch (IOException ioe) {
-            ioe.printStackTrace();
+            LOG.error("write error: ", ioe);
+            throw ioe;
         }
         return this;
     }
 
-    public HttpResponse write(Object obj) {
+    public HttpResponse write(Object obj) throws IOException {
         if (contentType == null) {
             contentType = ContentTypeHeader.from("application/json; charset=UTF-8");
         }
@@ -194,7 +203,8 @@ public class HttpResponse {
                     write0(_buf, LINE);
                     write0(_buf, writer);
                 } catch (IOException ioe) {
-                    ioe.printStackTrace();
+                    LOG.error("write error: ", ioe);
+                    throw ioe;
                 }
                 break;
             case "application/x-protobuf":
@@ -218,9 +228,11 @@ public class HttpResponse {
                     write0(_buf, LINE);
                     write0(_buf, protoWriter);
                 } catch (EncodeException e) {
-                    //throw e;
+                    LOG.error("write EncodeException error: ", e);
+                    throw new IOException("EncodeException", e);
                 } catch (IOException ioe) {
-                    ioe.printStackTrace();
+                    LOG.error("write error: ", ioe);
+                    throw ioe;
                 } finally {
                     THREAD_WRITER.set(protoWriter);
                 }

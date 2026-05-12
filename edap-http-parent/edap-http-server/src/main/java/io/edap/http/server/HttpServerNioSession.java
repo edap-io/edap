@@ -30,6 +30,7 @@ import io.edap.util.ByteArrayBuilder;
 import io.edap.util.CollectionUtils;
 import io.edap.util.CryptUtil;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 
@@ -77,7 +78,7 @@ public class HttpServerNioSession extends HttpNioSession implements WSConnection
 		BUF_POOL = bufPool;
 	}
 
-	public boolean decode(FastBuf fastBuf, boolean threadSwitch) {
+	public boolean decode(FastBuf fastBuf, boolean threadSwitch) throws IOException {
 		boolean hasMsg = false;
 		if (upgraded) {
 			AbstractFrame frame = wsDecoder.decode(fastBuf, this);
@@ -147,7 +148,7 @@ public class HttpServerNioSession extends HttpNioSession implements WSConnection
 		return hasMsg;
 	}
 
-	private void handeshake(HttpRequest request, HttpResponse resp) {
+	private void handeshake(HttpRequest request, HttpResponse resp) throws IOException {
 		HeaderValue upgradeVal = request.getHeaderValue("Upgrade");
 		HeaderValue connectionVal = request.getHeaderValue("Connection");
 		HeaderValue secKeyVal = request.getHeaderValue("Sec-WebSocket-Key");
@@ -176,7 +177,7 @@ public class HttpServerNioSession extends HttpNioSession implements WSConnection
 	}
 
 	@Override
-	public void handle(HttpRequest request) {
+	public void handle(HttpRequest request) throws IOException {
 		PathInfo pathInfo = request.getPathInfo();
 		HttpHandler handler = null;
 		HttpResponse resp = request.getResponse();
@@ -191,7 +192,7 @@ public class HttpServerNioSession extends HttpNioSession implements WSConnection
 				try {
 					handler = pathInfo.getHttpHandlers()[request.getMethodInfo().getMethodIndex()];
 				} catch (Exception e) {
-					log.warn("[] get method {} HttpHandler error {}", (l -> l.arg(request.getPath())
+					log.warn("{} get method {} HttpHandler error {}", (l -> l.arg(request.getPath())
 							.arg(request.getMethod()).arg(e)));
 				}
 				if (handler == null) {
@@ -296,8 +297,10 @@ public class HttpServerNioSession extends HttpNioSession implements WSConnection
 				buf = nbuf;
 			}
 			buf.write((byte)first);
-			buf.write((byte)frame.getPayloadLength());
-			buf.write(frame.getPayload());
+			buf.write((byte)len);
+			if (len > 0) {
+				buf.write(frame.getPayload());
+			}
 		} else if (len <= 65536) {
 			if (buf.writeRemain() < len + 4) {
 				FastBuf nbuf = new FastBuf(len + 4);

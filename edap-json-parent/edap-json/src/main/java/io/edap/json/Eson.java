@@ -22,9 +22,12 @@ import io.edap.json.writer.ByteArrayJsonWriter;
 import io.edap.util.CollectionUtils;
 
 import java.io.UnsupportedEncodingException;
+import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+
+import static io.edap.json.util.DateTimeUtils.toEpochMills;
 
 public class Eson {
 
@@ -35,6 +38,8 @@ public class Eson {
     private static final ThreadLocal<StringJson5Reader> THREAD_STRING_JSON5READER;
 
     private static final ThreadLocal<ByteArrayJson5Reader> THREAD_BYTEARRAY_JSON5READER;
+
+    private static final SerializerFeature[] EMPTY_FEATURES = new SerializerFeature[0];
 
     static JsonCodecRegister REGISTER;
 
@@ -63,7 +68,18 @@ public class Eson {
     }
 
     public static String toJsonString(Object obj) {
+        return toJsonString(obj, EMPTY_FEATURES);
+    }
+
+    public static String toJsonString(Object obj, SerializerFeature... features) {
         JsonWriter writer = THREAD_WRITER.get();
+        int featureValue = 0;
+        for (SerializerFeature feature : features) {
+            featureValue |= feature.getMask();
+        }
+        if (featureValue != writer.getFeatureValue()) {
+            writer.setFeatureValue(featureValue);
+        }
         writer.reset();
         serialize(obj, writer);
         try {
@@ -134,6 +150,12 @@ public class Eson {
             writer.write((byte)']');
         } else if (obj.getClass().isEnum()) {
             writer.write(obj.toString());
+        } else if (obj instanceof LocalDateTime) {
+            if (obj == null) {
+                writer.writeNull();
+            } else {
+                writer.write(toEpochMills((LocalDateTime)obj));
+            }
         } else {
             JsonEncoder codec = REGISTER.getEncoder(obj.getClass());
             codec.encode(writer, obj);

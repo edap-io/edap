@@ -16,10 +16,19 @@
 
 package io.edap.data.jdbc;
 
+import io.edap.util.StringUtil;
+
 public interface LimitDialect {
 
 	default LimitQueryInfo process(String sql, int offset, int limit) {
+		return process(sql, offset, limit, "");
+	}
+
+	default LimitQueryInfo process(String sql, int offset, int limit, String orderBy) {
 		LimitQueryInfo info = new LimitQueryInfo();
+		if (!StringUtil.isEmpty(orderBy)) {
+			sql += " " + orderBy;
+		}
 		info.setSql(sql + " limit ?,?");
 		info.setParams(new Object[]{offset, limit});
 

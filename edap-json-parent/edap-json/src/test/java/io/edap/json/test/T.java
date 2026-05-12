@@ -21,6 +21,7 @@ import io.edap.io.ByteArrayBufOut;
 import io.edap.json.JsonCodecRegister;
 import io.edap.json.JsonDecoderGenerator;
 import io.edap.json.JsonEncoder;
+import io.edap.json.SerializerFeature;
 import io.edap.json.enums.DataType;
 import io.edap.json.test.model.DemoOneString;
 import io.edap.json.test.model.DemoPojo;
@@ -33,6 +34,7 @@ import java.nio.charset.StandardCharsets;
 public class T {
 
     public static void main(String[] args) throws IOException {
-        TestObject to = new TestObject();
+        SerializerFeature feature = SerializerFeature.LONG_TO_STRING;
+        System.out.println(feature.getMask());
     }
 }

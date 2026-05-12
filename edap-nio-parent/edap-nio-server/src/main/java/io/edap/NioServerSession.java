@@ -308,9 +308,9 @@ public abstract class NioServerSession<T> extends NioSession {
      * @param fastBuf
      * @return 是否成功解码消息
      */
-    public abstract boolean decode(FastBuf fastBuf, boolean threadSwitch);
+    public abstract boolean decode(FastBuf fastBuf, boolean threadSwitch) throws IOException;
 
-    public abstract void handle(T message);
+    public abstract void handle(T message) throws IOException;
 
     public Decoder<T, ? extends NioServerSession> getDecoder() {
         return decoder;

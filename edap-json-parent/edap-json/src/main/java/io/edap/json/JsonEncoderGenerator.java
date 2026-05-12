@@ -92,7 +92,7 @@ public class JsonEncoderGenerator {
             } else if (isBaseType(jfi1.field) && isBaseType(jfi2.field)) {
                  return jfi1.field.getName().compareTo(jfi2.field.getName());
             } else {
-                return 1;
+                return jfi1.field.getName().compareTo(jfi2.field.getName());
             }
         });
         List<Type> allPojos = new ArrayList<>();

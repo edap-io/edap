@@ -36,7 +36,7 @@ public abstract class JdbcBaseDao {
 
     private Connection con;
 
-    static final ThreadLocal<StatementSession> STMT_SESSION_LOCAL =
+    public static final ThreadLocal<StatementSession> STMT_SESSION_LOCAL =
             ThreadLocal.withInitial(() -> {
                 StatementSession statementSession = new SingleStatementSession();
                 return statementSession;
@@ -130,15 +130,9 @@ public abstract class JdbcBaseDao {
     }
 
     public StatementSession getStatementSession() throws SQLException {
-        if (stmtSession == null) {
-            stmtSession = new SingleStatementSession();
-            stmtSession.setConHolder(connectionHolder);
-        } else {
-            stmtSession.setConHolder(connectionHolder);
-        }
-//        StatementSession session = STMT_SESSION_LOCAL.get();
-//        session.setConHolder(connectionHolder);
-        return stmtSession;
+        StatementSession session = STMT_SESSION_LOCAL.get();
+        session.setConHolder(connectionHolder);
+        return session;
     }
 
     protected void closeStatmentSession() {

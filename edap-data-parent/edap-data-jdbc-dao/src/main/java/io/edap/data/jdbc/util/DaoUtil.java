@@ -105,7 +105,11 @@ public class DaoUtil {
                     }
                 }
             }
-            sb.append(" where ").append(idField.getColumnName()).append("=?");
+            if (idField != null) {
+                sb.append(" where ").append(idField.getColumnName()).append("=?");
+            } else {
+                sb.append(" where 1=0");
+            }
         }
         updateInfo.setUpdateSql(sb.toString());
         updateInfo.setUpdateColumns(updateColumns);
@@ -133,21 +137,23 @@ public class DaoUtil {
         ColumnsInfo columnsInfo = getColumns(entityClazz, daoOption);
         List<String> columns = columnsInfo.getColumns();
         int size = columns.size();
+        StringBuilder noIdWen = new StringBuilder();
         int j = 0;
+        Map<String, ColumnExtInfo> extInfos = columnsInfo.getExtInfos();
         for (int i=0;i<size;i++) {
-            if (StringUtil.isEmpty(columnsInfo.getIdColumnName())) {
+            String column = columns.get(i);
+            ColumnExtInfo extInfo = extInfos.get(column);
+            if (!column.equals(columnsInfo.getIdColumnName())) {
                 if (j > 0) {
                     noIdSql.append(',');
+                    noIdWen.append(',');
                 }
                 j++;
-                noIdSql.append(columns.get(i));
-            } else {
-                if (!columnsInfo.getIdColumnName().equals(columns.get(i))) {
-                    if (j > 0) {
-                        noIdSql.append(',');
-                    }
-                    j++;
-                    noIdSql.append(columns.get(i));
+                noIdSql.append(column);
+                if (extInfo != null && extInfo.getJsonb() != null) {
+                    noIdWen.append("?::jsonb");
+                } else {
+                    noIdWen.append("?");
                 }
             }
         }
@@ -161,22 +167,11 @@ public class DaoUtil {
         allFieldSql.append(") VALUES (");
         noIdSql.append(") VALUES (");
 
-        for (int i=0;i<size;i++) {
-            if (i > 0) {
-                allFieldSql.append(',');
-            }
-            allFieldSql.append('?');
-        }
+        allFieldSql.append(noIdWen);
+        allFieldSql.append(",?");
         allFieldSql.append(")");
-        if (columnsInfo.getIdColumnName() != null) {
-            size = size - 1;
-        }
-        for (int i=0;i<size;i++) {
-            if (i > 0) {
-                noIdSql.append(',');
-            }
-            noIdSql.append('?');
-        }
+
+        noIdSql.append(noIdWen);
         noIdSql.append(")");
 
         insertInfo.setIdField(columnsInfo.getIdField());
@@ -427,6 +422,7 @@ public class DaoUtil {
         ColumnsInfo columnsInfo = new ColumnsInfo();
         List<String> columns = new ArrayList<>();
         List<String> fieldNames = new ArrayList<>();
+        Map<String, ColumnExtInfo> extInfos = new HashMap<>();
         List<Field> fields = getClassFields(clazz);
         if (CollectionUtils.isEmpty(fields)) {
             columnsInfo.setColumns(EMPTY_LIST);
@@ -478,9 +474,16 @@ public class DaoUtil {
             if (id != null) {
                 columnsInfo.setIdColumnName(columName);
             }
+            ColumnExtInfo extInfo = new ColumnExtInfo();
+            Jsonb jsonb = getFieldJsonb(f, fieldGetMethods);
+            if (jsonb != null) {
+                extInfo.setJsonb(jsonb);
+            }
+            extInfos.put(columName, extInfo);
             columns.add(columName);
             fieldNames.add(f.getName());
         }
+        columnsInfo.setExtInfos(extInfos);
         // 如果获取dao时指定了id的属性名称则覆盖原有主键field的设置
         if (!StringUtil.isEmpty(daoOption.getIdFieldName())) {
             Field f = searchFieldByName(fields, daoOption.getIdFieldName());
@@ -632,6 +635,31 @@ public class DaoUtil {
         }
         return id;
     }
+
+    private static Jsonb getFieldJsonb(Field f, Map<String, Method> fieldMethods) {
+        Jsonb jsonb = null;
+        Annotation[] anns = f.getAnnotations();
+        if (anns != null) {
+            for (Annotation ann : anns) {
+                if (ann instanceof Jsonb) {
+                    jsonb = (Jsonb) ann;
+                }
+            }
+        }
+        if (jsonb != null) {
+            return jsonb;
+        }
+        Method m = fieldMethods.get(f.getName());
+        if (m != null && m.getAnnotations() != null) {
+            for (Annotation ann : m.getAnnotations()) {
+                if (ann instanceof Jsonb) {
+                    jsonb = (Jsonb) ann;
+                }
+            }
+        }
+        return jsonb;
+    }
+
 
     /**
      * 根据持久化Bean的Field以及和Field相关联的get开头的method来获取该属性对应的Column的注解，如果没有注解则返回null

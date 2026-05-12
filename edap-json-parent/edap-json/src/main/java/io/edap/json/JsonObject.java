@@ -7,6 +7,9 @@ public interface JsonObject extends JsonMap {
 
     default String getString(String key) {
         Object obj = get(key);
+        if (obj == null) {
+            return null;
+        }
         if (obj instanceof String) {
             return (String)obj;
         }

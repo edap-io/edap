@@ -26,7 +26,7 @@ public class SpringConnectionHolder implements ConnectionHolder {
     }
 
     @Override
-    public void releaseConnection(Connection con) throws SQLException {
-        DataSourceUtils.releaseConnection(con, ds);
+    public void releaseConnection() throws SQLException {
+        DataSourceUtils.releaseConnection(null, ds);
     }
 }

@@ -22,11 +22,9 @@ public interface ConnectionHolder {
 
     void setDataSource(DataSource dataSource);
 
-    void releaseConnection(Connection con) throws SQLException;
+    void releaseConnection() throws SQLException;
 
     class SimpleConnectionHolder implements ConnectionHolder {
-
-        private Connection con;
 
         private Connection currentCon;
 
@@ -44,9 +42,6 @@ public interface ConnectionHolder {
 
         @Override
         public Connection getConnection() throws SQLException {
-            if (this.con != null) {
-                return con;
-            }
             if ((currentCon == null || currentCon.isClosed()) && ds != null) {
                 currentCon = ds.getConnection();
             }
@@ -55,13 +50,13 @@ public interface ConnectionHolder {
 
         @Override
         public void setConnection(Connection con) {
-            this.con = con;
         }
 
         @Override
-        public void releaseConnection(Connection con) throws SQLException {
-            if (this.con == null) {
-                con.close();
+        public void releaseConnection() throws SQLException {
+            if (this.currentCon != null) {
+                this.currentCon.setAutoCommit(true);
+                this.currentCon.close();
             }
         }
     }

@@ -16,6 +16,7 @@
 
 package io.edap.http;
 
+import java.io.IOException;
 import java.io.Serializable;
 
 /**
@@ -29,5 +30,5 @@ public interface HttpHandler extends Serializable {
      * @param req HTTP请求
      * @param resp HTTP的相应实例
      */
-    void handle(HttpRequest req, HttpResponse resp);
+    void handle(HttpRequest req, HttpResponse resp) throws IOException;
 }

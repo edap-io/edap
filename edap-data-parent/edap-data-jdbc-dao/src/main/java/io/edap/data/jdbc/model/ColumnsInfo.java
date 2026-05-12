@@ -21,12 +21,14 @@ import io.edap.data.jdbc.annotation.GenerationType;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.List;
+import java.util.Map;
 
 public class ColumnsInfo {
 
     private GenerationType generationType;
     private List<String> columns;
     private List<String> fieldNames;
+    private Map<String, ColumnExtInfo> extInfos;
     private Field idField;
     private Method idSetMethod;
     private Method idGetMethod;
@@ -86,5 +88,13 @@ public class ColumnsInfo {
 
     public void setIdGetMethod(Method idGetMethod) {
         this.idGetMethod = idGetMethod;
+    }
+
+    public Map<String, ColumnExtInfo> getExtInfos() {
+        return extInfos;
+    }
+
+    public void setExtInfos(Map<String, ColumnExtInfo> extInfos) {
+        this.extInfos = extInfos;
     }
 }

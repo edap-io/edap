@@ -92,6 +92,7 @@ public class WebsocketDecoder {
             }
             mask = new byte[MASK_KEY_LEN];
             buf.get(mask);
+            frame.setMaskingKey(mask);
         }
 
         if (buf.remain() < payloadLength) {

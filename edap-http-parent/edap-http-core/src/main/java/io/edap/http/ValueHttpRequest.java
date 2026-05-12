@@ -171,7 +171,12 @@ public class ValueHttpRequest implements HttpRequest {
             if (lengthVal != null && lengthVal.getData().length > 0) {
                 contentLength = lengthVal.getIntValue();
             } else {
-                contentLength = -1;
+                lengthVal = getHeaderValue(ContentLength.NAME);
+                if (lengthVal != null && lengthVal.getData().length > 0) {
+                    contentLength = lengthVal.getIntValue();
+                } else {
+                    contentLength = -1;
+                }
             }
         }
         return contentLength;

@@ -49,15 +49,42 @@ public class ByteArrayJsonWriter extends AbstractJsonWriter implements JsonWrite
     BufOut.WriteBuf wbuf;
     BufOut          out;
     int             wpos;
+    boolean         longToString = false;
+    int             featuresValue;
 
     Grisu3.FastDtoaBuilder builder = new Grisu3.FastDtoaBuilder();
 
-    public ByteArrayJsonWriter(ByteArrayBufOut out) {
+    public byte[] getBuf() {
+        return buf;
+    }
+
+    public ByteArrayJsonWriter(ByteArrayBufOut out, SerializerFeature... features) {
         this.out = out;
         buf  = out.getWriteBuf().bs;
         wbuf = out.getWriteBuf();
         pos  = 0;
         wpos = 0;
+        int fval = 0;
+        for (SerializerFeature feature : features) {
+            fval |= feature.getMask();
+            if (feature == SerializerFeature.LONG_TO_STRING) {
+                longToString = true;
+            }
+        }
+        featuresValue = fval;
+    }
+
+    @Override
+    public int getFeatureValue() {
+        return featuresValue;
+    }
+
+    @Override
+    public void setFeatureValue(int featuresValue) {
+        if (this.featuresValue != featuresValue) {
+            this.longToString = (featuresValue & SerializerFeature.LONG_TO_STRING.mask) != 0;
+            this.featuresValue = featuresValue;
+        }
     }
 
     @Override
@@ -130,8 +157,16 @@ public class ByteArrayJsonWriter extends AbstractJsonWriter implements JsonWrite
 
     @Override
     public void write(long l) {
-        expand(20);
-        pos = uncheckWriteLong(buf, pos, l);
+        if (longToString) {
+            expand(22);
+            byte[] _buf = buf;
+            _buf[pos++] = '"';
+            pos = uncheckWriteLong(_buf, pos, l);
+            _buf[pos++] = '"';
+        } else {
+            expand(20);
+            pos = uncheckWriteLong(buf, pos, l);
+        }
     }
 
     @Override
@@ -258,7 +293,7 @@ public class ByteArrayJsonWriter extends AbstractJsonWriter implements JsonWrite
         int _pos = pos;
         byte[] _buf = buf;
         _buf[_pos++] = 'n';
-        _buf[_pos++] = 'n';
+        _buf[_pos++] = 'u';
         _buf[_pos++] = 'l';
         _buf[_pos++] = 'l';
         pos = _pos;

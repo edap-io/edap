@@ -52,7 +52,7 @@ public abstract class HttpNioSession extends NioServerSession<HttpRequest> {
 
     }
 
-    public abstract void handle(HttpRequest request);
+    public abstract void handle(HttpRequest request) throws IOException;
 
     public HttpRequest getRequest() {
         return request;
