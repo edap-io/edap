@@ -92,7 +92,7 @@ edap-protobuf 为protocol buffer协议的实现框架，可以直接序列化反
     ```
     
 3. 如果Field没有添加ProtoField的注解，框架将使用Javabean的class中Field的声明顺序作为protobuf的tag，从1开始进行编码。
-4. 该框架对protobuf协议做了扩展，可以作为序列化反序列化框架来使用，编码方式类似hession。
+4. 该框架对protobuf协议做了扩展，支持基础类型数据的序列化，可以作为序列化反序列化框架来使用，编码方式类似hession。
 
 ```java
 // 序列化对象为二进制字节数组
