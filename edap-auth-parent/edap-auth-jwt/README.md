@@ -4,4 +4,5 @@
 
 ```java
 JwtBuilder builder = JWT.create();
+builder.withIssuer("edap");
 ```
