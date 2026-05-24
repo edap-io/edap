@@ -39,8 +39,11 @@ public class JdbcDaoRegister {
 
     private Map<ClassLoader, DaoLoader> daoLoaders;
 
+    private Map<Class, Map<String, JdbcFieldSetFunc>> fieldSetFuncs;
+
     private JdbcDaoRegister() {
         daoLoaders = new HashMap<>();
+        fieldSetFuncs = new HashMap<>();
     }
 
     public JdbcMapDao getMapDao() {
@@ -52,7 +55,14 @@ public class JdbcDaoRegister {
     }
 
     public <T> JdbcFieldSetFunc<T> getFieldSetFunc(Class<T> entity, List<String> columns, String columnStr) {
-        JdbcFieldSetFunc<T> func = null;
+        Map<String, JdbcFieldSetFunc> funcs = fieldSetFuncs.get(entity);
+        JdbcFieldSetFunc<T> func;
+        if (funcs != null) {
+            func = funcs.get(columnStr);
+        } else {
+            func = null;
+        }
+
         try {
             lock.lock();
             String name = DaoUtil.getFieldSetFuncName(entity, columns, columnStr);
@@ -65,6 +75,11 @@ public class JdbcDaoRegister {
             if (funcClazz != null) {
                 try {
                     func = (JdbcFieldSetFunc) funcClazz.newInstance();
+                    if (funcs == null) {
+                        funcs = new HashMap<>();
+                        fieldSetFuncs.put(entity, funcs);
+                    }
+                    funcs.put(columnStr, func);
                 } catch (InstantiationException | IllegalAccessException ex) {
                     throw new RuntimeException("generateFieldSetFunc "
                             + funcClazz.getName() + " error", ex);
