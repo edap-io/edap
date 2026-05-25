@@ -409,7 +409,7 @@ public class DaoUtil {
                 sb.append(columns.get(i));
             }
         }
-        sb.append("->").append(columnStr);
+        //sb.append("->").append(columnStr);
         return "edao.setfunc.Func_" + md5(entity.getName() + sb);
     }
 
