@@ -17,6 +17,9 @@
 package io.edap;
 
 import io.edap.config.EdapConfig;
+import io.edap.log.Logger;
+import io.edap.log.LoggerFactory;
+import io.edap.log.LoggerManager;
 import io.edap.nio.SelectorProvider;
 import io.edap.util.CollectionUtils;
 
@@ -32,6 +35,8 @@ import static io.edap.log.helpers.Util.printError;
  * @date : 2019-07-08 11:49
  */
 public class Edap {
+
+    private static final Logger log = LoggerManager.getLogger(Edap.class);
 
     private Map<String, ServerGroup> serverGroups;
 
@@ -172,12 +177,16 @@ public class Edap {
         @Override
         public void run() {
             System.out.println("Edap stop...");
+            log.info("Edap stop...");
             for (Map.Entry<String, ServerGroup> sgEntry : serverGroups.entrySet()) {
                 System.out.println("ServerGroup [" + sgEntry.getKey() + "] stop ...");
+                log.info("ServerGroup [{}] stop ...", l->l.arg(sgEntry.getKey()));
                 sgEntry.getValue().stop();
                 System.out.println("ServerGroup [" + sgEntry.getKey() + "] stopped");
+                log.info("ServerGroup [{}] stopped", l->l.arg(sgEntry.getKey()));
             }
             System.out.println("Edap stopped");
+            log.info("Edap stopped");
         }
     }
 }
