@@ -97,7 +97,16 @@ public class WebsocketDecoder {
 
         if (buf.remain() < payloadLength) {
             ByteData tmpData = session.getTmpData();
-            int len = buf.get(tmpData.getBytes());
+            byte[] data = tmpData.getBytes();
+            if (data.length < buf.remain()) {
+                byte[] tmp = new byte[buf.remain()];
+                if (tmpData.getLength() > 0) {
+                    System.arraycopy(tmpData.getBytes(), 0, tmp, 0, tmpData.getLength());
+                }
+                tmpData.setBytes(tmp);
+                data = tmp;
+            }
+            int len = buf.get(data);
             tmpData.setLength(len);
             wsState = HttpDecoder.WSState.PAYLOAD;
             session.setWsState(wsState);
