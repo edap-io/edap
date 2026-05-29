@@ -2,13 +2,17 @@ package io.edap.http;
 
 import io.edap.http.ws.Ping;
 import io.edap.http.ws.Pong;
+import io.edap.log.Logger;
+import io.edap.log.LoggerManager;
 
 /**
  * WebSocket处理器的接口定义
  */
 public interface WSHandler {
 
-    static final Pong PONG = new Pong();
+    Logger log = LoggerManager.getLogger(WSHandler.class);
+
+    Pong PONG = new Pong();
 
     /**
      * 有新的连接创建时触发的操作
@@ -45,7 +49,7 @@ public interface WSHandler {
     }
 
     default void onPing(WSConnection webSocket, Ping ping) {
-        System.out.println("ping msg: ");
+        log.info("ping msg");
         webSocket.sendFrame(PONG);
     }
     /**
