@@ -154,8 +154,8 @@ public class DaoUtil {
                     noIdWen.append("?::jsonb");
                 } else if (extInfo != null && extInfo.getTypeConvertor() != null) {
                     TypeConvertor tc = extInfo.getTypeConvertor();
-                    if (!StringUtil.isEmpty(tc.insertPlaceholder())) {
-                        noIdWen.append(tc.insertPlaceholder());
+                    if (!StringUtil.isEmpty(tc.jdbcPlaceholder())) {
+                        noIdWen.append(tc.jdbcPlaceholder());
                     } else {
                         noIdWen.append("?");
                     }
