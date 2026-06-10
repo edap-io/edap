@@ -854,7 +854,8 @@ public class JdbcEntityDaoGenerator extends BaseDaoGenerator {
             if (jdbcInfo.isNeedUnbox()) {
                 visitUnboxOpcode(mv, jdbcInfo.getField());
             }
-            if (!jdbcInfo.isBaseType() && !jdbcInfo.getJdbcType().equals(jdbcInfo.getFieldType())) {
+            if (!jdbcInfo.isBaseType() && !jdbcInfo.getJdbcType().equals(jdbcInfo.getFieldType()) &&
+                    !"Ljava/lang/Object;".equals(jdbcInfo.getJdbcType())) {
                 mv.visitMethodInsn(INVOKESTATIC, CONVERTOR_NAME, getConvertMethodName(jdbcInfo.getJdbcType()),
                         "(" + jdbcInfo.getFieldType() + ")" + jdbcInfo.getJdbcType(), false);
             }
