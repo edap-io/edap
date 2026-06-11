@@ -29,7 +29,10 @@ import io.edap.util.Constants;
 import org.objectweb.asm.*;
 
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.util.HashSet;
 import java.util.Locale;
+import java.util.Set;
 
 import static io.edap.util.AsmUtil.*;
 import static io.edap.util.ClazzUtil.getDescriptor;
@@ -1556,6 +1559,12 @@ public class BaseDaoGenerator {
         mv.visitMethodInsn(INVOKESPECIAL, entityName, "<init>", "()V", false);
         mv.visitVarInsn(ASTORE, 5);
 
+        Set<String> methodSet = new HashSet<>();
+        Method[] methods = Convertor.class.getDeclaredMethods();
+        for (Method m : methods) {
+            methodSet.add(m.getName());
+        }
+
         for (int i=0;i<queryInfo.getAllColumns().size();i++) {
             JdbcInfo jdbcInfo = queryInfo.getAllColumns().get(i);
             mv.visitVarInsn(ALOAD, 5);
@@ -1571,8 +1580,17 @@ public class BaseDaoGenerator {
                 visitBoxedOpcode(mv, jdbcInfo.getField());
             }
             if (!jdbcInfo.isBaseType() && !jdbcInfo.getJdbcType().equals(jdbcInfo.getFieldType())) {
-                mv.visitMethodInsn(INVOKESTATIC, CONVERTOR_NAME, Convertor.getConvertMethodName(jdbcInfo.getFieldType()),
-                        "(" + jdbcInfo.getJdbcType() + ")" + jdbcInfo.getFieldType(), false);
+                String methodName = Convertor.getConvertMethodName(jdbcInfo.getFieldType());
+                if (methodSet.contains(methodName)) {
+                    mv.visitMethodInsn(INVOKESTATIC, CONVERTOR_NAME, Convertor.getConvertMethodName(jdbcInfo.getFieldType()),
+                            "(" + jdbcInfo.getJdbcType() + ")" + jdbcInfo.getFieldType(), false);
+                } else {
+                    String descr = getDescriptor(jdbcInfo.getField().getType());
+                    if (descr.startsWith("L")) {
+                        descr = descr.substring(1, descr.length()-1);
+                    }
+                    mv.visitTypeInsn(CHECKCAST, descr);
+                }
             }
             mv.visitMethodInsn(INVOKEVIRTUAL, entityName, setMethod,
                     "(" + getDescriptor(jdbcInfo.getField().getType()) + ")V", false);
