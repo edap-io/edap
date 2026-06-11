@@ -197,14 +197,50 @@ public class JdbcEntityDaoGenerator extends BaseDaoGenerator {
         mv.visitVarInsn(ISTORE, varHasVal);
 
         mv.visitLabel(lbAppendSet);
-        mv.visitFrame(Opcodes.F_SAME, 0, null, 0, null);
+
+        // 判断value是否为TypeConvertorValue
+        int varMapEntryValue = varMapEntry + 1;
         mv.visitVarInsn(ALOAD, varSql);
         mv.visitVarInsn(ALOAD, varMapEntry);
         mv.visitMethodInsn(INVOKEINTERFACE, "java/util/Map$Entry", "getKey", "()Ljava/lang/Object;", true);
         mv.visitTypeInsn(CHECKCAST, "java/lang/String");
         mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/StringBuilder", "append", "(Ljava/lang/String;)Ljava/lang/StringBuilder;", false);
-        mv.visitLdcInsn("=?");
-        mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/StringBuilder", "append", "(Ljava/lang/String;)Ljava/lang/StringBuilder;", false);
+        mv.visitIntInsn(BIPUSH, 61);
+        mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/StringBuilder", "append", "(C)Ljava/lang/StringBuilder;", false);
+        mv.visitInsn(POP);
+        mv.visitVarInsn(ALOAD, varMapEntry);
+        mv.visitMethodInsn(INVOKEINTERFACE, "java/util/Map$Entry", "getValue", "()Ljava/lang/Object;", true);
+        mv.visitVarInsn(ASTORE, varMapEntryValue);
+        mv.visitVarInsn(ALOAD, varMapEntryValue);
+        mv.visitTypeInsn(INSTANCEOF, "io/edap/data/jdbc/model/TypeConvertorValue");
+
+        Label lbIsTypeConvertorValue = new Label();
+        mv.visitJumpInsn(IFEQ, lbIsTypeConvertorValue);
+        mv.visitVarInsn(ALOAD, varMapEntryValue);
+        mv.visitTypeInsn(CHECKCAST, "io/edap/data/jdbc/model/TypeConvertorValue");
+        int varTypeConvertorValue = varMapEntryValue + 1;
+        mv.visitVarInsn(ASTORE, varTypeConvertorValue);
+        mv.visitVarInsn(ALOAD, varSql);
+        mv.visitVarInsn(ALOAD, varTypeConvertorValue);
+        mv.visitMethodInsn(INVOKEVIRTUAL, "io/edap/data/jdbc/model/TypeConvertorValue", "getJdbcPlaceholder",
+                "()Ljava/lang/String;", false);
+        mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/StringBuilder", "append",
+                "(Ljava/lang/String;)Ljava/lang/StringBuilder;", false);
+        mv.visitInsn(POP);
+        mv.visitVarInsn(ALOAD, varArray);
+        mv.visitVarInsn(ILOAD, varArrayIndex);
+        mv.visitIincInsn(varArrayIndex, 1);
+        mv.visitVarInsn(ALOAD, varTypeConvertorValue);
+        mv.visitMethodInsn(INVOKEVIRTUAL, "io/edap/data/jdbc/model/TypeConvertorValue", "getValue",
+                "()Ljava/lang/Object;", false);
+        mv.visitInsn(AASTORE);
+
+        Label label10 = new Label();
+        mv.visitJumpInsn(GOTO, label10);
+        mv.visitLabel(lbIsTypeConvertorValue);
+        mv.visitVarInsn(ALOAD, varSql);
+        mv.visitIntInsn(BIPUSH, 63);
+        mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/StringBuilder", "append", "(C)Ljava/lang/StringBuilder;", false);
         mv.visitInsn(POP);
 
         // 保存绑定参数的值到数组中
@@ -214,6 +250,7 @@ public class JdbcEntityDaoGenerator extends BaseDaoGenerator {
         mv.visitVarInsn(ALOAD, varMapEntry);
         mv.visitMethodInsn(INVOKEINTERFACE, "java/util/Map$Entry", "getValue", "()Ljava/lang/Object;", true);
         mv.visitInsn(AASTORE);
+        mv.visitLabel(label10);
         mv.visitJumpInsn(GOTO, lbUpdateItrLoop);
 
         mv.visitLabel(lbUpdateEndLoop);

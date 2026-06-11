@@ -15,6 +15,7 @@ import io.edap.data.jdbc.JdbcFieldSetFunc;
 import io.edap.data.jdbc.LimitQueryInfo;
 import io.edap.data.jdbc.StatementSession;
 import io.edap.data.jdbc.jdbc.test.entity.DemoIntId;
+import io.edap.data.jdbc.model.TypeConvertorValue;
 import io.edap.data.jdbc.util.DialectFactory;
 import io.edap.util.CollectionUtils;
 import io.edap.util.Constants;
@@ -486,8 +487,17 @@ public class DemoIntIdJdbcEntityDao extends JdbcBaseEntityDao implements JdbcEnt
                         var7 = true;
                     }
 
-                    var4.append((String)var9.getKey()).append("=?");
-                    var6[var5++] = var9.getValue();
+
+                    var4.append((String)var9.getKey()).append('=');
+                    Object obj = var9.getValue();
+                    if (obj instanceof TypeConvertorValue) {
+                        TypeConvertorValue tcv = (TypeConvertorValue)obj;
+                        var4.append(tcv.getJdbcPlaceholder());
+                        var6[var5++] = tcv.getValue();
+                    } else {
+                        var4.append('?');
+                        var6[var5++] = var9.getValue();
+                    }
                 }
 
                 var4.append(" where ");
