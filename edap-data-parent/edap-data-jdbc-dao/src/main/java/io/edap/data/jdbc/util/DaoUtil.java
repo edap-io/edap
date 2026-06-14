@@ -175,7 +175,9 @@ public class DaoUtil {
         noIdSql.append(") VALUES (");
 
         allFieldSql.append(noIdWen);
-        allFieldSql.append(",?");
+        if (!StringUtil.isEmpty(columnsInfo.getIdColumnName())) {
+            allFieldSql.append(",?");
+        }
         allFieldSql.append(")");
 
         noIdSql.append(noIdWen);
