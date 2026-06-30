@@ -140,6 +140,10 @@ public class IdGenerator {
         curMillisValue = ((timeMillis - START_TIMESTAMP) << timestampLeftShift);
     }
 
+    public int getSeqBits() {
+        return seqBits;
+    }
+
     /**
      * 批量获取分布ID
      * @param count
