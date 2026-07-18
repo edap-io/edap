@@ -57,8 +57,7 @@ public class ConvertorRegister {
 
     public static String getConvertorName(Class orignalCls, Class destCls) {
         return "ebc." + orignalCls.getPackage().getName() + ".Convertor" +
-                CryptUtil.md5(orignalCls.getName() + "@" + System.identityHashCode(orignalCls) + "_" +
-                        destCls.getName() + "@" + System.identityHashCode(destCls));
+                CryptUtil.md5(orignalCls.getName() + "->" + destCls.getName());
     }
 
     private synchronized ConvertorLoader getConvertorLoader(Class orignalCls, Class destCls) {
