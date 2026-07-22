@@ -56,6 +56,10 @@
             <artifactId>junit-jupiter</artifactId>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>org.ow2.asm</groupId>
+            <artifactId>asm-tree</artifactId>
+        </dependency>
 <!--        <dependency>-->
 <!--            <groupId>com.yonyou.diwork</groupId>-->
 <!--            <artifactId>diwork-pub-auth</artifactId>-->

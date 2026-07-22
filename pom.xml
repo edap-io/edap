@@ -27,10 +27,10 @@
 
     <properties>
         <java.version>17</java.version>
-        <edap.version>0.1.2-SNAPSHOT</edap.version>
+        <edap.version>0.1.3-SNAPSHOT</edap.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <maven.compiler.source>21</maven.compiler.source>
-        <maven.compiler.target>21</maven.compiler.target>
+        <maven.compiler.source>17</maven.compiler.source>
+        <maven.compiler.target>17</maven.compiler.target>
         <junit.jupiter.version>5.12.0</junit.jupiter.version>
         <asm.version>9.7.1</asm.version>
         <protobuf.java.verson>4.29.3</protobuf.java.verson>
@@ -41,6 +41,8 @@
         <spring.version>5.3.20</spring.version>
         <disruptor.version>3.4.4</disruptor.version>
         <h2.version>2.3.232</h2.version>
+        <maven.core.version>3.9.16</maven.core.version>
+        <maven-plugin-tools.version>3.15.2</maven-plugin-tools.version>
     </properties>
 
     <modules>
@@ -61,6 +63,7 @@
         <module>edap-mqtt-parent</module>
         <module>edap-ai-parent</module>
         <module>edap-auth-parent</module>
+        <module>edap-microservice-parent</module>
 
     </modules>
 
@@ -170,6 +173,11 @@
                 <artifactId>edap-mqtt-core</artifactId>
                 <version>${project.version}</version>
             </dependency>
+            <dependency>
+                <groupId>io.edap</groupId>
+                <artifactId>edap-microservice-annotation</artifactId>
+                <version>${project.version}</version>
+            </dependency>
 
             <!-- 三方包版本管理 -->
             <dependency>
@@ -243,6 +251,22 @@
                 <groupId>com.lmax</groupId>
                 <artifactId>disruptor</artifactId>
                 <version>${disruptor.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.maven</groupId>
+                <artifactId>maven-plugin-api</artifactId>
+                <version>${maven.core.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.maven</groupId>
+                <artifactId>maven-core</artifactId>
+                <version>${maven.core.version}</version> <!-- 请根据实际 Maven 版本调整 -->
+            </dependency>
+            <!-- 在 Mojo 中使用的 Java 注解 -->
+            <dependency>
+                <groupId>org.apache.maven.plugin-tools</groupId>
+                <artifactId>maven-plugin-annotations</artifactId>
+                <version>${maven-plugin-tools.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>
