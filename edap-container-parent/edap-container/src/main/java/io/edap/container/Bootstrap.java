@@ -18,13 +18,14 @@ package io.edap.container;
 
 import io.edap.Edap;
 import io.edap.ServerGroup;
-import io.edap.http.WSConnection;
-import io.edap.http.WSHandler;
+import io.edap.container.mw.DeployManager;
 import io.edap.http.server.HttpServerBuilder;
 
 import java.io.IOException;
-import java.text.SimpleDateFormat;
-import java.util.Date;
+import java.lang.reflect.Method;
+
+import static io.edap.container.HttpConvertorFactory.createGetHandler;
+import static io.edap.util.ClazzUtil.getClassMethod;
 
 /**
  * edap微服务容器的启动程序，容器启动包含容器的管理接口以及部署接口
@@ -36,21 +37,18 @@ public class Bootstrap {
         Edap manager = new Edap();
         ServerGroup serverGroup = new ServerGroup();
         HttpServerBuilder builder = new HttpServerBuilder();
-        builder.listen(8080, 8081);
-        builder.websocket("/chat", new WSHandler() {
-            @Override
-            public void onOpen(WSConnection webSocket) {
-                System.out.println(webSocket.toString());
-            }
+        DeployManager deployManager = new DeployManager();
+        builder.listen(1111);
+        Method[] ms = DeployManager.class.getDeclaredMethods();
+        for (Method m : ms) {
+            System.out.println("method: " + m.getName());
+        }
+        builder.get("/microServiceList", createGetHandler(
+                getClassMethod(DeployManager.class, "deployMicroService", String.class, String.class),
+                deployManager));
 
-            @Override
-            public void onMessage(WSConnection webSocket, String message) {
-                System.out.println("Override tmsg: " + message);
-                webSocket.sendText(new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date()) + " reply:" + message);
-            }
-        });
         serverGroup.addServer(builder.build());
-        serverGroup.setName("edap-manager");
+        serverGroup.setName("deploy-manager");
         manager.addServerGroup(serverGroup);
 
         try {
