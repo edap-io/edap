@@ -179,6 +179,19 @@ public class Proto {
         return this;
     }
 
+    public String getOptionValue(String name) {
+        List<Option> opts = getOptions();
+        if (opts == null || opts.isEmpty()) {
+            return null;
+        }
+        for (Option o : opts) {
+            if (name.equals(o.getName())) {
+                return o.getValue();
+            }
+        }
+        return null;
+    }
+
     public Proto addImport(String value) {
         empty = false;
         getImports().add(value);
