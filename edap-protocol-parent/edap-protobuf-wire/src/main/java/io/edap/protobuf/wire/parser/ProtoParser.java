@@ -179,12 +179,14 @@ public class ProtoParser {
                     setProtoComments(proto);
                     Message msg = parseMessage();
                     proto.addMsg(msg);
+                    msg.setProto(proto);
                     comments.clear();
                     break;
                 case "enum":
                     setProtoComments(proto);
                     ProtoEnum protoEnum = parseEnum();
                     proto.addEnum(protoEnum);
+                    protoEnum.setProto(proto);
                     comments.clear();
                     break;
                 case "service":
