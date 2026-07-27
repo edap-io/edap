@@ -43,7 +43,7 @@ public class ListEnumBuilderTest extends AbstractTest {
                 "\n" +
                 "public class ListEnum implements Serializable {\n" +
                 "\n" +
-                "    @ProtoField(tag = 1, type = Type.MESSAGE)\n" +
+                "    @ProtoField(tag = 1, type = Type.ENUM)\n" +
                 "    private List<Corpus> corpus;\n" +
                 "\n" +
                 "\n" +

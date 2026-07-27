@@ -45,6 +45,10 @@ public class ServiceMethod {
      * 方法块前的单行注释列表
      */
     private Comment comment;
+    /**
+     * 方法块的Option列表
+     */
+    private List<Option> options;
 
     /**
      * 服务定义Method的类型默认为 rpc
@@ -134,5 +138,16 @@ public class ServiceMethod {
     public ServiceMethod setComment(Comment comment) {
         this.comment = comment;
         return this;
+    }
+
+    /**
+     * 方法块的Option列表
+     */
+    public List<Option> getOptions() {
+        return options;
+    }
+
+    public void setOptions(List<Option> options) {
+        this.options = options;
     }
 }

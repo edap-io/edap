@@ -16,6 +16,7 @@
 
 package io.edap.protobuf.wire;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -34,6 +35,33 @@ public class ProtoEnum {
      * 枚举包含的选项列表
      */
     private List<Option> options;
+
+    /**
+     * 保留字段的设置
+     */
+    private List<Reserved> reserveds;
+
+    /**
+     * 保留字段的设置
+     */
+    public List<Reserved> getReserveds() {
+        if (reserveds == null) {
+            reserveds = new ArrayList<>();
+        }
+        return reserveds;
+    }
+
+    public void setReserveds(List<Reserved> reserveds) {
+        this.reserveds = reserveds;
+    }
+
+    public ProtoEnum addReserved(Reserved reserved) {
+        if (reserved == null) {
+            return this;
+        }
+        getReserveds().add(reserved);
+        return this;
+    }
 
     /**
      * 枚举项的定义

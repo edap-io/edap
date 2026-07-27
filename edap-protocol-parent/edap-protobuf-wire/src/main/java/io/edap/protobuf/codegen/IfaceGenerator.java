@@ -19,9 +19,10 @@ package io.edap.protobuf.codegen;
 import io.edap.protobuf.builder.JavaBuildOption;
 import io.edap.protobuf.builder.JavaBuilder;
 import io.edap.protobuf.wire.*;
+import io.edap.protobuf.wire.parser.ProtoParser;
 
-import java.io.File;
-import java.io.IOException;
+import java.io.*;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 
 import static io.edap.protobuf.builder.JavaBuilder.formatTypeName;
@@ -44,9 +45,38 @@ public class IfaceGenerator {
     public void generate() {
         List<Proto> protos = files;
         Map<String, Proto> allProtos = new HashMap<>();
+        Set<String> impProtos = new HashSet<>();
         for (Proto proto : protos) {
+            List<String> imps = proto.getImports();
+            if (imps != null && imps.size() > 0) {
+                for (String imp : imps) {
+                    impProtos.add(imp);
+                }
+            }
             allProtos.put(proto.getName(), proto);
         }
+
+        for (Proto proto : protos) {
+            impProtos.remove(proto.getName());
+        }
+        for (String name : impProtos) {
+            try (BufferedReader in = new BufferedReader(new InputStreamReader(
+                    IfaceGenerator.class.getResourceAsStream("/proto/" + name), StandardCharsets.UTF_8))) {
+                String line = in.readLine();
+                StringBuilder builder = new StringBuilder();
+                while (line != null) {
+                    builder.append(line).append('\n');
+                    line = in.readLine();
+                }
+                ProtoParser parser = new ProtoParser(builder.toString());
+                parser.setPrintParseInfo(true);
+                allProtos.put(name, parser.parse());
+            } catch (Exception e) {
+                System.out.println("parse error name=" + name);
+                e.printStackTrace();
+            }
+        }
+
         protos.forEach(p -> {
             generateProtoItem(p, allProtos);
         });

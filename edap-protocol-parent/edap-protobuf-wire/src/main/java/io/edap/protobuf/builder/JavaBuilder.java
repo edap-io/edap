@@ -92,7 +92,7 @@ public class JavaBuilder {
         return jType;
     }
 
-    public String getJavaType(Field field, List<String> imps, JavaBuildOption buildOps) {
+    public String getJavaType(Field field, List<String> imps, JavaBuildOption buildOps, Proto proto) {
         String type = field.getTypeString();
         if (field instanceof MapField) {
             MapField mf = (MapField)field;
@@ -101,7 +101,12 @@ public class JavaBuilder {
             return type;
         }
         String jType = getOptionJavaType(field.getOptions());
+        String javaPackage = buildOps.getJavaPackage();
+        String protoPackage = proto.getProtoPackage();
         if (!BASE_TYPES.contains(type.toLowerCase(Locale.ENGLISH))) {
+            if (!javaPackage.equals(protoPackage) && type.startsWith(protoPackage)) {
+                type = javaPackage + type.substring(protoPackage.length());
+            }
             return type;
         }
         JavaType javaType;
@@ -218,13 +223,16 @@ public class JavaBuilder {
         return packName;
     }
 
-    private void buildDtoImps(CodeBuilder cb, List<ServiceMethod> methods, JavaBuildOption buildOps) {
+    private void buildDtoImps(CodeBuilder cb, List<ServiceMethod> methods, JavaBuildOption buildOps,
+                              Proto proto) {
         List<String> impMsgs = new ArrayList<>();
         if (buildOps.isEdapRpc()) {
             if (!impMsgs.contains("io.edap.rpc.annotation.EdapService")) {
                 impMsgs.add("io.edap.rpc.annotation.EdapService");
             }
         }
+        String javaPackage = buildOps.getJavaPackage();
+        String protoPackage = proto.getProtoPackage();
         if (buildOps.getDtoPrefix() != null && !buildOps.getDtoPrefix().isEmpty()
                 && methods != null && !methods.isEmpty()) {
             methods.stream()
@@ -249,6 +257,20 @@ public class JavaBuilder {
                                 addImport(impMsgs, "io.edap.rpc.StreamObserver");
                                 break;
                         }
+                        String reqType = m.getRequest();
+                        if (reqType.indexOf('.') != -1) {
+                            if (!javaPackage.equals(protoPackage) && reqType.startsWith(protoPackage)) {
+                                reqType = javaPackage + "." + reqType.substring(protoPackage.length() + 1);
+                            }
+                            addImport(impMsgs, reqType);
+                        }
+                        String respType = m.getResponse();
+                        if (respType.indexOf('.') != -1) {
+                            if (!javaPackage.equals(protoPackage) && respType.startsWith(protoPackage)) {
+                                respType = javaPackage + "." + respType.substring(protoPackage.length() + 1);
+                            }
+                            addImport(impMsgs, respType);
+                        }
                     });
         }
         impMsgs.stream()
@@ -266,7 +288,7 @@ public class JavaBuilder {
         }
 
         List<ServiceMethod> methods = service.getMethods();
-        buildDtoImps(cb, methods, buildOps);
+        buildDtoImps(cb, methods, buildOps, proto);
         String name;
         String serviceName = service.getName();
         if (serviceName == null || serviceName.length() < 1) {
@@ -278,7 +300,7 @@ public class JavaBuilder {
         cb.ln();
         cb.c("/**").ln();
         if (service.getComments() != null && !service.getComments().getLines().isEmpty()) {
-            service.getComments().getLines().forEach(c -> cb.c(" * ").c(c).ln());
+            service.getComments().getLines().forEach(comment -> cb.c(" * ").c(comment).ln());
         }
         cb.c(" */").ln();
         if (buildOps.isEdapRpc()) {
@@ -304,14 +326,13 @@ public class JavaBuilder {
                         for (String c : comment.getLines()) {
                             cb.t(level).c(" * ").c(c).ln();
                         }
-                        cb.t(level).c(" */").ln();
                     } else if (comment.getType() == Comment.CommentType.MULTILINE) {
-                        cb.t(level).c("/*").ln();
+                        cb.t(level).c("/**").ln();
                         for (String c : comment.getLines()) {
                             cb.t(level).c(" * ").c(c).ln();
                         }
-                        cb.t(level).c(" */").ln();
                     } else {
+                        cb.t(level).c("/**").ln();
                         for (String c : comment.getLines()) {
                             cb.t(level).c(" * ").c(c).ln();
                         }
@@ -322,9 +343,8 @@ public class JavaBuilder {
                     params[1] = formatParamName(m.getName(), m.getType());
                     params[2] = formatTypeName(m.getRequest(), m.getType());
                     params[3] = formatParamName(m.getRequest(), m.getType());
-                    cb.t(level).e(" * @param $param$ ")
-                            .arg(params[3]).ln();
-                    cb.t(level).e(" * @return").arg( params[3]).ln();
+                    cb.t(level).e(" * @param $param$ ").arg(params[3]).ln();
+                    cb.t(level).e(" * @return").arg(params[3]).ln();
                     cb.t(level).c(" */").ln();
                     cb.t(level).e("$return$ $func$($param$ $arg$);")
                             .arg(params).ln();
@@ -334,6 +354,10 @@ public class JavaBuilder {
     public static String formatParamName(String name, Service.ServiceType serviceType) {
         if (name == null || name.isEmpty()) {
             return "";
+        }
+        int lastIndex = name.lastIndexOf('.');
+        if (lastIndex != -1) {
+            name = name.substring(lastIndex + 1);
         }
         switch (serviceType) {
             case CLIENT_STREAM:
@@ -356,6 +380,10 @@ public class JavaBuilder {
             return "";
         }
         name = name.trim();
+        int lastIndex = name.lastIndexOf('.');
+        if (lastIndex != -1) {
+            name = name.substring(lastIndex+1);
+        }
         boolean isStream = false;
         switch (serviceType) {
             case CLIENT_STREAM:
@@ -381,10 +409,10 @@ public class JavaBuilder {
     }
 
     private void buildMsgImps(Message msg, List<Field> tmp, List<String> imps,
-                              JavaBuildOption buildOps) {
+                              JavaBuildOption buildOps, Proto proto) {
         if (msg.getFields() != null) {
             msg.getFields().forEach(e -> {
-                getJavaType(e, imps, buildOps);
+                getJavaType(e, imps, buildOps, proto);
                 tmp.add(e);
             });
         }
@@ -465,7 +493,7 @@ public class JavaBuilder {
         String javaPackage = buildOps.getJavaPackage();
         List<Field> tmp = new ArrayList<>();
         List<String> imps = new ArrayList<>();
-        buildMsgImps(msg, tmp, imps, buildOps);
+        buildMsgImps(msg, tmp, imps, buildOps, proto);
         addImport(imps, Proto.class.getPackage().getName() + ".Field.Type");
         addImport(imps, "java.io.Serializable");
 
@@ -494,6 +522,7 @@ public class JavaBuilder {
 
         CodeBuilder cons = new CodeBuilder();
         buildDefaultValCode(cons, msg, buildOps, level, protoEnums, proto);
+        String protoPackage = proto.getProtoPackage();
         for (int i=0;i<size;i++) {
             Field f = fields.get(i);
             getCode = new CodeBuilder();
@@ -504,13 +533,17 @@ public class JavaBuilder {
                 typeName = Proto.class.getPackage().getName() + ".wire.Field." + typeName;
             }
             buildDocComment(cb, f.getComment(), level);
-            cb.t(level).e("@ProtoField(tag = $tag$, type = $type$)")
-                    .arg(String.valueOf(f.getTag()), typeName).ln();
-            String type = getJavaType(f, imps, buildOps);
+            cb.t(level).c("@ProtoField(tag = ").c(String.valueOf(f.getTag()))
+                    .c(", type = ").c(typeName).c(")").ln();
+            String type = getJavaType(f, imps, buildOps, proto);
             String name = f.getName();
             if (f.getCardinality() == Field.Cardinality.REPEATED) {
-                String boxedTypeName = getBoxedTypeName(f, buildOps);
+                String boxedTypeName = getBoxedTypeName(f, buildOps, proto);
                 type = "List<" + boxedTypeName + ">";
+            }
+            int lastIndex = type.lastIndexOf('.');
+            if (lastIndex != -1) {
+                type = type.substring(lastIndex + 1);
             }
 
             cb.t(level).e("private $type$ $name$;")
@@ -560,7 +593,7 @@ public class JavaBuilder {
         }
 
 
-        buildListCode(cb, fields, level, buildOps, imps);
+        buildListCode(cb, fields, level, buildOps, imps, proto);
 
         nestMessageMessage(proto, cb, msg.getMessages(), defineMsgs, level, protos);
         nestMessageEnum(cb, msg.getEnums(), level);
@@ -569,8 +602,8 @@ public class JavaBuilder {
         return cb.toString();
     }
 
-    private String getBoxedTypeName(Field f, JavaBuildOption buildOps) {
-        String type = getJavaType(f, null, buildOps);
+    private String getBoxedTypeName(Field f, JavaBuildOption buildOps, Proto proto) {
+        String type = getJavaType(f, null, buildOps, proto);
         if (BASE_TYPES.contains(f.getTypeString())) {
             JavaType javaType = null;
             javaType = Type.valueOf(f.getTypeString().toUpperCase(Locale.ENGLISH)).javaType();
@@ -582,23 +615,23 @@ public class JavaBuilder {
     }
 
     private void buildListCode(CodeBuilder cb, List<Field> fields, int level,
-                               JavaBuildOption buildOps, List<String> imps) {
+                               JavaBuildOption buildOps, List<String> imps, Proto proto) {
         CodeBuilder listCode = new CodeBuilder();
         for (int i=0;i<fields.size();i++) {
             Field f = fields.get(i);
             String setMethod = "set" +
                     f.getName().substring(0, 1).toUpperCase(Locale.ENGLISH) +
                     f.getName().substring(1);
-            String type = getJavaType(f, imps, buildOps);
+            String type = getJavaType(f, imps, buildOps, proto);
             String itemType = type;
             if (f.getCardinality() == Cardinality.REPEATED) {
-                String boxedType = getBoxedTypeName(f, buildOps);
+                String boxedType = getBoxedTypeName(f, buildOps, proto);
                 type = "List<" + boxedType + ">";
             }
             if (f.getCardinality() == Cardinality.REPEATED) {
                 String methodName = setMethod.substring(3);
                 String itemName = "itemVar";
-                itemType = getBoxedTypeName(f, buildOps);
+                itemType = getBoxedTypeName(f, buildOps, proto);
                 listCode.t(level).e("public void add$itemName$($itemType$ $itemTypeName$) {")
                         .arg(methodName, itemType, itemName).ln();
                 listCode.t(level + 1).e(LIST_IS_NULL_STR).arg(f.getName()).ln();

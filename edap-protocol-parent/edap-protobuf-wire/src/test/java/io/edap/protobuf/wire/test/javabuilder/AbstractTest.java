@@ -55,8 +55,8 @@ public abstract class AbstractTest {
             String line = readUtf8Line(javaFile);
             while (line != null) {
                 if (!line.equals(lines[count])) {
-                    System.out.println("[" + line + "]");
-                    System.out.println("[" + lines[count] + "]");
+                    System.out.println("row[" + count + "] [" + line + "]");
+                    System.out.println("row[" + count + "] [" + lines[count] + "]");
                     return false;
                 }
                 count++;

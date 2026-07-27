@@ -51,7 +51,7 @@ public class AllTypeBuilderTest extends AbstractTest {
                 "    private byte[] field2;\n" +
                 "    @ProtoField(tag = 3, type = Type.DOUBLE)\n" +
                 "    private double field3;\n" +
-                "    @ProtoField(tag = 4, type = Type.MESSAGE)\n" +
+                "    @ProtoField(tag = 4, type = Type.ENUM)\n" +
                 "    private Corpus field4;\n" +
                 "    @ProtoField(tag = 5, type = Type.FIXED32)\n" +
                 "    private int field5;\n" +

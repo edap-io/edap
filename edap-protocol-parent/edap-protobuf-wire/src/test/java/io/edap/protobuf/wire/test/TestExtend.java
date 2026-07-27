@@ -204,7 +204,7 @@ public class TestExtend {
                     ProtoParser parser = new ProtoParser(protoStr);
                     Proto proto = parser.parse();
                 });
-        assertTrue(thrown.getMessage().contains("extensions expression must be start to end"));
+        assertTrue(thrown.getMessage().contains("Extensions 格式错误!"));
     }
 
     /**
@@ -225,7 +225,7 @@ public class TestExtend {
                     ProtoParser parser = new ProtoParser(protoStr);
                     Proto proto = parser.parse();
                 });
-        assertTrue(thrown.getMessage().contains("extensions expression end empty"));
+        assertTrue(thrown.getMessage().contains("Extensions start must be number!"));
     }
 
     /**
@@ -267,7 +267,7 @@ public class TestExtend {
                     ProtoParser parser = new ProtoParser(protoStr);
                     Proto proto = parser.parse();
                 });
-        assertTrue(thrown.getMessage().contains("extensions expression start empty"));
+        assertTrue(thrown.getMessage().contains("Extensions start must be number!"));
     }
 
     /**

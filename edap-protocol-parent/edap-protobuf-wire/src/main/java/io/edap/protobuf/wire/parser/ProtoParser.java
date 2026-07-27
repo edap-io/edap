@@ -45,6 +45,8 @@ public class ProtoParser {
     private static final String ROW_MSG = "row [";
     private static final String START_MSG = " start...";
 
+    private boolean printParseInfo;
+
 
     public ProtoParser(String data) {
         this.row = 1;
@@ -59,6 +61,14 @@ public class ProtoParser {
         fieldCardinalities.add("required");
 
         this.data = data.toCharArray();
+    }
+
+    public void setPrintParseInfo(boolean printParseInfo) {
+        this.printParseInfo = printParseInfo;
+    }
+
+    public boolean getPrintParseInfo() {
+        return printParseInfo;
     }
 
     private void setSyntax(Proto proto, ProtoValue syntaxValue) throws ProtoParseException {
@@ -246,7 +256,9 @@ public class ProtoParser {
             comments.clear();
         }
         ext.setName(name);
-        System.out.println("extend " + name + START_MSG);
+        if (printParseInfo) {
+            System.out.println("extend " + name + START_MSG);
+        }
         blockStarted("extend");
         String token = readToken();
         while (token.length() > 0) {
@@ -350,7 +362,12 @@ public class ProtoParser {
         while (pos < data.length) {
             c = data[pos];
             if (c == '/' && token.length() == 0) {
-                throw new ProtoParseException("Option name can not start with '/'");
+                if (pos < data.length - 1 && data[pos+1] == '*') {
+                    pos += 2;
+                    readLineInComment();
+                } else {
+                    throw new ProtoParseException("Option name can not start with '/'");
+                }
             } else if (isOptionNameTokenEnd(c)) {
                 return token.toString();
             } else if (isOptionNameTokenChar(c)) {
@@ -381,7 +398,6 @@ public class ProtoParser {
 
     private boolean isOptionNameTokenEnd(char c) {
         switch (c) {
-            case ' ':
             case '=':
                 return true;
             default:
@@ -429,7 +445,9 @@ public class ProtoParser {
         }
         ProtoEnum protoEnum = new ProtoEnum();
         protoEnum.setName(name);
-        System.out.println("Enum " + name + START_MSG);
+        if (printParseInfo) {
+            System.out.println("Enum " + name + START_MSG);
+        }
         blockStarted("enum");
         nextLine();
         trim();
@@ -448,6 +466,10 @@ public class ProtoParser {
                 Option option = new Option();
                 option.setName(optionLabel).setValue(optionValue);
                 protoEnum.setOptions(Arrays.asList(option));
+            } else if ("reserved".equals(token)) {
+                trim();
+                String reserved = parseReserved();
+                protoEnum.addReserved(Reserved.parseReserved(reserved, comments));
             } else {
                 EnumEntry entry = new EnumEntry();
                 entry.setLabel(token);
@@ -458,7 +480,9 @@ public class ProtoParser {
             boolean isEnd = blockEnd();
             if (isEnd) {
                 fieldEnd();
-                System.out.println("Enum " + name + " end");
+                if (printParseInfo) {
+                    System.out.println("Enum " + name + " end");
+                }
                 protoEnum.setEntries(entries);
                 return protoEnum;
             }
@@ -513,7 +537,9 @@ public class ProtoParser {
             msg.setComment(comments.get(comments.size()-1));
             comments.clear();
         }
-        System.out.println("message " + name + START_MSG);
+        if (printParseInfo) {
+            System.out.println("message " + name + START_MSG);
+        }
         blockStarted("message");
         String token = readToken();
         while (token.length() > 0) {
@@ -545,7 +571,9 @@ public class ProtoParser {
             }
             boolean isEnd = blockEnd();
             if (isEnd) {
-                System.out.println("message " + name + " end");
+                if (printParseInfo) {
+                    System.out.println("message " + name + " end");
+                }
                 fieldEnd();
                 return msg;
             }
@@ -576,19 +604,17 @@ public class ProtoParser {
             service.setComment(comments.get(comments.size()-1));
             comments.clear();
         }
-        System.out.println("service " + name + START_MSG);
+        if (printParseInfo) {
+            System.out.println("service " + name + START_MSG);
+        }
         blockStarted("service");
         String token = readToken();
         while (token.length() > 0) {
             if ("//".equals(token)) {
                 Comment comment;
-                if (comments.size() > 0) {
-                    comment = comments.get(0);
-                } else {
-                    comment = new Comment();
-                    comment.setType(CommentType.INLINE);
-                    comments.add(comment);
-                }
+                comment = new Comment();
+                comment.setType(CommentType.INLINE);
+                comment.setLines(Arrays.asList(readSingleLineComment()));
                 comments.add(comment);
                 nextLine();
             } else if ("/**".equals(token)) {
@@ -656,7 +682,7 @@ public class ProtoParser {
                 serverStream = isStream(response);
             }
         }
-        boolean isEnd = isServiceMethodEnd();
+        boolean isEnd = isServiceMethodEnd(method);
         if (!isEnd) {
             throw new ProtoParseException(ROW_MSG + row + "] service method not finished");
         } else {
@@ -686,7 +712,16 @@ public class ProtoParser {
         method.setRequest(request);
         method.setResponse(response);
         if (comments != null && comments.size() > 0) {
-            method.setComment(comments.get(0));
+            Comment comment = new Comment();
+            comment.setType(CommentType.MULTILINE);
+            List<String> lines = new ArrayList<>();
+            for (Comment c : comments) {
+                if (c.getLines() != null && !c.getLines().isEmpty()) {
+                    lines.addAll(c.getLines());
+                }
+            }
+            comment.setLines(lines);
+            method.setComment(comment);
             comments.clear();
         }
         return method;
@@ -703,7 +738,7 @@ public class ProtoParser {
         return false;
     }
 
-    private boolean isServiceMethodEnd() {
+    private boolean isServiceMethodEnd(ServiceMethod method) throws ProtoParseException {
         trim();
         if (pos >= data.length) {
             return false;
@@ -716,10 +751,22 @@ public class ProtoParser {
             pos++;
             trim();
             boolean next = nextLine();
+            String token;
+            List<Option> options = new ArrayList<>();
             while (next) {
                 trim();
+                if (data[pos] == '}') {
+                    break;
+                }
+                token = readToken();
+                if (token.equalsIgnoreCase("option")) {
+                    Option option = readLineOption();
+                    options.add(option);
+                    trim();
+                }
                 next = nextLine();
             }
+            method.setOptions(options);
             if (pos < data.length) {
                 c = data[pos];
                 if (c == '}') {
@@ -731,6 +778,35 @@ public class ProtoParser {
             }
         }
         return false;
+    }
+
+    private Option readLineOption() throws ProtoParseException {
+        String name = readOptionNameToken();
+        pos++;
+        trim();
+        String value = readOptionValue();
+        Option option = new Option();
+        name = name.trim();
+        if (name.startsWith("(")) {
+            name = name.substring(1).trim();
+        }
+        if (name.endsWith(")")) {
+            name = name.substring(0, name.length() - 1).trim();
+        }
+        option.setName(name);
+        option.setValue(value);
+        char c = data[pos-1];
+        if (c == ' ') {
+            trim();
+            c = data[pos];
+            if (c != ';') {
+                throw new ProtoParseException("method option havn't finish!");
+            }
+            pos++;
+        } else if (c != ';') {
+            throw new ProtoParseException("method option havn't finish!");
+        }
+        return option;
     }
 
     private List<String> parseMethodVars() throws ProtoParseException {
@@ -782,7 +858,9 @@ public class ProtoParser {
             comments.clear();
         }
         oneof.setName(name);
-        System.out.println(ONEOF_MSG + name + START_MSG);
+        if (printParseInfo) {
+            System.out.println(ONEOF_MSG + name + START_MSG);
+        }
         blockStarted("oneof");
         String token = readToken();
         while (token.length() > 0) {
@@ -801,7 +879,9 @@ public class ProtoParser {
             }
             boolean isEnd = blockEnd();
             if (isEnd) {
-                System.out.println(ONEOF_MSG + name + " end");
+                if (printParseInfo) {
+                    System.out.println(ONEOF_MSG + name + " end");
+                }
                 fieldEnd();
                 return oneof;
             }
@@ -839,7 +919,23 @@ public class ProtoParser {
     }
 
     private String parseExtensions() throws ProtoParseException {
-        return readExpression();
+        StringBuilder exp = new StringBuilder();
+        trim();
+        char c;
+        while (pos < data.length) {
+            c = data[pos];
+            switch (c) {
+                case ';':
+                    pos++;
+                    trim();
+                    return exp.toString();
+                default:
+                    exp.append(c);
+            }
+            pos++;
+        }
+        throw new ProtoParseException(ROW_MSG + row +
+                "] expression not end with char ';'");
     }
 
     private Field parseField(Cardinality cardinality, String fieldType)
@@ -971,6 +1067,22 @@ public class ProtoParser {
             pos++;
         }
         return false;
+    }
+
+    private String readLineInComment() throws ProtoParseException {
+        StringBuilder sb = new StringBuilder();
+        char c;
+        while (pos < data.length) {
+            c = data[pos];
+            if (c == '*' && pos < data.length - 1 && data[pos+1] == '/') {
+                pos += 2;
+                return sb.toString();
+            } else {
+                pos++;
+                sb.append(c);
+            }
+        }
+        throw new ProtoParseException("行内注释未正常结束");
     }
 
     /**
@@ -1149,14 +1261,39 @@ public class ProtoParser {
                     pv.setValue(v.toString()).setOptions(options);
                     return pv;
                 case '\n':
-                    throw new ProtoParseException("row " + row
-                            + VALUE_END_ERROR);
+                    pos++;
+                    trim();
+                    c = data[pos];
+                    switch (c) {
+                        case '[':
+                            options = readFieldOptions();
+                            pv.setValue(v.toString()).setOptions(options);
+                            return pv;
+                        case ';':
+                            return pv;
+                        default:
+                            v.append(c);
+                            break;
+                    }
+                    break;
                 default:
                     v.append(c);
             }
             pos++;
         }
         throw new ProtoParseException("row " + row + " value not end");
+    }
+
+    private String readOptionObject() {
+        for (int i=pos;i<data.length;i++) {
+            char c = data[i];
+            if (c == '}') {
+                String v = "{" + new String(data, pos, i-pos) + "}";
+                pos = i + 1;
+                return v;
+            }
+        }
+        throw new RuntimeException("Extensions 格式错误!");
     }
 
     /**
@@ -1171,6 +1308,8 @@ public class ProtoParser {
             pos++;
             ProtoValue pv = readQuoteValue(c);
             return pv.getValue();
+        } else if (c == '{') {
+            return readOptionObject();
         }
         StringBuilder v = new StringBuilder();
         while (pos < data.length) {
@@ -1184,6 +1323,9 @@ public class ProtoParser {
                     if (pos < data.length && data[pos] == ']') {
                         pos++;
                     }
+                    return v.toString();
+                case ';':
+                    pos++;
                     return v.toString();
                 case ' ':
                     trim();
@@ -1315,6 +1457,13 @@ public class ProtoParser {
                 return options;
             }
             trim();
+            if (data[pos] == '\n') {
+                pos++;
+                trim();
+                if (data[pos] == ']') {
+                    continue;
+                }
+            }
             String name = readOptionNameToken();
 
             readValueSeparator('=');
