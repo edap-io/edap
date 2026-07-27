@@ -23,6 +23,8 @@ import java.util.List;
  * protocol buffer消息体的结构定义
  */
 public class Message {
+
+    private Proto proto;
     /**
      * 消息的名称
      */
@@ -317,5 +319,13 @@ public class Message {
     public Message setComment(Comment comment) {
         this.comment = comment;
         return this;
+    }
+
+    public Proto getProto() {
+        return proto;
+    }
+
+    public void setProto(Proto proto) {
+        this.proto = proto;
     }
 }
