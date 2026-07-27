@@ -224,23 +224,29 @@ public class JavaBuilder {
     }
 
     private void buildDtoImps(CodeBuilder cb, List<ServiceMethod> methods, JavaBuildOption buildOps,
-                              Proto proto) {
+                              Proto proto, Map<String, Proto> impMessages, Map<String, Message> needSaveJavaFiles) {
         List<String> impMsgs = new ArrayList<>();
         if (buildOps.isEdapRpc()) {
             if (!impMsgs.contains("io.edap.rpc.annotation.EdapService")) {
                 impMsgs.add("io.edap.rpc.annotation.EdapService");
             }
         }
-        String javaPackage = buildOps.getJavaPackage();
-        String protoPackage = proto.getProtoPackage();
         if (buildOps.getDtoPrefix() != null && !buildOps.getDtoPrefix().isEmpty()
                 && methods != null && !methods.isEmpty()) {
             methods.stream()
                     .forEach(m -> {
+                        String respType = m.getResponse();
+                        if (impMessages.containsKey(respType)) {
+                            System.out.println("#########respType=" + respType);
+                        }
                         String respName = fillDtoPackName(
                                 buildOps.getJavaPackage() + "."
                                         + m.getResponse(), buildOps);
                         addImport(impMsgs, respName);
+                        String reqType = m.getRequest();
+                        if (impMessages.containsKey(reqType)) {
+                            System.out.println("#########reqType=" + reqType);
+                        }
                         String reqName = fillDtoPackName(
                                 buildOps.getJavaPackage() + "."
                                         + m.getRequest(), buildOps);
@@ -258,19 +264,39 @@ public class JavaBuilder {
                                 break;
                         }
                         String reqType = m.getRequest();
-                        if (reqType.indexOf('.') != -1) {
-                            if (!javaPackage.equals(protoPackage) && reqType.startsWith(protoPackage)) {
-                                reqType = javaPackage + "." + reqType.substring(protoPackage.length() + 1);
+                        if (impMessages.containsKey(reqType)) {
+                            Proto impProto = impMessages.get(reqType);
+                            String impJavaPack = impProto.getOptionValue("java_package");
+                            if (!impProto.getProtoPackage().equals(impJavaPack)) {
+                                reqType = impJavaPack + reqType.substring(impProto.getProtoPackage().length());
                             }
-                            addImport(impMsgs, reqType);
+                            String msgName;
+                            int index = reqType.lastIndexOf('.');
+                            if (index == -1) {
+                                msgName = reqType;
+                            } else {
+                                msgName = reqType.substring(index + 1);
+                            }
+                            needSaveJavaFiles.put(reqType, impProto.getMessage(msgName));
                         }
+                        addImport(impMsgs, reqType);
                         String respType = m.getResponse();
-                        if (respType.indexOf('.') != -1) {
-                            if (!javaPackage.equals(protoPackage) && respType.startsWith(protoPackage)) {
-                                respType = javaPackage + "." + respType.substring(protoPackage.length() + 1);
+                        if (impMessages.containsKey(respType)) {
+                            Proto impProto = impMessages.get(respType);
+                            String impJavaPack = impProto.getOptionValue("java_package");
+                            if (!impProto.getProtoPackage().equals(impJavaPack)) {
+                                respType = impJavaPack + respType.substring(impProto.getProtoPackage().length());
                             }
-                            addImport(impMsgs, respType);
+                            String msgName;
+                            int index = respType.lastIndexOf('.');
+                            if (index == -1) {
+                                msgName = respType;
+                            } else {
+                                msgName = respType.substring(index + 1);
+                            }
+                            needSaveJavaFiles.put(respType, impProto.getMessage(msgName));
                         }
+                        addImport(impMsgs, respType);
                     });
         }
         impMsgs.stream()
@@ -279,7 +305,8 @@ public class JavaBuilder {
     }
 
     public String buildService(Service service, int indent, JavaBuildOption buildOps,
-                               Map<String, String> msgComments, Proto proto) {
+                               Map<String, String> msgComments, Proto proto, Map<String, Proto> allProtos,
+                               Map<String, Message> needSaveJavaFiles) {
         int level = (indent < 1) ? 1 : indent;
         final CodeBuilder cb = new CodeBuilder();
         String javaPackage = buildOps.getJavaPackage();
@@ -287,8 +314,29 @@ public class JavaBuilder {
             cb.e(PACKNAME_STR).arg(javaPackage).ln(2);
         }
 
+        List<String> impProtos = proto.getImports();
+        Map<String, Proto> impMessages = new HashMap<>();
+        if (impProtos != null && !impProtos.isEmpty()) {
+            for (String name : impProtos) {
+                Proto impp = allProtos.get(name);
+                if (impp == null) {
+                    continue;
+                }
+                List<Message> messages = impp.getMessages();
+                if (messages == null || messages.isEmpty()) {
+                    continue;
+                }
+                String key;
+                for (Message msg : messages) {
+                    key = impp.getProtoPackage() + "." + msg.getName();
+                    impMessages.put(key, impp);
+                }
+            }
+        }
+
+
         List<ServiceMethod> methods = service.getMethods();
-        buildDtoImps(cb, methods, buildOps, proto);
+        buildDtoImps(cb, methods, buildOps, proto, impMessages, needSaveJavaFiles);
         String name;
         String serviceName = service.getName();
         if (serviceName == null || serviceName.length() < 1) {
@@ -299,6 +347,7 @@ public class JavaBuilder {
         }
         cb.ln();
         cb.c("/**").ln();
+        cb.c(" * Declared in ").c(proto.getName()).ln();
         if (service.getComments() != null && !service.getComments().getLines().isEmpty()) {
             service.getComments().getLines().forEach(comment -> cb.c(" * ").c(comment).ln());
         }
@@ -409,7 +458,7 @@ public class JavaBuilder {
     }
 
     private void buildMsgImps(Message msg, List<Field> tmp, List<String> imps,
-                              JavaBuildOption buildOps, Proto proto) {
+                              JavaBuildOption buildOps, Proto proto, Map<String, Proto> messageProtos) {
         if (msg.getFields() != null) {
             msg.getFields().forEach(e -> {
                 getJavaType(e, imps, buildOps, proto);
@@ -427,9 +476,22 @@ public class JavaBuilder {
 
         imps.add(ProtoField.class.getName());
         for (int i=0;i<tmp.size();i++) {
-            if (tmp.get(i) instanceof MapField) {
+            Field field = tmp.get(i);
+            String type = field.getType();
+            int index = type.lastIndexOf('.');
+            if (index != -1) {
+                Proto impProto = messageProtos.get(type);
+                if (impProto != null) {
+                    String javaPackage = impProto.getOptionValue("java_package");
+                    if (javaPackage == null) {
+                        javaPackage = impProto.getProtoPackage();
+                    }
+                    addImport(imps, javaPackage + type.substring(index));
+                }
+            }
+            if (field instanceof MapField) {
                 addImport(imps, "java.util.Map");
-            } else if (tmp.get(i).getCardinality() == Field.Cardinality.REPEATED) {
+            } else if (field.getCardinality() == Field.Cardinality.REPEATED) {
                 addImport(imps, "java.util.List");
                 addImport(imps, "java.util.ArrayList");
             }
@@ -486,14 +548,33 @@ public class JavaBuilder {
 
     public String buildMessage(Proto proto, Message msg, int indent,
                                Map<String, String> defineMsgs, JavaBuildOption buildOps,
-                               Map<String, Proto> protos) {
+                               Map<String, Proto> protos, Map<String, Message> needSaveJavaFiles) {
         Map<String, ProtoEnum> protoEnums = getAllProtoEnum(proto, protos);
         int level = (indent < 1) ? 1 : indent;
         final CodeBuilder cb = new CodeBuilder();
         String javaPackage = buildOps.getJavaPackage();
         List<Field> tmp = new ArrayList<>();
         List<String> imps = new ArrayList<>();
-        buildMsgImps(msg, tmp, imps, buildOps, proto);
+        Map<String, Proto> messageProtos = new HashMap<>();
+        for (Map.Entry<String, Proto> entry : protos.entrySet()) {
+            Proto p = entry.getValue();
+            List<Message> msgs = p.getMessages();
+            if (msgs != null && !msgs.isEmpty()) {
+                for (Message m : msgs) {
+                    String key = p.getProtoPackage() + "." + m.getName();
+                    messageProtos.put(key, p);
+                }
+            }
+            List<ProtoEnum> enums = p.getEnums();
+            if (enums != null && !enums.isEmpty()) {
+                for (ProtoEnum e : enums) {
+                    String key = p.getProtoPackage() + "." + e.getName();
+                    messageProtos.put(key, p);
+                }
+            }
+
+        }
+        buildMsgImps(msg, tmp, imps, buildOps, proto, messageProtos);
         addImport(imps, Proto.class.getPackage().getName() + ".Field.Type");
         addImport(imps, "java.io.Serializable");
 
@@ -502,13 +583,24 @@ public class JavaBuilder {
                 .forEach(fields::add);
 
         if (!buildOps.isIsNested() && javaPackage != null && !javaPackage.isEmpty()) {
-            cb.e(PACKNAME_STR).arg(buildOps.getJavaPackage()).ln(2);
+            cb.e(PACKNAME_STR).arg(proto.getOptionValue("java_package")).ln(2);
         }
         if (!buildOps.isIsNested()) {
             imps.stream().sorted(Comparator.naturalOrder())
                     .forEach(e -> cb.t(level-1).e("import $cls$;").arg(e).ln());
         }
         cb.ln();
+        if (msg.getComment() == null) {
+            Comment comment = new Comment();
+            comment.setType(Comment.CommentType.MULTILINE);
+            msg.setComment(comment);
+        }
+        List<String> clines = msg.getComment().getLines();
+        if (clines == null) {
+            clines = new ArrayList<>();
+            msg.getComment().setLines(clines);
+        }
+        clines.add(0, "Created in " + proto.getName());
         buildDocComment(cb, msg.getComment(), level-1);
         cb.t(level-1).e("public class $name$ implements Serializable {").arg(msg.getName()).ln(2);
 
@@ -522,7 +614,6 @@ public class JavaBuilder {
 
         CodeBuilder cons = new CodeBuilder();
         buildDefaultValCode(cons, msg, buildOps, level, protoEnums, proto);
-        String protoPackage = proto.getProtoPackage();
         for (int i=0;i<size;i++) {
             Field f = fields.get(i);
             getCode = new CodeBuilder();
@@ -724,7 +815,8 @@ public class JavaBuilder {
         JavaBuildOption nestedOps = new JavaBuildOption();
         nestedOps.setIsNested(true);
         msgs.stream().sorted(Comparator.comparing(Message::getName))
-                .forEach(e -> cb.c(buildMessage(proto, e, level + 1, defineMsgs, nestedOps, protos)));
+                .forEach(e -> cb.c(buildMessage(proto, e, level + 1, defineMsgs, nestedOps, protos,
+                        new HashMap<>())));
     }
 
     private void nestMessageEnum(CodeBuilder cb, List<ProtoEnum> enums, int indent) {
@@ -758,6 +850,9 @@ public class JavaBuilder {
         if (!buildOps.isIsNested() && javaPackage != null && !javaPackage.isEmpty()) {
             cb.e(PACKNAME_STR).arg(buildOps.getJavaPackage()).ln(2);
         }
+        cb.c("/**").ln();
+        cb.c(" * ").c("Created in ").c(protoEnum.getProto().getName()).ln();
+        cb.c(" */").ln(2);
         cb.c("import ").c(io.edap.protobuf.annotation.ProtoEnum.class.getName()).c(";").ln(2);
 
         cb.t(level-1).c("@").c(io.edap.protobuf.annotation.ProtoEnum.class.getSimpleName()).ln(1);
@@ -768,14 +863,27 @@ public class JavaBuilder {
                     .max(Comparator.comparingInt(e -> e.getLabel().length()));
             int len = maxLen.isPresent()?maxLen.get().getLabel().length():1;
 
-            List<EnumEntry> es = new ArrayList<>();
-            entries.stream()
-                    .sorted(Comparator.comparingInt(EnumEntry::getValue))
-                    .forEach(es::add);
+            Map<Integer, EnumEntry> es = new LinkedHashMap<>();
+            for (EnumEntry entry : entries) {
+                EnumEntry e = es.get(entry.getValue());
+                if (e == null) {
+                    es.put(entry.getValue(), entry);
+                } else {
+                    List<String> alias = e.getAlias();
+                    if (alias == null) {
+                        alias = new ArrayList<>();
+                        e.setAlias(alias);
+                    }
+                    if (!alias.contains(entry.getLabel())) {
+                        alias.add(entry.getLabel());
+                    }
+                }
+            }
             CodeBuilder vsb = new CodeBuilder();
             CodeBuilder psb = new CodeBuilder();
-            for (int i=0;i<es.size();i++) {
-                EnumEntry o = es.get(i);
+            int i = 0;
+            for (Map.Entry<Integer, EnumEntry> entry : es.entrySet()) {
+                EnumEntry o = entry.getValue();
                 String sep = (i != es.size()-1) ? "," : ";";
                 String spaces = getFillSpaces(len - o.getLabel().length());
                 String[] args = new String[]{o.getLabel(), spaces,
@@ -784,10 +892,18 @@ public class JavaBuilder {
 
                 psb.t(level).e("public static final int $lable$_VALUE = $value$;")
                         .arg(o.getLabel(), String.valueOf(o.getValue())).ln();
+                List<String> alias = o.getAlias();
+                if (alias != null && !alias.isEmpty()) {
+                    for (String a : alias) {
+                        psb.t(level).e("public static final $name$ $ALIAS$ = $LABEL$;")
+                                .arg(protoEnum.getName(), a, o.getLabel()).ln();
+                    }
+                }
 
                 vsb.t(level+2).e("case $value$:").arg(String.valueOf(o.getValue())).ln();
                 vsb.t(level+3).e("return $name$.$label$;")
                         .arg(protoEnum.getName(), o.getLabel()).ln();
+                i++;
             }
             cb.ln();
 

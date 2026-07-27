@@ -182,6 +182,8 @@ public class IfaceGenerator {
 
         }
 
+        Map<String, Message> needSaveJavaFile = new HashMap<>();
+
         List<Message> msgs = proto.getMessages();
         if (msgs != null && !msgs.isEmpty()) {
             String msgPath = srcPath + File.separator
@@ -200,7 +202,8 @@ public class IfaceGenerator {
                         }
                         msgComments.put(e.getName(), mc.toString());
 
-                        String code = builder.buildMessage(proto, e, 1, null, buildOps, protos);
+                        String code = builder.buildMessage(proto, e, 1, null, buildOps, protos,
+                                needSaveJavaFile);
                         try {
                             saveJavaFile(msgPath + File.separator
                                     + formatTypeName(e.getName(), Service.ServiceType.UNARY) + ".java", code);
@@ -222,17 +225,47 @@ public class IfaceGenerator {
             String servicePath = srcPath + File.separator
                     + getIfaceSrcPath(pack);
             checkSrcPath(new File(servicePath));
+
             services.stream()
                     .sorted(Comparator.comparing(Service::getName))
                     .forEach(s -> {
-                        String code = builder.buildService(s, 1, buildOps, msgComments, proto);
+                        String code = builder.buildService(s, 1, buildOps, msgComments, proto, protos, needSaveJavaFile);
                         try {
                             saveJavaFile(servicePath + File.separator
                                     + formatTypeName(s.getName(), Service.ServiceType.UNARY) + ".java", code);
                         } catch (IOException ex) {
                             ex.printStackTrace();
                         }
+
                     });
+
+        }
+
+        if (!needSaveJavaFile.isEmpty()) {
+            for (Map.Entry<String, Message> entry : needSaveJavaFile.entrySet()) {
+                Message msg = entry.getValue();
+                String fileDir;
+                String name = entry.getKey();
+                int index = name.lastIndexOf('.');
+                if (index == -1) {
+                    fileDir = "";
+                } else {
+                    fileDir = name.substring(0, index);
+                }
+                fileDir = fileDir.replace('.', '/');
+                File file = new File(srcPath + File.separator + fileDir + File.separator
+                        + formatTypeName(entry.getKey(), Service.ServiceType.UNARY) + ".java");
+                if (!file.getParentFile().exists()) {
+                    file.getParentFile().mkdirs();
+                }
+                String code = builder.buildMessage(msg.getProto(), msg, 1, new HashMap<>(), buildOps, protos,
+                        needSaveJavaFile);
+                try {
+                    saveJavaFile(file.getAbsolutePath(), code);
+                } catch (IOException ex) {
+                    ex.printStackTrace();
+                }
+            }
         }
     }
 }
