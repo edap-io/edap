@@ -41,6 +41,8 @@ public class ProtoEnum {
      */
     private List<Reserved> reserveds;
 
+    private Proto proto;
+
     /**
      * 保留字段的设置
      */
@@ -63,6 +65,14 @@ public class ProtoEnum {
         return this;
     }
 
+    public Proto getProto() {
+        return proto;
+    }
+
+    public void setProto(Proto proto) {
+        this.proto = proto;
+    }
+
     /**
      * 枚举项的定义
      */
@@ -83,6 +93,8 @@ public class ProtoEnum {
          * 枚举值的注释
          */
         private Comment comment;
+
+        private List<String> alias;
 
         /**
          * 枚举值定义的名称
@@ -162,6 +174,14 @@ public class ProtoEnum {
         public EnumEntry setComment(Comment comment) {
             this.comment = comment;
             return this;
+        }
+
+        public List<String> getAlias() {
+            return alias;
+        }
+
+        public void setAlias(List<String> alias) {
+            this.alias = alias;
         }
     }
 
