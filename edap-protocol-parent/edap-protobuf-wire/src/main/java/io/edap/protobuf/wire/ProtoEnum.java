@@ -44,6 +44,11 @@ public class ProtoEnum {
     private Proto proto;
 
     /**
+     * 枚举的备注信息
+     */
+    private Comment comment;
+
+    /**
      * 保留字段的设置
      */
     public List<Reserved> getReserveds() {
@@ -71,6 +76,17 @@ public class ProtoEnum {
 
     public void setProto(Proto proto) {
         this.proto = proto;
+    }
+
+    /**
+     * 枚举的备注信息
+     */
+    public Comment getComment() {
+        return comment;
+    }
+
+    public void setComment(Comment comment) {
+        this.comment = comment;
     }
 
     /**
