@@ -132,6 +132,9 @@ public class Extensions {
                 throw new ProtoParseException("extensions expression start cann't be" + extensions.getStartTag());
             }
             trim();
+            if (pos >= data.length) {
+                return extensions;
+            }
             char c = data[pos];
             if (c == 't') {
                 token = readToken();
@@ -148,6 +151,9 @@ public class Extensions {
                         }
                     }
                     trim();
+                    if (pos >= data.length) {
+                        return extensions;
+                    }
                     c = data[pos];
                     if (c == ';') {
                         return extensions;
@@ -159,10 +165,16 @@ public class Extensions {
                 pos++;
                 List<Option> options = readOptions();
                 extensions.setOptions(options);
+            } else if (c == ';') {
+                pos++;
+                return extensions;
             } else {
                 throw new ProtoParseException("Extensions 格式错误!");
             }
-            if (extensions.getEndTag() < extensions.getStartTag()) {
+            if (extensions.getEndTag() > 0 && extensions.getStartTag() > 0
+                    && extensions.getEndTag() < extensions.getStartTag()) {
+                System.out.println("extensions.getEndTag()=" + extensions.getEndTag() +
+                        ",extensions.getStartTag()=" + extensions.getStartTag());
                 throw new ProtoParseException("extensions start tag <= end tag");
             }
             return extensions;
@@ -265,6 +277,7 @@ public class Extensions {
                         token.append(c);
                 }
             }
+            pos = data.length;
             return token.toString();
         }
     }
