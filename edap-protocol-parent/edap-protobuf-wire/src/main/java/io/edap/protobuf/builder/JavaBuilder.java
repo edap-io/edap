@@ -600,7 +600,10 @@ public class JavaBuilder {
             clines = new ArrayList<>();
             msg.getComment().setLines(clines);
         }
-        clines.add(0, "Created in " + proto.getName());
+        if (!clines.contains("Declared in " + proto.getName())) {
+            clines.add(0, "Declared in " + proto.getName());
+            clines.add(1, "-----------------------------------------------------");
+        }
         buildDocComment(cb, msg.getComment(), level-1);
         cb.t(level-1).e("public class $name$ implements Serializable {").arg(msg.getName()).ln(2);
 
@@ -850,11 +853,21 @@ public class JavaBuilder {
         if (!buildOps.isIsNested() && javaPackage != null && !javaPackage.isEmpty()) {
             cb.e(PACKNAME_STR).arg(buildOps.getJavaPackage()).ln(2);
         }
-        cb.c("/**").ln();
-        cb.c(" * ").c("Created in ").c(protoEnum.getProto().getName()).ln();
-        cb.c(" */").ln(2);
+
         cb.c("import ").c(io.edap.protobuf.annotation.ProtoEnum.class.getName()).c(";").ln(2);
 
+        cb.c("/**").ln();
+        cb.c(" * ").c("Declared in ").c(protoEnum.getProto().getName()).ln();
+        cb.c(" * ").c("----------------------------------------------------------------").ln();
+        if (protoEnum.getComment() != null) {
+            List<String> lines = protoEnum.getComment().getLines();
+            if (lines != null && !lines.isEmpty()) {
+                for (String line : lines) {
+                    cb.c(" * ").c(line).ln();
+                }
+            }
+        }
+        cb.c(" */").ln();
         cb.t(level-1).c("@").c(io.edap.protobuf.annotation.ProtoEnum.class.getSimpleName()).ln(1);
         cb.t(level-1).e("public enum $name$ {").arg(protoEnum.getName()).ln();
         List<EnumEntry> entries = protoEnum.getEntries();
