@@ -183,7 +183,6 @@ public class ProtoParser {
                     comments.clear();
                     break;
                 case "enum":
-                    setProtoComments(proto);
                     ProtoEnum protoEnum = parseEnum();
                     proto.addEnum(protoEnum);
                     protoEnum.setProto(proto);
@@ -447,6 +446,18 @@ public class ProtoParser {
         }
         ProtoEnum protoEnum = new ProtoEnum();
         protoEnum.setName(name);
+        if (!comments.isEmpty()) {
+            Comment comment = new Comment();
+            List<String> lines = new ArrayList<>();
+            for (Comment c : comments) {
+                if (c.getLines() != null && !c.getLines().isEmpty()) {
+                    lines.addAll(c.getLines());
+                }
+            }
+            comment.setLines(lines);
+            protoEnum.setComment(comment);
+            comments.clear();
+        }
         if (printParseInfo) {
             System.out.println("Enum " + name + START_MSG);
         }
