@@ -70,7 +70,9 @@ public class IfaceGenerator {
                 }
                 ProtoParser parser = new ProtoParser(builder.toString());
                 parser.setPrintParseInfo(true);
-                allProtos.put(name, parser.parse());
+                Proto proto = parser.parse();
+                proto.setName(name);
+                allProtos.put(name, proto);
             } catch (Exception e) {
                 System.out.println("parse error name=" + name);
                 e.printStackTrace();
