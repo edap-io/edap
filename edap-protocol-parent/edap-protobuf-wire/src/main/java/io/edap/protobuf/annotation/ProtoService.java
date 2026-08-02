@@ -16,29 +16,16 @@
 
 package io.edap.protobuf.annotation;
 
-import io.edap.protobuf.wire.Syntax;
-
 import java.lang.annotation.*;
 
 /**
- * 作为protocol bufferMessage的注解
+ * 由proto文件定义的微服务注解
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target({ElementType.TYPE})
 @Inherited
 @Documented
-public @interface ProtoMessage {
-    /**
-     * 生成protobuf message时的注释信息
-     * @return
-     */
-    String comment() default "";
-
-    /**
-     * Protocol Buffer的协议版本
-     * @return
-     */
-    Syntax syntax() default Syntax.PROTO_3;
+public @interface ProtoService {
 
     /**
      * 生成该java文件的proto文件名称，通常在api包的resources/proto目录中

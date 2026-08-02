@@ -7,4 +7,9 @@ import java.lang.annotation.*;
 @Inherited
 @Documented
 public @interface ProtoEnum {
+    /**
+     * 生成该java文件的proto文件的名称
+     * @return
+     */
+    String protoFile();
 }
