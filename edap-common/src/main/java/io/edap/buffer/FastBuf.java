@@ -221,6 +221,14 @@ public class FastBuf extends BasePoolEntry {
         return len;
     }
 
+    public int getInt(long address) {
+        return UnsafeUtil.getInt(address);
+    }
+
+    public long getLong(long address) {
+        return UnsafeUtil.getLong(address);
+    }
+
     public int writeTo(byte[] bs, int offseet, int len) {
         UnsafeUtil.copyMemory(readPos, bs, offseet, len);
         return len;

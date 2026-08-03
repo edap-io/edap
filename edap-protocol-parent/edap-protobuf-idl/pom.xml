@@ -27,12 +27,6 @@
 
     <artifactId>edap-protobuf-idl</artifactId>
 
-    <properties>
-        <maven.compiler.source>8</maven.compiler.source>
-        <maven.compiler.target>8</maven.compiler.target>
-        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    </properties>
-
     <dependencies>
         <dependency>
             <groupId>io.edap</groupId>
@@ -50,16 +44,17 @@
             <groupId>io.edap</groupId>
             <artifactId>edap-log-api</artifactId>
         </dependency>
+        <dependency>
+            <groupId>org.ow2.asm</groupId>
+            <artifactId>asm-tree</artifactId>
+        </dependency>
 
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter</artifactId>
             <scope>test</scope>
         </dependency>
-        <dependency>
-            <groupId>org.ow2.asm</groupId>
-            <artifactId>asm-tree</artifactId>
-        </dependency>
+
 <!--        <dependency>-->
 <!--            <groupId>com.yonyou.diwork</groupId>-->
 <!--            <artifactId>diwork-pub-auth</artifactId>-->

@@ -16,7 +16,6 @@
 
 package io.edap.protobuf.idl.util;
 
-import io.edap.protobuf.ProtoBuf;
 import io.edap.protobuf.ProtoFieldInfo;
 import io.edap.protobuf.builder.ProtoBuilder;
 import io.edap.protobuf.builder.ProtoV3Builder;

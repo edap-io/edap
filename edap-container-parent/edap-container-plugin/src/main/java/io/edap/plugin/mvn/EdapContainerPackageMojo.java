@@ -31,6 +31,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.text.Format;
 import java.util.*;
 import java.util.jar.*;
 import java.util.stream.Stream;
@@ -42,7 +43,7 @@ import java.util.zip.ZipEntry;
 @Mojo(name = "package",
         defaultPhase = LifecyclePhase.PROCESS_CLASSES,
         requiresDependencyResolution = ResolutionScope.COMPILE)
-public class EdapContainerRepackageMojo extends AbstractMojo {
+public class EdapContainerPackageMojo extends AbstractMojo {
 
     /** 插件坐标(artifactId)。Maven 3.0+ 注入 */
     @Parameter(defaultValue = "${plugin.artifactId}", readonly = true)
@@ -101,6 +102,8 @@ public class EdapContainerRepackageMojo extends AbstractMojo {
                     ensureTrailingSlash(classesPrefix), written);
 
             jos.putNextEntry(new JarEntry("BOOT-INF/lib/"));
+            List<String> libs = new ArrayList<>();
+            StringBuilder libsStr = new StringBuilder();
             for (Artifact artifact : artifacts) {
                 getLog().info("Dependency: " + artifact.getFile());
                 getLog().info("artifactId: " + artifact.getArtifactId());
@@ -109,7 +112,23 @@ public class EdapContainerRepackageMojo extends AbstractMojo {
                 if ("compile".equalsIgnoreCase(artifact.getScope())) {
                     addNestedJar(jos, artifact.getFile().toPath(),
                             "BOOT-INF/lib/" + artifact.getFile().getName());
+                    String lib = artifact.getGroupId() + ":" + artifact.getArtifactId();
+                    libs.add(lib);
                 }
+            }
+            Collections.sort(libs);
+            for (String lib : libs) {
+                libsStr.append(lib).append('\n');
+            }
+
+            String appPluginPath = project.getBasedir().getParent() + File.separator + "edap-app-plugin";
+            File resourcesDir = new File(appPluginPath + "/src/main/resources");
+            if (resourcesDir.exists()) {
+                File bootLibsFile = new File(resourcesDir.getAbsolutePath() +
+                        "/edap-container-boot-lib.txt");
+                RandomAccessFile libsFile = new RandomAccessFile(bootLibsFile, "rw");
+                libsFile.write(libsStr.toString().getBytes(StandardCharsets.UTF_8));
+                libsFile.close();
             }
         } catch (FileNotFoundException e) {
             throw new RuntimeException(e);

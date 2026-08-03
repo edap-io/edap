@@ -16,13 +16,12 @@
 
 package io.edap.protobuf.builder;
 
-import io.edap.protobuf.annotation.ProtoField;
-import io.edap.protobuf.annotation.ProtoMessage;
-import io.edap.protobuf.annotation.ProtoService;
+import io.edap.protobuf.annotation.*;
 import io.edap.protobuf.internal.CodeBuilder;
 import io.edap.protobuf.wire.*;
 import io.edap.protobuf.wire.Field.Type;
 import io.edap.protobuf.wire.Field.Cardinality;
+import io.edap.protobuf.wire.ProtoEnum;
 import io.edap.protobuf.wire.ProtoEnum.EnumEntry;
 import io.edap.protobuf.wire.WireFormat.JavaType;
 
@@ -261,6 +260,17 @@ public class JavaBuilder {
         if (methods != null && !methods.isEmpty()) {
             methods.stream()
                     .forEach(m -> {
+                        List<Option> options = m.getOptions();
+                        if (options != null && !options.isEmpty()) {
+                            for (Option option : options) {
+                                if (option.getName().startsWith("edap.rpc.api.http_")) {
+                                    addImport(impMsgs, ProtoHttp.class.getName());
+                                }
+                                if (option.getName().startsWith("edap.rpc.api.ws_")) {
+                                    addImport(impMsgs, ProtoWebSocket.class.getName());
+                                }
+                            }
+                        }
                         switch (m.getType()) {
                             case CLIENT_STREAM:
                             case SERVER_STREAM:
@@ -405,6 +415,54 @@ public class JavaBuilder {
                     cb.t(level).e(" * @param $param$ ").arg(params[3]).ln();
                     cb.t(level).e(" * @return").arg(params[3]).ln();
                     cb.t(level).c(" */").ln();
+                    List<Option> options = m.getOptions();
+                    if (options != null && !options.isEmpty()) {
+                        String protoWs = null;
+                        Map<String, String> protoHttp = null;
+                        for (Option option : options) {
+                            switch (option.getName()) {
+                                case "edap.rpc.api.ws_method":
+                                    protoWs = "@ProtoWebSocket(method = \"" + option.getValue() + "\")";
+                                    break;
+                                case "edap.rpc.api.http_path":
+                                    if (protoHttp == null) {
+                                        protoHttp = new HashMap<>();
+                                    }
+                                    protoHttp.put("path", option.getValue());
+                                    break;
+                                case "edap.rpc.api.http_method":
+                                    if (protoHttp == null) {
+                                        protoHttp = new HashMap<>();
+                                    }
+                                    protoHttp.put("method", option.getValue());
+                                    break;
+                            }
+                        }
+                        if (protoWs != null) {
+                            cb.t(level).c(protoWs).ln();
+                        }
+                        if (protoHttp != null) {
+                            boolean needDou = false;
+                            cb.t(level).c("@ProtoHttp(");
+                            if (protoHttp.containsKey("path")) {
+                                if (needDou) {
+                                    cb.c(", ");
+                                } else {
+                                    needDou = true;
+                                }
+                                cb.c("path=\"").c(protoHttp.get("path")).c("\"");
+                            }
+                            if (protoHttp.containsKey("method")) {
+                                if (needDou) {
+                                    cb.c(", ");
+                                } else {
+                                    needDou = true;
+                                }
+                                cb.c("method= \"").c(protoHttp.get("method")).c("\"");
+                            }
+                            cb.c(")").ln();
+                        }
+                    }
                     cb.t(level).e("$return$ $func$($param$ $arg$);")
                             .arg(params).ln();
                 });

@@ -182,6 +182,14 @@ public class ClazzUtil {
         return methods;
     }
 
+    public static Method getClassMethod(Class clazz, String name, Class<?>... paramTypes) {
+        try {
+            return clazz.getMethod(name, paramTypes);
+        } catch (NoSuchMethodException e) {
+            return null;
+        }
+    }
+
     public static void fillParentMethod(Class msgCls, List<Method> aMethod) {
         Class pClass = msgCls.getSuperclass();
         while (pClass != null && pClass != Object.class) {

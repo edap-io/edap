@@ -31,7 +31,7 @@
         <module>edap-container</module>
         <module>edap-manager-common</module>
         <module>edap-manager-telnet</module>
-        <module>edap-app-plugin</module>
         <module>edap-container-plugin</module>
+        <module>edap-app-plugin</module>
     </modules>
 </project>

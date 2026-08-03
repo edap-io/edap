@@ -1,0 +1,16 @@
+com.lmax:disruptor
+io.edap:edap-asm-utils
+io.edap:edap-common
+io.edap:edap-http-core
+io.edap:edap-http-server
+io.edap:edap-json
+io.edap:edap-log
+io.edap:edap-log-api
+io.edap:edap-microservice-annotation
+io.edap:edap-nio-common
+io.edap:edap-nio-native
+io.edap:edap-nio-server
+io.edap:edap-protobuf
+io.edap:edap-protobuf-api
+io.edap:edap-protobuf-wire
+org.ow2.asm:asm

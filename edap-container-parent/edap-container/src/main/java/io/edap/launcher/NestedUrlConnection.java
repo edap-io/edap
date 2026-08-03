@@ -21,7 +21,9 @@ public class NestedUrlConnection extends URLConnection {
     public NestedUrlConnection(URL url) {
         super(url);
         String s = url.toString();
-        if (s.startsWith("nested:")) s = s.substring("nested:".length());
+        if (s.startsWith("nested:")) {
+            s = s.substring("nested:".length());
+        }
         int firstBang = s.indexOf("!/");
         if (firstBang < 0) {
             this.outerJarPath = s;

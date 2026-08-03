@@ -169,22 +169,17 @@ public class RangeHttpRequestDecoder extends AbstractHttpDecoder implements Deco
                 request.setVersion(version);
             case READ_HEADER:
                 if (request.pathInfo.getHandlerOption() != null && request.pathInfo.getHandlerOption().isLazyParseHeader()) {
+                    ByteData headerData;
                     if (!request.pathInfo.getHandlerOption().isEnablePipelining() && "GET".equals(request.methodInfo.getMethod())) {
-                        ByteData headerData = HEADER_FAST_DECODER.decode(buf, dataRange, request);
-                        if (headerData != null) {
-                            request.setHeaderData(headerData);
-                            result.setFinished(true);
-                        } else {
-                            break;
-                        }
+                        headerData = HEADER_FAST_DECODER.decode(buf, dataRange, request);
                     } else {
-                        ByteData headerData = HEADER_DECODER.decode(buf, dataRange, request);
-                        if (headerData != null) {
-                            request.setHeaderData(headerData);
-                            result.setFinished(true);
-                        } else {
-                            break;
-                        }
+                        headerData = HEADER_DECODER.decode(buf, dataRange, request);
+                    }
+                    if (headerData != null) {
+                        request.setHeaderData(headerData);
+                        result.setFinished(true);
+                    } else {
+                        break;
                     }
                 } else {
                     dataRange.reset();

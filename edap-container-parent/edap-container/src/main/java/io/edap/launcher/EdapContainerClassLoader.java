@@ -5,14 +5,9 @@ import java.io.IOException;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.security.CodeSource;
-import java.util.Collections;
-import java.util.Enumeration;
-import java.util.List;
-import java.util.Vector;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.jar.Manifest;
-
-import static io.edap.launcher.JarLauncher.scanLibJars;
 
 /**
  * 启动用 ClassLoader。
@@ -25,7 +20,7 @@ import static io.edap.launcher.JarLauncher.scanLibJars;
  *  - sealed 包(java.* / javax.* / sun.* / jdk.*)由 bootstrap 处理,直接走 parent。
  *  - 资源加载(META-INF/services 等)也用 NestedJarFile 实现,不走 URLClassLoader 默认链路。
  */
-public class EdapContainerURLClassLoader extends URLClassLoader {
+public class EdapContainerClassLoader extends URLClassLoader {
 
     /** 根 NestedJarFile:对应 BOOT-INF/classes/ */
     private final NestedJarFile root;
@@ -45,12 +40,12 @@ public class EdapContainerURLClassLoader extends URLClassLoader {
     private final List<Class<?>> loadedByMe =
             Collections.synchronizedList(new java.util.ArrayList<>());
 
-    public EdapContainerURLClassLoader(File jarFile, ClassLoader parent) throws IOException {
+    public EdapContainerClassLoader(File jarFile, String nestDir, ClassLoader parent) throws IOException {
         super(new URL[]{ /* placeholder,实际 findClass 走 NestedJarFile */ }, parent);
-        this.root = new NestedJarFile(jarFile);
-        this.libJars = scanLibJars(root);
-        this.classesPrefix = "BOOT-INF/classes/";
-        this.rootAbsPath = jarFile.getAbsolutePath();
+        this.root          = new NestedJarFile(jarFile);
+        this.libJars       = scanLibJars(root, nestDir);
+        this.classesPrefix = nestDir + "/classes/";
+        this.rootAbsPath   = jarFile.getAbsolutePath();
     }
 
     /**
@@ -60,16 +55,44 @@ public class EdapContainerURLClassLoader extends URLClassLoader {
      * @param rootAbsPath   外层 jar 的绝对路径,用于 CodeSource/资源 URL
      * @param parent        父 ClassLoader,通常是 AppClassLoader
      */
-    public EdapContainerURLClassLoader(NestedJarFile root,
-                                       List<NestedJarFile> libJars,
-                                       String classesPrefix,
-                                       String rootAbsPath,
-                                       ClassLoader parent) {
+    public EdapContainerClassLoader(NestedJarFile root,
+                                    List<NestedJarFile> libJars,
+                                    String classesPrefix,
+                                    String rootAbsPath,
+                                    ClassLoader parent) {
         super(new URL[]{ /* placeholder,实际 findClass 走 NestedJarFile */ }, parent);
-        this.root = root;
-        this.libJars = libJars != null ? libJars : Collections.emptyList();
+        this.root          = root;
+        this.libJars       = libJars != null ? libJars : Collections.emptyList();
         this.classesPrefix = classesPrefix == null ? "" : classesPrefix;
-        this.rootAbsPath = rootAbsPath;
+        this.rootAbsPath   = rootAbsPath;
+    }
+
+    /**
+     * 扫描外层 jar 的所有 entry,挑出 BOOT-INF/lib/*.jar,
+     * 为每个嵌套 jar 构造 NestedJarFile。
+     *
+     * 顺序:按 entry 名字典序,与 maven-assembly-plugin dependencySet 的输出顺序一致
+     * (即 Maven 解析依赖图的顺序,通常 dependencies 在前,transitives 在后)。
+     */
+    static List<NestedJarFile> scanLibJars(NestedJarFile root, String nestDir) {
+        // 用 TreeSet 保证稳定的扫描顺序,便于日志阅读
+        Set<String> sortedEntries = new TreeSet<>(root.entryNames());
+
+        List<NestedJarFile> libs = new ArrayList<>();
+        for (String entryName : sortedEntries) {
+            if (!entryName.startsWith(nestDir + "lib/") || !entryName.endsWith(".jar")) {
+                continue;
+            }
+            try {
+                NestedJarFile nested = root.getNestedJarFile(entryName);
+                if (nested != null) {
+                    libs.add(nested);
+                }
+            } catch (IOException e) {
+
+            }
+        }
+        return libs;
     }
 
     @Override
@@ -190,7 +213,6 @@ public class EdapContainerURLClassLoader extends URLClassLoader {
     @Override
     public URL findResource(String name) {
         // 1. 根(业务 class 路径在 classesPrefix 下)
-        System.out.println("findResource=" + name);
         try {
             if (root.hasEntry(classesPrefix + name)) {
                 return new URL("nested:" + rootAbsPath + "/" + classesPrefix + name);
@@ -216,7 +238,6 @@ public class EdapContainerURLClassLoader extends URLClassLoader {
      */
     @Override
     public Enumeration<URL> findResources(String name) throws IOException {
-        System.out.println("findResources=" + name);
         Vector<URL> v = new Vector<>();
 
         // 1. 根(业务 class 路径在 classesPrefix 下)
@@ -228,22 +249,13 @@ public class EdapContainerURLClassLoader extends URLClassLoader {
 
         // 2. lib jars
         for (NestedJarFile lib : libJars) {
-            System.out.println("lib=" + lib.getName());
-            if (lib.getName().equals("BOOT-INF/lib/edap-nio-common-0.1.3-SNAPSHOT.jar")) {
-                System.out.println("lib=" + lib.entryNames());
-            }
             try {
-                System.out.println("lib.hasEntry name=" + name + ",lib.hasEntry(name)=" + lib.hasEntry(name));
                 if (lib.hasEntry(name)) {
                     v.add(new URL("nested:" + rootAbsPath + "!/" + lib.getName() + "!/" + name));
                 }
             } catch (Exception ignored) {
                 ignored.printStackTrace();
             }
-        }
-        Enumeration<URL> enums = v.elements();
-        while (enums.hasMoreElements()) {
-            System.out.println("#####" + enums.nextElement().toString());
         }
         // 3. parent 兜底(URLClassLoader 内部会调 parent.findResources)
         return v.elements();

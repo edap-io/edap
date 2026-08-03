@@ -27,9 +27,6 @@
 
     <artifactId>edap-log-api</artifactId>
 
-    <properties>
-    </properties>
-
     <dependencies>
         <!-- 单元测试相关依赖 -->
         <dependency>

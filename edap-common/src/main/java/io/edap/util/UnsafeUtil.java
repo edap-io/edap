@@ -138,6 +138,14 @@ public class UnsafeUtil {
         return UNSAFE.getByte(address);
     }
 
+    public static int getInt(long address) {
+        return UNSAFE.getInt(address);
+    }
+
+    public static long getLong(long address) {
+        return UNSAFE.getLong(address);
+    }
+
     public static void putByte(Object obj, long offset, byte b) {
         UNSAFE.putByte(obj, offset, b);
     }
