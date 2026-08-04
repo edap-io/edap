@@ -209,9 +209,12 @@ public class EdapAppPackageMojo extends AbstractMojo {
             String dirEntry = dirRel.isEmpty()
                     ? prefixSlash
                     : prefixSlash + dirRel + "/";
-            if (written.add(dirEntry)) {
-                jos.putNextEntry(new JarEntry(dirEntry));
-                jos.closeEntry();
+            if (dirEntry != null && dirEntry.trim().length() > 0) {
+                getLog().info("dirEntry: " + dirEntry);
+                if (written.add(dirEntry)) {
+                    jos.putNextEntry(new JarEntry(dirEntry));
+                    jos.closeEntry();
+                }
             }
 
             // 2. 遍历子项:文件直接写,目录入栈
@@ -228,6 +231,7 @@ public class EdapAppPackageMojo extends AbstractMojo {
                             if (entryName.startsWith("/")) {
                                 entryName = entryName.substring(1);
                             }
+                            getLog().info("entryName: " + entryName);
                             if (written.add(entryName)) {
                                 jos.putNextEntry(new JarEntry(entryName));
                                 Files.copy(child, jos);
