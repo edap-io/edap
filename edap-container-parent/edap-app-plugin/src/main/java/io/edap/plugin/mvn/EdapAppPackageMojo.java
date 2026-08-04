@@ -154,11 +154,10 @@ public class EdapAppPackageMojo extends AbstractMojo {
                 project.getArtifactId() + "/"));
         jos.closeEntry();
 
-        String mavenPath = "META-INF/maven/" + project.getGroupId() + "/" +
-                project.getArtifactId();
+        String mavenPath = "META-INF/maven/" + project.getGroupId() + "/" + project.getArtifactId();
         String pomPropName = mavenPath + "/pom.properties";
         StringBuilder pomProps = new StringBuilder();
-        pomProps.append("artifactId=").append(project.getArtifact()).append("\r\n");
+        pomProps.append("artifactId=").append(project.getArtifactId()).append("\r\n");
         pomProps.append("groupId=").append(project.getGroupId()).append("\r\n");
         pomProps.append("version=").append(project.getVersion()).append("\r\n");
         addEntry(jos, pomPropName, pomProps.toString().getBytes(StandardCharsets.UTF_8));
