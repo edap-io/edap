@@ -1,13 +1,11 @@
 package io.edap.plugin.mvn;
 
 import org.apache.maven.artifact.Artifact;
+import org.apache.maven.execution.MavenSession;
 import org.apache.maven.plugin.AbstractMojo;
 import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugin.MojoFailureException;
-import org.apache.maven.plugins.annotations.LifecyclePhase;
-import org.apache.maven.plugins.annotations.Mojo;
-import org.apache.maven.plugins.annotations.Parameter;
-import org.apache.maven.plugins.annotations.ResolutionScope;
+import org.apache.maven.plugins.annotations.*;
 import org.apache.maven.project.MavenProject;
 
 import java.io.*;
@@ -15,6 +13,8 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.jar.*;
 import java.util.stream.Stream;
@@ -44,21 +44,23 @@ public class EdapAppPackageMojo extends AbstractMojo {
     @Parameter(defaultValue = "${project}", readonly = true, required = true)
     private MavenProject project;
 
+    @Component
+    private MavenSession session;
+
+    private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
+
     @Override
     public void execute() throws MojoExecutionException, MojoFailureException {
-        getLog().info("Project.name: " + project.getName());
-        // 获取解析后的所有依赖（包括传递依赖）
-        Set<Artifact> artifacts = project.getArtifacts();
-        for (Artifact artifact : artifacts) {
-            getLog().info("Dependency: " + artifact.getFile());
-            getLog().info("artifactId: " + artifact.getArtifactId());
-            getLog().info("groupId: " + artifact.getGroupId());
-            getLog().info("scope: " + artifact.getScope());
-        }
 
-        String earFile = project.getBasedir().getAbsolutePath() + "/target/" + project.getName() + "-"
-                + project.getVersion() + ".ear";
-        getLog().info("earFile: " + earFile);
+        getLog().info("Build edap's ear package start...");
+        String earFile = project.getBasedir().getAbsolutePath() + "/target/" + project.getName();
+        LocalDateTime buildTime = LocalDateTime.now();
+        if (project.getVersion().endsWith("-SNAPSHOT")) {
+            earFile += "-T" + buildTime.format(TIME_FORMATTER);
+        }
+        earFile += "-" + project.getVersion() + ".ear";
+
+        Set<Artifact> artifacts = project.getArtifacts();
         Path outJar = Paths.get(earFile);
         try {
             Files.createDirectories(outJar.getParent());
@@ -72,7 +74,6 @@ public class EdapAppPackageMojo extends AbstractMojo {
             String line = bin.readLine();
             while (line != null) {
                 if (line.trim().length() > 0) {
-                    System.out.println(line);
                     edapContainerLibs.add(line);
                 }
                 line = bin.readLine();
@@ -88,6 +89,7 @@ public class EdapAppPackageMojo extends AbstractMojo {
         try (JarOutputStream jos = new JarOutputStream(
                 new FileOutputStream(earFile), manifest)) {
 
+            addBuildJson(jos, buildTime);
             addMavenFiles(jos);
 
             // 编译输出目录:默认是 ${project.basedir}/target/classes
@@ -95,7 +97,6 @@ public class EdapAppPackageMojo extends AbstractMojo {
 
             String classesPrefix = "";
             if (classesDir.isDirectory()) {
-                System.out.println("classesDir=" + classesDir.getAbsolutePath());
                 if (classesDir.list().length != 0) {
                     addDirectoryRecursive(jos, classesDir.toPath(), classesDir.toPath(),
                             ensureTrailingSlash(classesPrefix), written);
@@ -119,6 +120,75 @@ public class EdapAppPackageMojo extends AbstractMojo {
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
+
+        getLog().info("Build edap's ear package finished!");
+    }
+
+    private File getTopLevelBaseDir(MavenProject project) {
+        String groupId = project.getGroupId();
+        MavenProject parent = project.getParent();
+        while (parent != null && parent.getGroupId().equals(groupId)) {
+            project = parent;
+            parent = project.getParent();
+        }
+        return project.getBasedir();
+    }
+
+    private File getGitDir(MavenProject project) {
+        File baseDir = project.getBasedir();
+        File gitDir = new File(baseDir, ".git");
+        if (gitDir.exists()) {
+            return gitDir;
+        }
+
+        File topBaseDir = getTopLevelBaseDir(project);
+        if (topBaseDir.getParentFile() != null) {
+            topBaseDir = topBaseDir.getParentFile();
+        }
+
+        File parentDir = baseDir.getParentFile();
+        while (parentDir.getAbsolutePath().startsWith(topBaseDir.getAbsolutePath())) {
+            gitDir = new File(parentDir, ".git");
+            if (gitDir.exists()) {
+                return gitDir;
+            }
+            baseDir = parentDir;
+            parentDir = baseDir.getParentFile();
+        }
+
+        return new File(baseDir, ".git");
+    }
+
+    private void addBuildJson(JarOutputStream jos, LocalDateTime buildTime) throws IOException {
+        jos.putNextEntry(new JarEntry("META-INF/BUILD.json"));
+        File gitDir = getGitDir(project);
+        StringBuilder build = new StringBuilder();
+        build.append("{\n");
+        build.append("\t\"artifact\": \"").append(project.getGroupId()).append(':')
+                .append(project.getArtifactId()).append(':').append(project.getVersion()).append("\",");
+        build.append("\n\t\"buildTime\": \"").append(buildTime.format(TIME_FORMATTER)).append("\"");
+        if (gitDir != null && gitDir.exists()) {
+            RandomAccessFile head = new RandomAccessFile(new File(gitDir, "HEAD"), "r");
+            head.seek(0);
+            byte[] data = new byte[(int)head.length()];
+            head.readFully(data);
+            String refs = new String(data, StandardCharsets.UTF_8).trim();
+            String branch;
+            if (refs.startsWith("ref: ")) {
+                refs = refs.substring(5);
+                if (refs.startsWith("refs/heads/")) {
+                    branch = refs.substring(11);
+                } else {
+                    branch = "detached";
+                }
+            } else {
+                branch = "detached";
+            }
+            build.append(",\n\t\"branch\": \"").append(branch).append("\"");
+        }
+        build.append("\n}");
+        jos.write(build.toString().getBytes(StandardCharsets.UTF_8));
+        jos.closeEntry();
     }
 
     /**
@@ -209,7 +279,6 @@ public class EdapAppPackageMojo extends AbstractMojo {
                     ? prefixSlash
                     : prefixSlash + dirRel + "/";
             if (dirEntry != null && dirEntry.trim().length() > 0) {
-                getLog().info("dirEntry: " + dirEntry);
                 if (written.add(dirEntry)) {
                     jos.putNextEntry(new JarEntry(dirEntry));
                     jos.closeEntry();
@@ -230,7 +299,7 @@ public class EdapAppPackageMojo extends AbstractMojo {
                             if (entryName.startsWith("/")) {
                                 entryName = entryName.substring(1);
                             }
-                            getLog().info("entryName: " + entryName);
+
                             if (written.add(entryName)) {
                                 jos.putNextEntry(new JarEntry(entryName));
                                 Files.copy(child, jos);
