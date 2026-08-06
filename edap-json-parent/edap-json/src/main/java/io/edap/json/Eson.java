@@ -19,6 +19,7 @@ package io.edap.json;
 
 import io.edap.io.ByteArrayBufOut;
 import io.edap.json.writer.ByteArrayJsonWriter;
+import io.edap.json.writer.ByteArrayPrettyJsonWriter;
 import io.edap.util.CollectionUtils;
 
 import java.io.UnsupportedEncodingException;
@@ -60,10 +61,20 @@ public class Eson {
      */
     public static final ThreadLocal<JsonWriter> THREAD_WRITER;
 
+    /**
+     * 本地线程的ProtoBuf的Writer减少内存分配次数
+     */
+    public static final ThreadLocal<JsonWriter> THREAD_PRETTY_WRITER;
+
     static {
         THREAD_WRITER = ThreadLocal.withInitial(() -> {
             ByteArrayBufOut out    = new ByteArrayBufOut();
             return new ByteArrayJsonWriter(out);
+        });
+
+        THREAD_PRETTY_WRITER = ThreadLocal.withInitial(() -> {
+            ByteArrayBufOut out    = new ByteArrayBufOut();
+            return new ByteArrayPrettyJsonWriter(out);
         });
     }
 
@@ -71,8 +82,36 @@ public class Eson {
         return toJsonString(obj, EMPTY_FEATURES);
     }
 
+    public static String toJsonString(Object obj, boolean pretty) {
+        return toJsonString(obj, pretty, EMPTY_FEATURES);
+    }
+
     public static String toJsonString(Object obj, SerializerFeature... features) {
         JsonWriter writer = THREAD_WRITER.get();
+        int featureValue = 0;
+        for (SerializerFeature feature : features) {
+            featureValue |= feature.getMask();
+        }
+        if (featureValue != writer.getFeatureValue()) {
+            writer.setFeatureValue(featureValue);
+        }
+        writer.reset();
+        serialize(obj, writer);
+        try {
+            return new String(writer.toByteArray(), "utf-8");
+        } catch (UnsupportedEncodingException e) {
+            e.printStackTrace();
+        }
+        return "";
+    }
+
+    public static String toJsonString(Object obj, boolean pretty, SerializerFeature... features) {
+        JsonWriter writer;
+        if (pretty) {
+            writer = THREAD_PRETTY_WRITER.get();
+        } else {
+            writer = THREAD_WRITER.get();
+        }
         int featureValue = 0;
         for (SerializerFeature feature : features) {
             featureValue |= feature.getMask();
@@ -109,28 +148,28 @@ public class Eson {
             int i = 0;
             for (Object c : list) {
                 if (i == 0) {
-                    writer.write((byte)'[');
+                    writer.writeArrayStart();
                 } else {
                     writer.write((byte)',');
                 }
                 i++;
                 Eson.serialize(c, writer);
             }
-            writer.write((byte)']');
+            writer.writeArrayEnd();
         } else if (obj instanceof Map) {
             boolean needDou = false;
-            writer.write((byte)'{');
+            writer.writeObjStart();
             for (Map.Entry<String, Object> entry : ((Map<String, Object>)obj).entrySet()) {
                 if (!needDou) {
                     needDou = true;
                 } else {
                     writer.write((byte)',');
                 }
-                writer.write(entry.getKey());
+                writer.writeKey(entry.getKey());
                 writer.write((byte)':');
                 writer.writeObject(entry.getValue());
             }
-            writer.write((byte)'}');
+            writer.writeObjEnd();
         } else if (obj.getClass().isArray()) {
             Class<?> cType = obj.getClass().getComponentType();
             Object[] array = (Object[])obj;
@@ -228,7 +267,7 @@ public class Eson {
         if (c != '{') {
             throw new JsonParseException("不是JsonObject的数据");
         }
-        reader.nextPos(1);
+        reader.reset();
         try {
             return reader.readObject(clazz);
         } catch (Throwable t) {

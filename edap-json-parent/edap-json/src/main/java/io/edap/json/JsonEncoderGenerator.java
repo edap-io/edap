@@ -122,8 +122,7 @@ public class JsonEncoderGenerator {
 
         // writer.writeByte((byte)'{');
         mv.visitVarInsn(ALOAD, 1);
-        mv.visitIntInsn(BIPUSH, 123);
-        mv.visitMethodInsn(INVOKEINTERFACE, WRITER_NAME, "write", "(B)V", true);
+        mv.visitMethodInsn(INVOKEINTERFACE, WRITER_NAME, "writeObjStart", "()V", true);
 
         //int varOffset = 3;
         // int offset = 1;
@@ -227,8 +226,7 @@ public class JsonEncoderGenerator {
         mv.visitFrame(Opcodes.F_SAME, 0, null, 0, null);
         // write.write((byte)'}')
         mv.visitVarInsn(ALOAD, 1);
-        mv.visitIntInsn(BIPUSH, 125);
-        mv.visitMethodInsn(INVOKEINTERFACE, WRITER_NAME, "write", "(B)V", true);
+        mv.visitMethodInsn(INVOKEINTERFACE, WRITER_NAME, "writeObjEnd", "()V", true);
         mv.visitInsn(RETURN);
         mv.visitMaxs(4, 4);
         mv.visitEnd();
@@ -237,9 +235,8 @@ public class JsonEncoderGenerator {
 
     private void visitArrayFieldMethod(MethodVisitor mv, JsonFieldInfo jfi, Label nextFieldLabel) {
         mv.visitVarInsn(ALOAD, 1);
-        mv.visitIntInsn(BIPUSH, 91);
-        mv.visitMethodInsn(INVOKEINTERFACE, WRITER_NAME, "write",
-                "(B)V", true);
+        mv.visitMethodInsn(INVOKEINTERFACE, WRITER_NAME, "writeArrayStart",
+                "()V", true);
         mv.visitInsn(ICONST_0);
         mv.visitVarInsn(ISTORE, 4);
         mv.visitInsn(ICONST_0);
@@ -357,16 +354,14 @@ public class JsonEncoderGenerator {
         mv.visitLabel(label18);
         mv.visitFrame(Opcodes.F_CHOP,1, null, 0, null);
         mv.visitVarInsn(ALOAD, 1);
-        mv.visitIntInsn(BIPUSH, 93);
-        mv.visitMethodInsn(INVOKEINTERFACE, WRITER_NAME, "write",
-                "(B)V", true);
+        mv.visitMethodInsn(INVOKEINTERFACE, WRITER_NAME, "writeArrayEnd",
+                "()V", true);
     }
 
 
     private void visitListFiledMethod(MethodVisitor mv, JsonFieldInfo jfi, Label nextFieldLabel) {
         mv.visitVarInsn(ALOAD, 1);
-        mv.visitIntInsn(BIPUSH, 91);
-        mv.visitMethodInsn(INVOKEINTERFACE, WRITER_NAME, "write", "(B)V", true);
+        mv.visitMethodInsn(INVOKEINTERFACE, WRITER_NAME, "writeArrayStart", "()V", true);
         mv.visitVarInsn(ALOAD, 2);
         Type type = jfi.field.getGenericType();
         Class pojoCls = null;
@@ -483,15 +478,13 @@ public class JsonEncoderGenerator {
 
         mv.visitLabel(labelForBreak);
         mv.visitVarInsn(ALOAD, 1);
-        mv.visitIntInsn(BIPUSH, 93);
-        mv.visitMethodInsn(INVOKEINTERFACE, WRITER_NAME, "write", "(B)V", true);
+        mv.visitMethodInsn(INVOKEINTERFACE, WRITER_NAME, "writeArrayEnd", "()V", true);
     }
 
     private void visitIterableFiledMethod(MethodVisitor mv, JsonFieldInfo jfi, Label nextFieldLabel) {
         //Label label2 = new Label();
         mv.visitVarInsn(ALOAD, 1);
-        mv.visitIntInsn(BIPUSH, 91);
-        mv.visitMethodInsn(INVOKEINTERFACE, WRITER_NAME, "write", "(B)V", true);
+        mv.visitMethodInsn(INVOKEINTERFACE, WRITER_NAME, "writeArrayStart", "(B)V", true);
         mv.visitInsn(ICONST_0);
         mv.visitVarInsn(ISTORE, 4);
         mv.visitVarInsn(ALOAD, 2);
@@ -575,8 +568,7 @@ public class JsonEncoderGenerator {
         mv.visitLabel(label4);
         mv.visitFrame(Opcodes.F_CHOP,2, null, 0, null);
         mv.visitVarInsn(ALOAD, 1);
-        mv.visitIntInsn(BIPUSH, 93);
-        mv.visitMethodInsn(INVOKEINTERFACE, WRITER_NAME, "write", "(B)V", true);
+        mv.visitMethodInsn(INVOKEINTERFACE, WRITER_NAME, "writeArrayEnd", "(B)V", true);
     }
 
     private void visitClInit(List<JsonFieldInfo> fields, List<Type> allPojos) {

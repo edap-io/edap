@@ -17,6 +17,15 @@ public interface JsonWriter extends BufWriter {
     void write(boolean bool);
     void write(Boolean bool);
 
+    void setPretty(boolean pretty);
+    boolean isPretty();
+
+    void writeObjStart();
+    void writeObjEnd();
+    void writeArrayStart();
+    void writeArrayEnd();
+    void writeKey(String key);
+
     void write(byte b);
     void write(byte b1, byte b2);
     void write(byte b1, byte b2, byte b3);

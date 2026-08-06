@@ -35,6 +35,10 @@ public abstract class AbstractJsonWriter {
      */
     public static final byte[] JS_REPLACEMENT_CHAR;
 
+    protected boolean pretty;
+
+    protected int depth;
+
     static {
 
         for (int i = 0; i < CAN_DIRECT_WRITE.length; i++) {
@@ -68,5 +72,13 @@ public abstract class AbstractJsonWriter {
         HTML_REPLACEMENT_CHARS['&']  = "\\u0026".getBytes();
         HTML_REPLACEMENT_CHARS['=']  = "\\u003d".getBytes();
         HTML_REPLACEMENT_CHARS['\''] = "\\u0027".getBytes();
+    }
+
+    public boolean isPretty() {
+        return pretty;
+    }
+
+    public void setPretty(boolean pretty) {
+        this.pretty = pretty;
     }
 }

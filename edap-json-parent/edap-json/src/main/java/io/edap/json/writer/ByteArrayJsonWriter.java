@@ -88,6 +88,30 @@ public class ByteArrayJsonWriter extends AbstractJsonWriter implements JsonWrite
     }
 
     @Override
+    public void writeObjStart() {
+        expand(1);
+        buf[pos++] = '{';
+    }
+
+    @Override
+    public void writeObjEnd() {
+        expand(1);
+        buf[pos++] = '}';
+    }
+
+    @Override
+    public void writeArrayStart() {
+        expand(1);
+        buf[pos++] = '[';
+    }
+
+    @Override
+    public void writeArrayEnd() {
+        expand(1);
+        buf[pos++] = ']';
+    }
+
+    @Override
     public void write(boolean bool) {
         expand(5);
         int _pos = pos;
@@ -299,7 +323,12 @@ public class ByteArrayJsonWriter extends AbstractJsonWriter implements JsonWrite
         pos = _pos;
     }
 
-    //@Override
+    @Override
+    public void writeKey(String key) {
+        write(key);
+    }
+
+    @Override
     public void write(String s) {
         if (IS_BYTE_ARRAY) {
             int slen = s.length();
