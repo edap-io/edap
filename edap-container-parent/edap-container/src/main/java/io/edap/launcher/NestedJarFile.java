@@ -41,7 +41,7 @@ public final class NestedJarFile implements Closeable {
     private final String name;     // 用于调试和 URL 区分
 
     /** 最外层 jar:用文件路径构造。 */
-    public NestedJarFile(java.io.File file) throws IOException {
+    public NestedJarFile(File file) throws IOException {
         this(new RandomAccessFile(file, "r"), 0L, file.length(), file.getName());
     }
 

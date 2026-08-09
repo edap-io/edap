@@ -27,7 +27,7 @@ public class ParameterDemoHandler implements HttpHandler {
         resp.contentType(ContentTypeHeader.JSON);
         String name = req.getParameter("name");
         String version = req.getParameter("version");
-        BaseResult<String> list = bean.deployMicroService(name, version);
+        BaseResult<String> list = bean.deployApp(name, version);
         resp.write(Eson.toJsonString(list));
     }
 }

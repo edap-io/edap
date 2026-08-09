@@ -28,7 +28,6 @@ public class HttpConvertorFactory {
         HttpHandler handler;
         HttpHandlerRegister register = HttpHandlerRegister.instance();
         HandlerConfig handlerConfig = new HandlerConfig();
-        System.out.println("method=" + method);
         handler = register.getParameterHandler(method, bean, handlerConfig);
         return handler;
     }

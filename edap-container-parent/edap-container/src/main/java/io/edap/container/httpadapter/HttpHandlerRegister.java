@@ -119,7 +119,6 @@ public class HttpHandlerRegister {
     private Class generateHandlerClass(Method method, Object bean, HandlerConfig handlerConfig) {
 
         Class encoderCls;
-        long start = System.currentTimeMillis();
         String encoderName = buildHandlerName(method);
         HttpHandlerRegister.HttpHandlerLoader codecLoader = getHandlerLoader(bean.getClass());
         try {
@@ -128,20 +127,11 @@ public class HttpHandlerRegister {
         } catch (ClassNotFoundException e) {
 
         }
-        long end = System.currentTimeMillis();
-        long time1 = end - start;
-        start = end;
         try {
             ParameterHandlerGenerator generator = new ParameterHandlerGenerator(bean.getClass(), method, handlerConfig);
             GeneratorClassInfo gci = generator.getClassInfo();
             byte[] bs = gci.clazzBytes;
-            end = System.currentTimeMillis();
-            long time2 = (end - start);
-            start = end;
             saveJavaFile("./" + gci.clazzName + ".class", bs);
-            end = System.currentTimeMillis();
-            long time3 = (end - start);
-            start = end;
             encoderCls = codecLoader.define(encoderName, bs, 0, bs.length);
             if (!isEmpty(gci.inners)) {
                 for (GeneratorClassInfo inner : gci.inners) {
@@ -151,7 +141,6 @@ public class HttpHandlerRegister {
                     codecLoader.define(innerName, bs, 0, bs.length);
                 }
             }
-            System.out.println("generate class time1: " + time1 + ",time2:" + time2 + ",time3:" + time3 + ",time4:"  + (System.currentTimeMillis() - start));
         } catch (Throwable e) {
             try {
                 if (codecLoader.loadClass(encoderName) != null) {

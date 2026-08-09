@@ -18,11 +18,13 @@ package io.edap.container;
 
 import io.edap.Edap;
 import io.edap.ServerGroup;
+import io.edap.container.mw.BaseResult;
 import io.edap.container.mw.DeployManager;
 import io.edap.http.server.HttpServerBuilder;
+import io.edap.log.Logger;
+import io.edap.log.LoggerManager;
 
 import java.io.IOException;
-import java.lang.reflect.Method;
 
 import static io.edap.container.HttpConvertorFactory.createGetHandler;
 import static io.edap.util.ClazzUtil.getClassMethod;
@@ -32,30 +34,40 @@ import static io.edap.util.ClazzUtil.getClassMethod;
  */
 public class Bootstrap {
 
+    static Logger log = LoggerManager.getLogger(Bootstrap.class);
+
     public static void main(String[] args) {
         // 创建Edap容器管理的容器对象
-        Edap manager = new Edap();
-        ServerGroup serverGroup = new ServerGroup();
+        Edap edap = new Edap();
+        ServerGroup managerGroup = new ServerGroup();
         HttpServerBuilder builder = new HttpServerBuilder();
         DeployManager deployManager = new DeployManager();
+        deployManager.setEdap(edap);
         builder.listen(1111);
-        Method[] ms = DeployManager.class.getDeclaredMethods();
-        for (Method m : ms) {
-            System.out.println("method: " + m.getName());
-        }
-        builder.get("/microServiceList", createGetHandler(
-                getClassMethod(DeployManager.class, "deployMicroService", String.class, String.class),
+        builder.get("/query_app_list", createGetHandler(
+                getClassMethod(DeployManager.class, "queryAppList"),
                 deployManager));
 
-        serverGroup.addServer(builder.build());
-        serverGroup.setName("deploy-manager");
-        manager.addServerGroup(serverGroup);
+        builder.get("/deploy_app", createGetHandler(
+                getClassMethod(DeployManager.class, "deployApp", String.class, String.class),
+                deployManager));
+
+        managerGroup.addServer(builder.build());
+        managerGroup.setName("deploy-manager");
+        edap.addServerGroup(managerGroup);
 
         try {
-            manager.run();
+            log.info("Edap start...");
+            edap.run();
+            log.info("Edap start finished!");
+            BaseResult<String> result =  deployManager.startApps();
+            if (result.getCode() == 0) {
+                log.info("应用已启动");
+            } else {
+                log.error(result.getMessage());
+            }
         } catch (IOException e) {
-            System.err.println("启动失败\n" + e.getMessage());
-            e.printStackTrace();
+            log.error("Edap container start fault!", e);
         }
     }
 }
