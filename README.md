@@ -2612,7 +2612,12 @@ classDiagram
     classDef component fill:#cfe2ff,stroke:#0d6efd,stroke-width:1.5px,color:#0a2540,rx:10,ry:10
 
     class AppContext root
-    class BeanContainer,Environment,EventPublisher,ResourceLoader,RouterHub,ShardRegistry component
+    class BeanContainer component
+    class Environment component
+    class EventPublisher component
+    class ResourceLoader component
+    class RouterHub component
+    class ShardRegistry component
 ```
 
 #### 13.3.3 三段式生命周期（沿用 Solon 两段式 + 补 Spring SmartLifecycle）
