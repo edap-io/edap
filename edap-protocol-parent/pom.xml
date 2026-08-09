@@ -24,5 +24,6 @@
         <module>edap-protobuf-idl</module>
         <module>edap-eproto</module>
         <module>edap-protobuf-api</module>
+        <module>edap-protoc-maven-plugin</module>
     </modules>
 </project>
