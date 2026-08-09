@@ -223,7 +223,33 @@ graph TB
 
 当 EAR 包含多个 Maven 模块时，每个模块的 proto 文件按 **artifactId 目录** 分层组织。目录路径镜像 Maven 模块路径。
 
-**目录结构示例**：
+**每个 Maven 模块内部**：proto 文件统一放在 `src/main/resources/proto/` 目录下（与 Maven 标准资源约定一致）：
+
+```
+hello-api/
+└── src/main/resources/proto/
+    └── api.proto                    ← service UserService
+└── src/main/java/io/edap/api/
+    └── UserServiceImpl.java
+
+hello-service/
+└── src/main/resources/proto/
+    └── service.proto                ← service OrderService
+└── src/main/java/io/edap/service/
+    └── OrderServiceImpl.java
+```
+
+打包进 jar 后，proto 文件位于 jar 内 `resources/proto/`：
+
+```
+hello-api.jar
+└── resources/proto/api.proto
+
+hello-service.jar
+└── resources/proto/service.proto
+```
+
+**EAR 装配后的目录结构示例**（按 artifactId 重新分目录组织）：
 
 ```
 monolith.ear/
@@ -244,30 +270,30 @@ monolith.ear/
 
 ```mermaid
 graph TB
-    subgraph EAR [monolith.ear - 一个应用]
-        Meta[BUILD.json<br/>含所有 artifactId 列表]
+subgraph EAR [monolith.ear - 一个应用]
+Meta[BUILD.json<br/>含所有 artifactId 列表]
 
-        subgraph ApiDir [hello-api/]
-            ApiProto[api.proto<br/>service UserService]
-            ApiImpl[UserServiceImpl.class]
-            ApiBean[UserRepository.class]
-        end
+subgraph ApiDir [hello-api/]
+ApiProto[api.proto<br/>service UserService]
+ApiImpl[UserServiceImpl.class]
+ApiBean[UserRepository.class]
+end
 
-        subgraph ServiceDir [hello-service/]
-            ServiceProto[service.proto<br/>service OrderService]
-            ServiceImpl[OrderServiceImpl.class]
-            ServiceBean[OrderRepository.class]
-        end
+subgraph ServiceDir [hello-service/]
+ServiceProto[service.proto<br/>service OrderService]
+ServiceImpl[OrderServiceImpl.class]
+ServiceBean[OrderRepository.class]
+end
 
-        subgraph CommonDir [hello-common/]
-            CommonProto[common.proto<br/>message BaseRequest]
-            CommonBean[BaseUtils.class<br/>共享工具类]
-        end
-    end
+subgraph CommonDir [hello-common/]
+CommonProto[common.proto<br/>message BaseRequest]
+CommonBean[BaseUtils.class<br/>共享工具类]
+end
+end
 
-    Meta -.包含.-> ApiDir
-    Meta -.包含.-> ServiceDir
-    Meta -.包含.-> CommonDir
+Meta -.包含.-> ApiDir
+Meta -.包含.-> ServiceDir
+Meta -.包含.-> CommonDir
 ```
 
 **proto 服务全限定名规则**：
@@ -290,13 +316,13 @@ graph TB
 // hello-api/api.proto
 package io.edap.api;
 service UserService {              // ← 全限定: hello-api.api.UserService
-    rpc GetUser(...) returns (...);
+  rpc GetUser(...) returns (...);
 }
 
 // hello-service/service.proto
 package io.edap.service;
 service UserService {              // ← 全限定: hello-service.service.UserService
-    rpc CreateUser(...) returns (...);
+  rpc CreateUser(...) returns (...);
 }
 ```
 
@@ -335,9 +361,9 @@ edap 的"包"概念与 Maven 多模块天然契合：
     <module>hello-common</module>
 </modules>
 
-<!-- 每个子模块独立编译输出 jar -->
+        <!-- 每个子模块独立编译输出 jar -->
 <plugin>
-    <artifactId>maven-jar-plugin</artifactId>
+<artifactId>maven-jar-plugin</artifactId>
 </plugin>
 ```
 
@@ -354,13 +380,13 @@ edap 的"包"概念与 Maven 多模块天然契合：
     </dependencies>
 </profile>
 
-<!-- profile-b: 拆分部署 -->
+        <!-- profile-b: 拆分部署 -->
 <profile>
-    <id>split</id>
-    <dependencies>
-        <dependency>hello-api</dependency>
-        <dependency>hello-common</dependency>
-    </dependencies>
+<id>split</id>
+<dependencies>
+    <dependency>hello-api</dependency>
+    <dependency>hello-common</dependency>
+</dependencies>
 </profile>
 ```
 
@@ -463,9 +489,9 @@ public class AppContext extends BeanContainer {
         super(app, classLoader, props);
         initialize();                                 // ① 注册所有 builder/extractor/injector
         lifecycle(LF_IDX_FIELD_COLLECTION_INJECT,     // ② 注册两个"注入审查回调"
-            () -> startInjectReview(0));
+                () -> startInjectReview(0));
         lifecycle(LF_IDX_PARAM_COLLECTION_INJECT,
-            () -> startInjectReview(1));
+                () -> startInjectReview(1));
     }
 }
 ```
@@ -518,43 +544,43 @@ Applications（被管理的多个应用）
 
 ```mermaid
 graph TB
-    subgraph ContainerProcess [edap Container 进程]
-        subgraph Core [Container 运行时核心]
-            CAC[Container AppContext<br/>容器级上下文]
-            DM[DeployManager<br/>部署协调器]
-            HTTP[HTTP Server :1111<br/>管理端口]
-            Router[Router<br/>路由分发器]
-            AdminAPI[Admin API<br/>/deploy /undeploy /list]
-            Registry[AppRegistry<br/>应用注册表]
-        end
+subgraph ContainerProcess [edap Container 进程]
+subgraph Core [Container 运行时核心]
+CAC[Container AppContext<br/>容器级上下文]
+DM[DeployManager<br/>部署协调器]
+HTTP[HTTP Server :1111<br/>管理端口]
+Router[Router<br/>路由分发器]
+AdminAPI[Admin API<br/>/deploy /undeploy /list]
+Registry[AppRegistry<br/>应用注册表]
+end
 
-        subgraph Apps [已部署应用 - 各自独立]
-            subgraph App1 [App₁]
-                A1C[AppContext₁<br/>独立 ClassLoader]
-                A1R[Router₁<br/>应用路由表]
-                A1B[Bean 容器₁]
-                A1V[Version Mgr₁<br/>current/staging/previous]
-            end
+subgraph Apps [已部署应用 - 各自独立]
+subgraph App1 [App₁]
+A1C[AppContext₁<br/>独立 ClassLoader]
+A1R[Router₁<br/>应用路由表]
+A1B[Bean 容器₁]
+A1V[Version Mgr₁<br/>current/staging/previous]
+end
 
-            subgraph App2 [App₂]
-                A2C[AppContext₂]
-                A2R[Router₂]
-                A2B[Bean 容器₂]
-                A2V[Version Mgr₂]
-            end
-        end
-    end
+subgraph App2 [App₂]
+A2C[AppContext₂]
+A2R[Router₂]
+A2B[Bean 容器₂]
+A2V[Version Mgr₂]
+end
+end
+end
 
-    External[外部请求] --> Router
-    Router --> A1R
-    Router --> A2R
+External[外部请求] --> Router
+Router --> A1R
+Router --> A2R
 
-    AdminClient[管理员] --> HTTP
-    HTTP --> AdminAPI
-    AdminAPI --> DM
-    DM --> Registry
-    DM --> Apps
-    A1V -.热部署.-> A1C
+AdminClient[管理员] --> HTTP
+HTTP --> AdminAPI
+AdminAPI --> DM
+DM --> Registry
+DM --> Apps
+A1V -.热部署.-> A1C
 ```
 
 ### 5.3 父子 ClassLoader 隔离
@@ -635,12 +661,12 @@ flowchart LR
     Opt --> RPCOption[eRPC option<br/>method_id]
 
     HTTPOption --> Registry[协议注册表<br/>Service → Router]
-    WSOption --> Registry
-    RPCOption --> Registry
+WSOption --> Registry
+RPCOption --> Registry
 
-    Registry --> HTTPRouter[HTTP Router]
-    Registry --> WSRouter[WS Router]
-    Registry --> ERPCRouter[eRPC Router]
+Registry --> HTTPRouter[HTTP Router]
+Registry --> WSRouter[WS Router]
+Registry --> ERPCRouter[eRPC Router]
 ```
 
 ### 6.3 Option 标准化
@@ -729,9 +755,9 @@ graph LR
     UseDefault --> GRPC1[gRPC 自动生成]
 
     UseExplicit --> Mix[混合：<br/>只覆盖用户指定的<br/>其他协议仍自动生成]
-    Mix --> HTTP2[HTTP 用户定义]
-    Mix --> WS2[WS 自动生成]
-    Mix --> ERPC2[eRPC 自动生成]
+Mix --> HTTP2[HTTP 用户定义]
+Mix --> WS2[WS 自动生成]
+Mix --> ERPC2[eRPC 自动生成]
 ```
 
 #### 默认生成规则
@@ -833,10 +859,10 @@ Content-Type: application/json
 
 ```protobuf
 service UserService {
-    rpc GetUser(GetUserRequest) returns (GetUserResponse);
-    rpc CreateUser(CreateUserRequest) returns (CreateUserResponse);
-    rpc UpdateUser(UpdateUserRequest) returns (UpdateUserResponse);
-    rpc DeleteUser(DeleteUserRequest) returns (DeleteUserResponse);
+  rpc GetUser(GetUserRequest) returns (GetUserResponse);
+  rpc CreateUser(CreateUserRequest) returns (CreateUserResponse);
+  rpc UpdateUser(UpdateUserRequest) returns (UpdateUserResponse);
+  rpc DeleteUser(DeleteUserRequest) returns (DeleteUserResponse);
 }
 ```
 
@@ -855,27 +881,27 @@ service UserService {
 
 ```protobuf
 service UserService {
-    // 用默认规则（最常见，无需写 option）
-    rpc GetUser(GetUserRequest) returns (GetUserResponse);
+  // 用默认规则（最常见，无需写 option）
+  rpc GetUser(GetUserRequest) returns (GetUserResponse);
 
-    // 自定义 HTTP 路径（其他协议仍用默认）
-    rpc CreateUser(CreateUserRequest) returns (CreateUserResponse) {
-        option (google.api.http).post = "/v1/users";        // ← 覆盖 HTTP
-        // ↑ WS、eRPC、gRPC 仍走自动生成
-    };
+  // 自定义 HTTP 路径（其他协议仍用默认）
+  rpc CreateUser(CreateUserRequest) returns (CreateUserResponse) {
+    option (google.api.http).post = "/v1/users";        // ← 覆盖 HTTP
+    // ↑ WS、eRPC、gRPC 仍走自动生成
+  };
 
-    // 自定义 eRPC method_id（特殊场景）
-    rpc UpdateUser(UpdateUserRequest) returns (UpdateUserResponse) {
-        option (edap.rpc).method = 10001;                   // ← 覆盖 eRPC
-        // ↑ HTTP、WS、gRPC 仍走自动生成
-    };
+  // 自定义 eRPC method_id（特殊场景）
+  rpc UpdateUser(UpdateUserRequest) returns (UpdateUserResponse) {
+    option (edap.rpc).method = 10001;                   // ← 覆盖 eRPC
+    // ↑ HTTP、WS、gRPC 仍走自动生成
+  };
 
-    // 自定义多个协议
-    rpc DeleteUser(DeleteUserRequest) returns (DeleteUserResponse) {
-        option (google.api.http).delete = "/v1/users/{user_id}";   // ← 自定义 HTTP
-        option (edap.ws).method = "user.delete";                   // ← 自定义 WS method 名
-        // ↑ eRPC、gRPC 仍走自动生成
-    };
+  // 自定义多个协议
+  rpc DeleteUser(DeleteUserRequest) returns (DeleteUserResponse) {
+    option (google.api.http).delete = "/v1/users/{user_id}";   // ← 自定义 HTTP
+    option (edap.ws).method = "user.delete";                   // ← 自定义 WS method 名
+    // ↑ eRPC、gRPC 仍走自动生成
+  };
 }
 ```
 
@@ -1080,44 +1106,44 @@ option java_multiple_files = true;
 // ===== Message 块（从入参 / 返回值 / DTO 类生成）=====
 
 message UserDTO {
-    int64 user_id = 1;
-    string name = 2;
-    int32 age = 3;
+  int64 user_id = 1;
+  string name = 2;
+  int32 age = 3;
 }
 
 // 单基本类型入参自动包装为 GetUserRequest
 message GetUserRequest {
-    int64 user_id = 1;   // ← 从方法签名 getUser(Long userId) 的参数名提取
+  int64 user_id = 1;   // ← 从方法签名 getUser(Long userId) 的参数名提取
 }
 
 // 已有的 POJO 直接复用
 message CreateUserRequest {
-    string name = 1;
-    int32 age = 2;
+  string name = 1;
+  int32 age = 2;
 }
 
 // 多参数方法自动合并入参到 UpdateUserRequest
 message UpdateUserRequest {
-    int64 user_id = 1;   // ← 从方法签名 updateUser(Long userId, UpdateUserRequest req) 提取
-    string name = 2;     // ← UpdateUserRequest 已有字段
-    int32 age = 3;
+  int64 user_id = 1;   // ← 从方法签名 updateUser(Long userId, UpdateUserRequest req) 提取
+  string name = 2;     // ← UpdateUserRequest 已有字段
+  int32 age = 3;
 }
 
 // void 返回 → 生成 google.protobuf.Empty
 // 单参数 Long userId → 自动包装 DeleteUserRequest
 message DeleteUserRequest {
-    int64 user_id = 1;
+  int64 user_id = 1;
 }
 
 // ===== Service 块（从接口生成）=====
 
 service UserService {
-    rpc GetUser(GetUserRequest) returns (UserDTO) {
-        // 默认绑定（按 §6.5）：HTTP POST + body=JSON，WS method=UserService.GetUser，eRPC hash
-    };
-    rpc CreateUser(CreateUserRequest) returns (UserDTO);
-    rpc UpdateUser(UpdateUserRequest) returns (UserDTO);
-    rpc DeleteUser(DeleteUserRequest) returns (google.protobuf.Empty);
+  rpc GetUser(GetUserRequest) returns (UserDTO) {
+    // 默认绑定（按 §6.5）：HTTP POST + body=JSON，WS method=UserService.GetUser，eRPC hash
+  };
+  rpc CreateUser(CreateUserRequest) returns (UserDTO);
+  rpc UpdateUser(UpdateUserRequest) returns (UserDTO);
+  rpc DeleteUser(DeleteUserRequest) returns (google.protobuf.Empty);
 }
 ```
 
@@ -1130,14 +1156,14 @@ graph TB
     Java[Java 接口 / class 文件] --> Scan[edap-protoc-gen-java<br/>扫描 interface]
     Scan --> Parse[解析接口结构]
     Parse --> Class{类型?}
-    
+
     Class -->|interface| Svc[生成 service 块]
     Class -->|普通 class| POJO{是 DTO/POJO?}
     POJO -->|是| Msg[生成 message 块]
     POJO -->|否| ImplCheck{是 impl 类?}
     ImplCheck -->|是| Verify[仅校验接口有实现<br/>不参与 proto 生成]
     ImplCheck -->|否| Skip[跳过]
-    
+
     Svc --> Method[遍历接口方法]
     Method --> Sig[解析方法签名:<br/>入参类型 + 入参名 + 返回类型]
     Sig --> ReqMsg[生成 / 复用 Request message]
@@ -1348,31 +1374,44 @@ graph LR
 ```mermaid
 sequenceDiagram
     autonumber
-    participant C as Client
-    participant NIO as edap NIO
-    participant D as ProtocolDetector
-    participant HR as HttpRouter
-    participant WR as WsRouter
-    participant ER as ErpcRouter
-    participant H as BusinessHandler
+    title edap 容器层 多协议统一监听（HTTP / WebSocket / eRPC）
 
-    C->>NIO: HTTP Request /hello
-    NIO->>D: detect protocol
-    D->>HR: HTTP
-    HR->>H: handle(httpCtx)
-    H-->>C: HTTP Response
+    actor Client
+    participant NIO as "edap NIO<br/>(FastNetIO)"
+    participant Detector as ProtocolDetector
+    participant HttpRouter
+    participant WsRouter
+    participant ErpcRouter
+    participant Handler as BusinessHandler
 
-    C->>NIO: WS Upgrade /hello
-    NIO->>D: detect protocol
-    D->>WR: WebSocket
-    WR->>H: handle(wsCtx)
-    H-->>C: WS Message
+    rect rgba(207, 226, 255, 0.45)
+        Note over Client,NIO: 🌐 HTTP
+        Client->>+NIO: GET /hello
+        NIO->>+Detector: detect protocol
+        Detector->>+HttpRouter: HTTP
+        HttpRouter->>+Handler: handle(httpCtx)
+        Handler-->>-Client: HTTP Response
+    end
 
-    C->>NIO: eRPC binary /hello
-    NIO->>D: detect protocol
-    D->>ER: eRPC
-    ER->>H: handle(erpcCtx)
-    H-->>C: eRPC binary
+    rect rgba(212, 237, 218, 0.45)
+        Note over Client,NIO: 🔌 WebSocket
+        Client->>+NIO: WS Upgrade /hello
+        NIO->>+Detector: detect protocol
+        Detector->>+WsRouter: WebSocket
+        WsRouter->>+Handler: handle(wsCtx)
+        Handler-->>-Client: WS Message
+    end
+
+    rect rgba(255, 243, 205, 0.45)
+        Note over Client,NIO: ⚡ eRPC
+        Client->>+NIO: eRPC binary /hello
+        NIO->>+Detector: detect protocol
+        Detector->>+ErpcRouter: eRPC
+        ErpcRouter->>+Handler: handle(erpcCtx)
+        Handler-->>-Client: eRPC binary
+    end
+
+    Note over NIO,Detector: 共用同一 NIO 框架和协议分发点<br/>无第三方 Netty 依赖
 ```
 
 > **底层说明**：图中的 `edap NIO` 是 edap 自研的 NIO 框架（`io.edap.nio` 包，含 `FastNetIO` 等原生实现），不是 Netty。HTTP 层基于 `io.edap.http.server.HttpServerBuilder`，WS / eRPC 同理均为 edap 自研。整个容器不依赖任何第三方 NIO / HTTP 库。
@@ -1476,7 +1515,7 @@ newRouter.add(path);   // 中间有空窗期
 
 // 正确的做法（参考 Tomcat HostConfig）
 AtomicReference<Router> currentRef = ...;
-newRouter.build();      // 先完整构建
+        newRouter.build();      // 先完整构建
 currentRef.set(newRouter);  // 一行原子替换
 ```
 
@@ -1538,11 +1577,11 @@ graph TB
         LB --> N3
     end
 
-    subgraph NoMiddleware [无中台部署]
-        AppCtx[AppContext<br/>内置：注册发现/配置/监控]
-        Apps[应用集]
-        AppCtx -.内置.-> Apps
-    end
+subgraph NoMiddleware [无中台部署]
+AppCtx[AppContext<br/>内置：注册发现/配置/监控]
+Apps[应用集]
+AppCtx -.内置.-> Apps
+end
 ```
 
 ### 10.2 有状态微服务 —— 应对高并发资源需求
@@ -1650,13 +1689,13 @@ edap 的有状态服务开发模型：**开发者只管写业务代码 + 声明�
 
 ```protobuf
 service OrderService {
-    rpc GetUserOrders(GetUserOrdersRequest) returns (GetUserOrdersResponse) {
-        option (google.api.http.get) = "/v1/users/{user_id}/orders";
-        option (edap.rpc.stateful) = true;       // ← 声明该方法为有状态
-        option (edap.shard_key) = "user_id";      // ← 声明分片键
-        option (edap.local_cache) = true;         // ← 启用本地内存缓存（可选）
-        option (edap.cache_ttl) = "60s";          // ← 缓存过期（可选）
-    };
+  rpc GetUserOrders(GetUserOrdersRequest) returns (GetUserOrdersResponse) {
+    option (google.api.http.get) = "/v1/users/{user_id}/orders";
+    option (edap.rpc.stateful) = true;       // ← 声明该方法为有状态
+    option (edap.shard_key) = "user_id";      // ← 声明分片键
+    option (edap.local_cache) = true;         // ← 启用本地内存缓存（可选）
+    option (edap.cache_ttl) = "60s";          // ← 缓存过期（可选）
+  };
 }
 ```
 
@@ -1708,8 +1747,8 @@ public class OrderServiceImpl implements OrderService {
         }
 
         return GetUserOrdersResponse.newBuilder()
-            .addAllOrders(orders.stream().map(this::toProto).collect(toList()))
-            .build();
+                .addAllOrders(orders.stream().map(this::toProto).collect(toList()))
+                .build();
     }
 }
 ```
@@ -1756,13 +1795,13 @@ graph TB
         App2 --> M1
     end
 
-    subgraph EdapStyle [edap 部署 - 无中台]
-        CAC[Container AppContext<br/>内置：<br/>· 注册表<br/>· 配置存储<br/>· 健康检查<br/>· 指标收集]
-        AppA[应用 A]
-        AppB[应用 B]
-        CAC -.内置.-> AppA
-        CAC -.内置.-> AppB
-    end
+subgraph EdapStyle [edap 部署 - 无中台]
+CAC[Container AppContext<br/>内置：<br/>· 注册表<br/>· 配置存储<br/>· 健康检查<br/>· 指标收集]
+AppA[应用 A]
+AppB[应用 B]
+CAC -.内置.-> AppA
+CAC -.内置.-> AppB
+end
 ```
 
 **容器内置能力清单**：
@@ -1882,22 +1921,22 @@ graph TB
         Hash --> Route[路由到目标节点]
     end
 
-    subgraph L2 [第二层 - 本地缓存]
-        Cache{本地缓存命中?}
-        Cache -->|命中| Direct[直接返回<br/>~ 1ms]
-        Cache -->|未命中| Process[进入处理流程]
-    end
+subgraph L2 [第二层 - 本地缓存]
+Cache{本地缓存命中?}
+Cache -->|命中| Direct[直接返回<br/>~ 1ms]
+Cache -->|未命中| Process[进入处理流程]
+end
 
-    subgraph L3 [第三层 - 批量处理]
-        Buf[请求缓冲队列]
-        Batch[批量触发器<br/>时间窗口 / 大小阈值]
-        Exec[一次性批量执行]
-        Buf --> Batch
-        Batch --> Exec
-        Process --> Buf
-    end
+subgraph L3 [第三层 - 批量处理]
+Buf[请求缓冲队列]
+Batch[批量触发器<br/>时间窗口 / 大小阈值]
+Exec[一次性批量执行]
+Buf --> Batch
+Batch --> Exec
+Process --> Buf
+end
 
-    Route --> Cache
+Route --> Cache
 ```
 
 **性能对比**：
@@ -1918,16 +1957,16 @@ syntax = "proto3";
 import "edap/shard.proto";   // edap 自定义分片 option
 
 service OrderService {
-    rpc GetUserOrders(GetUserOrdersRequest) returns (GetUserOrdersResponse) {
-        option (google.api.http).get = "/v1/users/{user_id}/orders";
-        option (edap.shard_key) = "user_id";          // ← 声明分片键
-        option (edap.shard_batch) = true;             // ← 启用批量处理
-    };
+  rpc GetUserOrders(GetUserOrdersRequest) returns (GetUserOrdersResponse) {
+    option (google.api.http).get = "/v1/users/{user_id}/orders";
+    option (edap.shard_key) = "user_id";          // ← 声明分片键
+    option (edap.shard_batch) = true;             // ← 启用批量处理
+  };
 }
 
 message GetUserOrdersRequest {
-    string user_id = 1;
-    int32 page_size = 2;
+  string user_id = 1;
+  int32 page_size = 2;
 }
 ```
 
@@ -1949,32 +1988,47 @@ message Frame {
 #### 典型应用场景
 
 ```mermaid
-graph TB
-    subgraph Case1 [场景 1 - 电商订单]
-        C1[用户 A 的所有订单请求<br/>→ 路由到节点 1]
-        C1Cache[节点 1 本地缓存<br/>用户 A 的订单列表]
-        C1Batch[节点 1 批量聚合<br/>用户 A 的订单数据]
-        C1 --> C1Cache
-        C1 --> C1Batch
+flowchart TB
+    Req(["同一 shard key 的请求<br/>userId = 123"])
+
+    subgraph S1 ["⚡ 场景 1 - 电商订单"]
+        direction TB
+        C1("用户 A 订单请求"):::flow
+        C1C("节点本地缓存<br/>订单列表"):::cache
+        C1B("批量聚合<br/>单次 DB 查询"):::cache
+        C1 --> C1C
+        C1 --> C1B
     end
 
-    subgraph Case2 [场景 2 - WebSocket 长连接]
-        C2[同一 session 连接<br/>→ 始终路由到同一节点]
-        C2State[节点维护连接状态<br/>本地内存持有]
-        C2 --> C2State
+    subgraph S2 ["🔌 场景 2 - WebSocket 长连接"]
+        direction TB
+        C2("同 session 连接"):::flow
+        C2S("连接状态<br/>本地内存"):::state
+        C2 --> C2S
     end
 
-    subgraph Case3 [场景 3 - 限流/计数器]
-        C3[用户级限流<br/>userId=123 → 节点 1]
-        C3Token[节点 1 本地令牌桶<br/>userId=123 专用]
-        C3 --> C3Token
+    subgraph S3 ["🚦 场景 3 - 用户级限流"]
+        direction TB
+        C3("userId=123 请求"):::flow
+        C3T("本地令牌桶<br/>专用 quota"):::state
+        C3 --> C3T
     end
 
-    subgraph Case4 [场景 4 - 实时聚合]
-        C4[同一 partition 的多条消息<br/>→ 节点 1 合并处理]
-        C4Agg[节点 1 批量聚合<br/>一次 DB 查询]
-        C4 --> C4Agg
+    subgraph S4 ["📊 场景 4 - 实时聚合"]
+        direction TB
+        C4("同 partition 消息"):::flow
+        C4A("批量聚合<br/>单次 DB 查询"):::cache
+        C4 --> C4A
     end
+
+    Req -. 一致性哈希 .-> S1
+    Req -. session .-> S2
+    Req -. userId .-> S3
+    Req -. partition .-> S4
+
+    classDef flow  fill:#d1e7dd,stroke:#198754,color:#0f5132,rx:10,ry:10
+    classDef cache fill:#fff3cd,stroke:#ffc107,color:#664d03,rx:10,ry:10
+    classDef state fill:#e2d9f3,stroke:#6f42c1,color:#4a2a85,rx:10,ry:10
 ```
 
 #### 与无状态路由的对比
@@ -2047,17 +2101,17 @@ graph TB
         A3[应用 C<br/>10MB<br/>含 edap-json + httpclient + ...]
     end
 
-    subgraph EdapStyle [edap 模式 - 容器提供能力，应用精简]
-        CT[edap 容器<br/>内置能力库<br/>edap-json + httpclient + ...]
-        B1[应用 A<br/>1MB<br/>仅业务代码]
-        B2[应用 B<br/>1MB<br/>仅业务代码]
-        B3[应用 C<br/>1MB<br/>仅业务代码]
-        B1 -. 双亲委派 .-> CT
-        B2 -. 双亲委派 .-> CT
-        B3 -. 双亲委派 .-> CT
-    end
+subgraph EdapStyle [edap 模式 - 容器提供能力，应用精简]
+CT[edap 容器<br/>内置能力库<br/>edap-json + httpclient + ...]
+B1[应用 A<br/>1MB<br/>仅业务代码]
+B2[应用 B<br/>1MB<br/>仅业务代码]
+B3[应用 C<br/>1MB<br/>仅业务代码]
+B1 -. 双亲委派 .-> CT
+B2 -. 双亲委派 .-> CT
+B3 -. 双亲委派 .-> CT
+end
 
-    Traditional -. 对比 .-> EdapStyle
+Traditional -. 对比 .-> EdapStyle
 ```
 
 **核心机制**：父子 ClassLoader 双亲委派
@@ -2166,12 +2220,12 @@ sequenceDiagram
     Ver-->>Plug: 返回能力清单<br/>(含所有提供的 jar)
     Plug->>Plug: 扫描应用依赖树
     Plug->>Plug: 比对依赖 vs 容器能力<br/>(按 groupId/artifactId/version)
-    Loop 每个已剔除的依赖
+Loop 每个已剔除的依赖
         Plug->>Plug: 从 EAR 移除该 jar
-    End
-    Plug->>Plug: 自动生成 build.json<br/>(maven info + git info + 时间戳)
-    Plug->>Plug: 校验剩余依赖<br/>能通过双亲委派加载
-    Plug-->>Dev: hello.ear (1MB)
+End
+Plug->>Plug: 自动生成 build.json<br/>(maven info + git info + 时间戳)
+Plug->>Plug: 校验剩余依赖<br/>能通过双亲委派加载
+Plug-->>Dev: hello.ear (1MB)
 ```
 
 **关键特性**：
@@ -2502,7 +2556,10 @@ AppContext 是**单个应用**（一个 `appId` 一份；多版本时按版本�
 
 ```mermaid
 classDiagram
+    direction TB
+
     class AppContext {
+        <<root>>
         +String appId
         +String version
         +ClassLoader appCL
@@ -2529,6 +2586,12 @@ classDiagram
         +Props properties
         +getProperty(key)
     }
+    class EventPublisher {
+        +publish(event)
+    }
+    class ResourceLoader {
+        +load(path)
+    }
     class RouterHub {
         +Map~String,Router~ routes
         +bindAll()
@@ -2537,10 +2600,19 @@ classDiagram
         +Map~String,Object~ shardByKey
         +invokeOnShard(name,key,inv)
     }
-    AppContext *-- BeanContainer
-    AppContext *-- Environment
-    AppContext *-- RouterHub
-    AppContext *-- ShardRegistry
+
+    AppContext "1" *-- "1" BeanContainer : 持有
+    AppContext "1" *-- "1" Environment
+    AppContext "1" *-- "1" EventPublisher
+    AppContext "1" *-- "1" ResourceLoader
+    AppContext "1" *-- "1" RouterHub
+    AppContext "1" *-- "1" ShardRegistry
+
+    classDef root      fill:#0d6efd,stroke:#0a58ca,color:#fff,stroke-width:3px,rx:15,ry:15
+    classDef component fill:#cfe2ff,stroke:#0d6efd,stroke-width:1.5px,color:#0a2540,rx:10,ry:10
+
+    class AppContext root
+    class BeanContainer,Environment,EventPublisher,ResourceLoader,RouterHub,ShardRegistry component
 ```
 
 #### 13.3.3 三段式生命周期（沿用 Solon 两段式 + 补 Spring SmartLifecycle）
@@ -2553,7 +2625,7 @@ public class AppContext {
         // ===== Phase 1: gather（仅反射记录，不创建对象） =====
         state = State.GATHERING;
         new AnnotationScanner(appCL)
-            .scan(this::collectDefinition);    // 把带注解的类汇总到 BeanContainer.definitions
+                .scan(this::collectDefinition);    // 把带注解的类汇总到 BeanContainer.definitions
 
         // ===== Phase 2: commit（实例化 + 注入 + 初始化） =====
         state = State.COMMITTING;
@@ -2568,7 +2640,7 @@ public class AppContext {
         routers.bindAll();                     // 把 @HttpRoute 等挂到 ctx.routers()
         events.publish(new ContextRefreshedEvent(this));
         beans.getBeansOfType(Lifecycle.class)
-             .forEach(Lifecycle::start);
+                .forEach(Lifecycle::start);
         state = State.RUNNING;
     }
 
@@ -2788,60 +2860,60 @@ gantt
     axisFormat %m-%d
 
     section Stage 0 当前态
-    EAR 打包 + 部署           :done, s0a, 2026-08-01, 30d
-    DeployManager 工具化      :done, s0b, 2026-08-01, 30d
-    EdapAppClassLoader        :done, s0c, 2026-08-01, 30d
-    ProtoServiceData 元数据   :done, s0d, 2026-08-01, 30d
+        EAR 打包 + 部署           :done, s0a, 2026-08-01, 30d
+        DeployManager 工具化      :done, s0b, 2026-08-01, 30d
+        EdapAppClassLoader        :done, s0c, 2026-08-01, 30d
+        ProtoServiceData 元数据   :done, s0d, 2026-08-01, 30d
 
     section Stage 1 Container 拆分
-    Container 类              :s1a, after s0a, 10d
-    DeployManager 退化工具    :s1b, after s1a, 7d
-    AppRegistry              :s1c, after s1a, 14d
-    AppContext 骨架          :s1d, after s1c, 14d
+        Container 类              :s1a, after s0a, 10d
+        DeployManager 退化工具    :s1b, after s1a, 7d
+        AppRegistry              :s1c, after s1a, 14d
+        AppContext 骨架          :s1d, after s1c, 14d
 
     section Stage 2 Proto 解析
-    proto 解析器              :s2a, after s1d, 14d
-    ProtoDescriptor 模型      :s2b, after s2a, 7d
-    EAR 内 proto 扫描         :s2c, after s2b, 10d
-    容器启动加载 proto        :s2d, after s2c, 7d
+        proto 解析器              :s2a, after s1d, 14d
+        ProtoDescriptor 模型      :s2b, after s2a, 7d
+        EAR 内 proto 扫描         :s2c, after s2b, 10d
+        容器启动加载 proto        :s2d, after s2c, 7d
 
     section Stage 3 Option 体系
-    google.api.http 解析     :s3a, after s2d, 14d
-    edap.ws option 定义      :s3b, after s3a, 10d
-    edap.rpc option 定义     :s3c, after s3a, 10d
-    Option → 协议路由映射     :s3d, after s3b, 14d
+        google.api.http 解析     :s3a, after s2d, 14d
+        edap.ws option 定义      :s3b, after s3a, 10d
+        edap.rpc option 定义     :s3c, after s3a, 10d
+        Option → 协议路由映射     :s3d, after s3b, 14d
 
     section Stage 4 多协议 Router
-    HTTP Router 注册          :s4a, after s3d, 14d
-    WS Router 注册            :s4b, after s4a, 14d
-    eRPC Router 注册          :s4c, after s4b, 14d
-    多协议同时发布             :s4d, after s4c, 14d
-    协议路由统一抽象           :s4e, after s3d, 14d
+        HTTP Router 注册          :s4a, after s3d, 14d
+        WS Router 注册            :s4b, after s4a, 14d
+        eRPC Router 注册          :s4c, after s4b, 14d
+        多协议同时发布             :s4d, after s4c, 14d
+        协议路由统一抽象           :s4e, after s3d, 14d
 
     section Stage 5 文档生成
-    Markdown 文档生成         :s5a, after s2d, 7d
-    OpenAPI 3.0 生成          :s5b, after s5a, 10d
-    HTML 文档站               :s5c, after s5b, 14d
-    Postman Collection        :s5d, after s5c, 7d
+        Markdown 文档生成         :s5a, after s2d, 7d
+        OpenAPI 3.0 生成          :s5b, after s5a, 10d
+        HTML 文档站               :s5c, after s5b, 14d
+        Postman Collection        :s5d, after s5c, 7d
 
     section Stage 6 代码生成
-    Handler 骨架生成          :s6a, after s3d, 14d
-    Client Stub 生成          :s6b, after s6a, 14d
-    TypeScript SDK 生成       :s6c, after s6b, 14d
-    多语言 SDK 框架           :s6d, after s6c, 21d
+        Handler 骨架生成          :s6a, after s3d, 14d
+        Client Stub 生成          :s6b, after s6a, 14d
+        TypeScript SDK 生成       :s6c, after s6b, 14d
+        多语言 SDK 框架           :s6d, after s6c, 21d
 
     section Stage 7 热部署
-    VersionManager 版本管理   :s7a, after s4d, 14d
-    蓝绿部署 atomic 切换     :s7b, after s7a, 10d
-    staging 预热启动          :s7c, after s7b, 7d
-    请求排空                  :s7d, after s7c, 7d
-    旧版本资源回收            :s7e, after s7d, 10d
+        VersionManager 版本管理   :s7a, after s4d, 14d
+        蓝绿部署 atomic 切换     :s7b, after s7a, 10d
+        staging 预热启动          :s7c, after s7b, 7d
+        请求排空                  :s7d, after s7c, 7d
+        旧版本资源回收            :s7e, after s7d, 10d
 
     section Stage 8 gRPC 兼容
-    gRPC proto 标准兼容       :s8a, after s4e, 14d
-    gRPC Router 实现         :s8b, after s8a, 14d
-    Protobuf 序列化对接       :s8c, after s8b, 14d
-    外部 gRPC 客户端互通     :s8d, after s8c, 14d
+        gRPC proto 标准兼容       :s8a, after s4e, 14d
+        gRPC Router 实现         :s8b, after s8a, 14d
+        Protobuf 序列化对接       :s8c, after s8b, 14d
+        外部 gRPC 客户端互通     :s8d, after s8c, 14d
 ```
 
 ### 15.2 阶段验收标准
@@ -2992,16 +3064,16 @@ AppContext 不需要重复扫描，按节点能力选择性注册即可，零冗
 > 当前 `io.edap.Edap` 已经承担了 Container 角色，本阶段不新建平行类，只在 `Edap` 内部做拆分 + 把 `DeployManager` 里的逻辑下沉到新建的 `AppContext`。
 
 1. **`Edap.java` 内部拆分**：
-   - 抽出 `AppRegistry` 独立类（从 Edap 现有 `Map<String, ServerGroup>` 拆分）
-   - 增加 `Edap.deploy(File ear)` 方法：`new AppContext(ear) → ctx.start() → registry.register(ctx)`
-   - 把当前 `DeployManager.startApps()` 中的"建 EarScanner / 读 deployInfo / 加载类 / 加载 bean"整体下沉到 `AppContext.start()` 的 Phase 1+2
+    - 抽出 `AppRegistry` 独立类（从 Edap 现有 `Map<String, ServerGroup>` 拆分）
+    - 增加 `Edap.deploy(File ear)` 方法：`new AppContext(ear) → ctx.start() → registry.register(ctx)`
+    - 把当前 `DeployManager.startApps()` 中的"建 EarScanner / 读 deployInfo / 加载类 / 加载 bean"整体下沉到 `AppContext.start()` 的 Phase 1+2
 2. **`AppContext.java`（新增，§13.3 设计）**：
-   - 持有 `appCL`、`BeanContainer`、`Environment`、`RouterHub`、`ShardRegistry`、`EventPublisher`
-   - `start()` 走三段式：gather → commit → ready（详见 §13.3.3）
-   - 启动日志：`[AppContext] scanAnnotations: XXX → @HttpRoute(...)` 取代"已解析 hello.proto"
+    - 持有 `appCL`、`BeanContainer`、`Environment`、`RouterHub`、`ShardRegistry`、`EventPublisher`
+    - `start()` 走三段式：gather → commit → ready（详见 §13.3.3）
+    - 启动日志：`[AppContext] scanAnnotations: XXX → @HttpRoute(...)` 取代"已解析 hello.proto"
 3. **`DeployManager` 简化**：
-   - 删除现有 `appBeanInit()` / `deployAppToContainer()` / `startApps()` 里 EarScanner / Bean 相关代码
-   - 改为 `container.deploy(ear)` + 部署元数据读写
+    - 删除现有 `appBeanInit()` / `deployAppToContainer()` / `startApps()` 里 EarScanner / Bean 相关代码
+    - 改为 `container.deploy(ear)` + 部署元数据读写
 4. **`Bootstrap` 不动**（`new Edap()` + `DeployManager.setEdap()` 已经匹配新模型，详见 §13.2 当前映射表）
 
 ### Stage 2：edap-protocol-parent 代码生成器（构建侧）
@@ -3009,17 +3081,17 @@ AppContext 不需要重复扫描，按节点能力选择性注册即可，零冗
 > proto 解析阶段（Step 4）已经完成——`io.edap.protobuf.wire.parser.ProtoParser` 负责 .proto 文本解析，测试齐备。Step 5 的 Java 代码 + 注解生成由 `io.edap.protobuf.idl.CodeGenertor` 负责。Step 6 构建插件是剩余工作。
 
 4. **proto 解析 — ✅ 已完成**：
-   - 由 `io.edap.protobuf.wire.parser.ProtoParser` 负责（自研轻量解析器）
-   - 支持 service / rpc / message + 这几个 option：
-     `google.api.http`、`edap.ws`、`edap.rpc`、`edap.shard_key`、`edap.local_cache`、`edap.rpc.stateful`
-   - 输出 `ProtoDescriptor` 对象树（这里的 `ProtoServiceData` / `ProtoMethodData` / `AnnoData` 与运行期同名 VO 结构一致，**代码生成和运行期用的是同一套对象模型**，避免双向转换损耗）
-   - 配套单元测试齐备
+    - 由 `io.edap.protobuf.wire.parser.ProtoParser` 负责（自研轻量解析器）
+    - 支持 service / rpc / message + 这几个 option：
+      `google.api.http`、`edap.ws`、`edap.rpc`、`edap.shard_key`、`edap.local_cache`、`edap.rpc.stateful`
+    - 输出 `ProtoDescriptor` 对象树（这里的 `ProtoServiceData` / `ProtoMethodData` / `AnnoData` 与运行期同名 VO 结构一致，**代码生成和运行期用的是同一套对象模型**，避免双向转换损耗）
+    - 配套单元测试齐备
 5. **注解生成器 — ✅ 已完成**（由 `io.edap.protobuf.idl.CodeGenertor` 负责）：
-   - 遍历 `ProtoDescriptor`，为每个 service 生成 `XXXApi.java`（interface，带 `@EdapService` + `@EdapMethod` + 对应 `@HttpRoute` / `@WSRoute` / `@RpcRoute` / `@ShardKey` / `@LocalCache` / `@Stateful`）
-   - 为每个 rpc 生成 `XXXProto.java`（PB message）和 service stub（PB 序列化/反序列化的 Message）
-   - 提供 `XXXImplSkeleton.java` 模板，开发者继承并实现业务方法
+    - 遍历 `ProtoDescriptor`，为每个 service 生成 `XXXApi.java`（interface，带 `@EdapService` + `@EdapMethod` + 对应 `@HttpRoute` / `@WSRoute` / `@RpcRoute` / `@ShardKey` / `@LocalCache` / `@Stateful`）
+    - 为每个 rpc 生成 `XXXProto.java`（PB message）和 service stub（PB 序列化/反序列化的 Message）
+    - 提供 `XXXImplSkeleton.java` 模板，开发者继承并实现业务方法
 6. **接入 Maven/Gradle**（剩余工作）：
-   - 用 `edap-protoc-maven-plugin`（或 `edap-protoc-gradle-plugin`）在 `generate-sources` 阶段自动跑
+    - 用 `edap-protoc-maven-plugin`（或 `edap-protoc-gradle-plugin`）在 `generate-sources` 阶段自动跑
 
 ### 验证（一气呵成）
 
