@@ -69,10 +69,11 @@ public class IoSelectorManager {
         if (server.getIoThreadCount() < 1) {
             ioThreadCount = SystemUtil.getCpuCount();
         }
-        int reactorCount = ioThreadCount / 8;
-        if (reactorCount < 1) {
-            reactorCount = 1;
-        }
+//        int reactorCount = ioThreadCount / 8;
+//        if (reactorCount < 1) {
+//            reactorCount = 1;
+//        }
+        int reactorCount = ioThreadCount;
 
         ioWorkers = new IoWorker[reactorCount];
         for (int i=0;i<reactorCount;i++) {
