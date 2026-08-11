@@ -2453,21 +2453,37 @@ stateDiagram-v2
 
 ## 十三、容器核心类设计
 
-> **命名说明**：当前代码里的 `io.edap.Edap` 类已经承担了下面 "Container" 的全部职责（持有 `ServerGroup`、管理应用生命周期、提供 `run()` 入口）。本节以 `Container` 描述设计意图；落地时直接对应到现有 `Edap.java`，**不需要新建一个并行类**。
+> **概念边界**：`io.edap.Edap` 是 NIO 框架 + `ServerGroup` 的运行时容器（位于 `edap-nio` 模块），**不**依赖下游模块。`Container` 是普通 Java 应用（EAR 微服务）的容器，**位于 `edap-container` 模块**，通过 Edap 暴露的 `addServerGroup` / `getServerGroups` / `getNio` / `getProps` API 在 Edap 上注册自己的 `Server` 实例。独立 NIO 服务（未来的 edap-gateway / edap-mail 等）也是同样的接入方式。
 
 ### 13.1 顶层架构
 
 ```mermaid
 classDiagram
+    direction TB
+
+    class Edap {
+        <<NIO 框架 + ServerGroup 运行时>>
+        +FastNetIO nio
+        +Map~String,ServerGroup~ serverGroups
+        +getNio()
+        +getProps()
+        +addServerGroup(ServerGroup)
+        +getServerGroups()
+        +run()
+        +stop()
+    }
+
     class Container {
+        <<Java 应用容器<br/>(edap-container 模块)>>
+        +Edap edap
+        +File appsDir
         +AppRegistry apps
-        +ClassLoader containerCL
-        +Props cfg
+        +DeployManager deployManager
+        +attach(Edap)
         +start()
         +stop()
         +deploy(File ear)
         +undeploy(appId, version)
-        +run()
     }
 
     class AppContext {
@@ -2496,44 +2512,59 @@ classDiagram
         +listApps()
     }
 
+    Edap *-- ServerGroup : serverGroups
+    Container ..> Edap : 调用 addServerGroup / getNio / getProps
     Container *-- AppRegistry
     AppRegistry *-- AppContext
+    Container *-- DeployManager
     DeployManager --> Container : 操作
+
+    classDef nioContainer fill:#0d6efd,stroke:#0a58ca,color:#fff,stroke-width:3px,rx:15,ry:15
+    classDef javaContainer fill:#198754,stroke:#146c43,color:#fff,stroke-width:3px,rx:15,ry:15
+    classDef component fill:#cfe2ff,stroke:#0d6efd,stroke-width:1.5px,color:#0a2540,rx:10,ry:10
+
+    class Edap nioContainer
+    class Container javaContainer
+    class AppContext component
+    class AppRegistry component
+    class DeployManager component
 ```
 
 **当前映射**：
 
 | 本节设计名 | 当前代码对应 |
 |------------|-------------|
-| `Container` | `io.edap.Edap`（已存在，**不需要新建**） |
-| `Container.start()` / `run()` | `Edap.run()`（已存在，Bootstrap 已调用） |
-| `AppRegistry` | `Map<String, ServerGroup>` 在 `Edap` 内部（需拆出独立类） |
+| `Edap` | `io.edap.Edap`（已存在，NIO 框架 + ServerGroup 运行时，**保留** `addServerGroup` / `getServerGroups`） |
+| `Container` | `io.edap.container.Container`（**新增**，在 edap-container 模块；通过 `edap.addServerGroup(...)` 接入） |
+| `Edap.run()` | 启动 `FastNetIO` 后遍历 `serverGroups` 启动各 Server；Container 的 start 在 edap-container 的 Bootstrap 里 |
+| `AppRegistry` | `Map<String, ServerGroup>` 在 `Edap` 内部（保留为 Edap 的通用 ServerGroup 概念；Container 自己在内部维护 appId → AppContext 映射） |
 | `AppContext` | **目前不存在**——本节 13.3 要新增的设计 |
-| `DeployManager` | `io.edap.container.mw.DeployManager`（已存在，需用新版替换） |
+| `DeployManager` | `io.edap.container.mw.DeployManager`（已存在，改为持有 `Container`） |
 
 ### 13.2 DeployManager 重构后的样子
 
 ```java
 public class DeployManager {
-    private Container container;
-    private File appsDir;
+    private final Container container;
+    private final File appsDir;
 
-    public void attach(Container container) {
+    public DeployManager(Container container, File appsDir) {
         this.container = container;
+        this.appsDir = appsDir;
     }
 
     // 不再做任何加载 ClassLoader、初始化 Bean 的工作
     public BaseResult<String> deployApp(String name, String version) {
         File ear = locateEar(name, version);
-        return container.deploy(ear);  // 委派给容器
+        return container.deploy(ear);  // 委派给应用容器
     }
 
     public List<MicroServiceInfo> queryAppList() {
-        return container.listApps();   // 委派给容器
+        return container.listApps();   // 委派给应用容器
     }
 
     public BaseResult<String> startApps() {
-        return container.startApps();  // 委派给容器
+        return container.startApps();  // 委派给应用容器
     }
 }
 ```
@@ -3018,8 +3049,8 @@ edap 项目已有以下基础，需要在新架构中保留和增强：
 
 | 现有文件 | 对齐方式 |
 |---------|---------|
-| `Bootstrap.java` | 已基本符合最终形态：`new Edap()` + `DeployManager.setEdap()` + `edap.run()`（无需大改；可读性可微调） |
-| `DeployManager.java` | **承担管理工具角色**，但目前 `startApps()` / `deployApp()` 里还有不少"加载 ClassLoader / 初始化 Bean"逻辑——这些逻辑下沉到新增的 `AppContext.start()` 里，DeployManager 只保留 `container.deploy(ear)` + 元数据读写 + HTTP 管理接口 |
+| `Bootstrap.java` | 在 edap-container 模块里：创建 `Edap` + `Container`，调 `container.attach(edap)`（内部 addServerGroup） + `container.start()` + `edap.run()` |
+| `DeployManager.java` | **承担管理工具角色**，但目前 `startApps()` / `deployApp()` 里还有不少“加载 ClassLoader / 初始化 Bean”逻辑——这些逻辑下沉到新增的 `AppContext.start()` 里，DeployManager 只保留 `container.deploy(ear)` + 元数据读写 + HTTP 管理接口 |
 | `EdapAppClassLoader.java` | 作为 AppContext 的标准 ClassLoader 实现 |
 | `HttpHandlerRegister.java` | 升级为 HTTP Router，扫描 `@HttpRoute(...)` 注解注册路由（不再基于 ProtoDescriptor） |
 | `HttpConvertorFactory.java` | 保留作为 HTTP 协议层的适配器 |
@@ -3064,22 +3095,26 @@ AppContext 不需要重复扫描，按节点能力选择性注册即可，零冗
 
 > 按 §19 设计：proto 解析 = 代码生成期的工作；容器运行时 = 注解驱动的注册。本节把"最小可验证版本"拆成两段：**Stage 1（容器拆分）** + **Stage 2（edap-protocol-parent 代码生成器）**。
 
-### Stage 1：基于现有 `Edap.java` 改造（容器侧，约 1 周）
+### Stage 1：新增 `Container.java`，让 Container 通过 `ServerGroup` 接入 Edap（容器侧，约 1 周）
 
-> 当前 `io.edap.Edap` 已经承担了 Container 角色，本阶段不新建平行类，只在 `Edap` 内部做拆分 + 把 `DeployManager` 里的逻辑下沉到新建的 `AppContext`。
+> `io.edap.Edap` 是 NIO 框架 + ServerGroup 运行时；本阶段新增 `io.edap.container.Container`，让 Container 通过 Edap 的 `addServerGroup` / `getNio` / `getProps` API 在 Edap 上挂载自己的 ServerGroup。**Edap 不新增任何"成员"接口**——它的 API 已经够用了。
 
-1. **`Edap.java` 内部拆分**：
-    - 抽出 `AppRegistry` 独立类（从 Edap 现有 `Map<String, ServerGroup>` 拆分）
-    - 增加 `Edap.deploy(File ear)` 方法：`new AppContext(ear) → ctx.start() → registry.register(ctx)`
-    - 把当前 `DeployManager.startApps()` 中的"建 EarScanner / 读 deployInfo / 加载类 / 加载 bean"整体下沉到 `AppContext.start()` 的 Phase 1+2
-2. **`AppContext.java`（新增，§13.3 设计）**：
+1. **`Edap.java` 保留与新增**：
+    - **保留** `addServerGroup` / `getServerGroups` —— Container 通过这个 API 接入
+    - **新增** `getNio()` —— 暴露 NIO 实例（之前 NIO 隐藏在 ServerGroup / Server 内部）
+2. **新增 `Container.java`**（位于 edap-container 模块）：
+    - `attach(Edap)` 方法：拿到 Edap 引用 + 把自己的 `ServerGroup` 通过 `edap.addServerGroup(...)` 注册
+    - `start()` 方法：扫描 `appsDir` 下的 `.ear`，逐个 `deploy(ear)`
+    - `deploy(File ear)`：`new AppContext(ear) → ctx.start() → registry.register(ctx)`
+    - 把现有 `DeployManager.startApps()` 中的"建 EarScanner / 读 deployInfo / 加载类 / 加载 bean"整体下沉到 `AppContext.start()` 的 Phase 1+2
+3. **`AppContext.java`（新增，§13.3 设计）**：
     - 持有 `appCL`、`BeanContainer`、`Environment`、`RouterHub`、`ShardRegistry`、`EventPublisher`
     - `start()` 走三段式：gather → commit → ready（详见 §13.3.3）
     - 启动日志：`[AppContext] scanAnnotations: XXX → @HttpRoute(...)` 取代"已解析 hello.proto"
-3. **`DeployManager` 简化**：
+4. **`DeployManager` 简化**：
     - 删除现有 `appBeanInit()` / `deployAppToContainer()` / `startApps()` 里 EarScanner / Bean 相关代码
     - 改为 `container.deploy(ear)` + 部署元数据读写
-4. **`Bootstrap` 不动**（`new Edap()` + `DeployManager.setEdap()` 已经匹配新模型，详见 §13.2 当前映射表）
+5. **`Bootstrap` 调整**：在 edap-container 模块里 — `new Edap()` + `new Container(appsDir)` + `container.attach(edap)` + `container.start()` + `edap.run()`。**不**在 Edap 里调 Container。
 
 ### Stage 2：edap-protocol-parent 代码生成器（构建侧）
 
