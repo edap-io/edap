@@ -18,9 +18,31 @@ package io.edap.container.mw;
 
 public class BaseResult<T> {
 
+    /** 成功 code（0）；失败 code 由调用方传入（业务自定义 code）。 */
+    public static final int SUCCESS = 0;
+
     private int code;
     private String message;
     private T data;
+
+    public boolean isSuccess() {
+        return code == 0;
+    }
+
+    public static BaseResult fail(int code, String message) {
+        BaseResult r = new BaseResult();
+        r.setCode(code);
+        r.setMessage(message);
+
+        return r;
+    }
+
+    public static BaseResult success(String message) {
+        BaseResult r = new BaseResult();
+        r.setCode(SUCCESS);
+        r.setMessage(message);
+        return r;
+    }
 
     public int getCode() {
         return code;

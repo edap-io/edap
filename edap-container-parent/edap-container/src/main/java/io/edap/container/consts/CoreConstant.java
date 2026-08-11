@@ -4,6 +4,8 @@ public class CoreConstant {
 
     private CoreConstant() {}
 
+    public static final int SUCCESS = 0;
+
     /**
      * WebSocket的默认路径
      */
@@ -15,7 +17,7 @@ public class CoreConstant {
     /**
      * edap自定义微服务的默认端口号
      */
-    public static final int MICRO_SERVICE_PORT = 8081;
+    public static final int ERPC_PORT = 8081;
 
     public static final String APP_SERVER_GROUO_KEY = "app_server";
     /**
