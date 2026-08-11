@@ -21,11 +21,13 @@ import io.edap.log.Logger;
 import io.edap.log.LoggerFactory;
 import io.edap.log.LoggerManager;
 import io.edap.nio.SelectorProvider;
+import io.edap.props.Props;
 import io.edap.util.CollectionUtils;
 
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.locks.ReentrantLock;
 
 import static io.edap.log.helpers.Util.printError;
 
@@ -42,12 +44,15 @@ public class Edap {
 
     private static final List<SelectorProvider> SELECTOR_PROVIDERS = new CopyOnWriteArrayList<>();
 
-    private int monitIndex = 0;
-    private Map<String, Integer> monitorIndexs = new HashMap<>();
+    private          int                  monitIndex = 0;
+    private volatile EdapState            state;
+    private          Map<String, Integer> monitorIndexs = new HashMap<>();
+    private final    ReentrantLock        lifecycleLock = new ReentrantLock();
 
     public Edap() {
         serverGroups = new HashMap<>();
         init();
+        state = EdapState.NEW;
     }
 
     private void init() {
@@ -61,6 +66,11 @@ public class Edap {
                 SELECTOR_PROVIDERS.add(provider);
             }
         }
+    }
+
+    public Props getProps() {
+        // 完整配置由 EdapConfig 加载后构造；当前 stub 阶段先返回 null（容器侧 Environment 构造由 Container.start 接好）
+        return new Props(new HashMap<>());
     }
 
     public synchronized int getMonitorIndex(String key) {
@@ -100,17 +110,27 @@ public class Edap {
     }
 
     public Edap addServerGroup(ServerGroup serverGroup) {
-        serverGroup.setEdap(this);
-        serverGroups.put(serverGroup.getName(), serverGroup);
-        return this;
+        lifecycleLock.lock();
+        try {
+            serverGroup.setEdap(this);
+            serverGroups.put(serverGroup.getName(), serverGroup);
+            return this;
+        } finally {
+            lifecycleLock.unlock();
+        }
     }
 
     public Edap addServerGroups(Map<String, ServerGroup> serverGroups) {
-        for (ServerGroup sg : serverGroups.values()) {
-            sg.setEdap(this);
+        lifecycleLock.lock();
+        try {
+            for (ServerGroup sg : serverGroups.values()) {
+                sg.setEdap(this);
+            }
+            this.serverGroups.putAll(serverGroups);
+            return this;
+        } finally {
+            lifecycleLock.unlock();
         }
-        this.serverGroups.putAll(serverGroups);
-        return this;
     }
 
     public ServerGroup getServerGroup(String name) {
@@ -122,38 +142,47 @@ public class Edap {
     }
 
     public void addServer(Server server) {
-        ServerGroup sg = null;
-        if (CollectionUtils.isEmpty(serverGroups)) {
-            sg = new ServerGroup();
-            sg.setEdap(this);
-            serverGroups.put("default", sg);
-        } else {
-            for (Map.Entry<String, ServerGroup> entry : serverGroups.entrySet()) {
-                if (sg == null) {
-                    sg = entry.getValue();
-                }
-                if ("default".equals(entry.getKey())) {
-                    sg = entry.getValue();
+        lifecycleLock.lock();
+        try {
+            ServerGroup sg = null;
+            if (CollectionUtils.isEmpty(serverGroups)) {
+                sg = new ServerGroup();
+                sg.setEdap(this);
+                serverGroups.put("default", sg);
+            } else {
+                for (Map.Entry<String, ServerGroup> entry : serverGroups.entrySet()) {
+                    if (sg == null) {
+                        sg = entry.getValue();
+                    }
+                    if ("default".equals(entry.getKey())) {
+                        sg = entry.getValue();
+                    }
                 }
             }
-        }
-        if (sg != null) {
-            sg.addServer(server);
+            if (sg != null) {
+                sg.addServer(server);
+            }
+        } finally {
+            lifecycleLock.unlock();
         }
     }
 
     public void run() throws IOException {
-        if (CollectionUtils.isEmpty(serverGroups)) {
-            return;
+        lifecycleLock.lock();
+        try {
+            if (CollectionUtils.isEmpty(serverGroups)) {
+                return;
+            }
+
+            Runtime.getRuntime().addShutdownHook(shutdownThread(this));
+            serverGroups.forEach((k, v) -> {
+                System.out.println("ServerGroup [" + k + "] start");
+                v.run();
+
+            });
+        } finally {
+            lifecycleLock.unlock();
         }
-
-        Runtime.getRuntime().addShutdownHook(shutdownThread(serverGroups));
-        serverGroups.forEach((k, v) -> {
-            System.out.println("ServerGroup [" + k + "] start");
-            v.run();
-
-        });
-
         //int read = System.in.read();
     }
 
@@ -162,31 +191,63 @@ public class Edap {
         return null;
     }
 
-    private Thread shutdownThread(Map<String, ServerGroup> serverGroups) {
-        return new Thread(new ShutdownRunner(serverGroups));
+    private Thread shutdownThread(Edap edap) {
+        return new Thread(new ShutdownRunner(edap));
+    }
+
+    public void stop() {
+        EdapState saved;
+        try {
+            if (state == EdapState.STOPPED) {
+                return;     // 幂等 no-op
+            }
+            if (state == EdapState.NEW) {                // 还没 start 过
+                state = EdapState.STOPPED;
+                return;
+            }
+            if (state == EdapState.STOPPING) {
+                return;    // 已经在停
+            }
+            state.checkTransitionTo(EdapState.STOPPING);
+            state = EdapState.STOPPING;
+            saved = state;
+        } finally {
+            lifecycleLock.unlock();
+        }
+        doStop();   // 释放锁后再做 I/O（s.stop 可能阻塞）
+    }
+
+    private void doStop() {
+        System.out.println("Edap stop...");
+        log.info("Edap stop...");
+        for (Map.Entry<String, ServerGroup> sgEntry : serverGroups.entrySet()) {
+            System.out.println("ServerGroup [" + sgEntry.getKey() + "] stop ...");
+            log.info("ServerGroup [{}] stop ...", l -> l.arg(sgEntry.getKey()));
+            sgEntry.getValue().stop();
+            System.out.println("ServerGroup [" + sgEntry.getKey() + "] stopped");
+            log.info("ServerGroup [{}] stopped", l -> l.arg(sgEntry.getKey()));
+        }
+        System.out.println("Edap stopped");
+        log.info("Edap stopped");
+        lifecycleLock.lock();
+        try {
+            state = EdapState.STOPPED;
+        } finally {
+            lifecycleLock.unlock();
+        }
     }
 
     class ShutdownRunner implements Runnable {
 
-        private final Map<String, ServerGroup> serverGroups;
+        private final Edap edap;
 
-        public ShutdownRunner(Map<String, ServerGroup> serverGroups) {
-            this.serverGroups = serverGroups;
+        public ShutdownRunner(Edap edap) {
+            this.edap = edap;
         }
 
         @Override
         public void run() {
-            System.out.println("Edap stop...");
-            log.info("Edap stop...");
-            for (Map.Entry<String, ServerGroup> sgEntry : serverGroups.entrySet()) {
-                System.out.println("ServerGroup [" + sgEntry.getKey() + "] stop ...");
-                log.info("ServerGroup [{}] stop ...", l->l.arg(sgEntry.getKey()));
-                sgEntry.getValue().stop();
-                System.out.println("ServerGroup [" + sgEntry.getKey() + "] stopped");
-                log.info("ServerGroup [{}] stopped", l->l.arg(sgEntry.getKey()));
-            }
-            System.out.println("Edap stopped");
-            log.info("Edap stopped");
+            edap.stop();
         }
     }
 }
