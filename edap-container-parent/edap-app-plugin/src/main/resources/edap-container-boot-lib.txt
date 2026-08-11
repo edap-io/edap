@@ -1,6 +1,8 @@
 com.lmax:disruptor
 io.edap:edap-asm-utils
 io.edap:edap-common
+io.edap:edap-erpc-api
+io.edap:edap-grpc-api
 io.edap:edap-http-core
 io.edap:edap-http-server
 io.edap:edap-json
@@ -13,4 +15,5 @@ io.edap:edap-nio-server
 io.edap:edap-protobuf
 io.edap:edap-protobuf-api
 io.edap:edap-protobuf-wire
+javax.inject:javax.inject
 org.ow2.asm:asm

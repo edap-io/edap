@@ -5,23 +5,20 @@
     <modelVersion>4.0.0</modelVersion>
     <parent>
         <groupId>io.edap</groupId>
-        <artifactId>edap-rpc-parent</artifactId>
+        <artifactId>edap</artifactId>
         <version>${edap.version}</version>
     </parent>
 
-    <artifactId>edap-rpc-api</artifactId>
+    <artifactId>edap-grpc-parent</artifactId>
+    <packaging>pom</packaging>
+    <modules>
+        <module>edap-grpc-api</module>
+    </modules>
 
     <properties>
-        <maven.compiler.source>8</maven.compiler.source>
-        <maven.compiler.target>8</maven.compiler.target>
+        <maven.compiler.source>17</maven.compiler.source>
+        <maven.compiler.target>17</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
-
-    <dependencies>
-        <dependency>
-            <groupId>io.edap</groupId>
-            <artifactId>edap-protobuf-wire</artifactId>
-        </dependency>
-    </dependencies>
 
 </project>
