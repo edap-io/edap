@@ -43,6 +43,7 @@ public class Edap {
     private Map<String, ServerGroup> serverGroups;
 
     private static final List<SelectorProvider> SELECTOR_PROVIDERS = new CopyOnWriteArrayList<>();
+    private static final List<Stoppable>       STOP_HOOKS         = new CopyOnWriteArrayList<>();
 
     private          int                  monitIndex = 0;
     private volatile EdapState            state;
@@ -107,6 +108,29 @@ public class Edap {
             }
         }
         return false;
+    }
+
+    /**
+     * 注册 Edap 进程停止时的回调 hook。
+     *
+     * <p>典型用途：{@code Container.attach(edap)} 时把 {@code container::stop} 注册进来，
+     * 保证 SIGTERM / {@code Edap.stop()} 时 Container 先于 ServerGroup 完成清理
+     * （Container.stop 只做内存级清理：unbind routes / @PreDestroy / appCL.close，
+     * 不动 socket；ServerGroup.stop 关闭监听 socket 必须在 routes 已摘除后做）。</p>
+     *
+     * <p>Edap 对每个 hook 独立 try/catch：单个 hook 抛异常不影响其他 hook 与 ServerGroup.stop()。</p>
+     *
+     * <p>调用时机不限，但建议在 {@link #addServerGroup(ServerGroup)} 之后、
+     * {@link #run()} 之前完成注册（与 attach 同一处）。</p>
+     *
+     * @param hook 停止回调，null 静默忽略
+     * @return this，便于链式
+     */
+    public Edap addOnStop(Stoppable hook) {
+        if (hook != null) {
+            STOP_HOOKS.add(hook);
+        }
+        return this;
     }
 
     public Edap addServerGroup(ServerGroup serverGroup) {
@@ -180,6 +204,8 @@ public class Edap {
                 v.run();
 
             });
+
+            state = EdapState.RUNNING;
         } finally {
             lifecycleLock.unlock();
         }
@@ -196,7 +222,7 @@ public class Edap {
     }
 
     public void stop() {
-        EdapState saved;
+        lifecycleLock.lock();
         try {
             if (state == EdapState.STOPPED) {
                 return;     // 幂等 no-op
@@ -210,7 +236,6 @@ public class Edap {
             }
             state.checkTransitionTo(EdapState.STOPPING);
             state = EdapState.STOPPING;
-            saved = state;
         } finally {
             lifecycleLock.unlock();
         }
@@ -218,16 +243,25 @@ public class Edap {
     }
 
     private void doStop() {
-        System.out.println("Edap stop...");
+        //System.out.println("Edap stop...");
         log.info("Edap stop...");
+        // 1. 先触发 stop hooks（Container 等）：内存级清理，不动 socket
+        for (Stoppable hook : STOP_HOOKS) {
+            try {
+                hook.stop();
+            } catch (Throwable t) {
+                log.warn("stop hook {} failed", l -> l.arg(hook.getClass().getName()).threw(t));
+            }
+        }
+        // 2. 再停所有 ServerGroup：关闭监听 socket
         for (Map.Entry<String, ServerGroup> sgEntry : serverGroups.entrySet()) {
-            System.out.println("ServerGroup [" + sgEntry.getKey() + "] stop ...");
+            //System.out.println("ServerGroup [" + sgEntry.getKey() + "] stop ...");
             log.info("ServerGroup [{}] stop ...", l -> l.arg(sgEntry.getKey()));
             sgEntry.getValue().stop();
-            System.out.println("ServerGroup [" + sgEntry.getKey() + "] stopped");
+            //System.out.println("ServerGroup [" + sgEntry.getKey() + "] stopped");
             log.info("ServerGroup [{}] stopped", l -> l.arg(sgEntry.getKey()));
         }
-        System.out.println("Edap stopped");
+        //System.out.println("Edap stopped");
         log.info("Edap stopped");
         lifecycleLock.lock();
         try {
