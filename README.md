@@ -60,15 +60,13 @@ message HelloResponse {
 graph TB
     subgraph ClientLayer [对接协议层 - 客户端视角]
         HTTP[HTTP :8080]
-        WS[WebSocket :8081]
+        WS[WebSocket :8080<br/>同端口 upgrade]
         ERPC[eRPC :9090]
         GRPC[gRPC :9091]
     end
 
     subgraph Nodes [edap 节点层 - 协议载体]
-        HTTPN[HTTP 节点<br/>激活 google.api.http]
-        WSN[WebSocket 节点<br/>激活 edap.ws]
-        CombinedN[HTTP+WS 节点<br/>同时激活两种]
+        HTTPN[HTTP 节点<br/>同端口处理 HTTP + WS<br/>按 path 区分]
         ERPCN[eRPC 节点<br/>微服务内部通信]
         GRPCN[gRPC 节点<br/>微服务内部通信]
     end
@@ -80,13 +78,11 @@ graph TB
     end
 
     HTTP --> HTTPN
-    WS --> WSN
+    WS --> HTTPN
     ERPC --> ERPCN
     GRPC --> GRPCN
 
     HTTPN -->|deploy| Ear
-    WSN -->|deploy| Ear
-    CombinedN -->|deploy| Ear
     ERPCN -->|deploy| Ear
     GRPCN -->|deploy| Ear
 ```
@@ -95,11 +91,11 @@ graph TB
 
 | 节点类型 | 激活的协议 option | 用途 | 典型端口 |
 |---------|-----------------|------|---------|
-| HTTP 节点 | `google.api.http` | 对外 Web 服务 | 8080 |
-| WebSocket 节点 | `edap.ws` | 实时推送 / 长连接 | 8081 |
-| HTTP+WS 节点 | 两者都激活 | Web 全栈服务 | 8080 + 8081 |
+| HTTP 节点 | `google.api.http` + `edap.ws` | Web 全栈服务（HTTP 请求 + WebSocket 同端口，HTTP server 按 path 区分） | 8080 |
 | eRPC 节点 | `edap.rpc` | 微服务内部通信 | 9090 |
 | gRPC 节点 | `edap.grpc` | 微服务内部通信（外部互通） | 9091 |
+
+> **HTTP 节点 = HTTP + WebSocket**：HTTP server 本身就是 WebSocket 的载体——客户端通过 HTTP Upgrade 握手升级为 WebSocket 连接（按请求 path 区分走 HTTP Router 还是 WS Router），不需要额外端口。把 HTTP 和 WebSocket 拆成两种节点类型反而割裂了"一个 HTTP server 同时承担普通 HTTP 与 WebSocket"的天然能力。
 
 **关键收益**：
 
@@ -620,13 +616,12 @@ graph TB
     end
 
     subgraph ContainerLayer [容器层 - 节点驱动]
-        NodeType[节点类型<br/>HTTP / WS / ERPC / GRPC]
+        NodeType[节点类型<br/>HTTP / ERPC / GRPC]
         Reg[Protocol Registry<br/>按节点类型激活对应 Router]
     end
 
     subgraph ProtocolLayer [协议层]
-        HTTP[HTTP :8080]
-        WS[WebSocket :8081]
+        HTTP[HTTP :8080<br/>同端口处理 HTTP + WS]
         ERPC[eRPC :9090]
         GRPC[gRPC :9091]
     end
@@ -641,7 +636,6 @@ graph TB
     NodeType -->|激活| Reg
     Impl --> Reg
     Reg -->|HTTP 节点| HTTP
-    Reg -->|WS 节点| WS
     Reg -->|eRPC 节点| ERPC
     Reg -->|gRPC 节点| GRPC
 ```
@@ -775,7 +769,7 @@ WS 不同于 HTTP/eRPC：**所有方法共享一个统一端点**，通过消息
 
 ```mermaid
 graph LR
-    Client[客户端] -->|ws://host:8081/ws| Server[WS 端点 /ws]
+    Client[客户端] -->|ws://host:8080/ws| Server[WS 端点 /ws<br/>同 HTTP 端口按 path 区分]
     Server --> Parse[解析消息体]
     Parse --> Route{method 字段?}
     Route -->|UserService.GetUser| H1[调用 GetUser 处理]
@@ -1423,18 +1417,13 @@ sequenceDiagram
 ```mermaid
 flowchart LR
     NodeType[节点类型<br/>由系统配置决定]
-    NodeType -->|HTTP 节点| Reg1[激活 HTTP Router<br/>扫描 google.api.http]
-    NodeType -->|WebSocket 节点| Reg2[激活 WS Router<br/>扫描 edap.ws]
-    NodeType -->|HTTP+WS 节点| Reg3[同时激活 HTTP + WS]
-    NodeType -->|eRPC 节点| Reg4[激活 eRPC Router<br/>扫描 edap.rpc]
-    NodeType -->|gRPC 节点| Reg5[激活 gRPC Router<br/>扫描 edap.grpc]
+    NodeType -->|HTTP 节点| Reg1[激活 HTTP Router + WS Router<br/>同端口扫描 google.api.http + edap.ws]
+    NodeType -->|eRPC 节点| Reg2[激活 eRPC Router<br/>扫描 edap.rpc]
+    NodeType -->|gRPC 节点| Reg3[激活 gRPC Router<br/>扫描 edap.grpc]
 
-    Reg1 --> R1[HTTP Router :8080]
-    Reg2 --> R2[WS Router :8081]
-    Reg3 --> R1
-    Reg3 --> R2
-    Reg4 --> R4Router[eRPC Router :9090]
-    Reg5 --> R5Router[gRPC Router :9091]
+    Reg1 --> R1[HTTP Server :8080<br/>按 path 路由到 HTTP/WS Router]
+    Reg2 --> R2[eRPC Router :9090]
+    Reg3 --> R3[gRPC Router :9091]
 ```
 
 **节点类型的配置方式**（容器侧，不是应用侧）：
@@ -1448,7 +1437,7 @@ EDAP_NODE_TYPE=ERPC
 
 # 或容器启动配置文件
 node:
-  type: HTTP_WEBSOCKET
+  type: HTTP
 ```
 
 ### 8.3 单端口 vs 多端口方案对比
@@ -3082,8 +3071,7 @@ edap 项目已有以下基础，需要在新架构中保留和增强：
 
 启动期，Container 拿到每个 `AppContext` 后做一次"注解扫描 → 注册到对应 Router"，各 Router 仅按匹配自己协议的注解过滤：
 
-- HTTP 节点 → 只激活 `HttpRouteRegister`，扫 `@HttpRoute`
-- WS 节点   → 只激活 `WsRouteRegister`，扫 `@WSRoute`
+- HTTP 节点 → 同时激活 `HttpRouteRegister`（扫 `@HttpRoute`）+ `WsRouteRegister`（扫 `@WSRoute`），同端口按 path 区分走哪个 Router
 - eRPC 节点 → 只激活 `RpcRouteRegister`，扫 `@RpcRoute`
 - gRPC 节点 → 只激活 `GrpcRouteRegister`，扫 `@EdapService + @EdapMethod`（用 protobuf 描述序列化）
 
@@ -3215,8 +3203,8 @@ curl -X POST "http://http-node:1111/deploy_app?name=hello&version=1.0.0"
 curl -X POST "http://erpc-node:1111/deploy_app?name=hello&version=1.0.0"
 
 # 5. 同一个应用在不同节点暴露不同协议
-curl "http://http-node:8080/v1/hello?name=world"                # HTTP 节点
-wscat -c ws://ws-node:8081/ws -x '{"method":"HelloService.SayHello","params":{"name":"world"}}'   # WS 节点（统一端点 + method 字段）
+curl "http://http-node:8080/v1/hello?name=world"                # HTTP 节点（普通 HTTP 请求）
+wscat -c ws://http-node:8080/ws -x '{"method":"HelloService.SayHello","params":{"name":"world"}}'   # HTTP 节点（同端口，按 path 走 WS Router，统一端点 + method 字段）
 ./edap-cli --server=erpc-node rpc --method=1001 --data='{"name":"world"}'  # eRPC 节点
 
 # 6. 自动生成的接口文档
@@ -3260,20 +3248,16 @@ graph TB
     end
 
     subgraph Runtime [运行态 - 同 EAR 部署到不同节点]
-        subgraph HTTPNode [HTTP 节点]
-            App1[App 实例<br/>激活 google.api.http]
-            HTTP[HTTP :8080]
-        end
-        subgraph WSNode [WebSocket 节点]
-            App2[App 实例<br/>激活 edap.ws]
-            WS[WebSocket :8081]
+        subgraph HTTPNode [HTTP 节点（同端口 HTTP + WS）]
+            App1[App 实例<br/>激活 google.api.http + edap.ws]
+            HTTP[HTTP Server :8080<br/>按 path 路由 HTTP / WS]
         end
         subgraph ERPCNode [eRPC 节点]
-            App3[App 实例<br/>激活 edap.rpc]
+            App2[App 实例<br/>激活 edap.rpc]
             ERPC[eRPC :9090]
         end
         subgraph GRPCNode [gRPC 节点 - 未来]
-            App4[App 实例<br/>激活 edap.grpc]
+            App3[App 实例<br/>激活 edap.grpc]
             GRPC[gRPC :9091]
         end
     end
@@ -3290,17 +3274,14 @@ graph TB
     Proto --> Stub
 
     Ear -.deploy.-> HTTPNode
-    Ear -.deploy.-> WSNode
     Ear -.deploy.-> ERPCNode
     Ear -.deploy.-> GRPCNode
 
     App1 --> HTTP
-    App2 --> WS
-    App3 --> ERPC
-    App4 --> GRPC
+    App2 --> ERPC
+    App3 --> GRPC
 
     HTTP --> Web
-    WS --> Web
     ERPC --> Server
     GRPC --> Server
     Stub --> Web
