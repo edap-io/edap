@@ -6,6 +6,8 @@ import io.edap.container.event.EventPublisher;
 import io.edap.container.exc.*;
 import io.edap.log.Logger;
 import io.edap.log.LoggerManager;
+import io.edap.microservice.annotation.Primary;
+import io.edap.microservice.Scope;
 
 import javax.inject.Inject;
 
@@ -90,14 +92,18 @@ public class BeanContainer {
 
     private void dfs(BeanDef def, Set<String> visited, Set<String> inStack,
                      List<BeanDef> result) {
-        if (visited.contains(def.name())) return;
+        if (visited.contains(def.name())) {
+            return;
+        }
         if (inStack.contains(def.name())) {
             throw new CyclicDependencyException(tracePath(inStack, def.name()));
         }
         inStack.add(def.name());
         for (String depName : def.injectionNames()) {
             BeanDef dep = definitions.get(depName);
-            if (dep != null) dfs(dep, visited, inStack, result);
+            if (dep != null) {
+                dfs(dep, visited, inStack, result);
+            }
         }
         inStack.remove(def.name());
         visited.add(def.name());
@@ -151,7 +157,10 @@ public class BeanContainer {
         for (Constructor<?> c : all) {
             Inject ann = c.getAnnotation(Inject.class);
             int score = (ann != null) ? c.getParameterCount() : 0;
-            if (score > bestScore) { bestScore = score; best = c; }
+            if (score > bestScore) {
+                bestScore = score;
+                best = c;
+            }
         }
         if (best == null) {
             throw new NoSuitableConstructorException(beanClass);
@@ -297,15 +306,14 @@ public class BeanContainer {
         }
     }
 
-    /** 把 instance 存入 singletons（按 BeanDef.scope 选择 SINGLETON / STATEFUL 路径）。 */
+    /** 把 instance 存入 singletons（按 BeanDef.scope 选 SINGLETON / PROTOTYPE 路径）。 */
     public void registerInstance(BeanDef def, Object instance) {
         if (def.scope() == Scope.SINGLETON) {
             singletons.put(def.name(), new BeanWrap(def, instance));
-        } else if (def.scope() == Scope.STATEFUL) {
-            singletons.put(def.name(), new BeanWrap(def, instance));  // template 实例
-            shards.registerSharded(def.name(), instance, def.shardCount());  // 扩展为 N 个分片
         }
         // PROTOTYPE 不缓存
+        // 分片实例的注册由 @Sharded 标注的方法扫描阶段单独触发 shards.registerSharded(...)，
+        // 本方法只管"主实例"的 SINGLETON / PROTOTYPE 落点。
     }
 
     /** Phase 2 → Phase 3 状态迁移。 */
@@ -390,7 +398,7 @@ public class BeanContainer {
             }
         }
 
-        // 3. 清空 singletons（STATEFUL 的分片实例也由 ShardRegistry 释放）
+        // 3. 清空 singletons（@Sharded 方法的分片实例也由 ShardRegistry 释放）
         singletons.clear();
         shards.clear();
         state.transitionTo(BeanContainerState.DESTROYED);

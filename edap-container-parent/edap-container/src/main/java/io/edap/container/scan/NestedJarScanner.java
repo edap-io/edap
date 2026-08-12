@@ -2,7 +2,8 @@ package io.edap.container.scan;
 
 import io.edap.container.mw.*;
 import io.edap.launcher.NestedJarFile;
-import io.edap.microservice.annotation.Service;
+import io.edap.microservice.annotation.Bean;
+import io.edap.microservice.annotation.MicroServiceBean;
 import io.edap.protobuf.annotation.ProtoService;
 import org.objectweb.asm.*;
 
@@ -49,13 +50,14 @@ public class NestedJarScanner {
 
     private ProtoServiceData visitProtoService(InputStream in, Map<String, ServiceMeta> serviceMetaMap) throws IOException {
         ProtoServiceData psi        = new ProtoServiceData();
-        String           protoAnn   = ProtoService.class.getName();
-        String           serviceAnn = Service.class.getName();
-        ClassReader      reader      = new ClassReader(in);
+        String           protoAnn      = ProtoService.class.getName();
+        String           msBeanAnn     = MicroServiceBean.class.getName();
+        String           beanAnn       = Bean.class.getName();
+        ClassReader      reader        = new ClassReader(in);
         List<ProtoMethodData> methodInfos = new ArrayList<>();
 
         Boolean[] isProtoServices = new Boolean[]{null};
-        Boolean[] isService = new Boolean[]{null};
+        ServiceMeta[] serviceMetas   = new ServiceMeta[]{null};
         reader.accept(new ClassVisitor(Opcodes.ASM9) {
 
             @Override
@@ -63,15 +65,13 @@ public class NestedJarScanner {
                               String signature, String superName,
                               String[] interfaces) {
                 String className = Type.getObjectType(name).getClassName();
-                ServiceMeta serviceMeta = serviceMetaMap.get(className);
-                if (serviceMeta == null) {
-                    serviceMeta = new ServiceMeta();
-                    serviceMetaMap.put(className, serviceMeta);
-                }
+                ServiceMeta serviceMeta = new ServiceMeta();
+                serviceMeta.setClassName(className);
                 serviceMeta.setSuperName(superName != null
                         ? Type.getObjectType(superName).getClassName() : null);
                 serviceMeta.setInterfaceList(interfaces != null
                         ? Arrays.asList(interfaces) : new ArrayList<>());
+                serviceMetas[0] = serviceMeta;
             }
 
             @Override
@@ -79,22 +79,24 @@ public class NestedJarScanner {
                 String typeName = Type.getType(desc).getClassName();
                 AnnoData d = new AnnoData(typeName);
                 String className = toLangName(reader.getClassName());
+                ServiceMeta serviceMeta = serviceMetas[0];
+                if (serviceMeta != null) {
+                    serviceMeta.putAnnoData(typeName, d);
+                }
                 if (protoAnn.equals(typeName)) {
                     psi.setTypeName(className);
                     psi.setMethodInfos(methodInfos);
                     psi.getAnnoDatas().add(d);
                     isProtoServices[0] = true;
                     return collectInto(d.getValues());
-                } else if (serviceAnn.equals(typeName)) {
-                    ServiceMeta serviceMeta = serviceMetaMap.get(className);
-                    if (serviceMeta == null) {
-                        serviceMeta = new ServiceMeta();
-                        serviceMetaMap.put(className, serviceMeta);
-                    }
-                    serviceMeta.setClassName(className);
-                    serviceMeta.setAnnoData(d);
+                } else if (msBeanAnn.equals(typeName)) {
                     serviceMetaMap.put(className, serviceMeta);
-                    isService[0] = true;
+                    return collectInto(d.getValues());
+                } else if (beanAnn.equals(typeName)) {
+                    serviceMetaMap.put(className, serviceMeta);
+                    return collectInto(d.getValues());
+                }
+                if (serviceMeta != null) {
                     return collectInto(d.getValues());
                 }
 
@@ -138,9 +140,6 @@ public class NestedJarScanner {
             }
         }, ClassReader.SKIP_CODE | ClassReader.SKIP_DEBUG | ClassReader.SKIP_FRAMES);
 
-        if (isService[0] == null) {
-            serviceMetaMap.remove(reader.getClassName());
-        }
         if (isProtoServices[0] != null) {
             return psi;
         }

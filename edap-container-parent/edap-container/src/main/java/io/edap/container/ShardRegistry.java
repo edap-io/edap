@@ -7,11 +7,15 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * 分片实例注册表。@Stateful bean 的 template 实例会被扩展为 N 个分片实例，
+ * 分片实例注册表。@Sharded 标注方法的 bean 模板实例会被扩展为 N 个分片实例，
  * 运行时按 shardKey 哈希到本节点内的分片 idx。
  *
+ * <p>分片数不在 BeanDef 里固化——开发者部署时无法预知数据量与机器配置，
+ * 由 {@code ClusterShardRouter} 在运行时根据集群拓扑/资源状况计算，传给 {@link #registerSharded}。
+ * 扩容/缩容时只需重新调一次 registerSharded 覆盖即可。</p>
+ *
  * **简化模型**：sharding 的主用例是"本地资源不够 → 多节点分担负载"——
- * shardCount 表示**集群总分片数**；单节点部署时所有分片都在本节点，多节点时各节点分到 shardCount/clusterSize 份。
+ * shardCount 表示**本节点当前持有的分片数**（运行时由 ClusterShardRouter 决定）。
  * 不引入"intra-node 并行分片"的优化路径——本地 shard 意义不大，没必要做。
  *
  * 路由语义：
@@ -20,11 +24,12 @@ import java.util.Map;
  *
  * 与 ClusterShardRouter 的关系：
  *   ShardRegistry 仅承担"本节点分片存储 + 查找"，不知道集群拓扑
- *   ClusterShardRouter 是集群感知的层，包 ShardRegistry 提供本地查找
+ *   ClusterShardRouter 是集群感知的层，包 ShardRegistry 提供本地查找，
+ *   并在路由前/扩容缩容时决定 shardCount
  *
  * 设计要点：
  *   - 模板克隆：默认走 prototype 路径（无参构造器）；应用可定制 clonePrototype hook
- *   - 生命周期：registerSharded 由 BeanContainer.registerInstance 在 Phase 2 COMMITTING 阶段调用；
+ *   - 生命周期：registerSharded 由 ClusterShardRouter 在运行时调（启动初始化 + 拓扑变化时重建）；
  *     clear() 由 BeanContainer.destroyAllSingletons 在 AppContext.stop 期间调用，释放分片实例链
  *   - 并发：注册期单线程（持有 lifecycleLock）；运行时 route() 多线程读 Map<Integer,Object>，
  *     由于 registerSharded 一次性 put 后不再修改，HashMap 无并发写风险，无需 CHM
@@ -34,7 +39,10 @@ public class ShardRegistry {
     /** beanName → { shardIdx : instance } */
     private final Map<String, Map<Integer, Object>> shards = new HashMap<>();
 
-    /** 把 @Stateful bean 的 template 实例扩展为 shardCount 个分片实例。 */
+    /**
+     * 把 @Sharded 方法所属 bean 的 template 实例扩展为 shardCount 个分片实例。
+     * shardCount 由 ClusterShardRouter 在运行时计算后传入。
+     */
     public void registerSharded(String beanName, Object template, int shardCount) {
         int n = Math.max(1, shardCount);
         Map<Integer, Object> map = new HashMap<>(n);
@@ -94,7 +102,7 @@ public class ShardRegistry {
 
     /**
      * 模板实例克隆 hook——默认浅克隆（无参构造器），应用可按需覆写。
-     * 注意：实例应可独立持有状态；Stateful bean 的字段都是 per-shard 状态。
+     * 注意：实例应可独立持有状态；@Sharded bean 的字段都是 per-shard 状态。
      */
     private Object clonePrototype(Object template, int idx) {
         try {

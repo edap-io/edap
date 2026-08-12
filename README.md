@@ -423,7 +423,7 @@ edap 不重复造 Spring 的轮子，但要借鉴其设计精华。
 │  │  │  singletonFactories       │   │    │  ← 三级缓存（ObjectFactory）
 │  │  └──────────────────────────┘   │    │
 │  └─────────────────────────────────┘    │
-│  + ResourceLoader（加载配置/类）          │
+│  + AppResourceLoader（加载配置/类）       │
 │  + ApplicationEventPublisher（事件）     │
 │  + Environment（profile/property）       │
 └─────────────────────────────────────────┘
@@ -1669,7 +1669,7 @@ edap 的有状态服务开发模型：**开发者只管写业务代码 + 声明�
 | 层级 | 开发者做什么 | 容器做什么 |
 |------|------------|-----------|
 | **代码层** | 按业务逻辑读写本地 Map / Cache / Counter | — |
-| **声明层** | proto 方法 option 加 `(edap.rpc.stateful) = true` | 解析 proto option / 配置 |
+| **声明层** | proto 方法 option 加 `(edap.rpc.sharded) = true` + `(edap.shard.key) = "user_id"` | 解析 proto option / 配置；分片数由容器运行时决定 |
 | **运行层** | — | 一致性哈希路由、本地内存实例化、shard 迁移、运行期调优 |
 
 #### 声明方式 —— proto option 优先，配置文件补充
@@ -1680,8 +1680,8 @@ edap 的有状态服务开发模型：**开发者只管写业务代码 + 声明�
 service OrderService {
   rpc GetUserOrders(GetUserOrdersRequest) returns (GetUserOrdersResponse) {
     option (google.api.http.get) = "/v1/users/{user_id}/orders";
-    option (edap.rpc.stateful) = true;       // ← 声明该方法为有状态
-    option (edap.shard_key) = "user_id";      // ← 声明分片键
+    option (edap.rpc.sharded) = true;         // ← 声明该方法为可分片（生成方法级 @Sharded 注解）
+    option (edap.shard.key) = "user_id";      // ← 声明分片键（生成 @ShardKey 注解）
     option (edap.local_cache) = true;         // ← 启用本地内存缓存（可选）
     option (edap.cache_ttl) = "60s";          // ← 缓存过期（可选）
   };
@@ -1948,7 +1948,7 @@ import "edap/shard.proto";   // edap 自定义分片 option
 service OrderService {
   rpc GetUserOrders(GetUserOrdersRequest) returns (GetUserOrdersResponse) {
     option (google.api.http).get = "/v1/users/{user_id}/orders";
-    option (edap.shard_key) = "user_id";          // ← 声明分片键
+    option (edap.shard.key) = "user_id";          // ← 声明分片键（生成 @ShardKey 注解；分片数由 ClusterShardRouter 运行时决定）
     option (edap.shard_batch) = true;             // ← 启用批量处理
   };
 }
@@ -2586,7 +2586,7 @@ classDiagram
         +BeanContainer beans
         +Environment env
         +EventPublisher events
-        +ResourceLoader resourceLoader
+        +AppResourceLoader resourceLoader
         +RouterHub routers
         +ShardRegistry shards
         +start()
@@ -2609,7 +2609,7 @@ classDiagram
     class EventPublisher {
         +publish(event)
     }
-    class ResourceLoader {
+    class AppResourceLoader {
         +load(path)
     }
     class RouterHub {
@@ -2624,7 +2624,7 @@ classDiagram
     AppContext "1" *-- "1" BeanContainer : 持有
     AppContext "1" *-- "1" Environment
     AppContext "1" *-- "1" EventPublisher
-    AppContext "1" *-- "1" ResourceLoader
+    AppContext "1" *-- "1" AppResourceLoader
     AppContext "1" *-- "1" RouterHub
     AppContext "1" *-- "1" ShardRegistry
 
@@ -2635,7 +2635,7 @@ classDiagram
     class BeanContainer component
     class Environment component
     class EventPublisher component
-    class ResourceLoader component
+    class AppResourceLoader component
     class RouterHub component
     class ShardRegistry component
 ```
@@ -2702,7 +2702,7 @@ public class AppContext {
 | edap | `@WSRoute(method=)` | 方法 | 注册到 `RouterHub.wsRoutes` |
 | edap | `@RpcRoute(methodId=)` | 方法 | 注册到 `RouterHub.rpcRoutes` |
 | edap | `@ShardKey("userId")` | 类 / 方法 | 状态服务的分片键 |
-| edap | `@Stateful` | 类 | 标记有状态，与 `ShardRegistry` 联动 |
+| edap | `@Sharded`（来自 `io.edap.protobuf.annotation`） | 方法 | 标记方法所属 bean 的实例会被 `ClusterShardRouter` 在运行时扩展为 N 个分片（`@ShardKey` 指定分片键） |
 | edap | `@LocalCache(ttl="30s")` | 字段 | 本地内存缓存（AOP 织入） |
 
 > **注解兼容策略**：Spring 系注解（`@Component` / `@Autowired` / `@PostConstruct`）与 Solon 系注解（`@Inject` / `@Bean`）扫描时直接识别并等价到内部 bean 元数据；从 Solon / Spring 项目迁移到 edap 几乎零成本。
@@ -2720,14 +2720,21 @@ public interface BeanNameAware           { void setBeanName(String name); }
 
 #### 13.3.6 状态服务适配（edap 独有，详见 §10）
 
-`@Stateful` 类在 commit 阶段会被 `ShardRegistry` 按 `stateful.shards`（来自 `build.json`）扩展为多个分片实例：
+方法级别的 `@Sharded`（来自 `io.edap.protobuf.annotation`）标注所在 bean 是"可分片"的服务实现 bean。
+**分片数不固化在 `BeanDef` / `build.json` / 注解里**——开发者部署时无法预知数据量和机器配置；运行时由 `ClusterShardRouter` 根据集群拓扑/资源状况决定，把分片实例塞进 `ShardRegistry`：
 
 ```java
 public class ShardRegistry {
-    private final int shardCount;                            // 来自 build.json
     private final Map<String, Map<Integer, Object>> shards;  // beanName → shardIdx → instance
 
+    /** ClusterShardRouter 计算好 localIdx 后调用；多节点集群下避免按 localShardCount hash 错位 */
+    public Object routeByIndex(String beanName, int localIdx) {
+        return shards.get(beanName).get(localIdx);
+    }
+
+    /** 单节点部署时直接按 shardKey hash 命中本地分片 */
     public Object route(String beanName, String shardKey) {
+        int shardCount = shards.get(beanName).size();
         int idx = Math.abs(shardKey.hashCode()) % shardCount;
         return shards.get(beanName).get(idx);
     }
@@ -2735,6 +2742,7 @@ public class ShardRegistry {
 ```
 
 请求进入时由 `@ShardKey` 标注的参数自动参与路由；同 shard key 的请求一定命中同一节点，无跨节点状态同步。
+多节点集群下 `ClusterShardRouter` 先算 globalIdx → 映射 localIdx → `routeByIndex`，外部分发只能减少 invokeRemote 概率不能消除，invokeRemote 始终是错位请求的兜底（详见 §10 / `feedback_minimal_locking` 备忘）。
 
 #### 13.3.7 Router 注册（与 §8、§19 联动）
 
@@ -2787,10 +2795,10 @@ public void onLogin(UserLoggedInEvent e) { metrics.incr("user.login"); }
 | 循环依赖 | 三级缓存 | 两段式 | **两段式**（与 Solon 一致） |
 | 注解 | 完整 | 完整 | **完整 + Spring/Solon 注解双向兼容** |
 | Aware 体系 | 极丰富 | 较薄 | 适中（只保留容器级需要的 4 个） |
-| Scope | 6 种 | 4 种 | **3 种**（singleton / prototype / shard） |
+| Scope | 6 种 | 4 种 | **2 种**（singleton / prototype；分片由运行时 `ClusterShardRouter` 决定，不污染 Scope 枚举） |
 | 事件 | `ApplicationEvent` + `@EventListener` | 简化的 listener | 同 Spring |
 | 协议感知 | 无（HTTP-only） | 三元合一 handler | **多协议 + 按节点能力激活** |
-| 状态服务 | Scope=session/request | 无 | **`@Stateful` + `ShardRegistry`（独有）** |
+| 状态服务 | Scope=session/request | 无 | **`@Sharded` + `ShardRegistry` + `ClusterShardRouter`（独有）** |
 
 #### 13.3.11 完整骨架
 
@@ -2803,7 +2811,7 @@ public class AppContext implements Lifecycle {
     private final BeanContainer beans;
     private final Environment env;
     private final EventPublisher events;
-    private final ResourceLoader resourceLoader;
+    private final AppResourceLoader resourceLoader;
     private final RouterHub routers;
     private final ShardRegistry shards;
     private volatile State state = State.NEW;
@@ -2818,7 +2826,7 @@ public class AppContext implements Lifecycle {
         this.events = new EventPublisher(this);
         this.resourceLoader = new AppResourceLoader(appCL);
         this.routers = new RouterHub();
-        this.shards = new ShardRegistry(env.getInt("stateful.shards", 1));
+        this.shards = new ShardRegistry();   // shardCount 由 ClusterShardRouter 运行时决定
         // 构造函数到此为止，不做任何扫描
     }
 
@@ -2841,7 +2849,7 @@ public class AppContext implements Lifecycle {
 │  │     ├── AppContext hello:1.0.0                              │
 │  │     │     ├── beans / env / events / resourceLoader          │
 │  │     │     ├── routers (http/ws/rpc/grpc 各自累计)            │
-│  │     │     └── shards (@Stateful 才用)                        │
+│  │     │     └── shards (@Sharded 才用；shardCount 由 ClusterShardRouter 决定)        │
 │  │     ├── AppContext hello:1.1.0                              │
 │  │     └── AppContext world:1.0.0                              │
 │  ├── protocolRouters 按 NodeType 能力选择性 bind                 │
@@ -3047,7 +3055,7 @@ edap 项目已有以下基础，需要在新架构中保留和增强：
 | `NestedJarScanner.java` | **废弃**（不再扫 proto）；保留为 jar / 资源列表读取器 |
 | `MicroServiceInfo.java` | 加 `protocols` 字段 |
 | `NodeType.java` | 仍然是 protocols 的枚举雏形，启动期按它决定激活哪些 Router |
-| `ProtoServiceData.java` / `ProtoMethodData.java` / `AnnoData.java` | **运行期 API**：扫描 EAR 加载完类后，通过反射读取 `@EdapService` / `@EdapMethod` / `@HttpRoute` / `@WSRoute` / `@RpcRoute` / `@ShardKey` / `@LocalCache` / `@Stateful` 等注解汇总成 `ProtoServiceData` / `ProtoMethodData` / `AnnoData` 对象；Router 注册、部署决策、状态查询都基于这些对象 |
+| `ProtoServiceData.java` / `ProtoMethodData.java` / `AnnoData.java` | **运行期 API**：扫描 EAR 加载完类后，通过反射读取 `@EdapService` / `@EdapMethod` / `@HttpRoute` / `@WSRoute` / `@RpcRoute` / `@ShardKey` / `@LocalCache` / `@Sharded` 等注解汇总成 `ProtoServiceData` / `ProtoMethodData` / `AnnoData` 对象；Router 注册、部署决策、状态查询都基于这些对象 |
 | `DeployInfo.java` / `DeployMeta.java` / `DeployMetaData.java` | 部署元数据保持不变 |
 
 > 你现有的 `NodeType` 已经枚举了 `WEB / WEB_SOCKET / ERPC / GRPC`，说明这个架构思路早就有了。
@@ -3057,17 +3065,17 @@ edap 项目已有以下基础，需要在新架构中保留和增强：
 
 代码生成器按下面的映射，把 proto option 写入接口和实现类的注解里，容器只认这些注解：
 
-| proto 中的来源 | 生成的运行时注解 |
-|----------------|-----------------|
-| `service FooService` | `@EdapService(name="FooService", pkg="io.edap.demo")` |
-| `rpc Bar(...)` | `@EdapMethod(name="Bar")` |
-| `option (google.api.http).get = "/v1/hello"` | `@HttpRoute(method=GET, path="/v1/hello")` |
-| `option (google.api.http).post = "/v1/hello"` | `@HttpRoute(method=POST, path="/v1/hello", body="*")` |
-| `option (edap.ws).method = "FooService.Bar"` | `@WSRoute(method="FooService.Bar")` |
-| `option (edap.rpc).method = 1001` | `@RpcRoute(methodId=1001)` |
-| `option (edap.shard_key).field = "userId"` | `@ShardKey("userId")` |
-| `option (edap.local_cache).ttl = "30s"` | `@LocalCache(ttl="30s")` |
-| `option (edap.rpc).stateful = true` | `@Stateful` |
+| proto 中的来源                                    | 生成的运行时注解                                      |
+|---------------------------------------------------|-------------------------------------------------------|
+| `service FooService`                              | `@EdapService(name="FooService", pkg="io.edap.demo")` |
+| `rpc Bar(...)`                                    | `@EdapMethod(name="Bar")`                             |
+| `option (google.api.http.get) = "/v1/hello"`      | `@HttpRoute(method=GET, path="/v1/hello")`            |
+| `option (google.api.http.post) = "/v1/hello"`     | `@HttpRoute(method=POST, path="/v1/hello", body="*")` |
+| `option (edap.ws.method) = "FooService.Bar"`      | `@WSRoute(method="FooService.Bar")`                   |
+| `option (edap.rpc.method) = 1001`                 | `@RpcRoute(methodId=1001)`                            |
+| `option (edap.shard.key) = "userId"`               | `@ShardKey("userId")` + 所在方法 `@Sharded`（分片数由 `ClusterShardRouter` 运行时决定） |
+| `option (edap.local_cache.ttl) = "30s"`           | `@LocalCache(ttl="30s")`                              |
+| `option (edap.rpc.sharded) = true`                | 方法级 `@Sharded`                                     |
 
 启动期，Container 拿到每个 `AppContext` 后做一次"注解扫描 → 注册到对应 Router"，各 Router 仅按匹配自己协议的注解过滤：
 
@@ -3111,11 +3119,11 @@ AppContext 不需要重复扫描，按节点能力选择性注册即可，零冗
 4. **proto 解析 — ✅ 已完成**：
     - 由 `io.edap.protobuf.wire.parser.ProtoParser` 负责（自研轻量解析器）
     - 支持 service / rpc / message + 这几个 option：
-      `google.api.http`、`edap.ws`、`edap.rpc`、`edap.shard_key`、`edap.local_cache`、`edap.rpc.stateful`
+      `google.api.http`、`edap.ws`、`edap.rpc`、`edap.shard`、`edap.local_cache`
     - 输出 `ProtoDescriptor` 对象树（这里的 `ProtoServiceData` / `ProtoMethodData` / `AnnoData` 与运行期同名 VO 结构一致，**代码生成和运行期用的是同一套对象模型**，避免双向转换损耗）
     - 配套单元测试齐备
 5. **注解生成器 — ✅ 已完成**（由 `io.edap.protobuf.idl.CodeGenertor` 负责）：
-    - 遍历 `ProtoDescriptor`，为每个 service 生成 `XXXApi.java`（interface，带 `@EdapService` + `@EdapMethod` + 对应 `@HttpRoute` / `@WSRoute` / `@RpcRoute` / `@ShardKey` / `@LocalCache` / `@Stateful`）
+    - 遍历 `ProtoDescriptor`，为每个 service 生成 `XXXApi.java`（interface，带 `@EdapService` + `@EdapMethod` + 对应 `@HttpRoute` / `@WSRoute` / `@RpcRoute` / `@ShardKey` / `@LocalCache` / `@Sharded`）
     - 为每个 rpc 生成 `XXXProto.java`（PB message）和 service stub（PB 序列化/反序列化的 Message）
     - 提供 `XXXImplSkeleton.java` 模板，开发者继承并实现业务方法
 6. **接入 Maven/Gradle**（剩余工作）：

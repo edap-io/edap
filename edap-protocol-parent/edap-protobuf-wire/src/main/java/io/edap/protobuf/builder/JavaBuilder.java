@@ -269,6 +269,10 @@ public class JavaBuilder {
                                 if (option.getName().startsWith("edap.rpc.api.ws_")) {
                                     addImport(impMsgs, ProtoWebSocket.class.getName());
                                 }
+                                if (option.getName().equalsIgnoreCase("edap.rpc.sharded")
+                                        && "true".equalsIgnoreCase(option.getValue())) {
+                                    addImport(impMsgs, Sharded.class.getName());
+                                }
                             }
                         }
                         switch (m.getType()) {
@@ -419,6 +423,7 @@ public class JavaBuilder {
                     if (options != null && !options.isEmpty()) {
                         String protoWs = null;
                         Map<String, String> protoHttp = null;
+                        Map<String, String> sharded = null;
                         for (Option option : options) {
                             switch (option.getName()) {
                                 case "edap.rpc.api.ws_method":
@@ -436,6 +441,21 @@ public class JavaBuilder {
                                     }
                                     protoHttp.put("method", option.getValue());
                                     break;
+                                case "edap.rpc.stateful":
+                                    if ("true".equalsIgnoreCase(option.getValue())) {
+                                        if (sharded == null) {
+                                            sharded = new HashMap<>();
+                                            sharded.put("enable", "true");
+                                        }
+                                    }
+                                    break;
+                                case "edap.shard.key":
+                                    if (sharded == null) {
+                                        sharded = new HashMap<>();
+                                    }
+                                    sharded.put("shardKey", option.getValue());
+                                    break;
+
                             }
                         }
                         if (protoWs != null) {
@@ -461,6 +481,14 @@ public class JavaBuilder {
                                 cb.c("method= \"").c(protoHttp.get("method")).c("\"");
                             }
                             cb.c(")").ln();
+                        }
+                        if (sharded != null && sharded.containsKey("enable")) {
+                            cb.t(level).c("@Statful");
+                            String shardKey = sharded.get("shardKey");
+                            if (shardKey != null && shardKey.length() > 0) {
+                                cb.c("(shardKey= \"").c(shardKey).c("\")");
+                            }
+                            cb.ln();
                         }
                     }
                     cb.t(level).e("$return$ $func$($param$ $arg$);")

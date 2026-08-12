@@ -1,13 +1,15 @@
 package io.edap.container.mw;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class ServiceMeta {
 
     private String className;
     private String superName;
     private List<String> interfaceList;
-    private AnnoData annoData;
+    private Map<String, AnnoData> annoDatas;
 
     public String getClassName() {
         return className;
@@ -25,12 +27,19 @@ public class ServiceMeta {
         this.interfaceList = interfaceList;
     }
 
-    public AnnoData getAnnoData() {
-        return annoData;
+    public Map<String, AnnoData> getAnnoDatas() {
+        return annoDatas;
     }
 
-    public void setAnnoData(AnnoData annoData) {
-        this.annoData = annoData;
+    public void putAnnoData(String name, AnnoData annoData) {
+        if (annoDatas == null) {
+            annoDatas = new HashMap<>();
+        }
+        annoDatas.put(name, annoData);
+    }
+
+    public void setAnnoData(Map<String, AnnoData> annoDatas) {
+        this.annoDatas = annoDatas;
     }
 
     public String getSuperName() {

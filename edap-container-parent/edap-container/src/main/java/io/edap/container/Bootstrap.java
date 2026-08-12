@@ -24,9 +24,11 @@ import io.edap.http.server.HttpServerBuilder;
 import io.edap.log.Logger;
 import io.edap.log.LoggerManager;
 
+import java.io.File;
 import java.io.IOException;
 
 import static io.edap.container.HttpConvertorFactory.createGetHandler;
+import static io.edap.launcher.JarLauncher.locateBootJarFile;
 import static io.edap.util.ClazzUtil.getClassMethod;
 
 /**
@@ -59,13 +61,12 @@ public class Bootstrap {
         try {
             log.info("Edap start...");
             edap.run();
-            log.info("Edap start finished!");
-            BaseResult<String> result =  deployManager.startApps();
-            if (result.getCode() == 0) {
-                log.info("应用已启动");
-            } else {
-                log.error(result.getMessage());
-            }
+            log.info("Edap start finished.");
+            log.info("MicroService Container start...");
+            File baseDir = locateBootJarFile().getParentFile();
+            Container container = new Container(new File(baseDir, "apps"));
+            container.run(edap);
+            log.info("MicroService Container start finished.");
         } catch (IOException e) {
             log.error("Edap container start fault!", e);
         }

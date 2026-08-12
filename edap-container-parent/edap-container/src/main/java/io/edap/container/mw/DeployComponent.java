@@ -1,5 +1,7 @@
 package io.edap.container.mw;
 
+import io.edap.container.BeanDef;
+
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -11,7 +13,6 @@ public class DeployComponent {
     private List<ProtoServiceData> protoServiceInfos;
 
     private Map<String, ServiceMeta> serviceMetaMap = new HashMap<>();
-
 
     public List<ProtoServiceData> getProtoServiceInfos() {
         return protoServiceInfos;
@@ -36,4 +37,5 @@ public class DeployComponent {
     public void setServiceMetaMap(Map<String, ServiceMeta> serviceMetaMap) {
         this.serviceMetaMap = serviceMetaMap;
     }
+
 }

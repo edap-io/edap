@@ -3,6 +3,7 @@ package io.edap.container;
 import io.edap.Edap;
 import io.edap.Server;
 import io.edap.ServerGroup;
+import io.edap.Stoppable;
 import io.edap.container.app.RouterHub;
 import io.edap.container.mw.*;
 import io.edap.container.scan.EarScanner;
@@ -60,6 +61,10 @@ public class Container {
         this.containerCL = Container.class.getClassLoader();
     }
 
+    public Props env() {
+        return env;
+    }
+
     /**
      * Bootstrap 里调
      * @param edap
@@ -74,6 +79,10 @@ public class Container {
             this.env  = edap.getProps().child("container");
             this.appServerGroup = sg;
             edap.addServerGroup(appServerGroup);               // 唯一对外暴露点
+            // 进程停止时触发 Container.stop()（在 Edap.doStop() 中位于 ServerGroup.stop() 之前）：
+            // 先做内存级清理（unbind routes / @PreDestroy / appCL.close），再关监听 socket。
+            // 此时 Container.stop() 内部已 try/catch Throwable，安全。
+            edap.addOnStop(this::stop);
             state = ContainerState.ATTACHED;
         } finally {
             lifecycleLock.unlock();
@@ -82,6 +91,23 @@ public class Container {
 
     public Edap getEdap() {
         return this.edap;
+    }
+
+    /**
+     * 统一启动入口：attach(edap) + start() 一行完成。
+     *
+     * 用途：Bootstrap 不再分别调两个方法，调用方语义清晰——"把 Container 跑起来"。
+     *
+     * 状态迁移：NEW → ATTACHED（attach）→ STARTING → RUNNING（start）。
+     *
+     * **不在此方法里阻塞或持有线程**：业务请求由 Edap.run() 启动的 NIO server groups 处理；
+     * 本方法只完成生命周期初始化，不进入 accept loop。SIGTERM 时外部调 {@link #stop()}。
+     *
+     * @param edap 已构造好的 Edap 实例（Container 不 new Edap——避免反向依赖与构造顺序耦合）
+     */
+    public void run(Edap edap) {
+        attach(edap);                            // NEW → ATTACHED：注入 Edap + 注册 "apps" ServerGroup
+        start();                                  // ATTACHED → RUNNING：恢复 .deploy 下所有 previous/current/staging 部署
     }
 
     /**
@@ -210,6 +236,7 @@ public class Container {
      * Bootstrap / SIGTERM 时调
      */
     public void stop() {
+        log.info("Container stop...");
         lifecycleLock.lock();
         try {
             if (state == ContainerState.STOPPED) {
@@ -252,6 +279,7 @@ public class Container {
         } finally {
             lifecycleLock.unlock();
         }
+        log.info("Container stopped.");
     }
 
     // 部署入口
@@ -300,7 +328,9 @@ public class Container {
             Slot target = firstEmptySlot(empty);
             SlotEntry next = empty.withSlot(target, ctx);
             registry.put(appId, next);
-            // 8. 通知 Edap bind Router
+            // 8. 把 ctx 的 NIO Server 注册到 ServerGroup；Container 只做"映射"（registry 槽位 +
+            //    currentRouters 指针切换），路由生成 / RouterHub 写入由 AppContext.start() Phase 3
+            //    内部完成（详见 AppContext.generateAndBindRoutes()）
             for (Server s : ctx.getServers()) {
                 appServerGroup.addServer(s);
             }
@@ -430,7 +460,9 @@ public class Container {
             registry.put(appId, next);
             // 更新 currentRouters 指针：业务 dispatch 走 currentRouters.get(appId)
             //   - 不调 edap.rebindRouter：Edap 不知道 Router 逻辑，不持有路由表
-            //   - 各 AppContext 的 routes 已在 ctx.start() 时由 RouterHub.bindAll() 注册到 NIO
+            //   - 各 AppContext 的 routes 已在 ctx.start() Phase 3 由 AppContext.generateAndBindRoutes()
+            //     生成并写入 ctx.routers()，NIO Server 注册由 Container.deploy() 末尾的
+            //     appServerGroup.addServer(s) 完成
             //   - 切换版本只是换"哪个 RouterHub 接流量"，不是重新注册 routes
             currentRouters.put(appId, next.current().routers());
             // 持久化 current-*.json

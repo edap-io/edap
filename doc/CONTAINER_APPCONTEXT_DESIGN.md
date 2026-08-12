@@ -97,8 +97,8 @@ edap 的所有"复杂设计"（ASM 字节码生成、ClassLoader 隔离、三张
 
 框架层（`Container` / `RouterHub` / `BeanContainer` / `AppContext`）"故意"做这些事，把复杂度挡在内部：
 
-- **反射元数据解析**：`Container.bindAll` + `AppContext.generateHandler` 阶段一次性把 `Method` / bean 实例封进 ASM 生成的 Handler impl class（缓存在 ctx 上，业务路径上**完全没有反射**）
-- **ClassLoader 切换**：`Container.bindAll` 在内部切 TCCL 到 appCL，应用层不用感知 ClassLoader
+- **反射元数据解析**：`AppContext.generateAndBindRoutes` + `AppContext.generateHandler` 阶段一次性把 `Method` / bean 实例封进 ASM 生成的 Handler impl class（缓存在 ctx 上，业务路径上**完全没有反射**）
+- **ClassLoader 切换**：`AppContext.generateAndBindRoutes` 在内部切 TCCL 到 appCL，应用层不用感知 ClassLoader
 - **线程安全**：`Container` 把 lifecycleLock + appLocks + 三表的不变量都维护好，应用层只调 `container.deploy(ear)` / `container.switchVersion(...)`
 - **资源生命周期**：bean 的 `@PostConstruct` / `@PreDestroy` 顺序、appCL 的 close、RouterHub 的 `unbindAll` 都由 `AppContext.start()` / `AppContext.stop()` 串起来，应用层不用想
 - **路由冲突检测**：`(method, path)` 冲突在 EAR scanner 阶段（部署期）就 fail，应用层不用在运行期处理
@@ -526,7 +526,7 @@ Container = **位于 `edap-container` 模块**的 microservice 多应用管理�
 - 持有 registry 协议的**三张表**：`registry`（appId → SlotEntry，真值）、`currentRouters`（appId → RouterHub，流量指针）、`appLocks`（appId → 写锁）；三者的不变量与提交顺序见 §3.7
 - 持有 `DeployManager` 引用（管理入口）
 - `attach(edap)` 时创建 `appServerGroup` 并 `edap.addServerGroup(appServerGroup)`（一次性）
-- 协议路由注册由 `ctx.start() → Container.bindAll() → RouterHub.setHandlers()` 完成 NIO 注册；Container **不**在 deploy/undeploy/stop 时操纵 ServerGroup 列表
+- 协议路由注册由 `ctx.start() → AppContext.generateAndBindRoutes() → RouterHub.setHandlers()` 完成 NIO 注册；Container **不**在 deploy/undeploy/stop 时操纵 ServerGroup 列表
 - 提供 `deploy(File ear)`、`undeploy(appId, compositeVersion)`、`switchVersion(appId, targetCompositeVersion)`、`listSlots(appId)`、`listApps()`
 - **version 用 composite 区分 SNAPSHOT 重发**：`composite = mavenVersion.endsWith("-SNAPSHOT") ? mavenVersion + "@" + buildTime : mavenVersion`；详见 §3.5.3
 
@@ -995,7 +995,7 @@ public BaseResult<String> deploy(File ear) {
         writeDeployMeta(appId, target.name().toLowerCase(), dmd);
         // 注意：不在此处 addServer 到 appServerGroup
         //   - appServerGroup 在 attach() 时已创建并 addServerGroup 到 Edap
-        //   - 协议路由由 ctx.start() → Container.bindAll() → RouterHub.setHandlers() 内部完成 NIO 注册
+        //   - 协议路由由 ctx.start() → AppContext.generateAndBindRoutes() → RouterHub.setHandlers() 内部完成 NIO 注册
         //   - Container 不操纵 ServerGroup 列表，避免与 Edap 的 Server 生命周期混淆
         return BaseResult.success(appId + ":" + version + " -> " + target);
 
@@ -1127,20 +1127,27 @@ public void stop() {
 }
 ```
 
-#### 3.5.6 `bindAll(AppContext, RouterHub, 4 × List<RouteEntry>, BeanContainer)` —— 路由解析入口
+#### 3.5.6 `AppContext.generateAndBindRoutes()` —— 内部路由解析入口（AppContext 自管）
 
 ```
-前置：state ∈ {RUNNING}；调用方持有 lifecycleLock（AppContext.start() Phase 3 单线程）
+前置：state ∈ {COMMITTING}（Phase 2 已完成）；调用方持 lifecycleLock（AppContext.start() Phase 3 单线程）
 后置（成功）：RouterHub.bound == true；4 份协议 typed Handler List 已写入；Method 已 setAccessible(true)
 后置（失败）：RouterHub.bound == false（partial 状态不写入）；异常冒泡到 AppContext.start() → deploy() 回滚
-锁：不持锁——调用方在 lifecycleLock 内，bindAll 内部无需再加锁
+锁：不持锁——调用方在 lifecycleLock 内，generateAndBindRoutes 内部无需再加锁
 ```
 
 **职责**：
 
-`Container.bindAll` 是 RouterHub 写入 Handler List 的**唯一入口**——把 EAR scanner 生成的 `RouteEntry` 列表转换为可立即 dispatch 的**协议 typed Handler 列表**（`HttpHandler` / `WSServiceMsgHandler<?>` / `ErpcHandler` / `GrpcHandler`），含 bean 实例 + `Method` 反射 + `setAccessible(true)` + `ctx.generateHandler(targetIf, entry, bean, method, ctx.shards())` 用 ASM 字节码生成对应 typed 接口的实现类 + 实例化。**Shard 不再独立成第 5 份 List**——shard 字段在每个 RouteEntry / GrpcMethodEntry 上，生成 Handler 内部根据 `entry.shard()` 决定是否走 ShardRegistry。
+`AppContext.generateAndBindRoutes()` 是 RouterHub 写入 Handler List 的**唯一入口**——把 EAR scanner 生成的 `RouteEntry` 列表转换为可立即 dispatch 的**协议 typed Handler 列表**（`HttpHandler` / `WSServiceMsgHandler<?>` / `ErpcHandler` / `GrpcHandler`），含 bean 实例 + `Method` 反射 + `setAccessible(true)` + `generateHandler(targetIf, entry, bean, method, ctx.shards())` 用 ASM 字节码生成对应 typed 接口的实现类 + 实例化。**Shard 不再独立成第 5 份 List**——shard 字段在每个 RouteEntry / GrpcMethodEntry 上，生成 Handler 内部根据 `entry.shard()` 决定是否走 ShardRegistry。
 
-调用方：`AppContext.start()` Phase 3（READY，§4.4.3）。**只在 deploy 路径上执行一次**，`Container.switchVersion` 路径**不调**（仅换 `currentRouters[appId]` 指针）。
+调用方：`AppContext.start()` Phase 3（COMMITTING → READY，§4.4.3）。**只在 deploy 路径上执行一次**，`Container.switchVersion` 路径**不调**（仅换 `currentRouters[appId]` 指针）。
+
+**为什么这一步放在 `AppContext` 而不是 `Container`**（设计核心）：
+
+- **Handler 类生成依赖 appCL**：bean 类 / RouteEntry 类都由 appCL 加载；`Class.forName(entry.requestType())` 必须能命中 appCL 的 namespace
+- **生成结果与 AppContext 同生死**：生成的 `Class<?>`（`generatedHandlers` 缓存）+ 专用 `ClassLoader`（`generatedCLs`）→ 引用 appCL；若放 Container 单例 → appCL 引用链跨 stop 边界泄漏 → appCL 永远 GC 不掉（违反 §3.8 防内存泄漏不变量）
+- **路由绑定与 appCL 绑定在同一生命周期**：`AppContext.stop()` 已负责 `appCL.close()` + `routers.unbindAll()` + 清空 generatedHandlers/generatedCLs——把这三件事一起管，引用链收口干净
+- **Container 不感知协议细节**：Container 只负责"映射"（registry 槽位写 + `currentRouters[appId]` 指针切换 + `appServerGroup.addServer(s)`）；Handler 协议形态是 AppContext 内部的事
 
 ```java
 /**
@@ -1166,13 +1173,13 @@ public void stop() {
  *
  * @param ctx            当前 AppContext（提供 appCL + generatedHandlers/generatedCLs 缓存 + ShardRegistry）
  * @param hub            目标 RouterHub（必属参数 ctx.routers()）
- * @param httpEntries    HTTP 路由条目（来自 ctx.deployMetaData().httpRoutes()）
- * @param wsEntries      WS 路由条目
- * @param erpcEntries    eRPC 路由条目
- * @param grpcEntries    gRPC 路由条目
+ * @param httpEntries    HTTP 路由条目（来自 ctx.httpRoutes()，由 EarScanner 阶段汇总）
+ * @param wsEntries      WS 路由条目（来自 ctx.wsRoutes()）
+ * @param erpcEntries    eRPC 路由条目（来自 ctx.erpcRoutes()）
+ * @param grpcEntries    gRPC 路由条目（来自 ctx.grpcRoutes()）
  * @param beans          已实例化的 Bean 容器（来自 ctx.beans()）
  */
-public void bindAll(AppContext ctx,
+public void generateAndBindRoutes(AppContext ctx,  // 旧签名，已废弃——保留注释便于对照新版 private void generateAndBindRoutes()
                     RouterHub hub,
                     List<HttpRouteEntry> httpEntries,
                     List<WsRouteEntry>   wsEntries,
@@ -1259,23 +1266,33 @@ private static Class<?>[] httpParamTypes(HttpRouteEntry e) {
 }
 ```
 
-> **注**：`Container.bindAll` 通过 `ctx.generateHandler(targetIf, entry, bean, method, shards)` 调 ASM 字节码生成逻辑（已上提到 `AppContext`，详见 §3.5.7）——`generatedHandlers` / `generatedCLs` 缓存在 ctx 上，bindAll 不再持有任何缓存字段。`targetIf` 是协议 typed Handler 接口的 `Class` 对象（`HttpHandler.class` / `WSServiceMsgHandler.class` / `ErpcHandler.class` / `GrpcHandler.class`），由 bindAll 按 4 份 List 分别传入。`shards` 是 `ShardRegistry` 引用，生成 Handler 内部按 `entry.shard()` 决定是否真的用它（false 时可传 null 或同一个对象，字节码不引用）。
+> **注**：`AppContext.generateAndBindRoutes` 通过 `ctx.generateHandler(targetIf, entry, bean, method, shards)` 调 ASM 字节码生成逻辑（已上提到 `AppContext`，详见 §3.5.7）——`generatedHandlers` / `generatedCLs` 缓存在 ctx 上，generateAndBindRoutes 不再持有任何缓存字段。`targetIf` 是协议 typed Handler 接口的 `Class` 对象（`HttpHandler.class` / `WSServiceMsgHandler.class` / `ErpcHandler.class` / `GrpcHandler.class`），由 generateAndBindRoutes 按 4 份 List 分别传入。`shards` 是 `ShardRegistry` 引用，生成 Handler 内部按 `entry.shard()` 决定是否真的用它（false 时可传 null 或同一个对象，字节码不引用）。
 
 **关键约束**：
 
-- **不持锁**：调用方 AppContext.start() Phase 3 在 lifecycleLock 内单线程执行，bindAll 内部无需再加锁（避免双锁）
+- **不持锁**：调用方 AppContext.start() Phase 3 在 lifecycleLock 内单线程执行，generateAndBindRoutes 内部无需再加锁（避免双锁）
 - **临时 List + 一次性 setHandlers**：解析途中失败时 4 份临时 List 随栈帧释放，RouterHub.4 份 List 仍为空，`bound` 不被错误置 true——partial 状态不存在
-- **`Class.forName(...)` 走 appCL**：`Class.forName(e.requestType())` 默认走 caller CL（Container 的 CL），找不到 appCL 加载的请求体类——因此 bindAll 进入时**先把 TCCL 切到 appCL**，退出前 finally 还原
+- **`Class.forName(...)` 走 appCL**：`Class.forName(e.requestType())` 默认走 caller CL（Container 的 CL），找不到 appCL 加载的请求体类——因此 generateAndBindRoutes 进入时**先把 TCCL 切到 appCL**，退出前 finally 还原
 - **`setAccessible(true)` 跨 CL**：appCL 加载的 bean 类，其 `Method` 在 Container CL（启动类加载器）下不可访问，必须显式 `setAccessible(true)`（Java 9+ module 系统下需要 `--add-opens java.base/java.lang=ALL-UNNAMED` 等）
 - **ASM 生成类的 CL 隔离**：generateHandler 内部用专用 ClassLoader（parent = appCL）加载生成的类，**不污染** appCL 的 namespace；详见 §3.5.7
-- **`targetIf` 决定生成类的协议语义**：bindAll 传入的 `targetIf.class`（HttpHandler.class / ...）决定 `generateHandler` 用哪套"协议提参 + 协议响应写入" 字节码模板（§4.6.4 emitProtocolArgsExtraction / emitProtocolResponseWrite 的派发依据）；同一 bean method 被多协议路由时，每个 targetIf 生成独立的实现类
+- **`targetIf` 决定生成类的协议语义**：generateAndBindRoutes 传入的 `targetIf.class`（HttpHandler.class / ...）决定 `generateHandler` 用哪套"协议提参 + 协议响应写入" 字节码模板（§4.6.4 emitProtocolArgsExtraction / emitProtocolResponseWrite 的派发依据）；同一 bean method 被多协议路由时，每个 targetIf 生成独立的实现类
 
-**为什么 bindAll 由 Container 做而不是 RouterHub**：
+**为什么这一步放在 AppContext 而不是 Container / RouterHub**：
 
-- Container 持有 appCL + 知道 deploy 上下文，能在解析时正确切 TCCL；RouterHub 不应感知 ClassLoader 细节
-- 解析失败时只有 Container 知道怎么回滚（`ctx.destroyPartial()` + `appCL.close()`，§3.5.3 阶段 6）
-- 多版本切换（`Container.switchVersion`）时只换 `currentRouters[appId]` 指针，**不调 bindAll**——映射工作在 deploy 路径上一次性做完，SwitchVersion 路径 0 bindAll 成本（详见 §3.6.x）
-- ASM 生成器（`HandlerAsmGenerator`）是无状态的工具（ClassWriter 内部缓存与 app 无关），可作为**静态单例**在 `Container` / `HandlerAsmGenerator` 自身上共享；**生成类缓存 + 专用 ClassLoader 缓存在 `AppContext` 上**——见 §3.5.7（防止 appCL 被悬挂引用，违反 §3.8 防内存泄漏不变量的反例）
+- **不放 Container**（已确定的设计）：Handler 类生成依赖 appCL，生成结果（`generatedHandlers` 缓存 + `generatedCLs` ClassLoader 映射）必须与 AppContext 同生死——详见上方"职责"段"为什么这一步放在 AppContext 而不是 Container"小节
+- **不放 RouterHub**：RouterHub 是被动的 Handler List 持有者（§4.6.10）；做解析会让它反向持有 `Method` / ClassLoader / appCL 引用，破坏"被动数据"边界
+- **解析失败时回滚归 AppContext**：4 份临时 List 随栈帧释放 → RouterHub.4 份 List 仍为空 → `AppContext.start()` 抛异常 → Container.deploy() 走 `ctx.destroyPartial()` + `appCL.close()` 回滚（§3.5.3 阶段 6）
+- **多版本切换（`Container.switchVersion`）时只换 `currentRouters[appId]` 指针**，**不调 generateAndBindRoutes**——映射工作在 deploy 路径上一次性做完，SwitchVersion 路径 0 解析成本（详见 §3.6.x）
+- ASM 生成器（`HandlerAsmGenerator`）是无状态的工具（ClassWriter 内部缓存与 app 无关），可作为**静态单例**在 `HandlerAsmGenerator` 自身上共享；**生成类缓存 + 专用 ClassLoader 缓存在 `AppContext` 上**——见 §3.5.7（防止 appCL 被悬挂引用，违反 §3.8 防内存泄漏不变量的反例）
+
+**Container 端协作**：
+
+Container 在 `AppContext.start()` 返回后做"映射"工作，**不参与 Handler 解析**：
+
+- `Container.deploy()` 末尾 → `registry.put(appId, slotEntry)`（写版本槽位）+ `appServerGroup.addServer(s)`（NIO 注册）
+- `Container.start()` 启动恢复阶段 → `currentRouters.put(appId, cur.routers())`（首次 deploy 的版本成为 current）
+- `Container.switchVersion()` → `currentRouters.put(appId, next.current().routers())`（版本切换）
+- 三步各自独立，无统一 `commitRouteBinding` 入口方法
 
 **错误处理**（与 §4.6.9 RouterHub 错误处理对齐）：
 
@@ -1296,7 +1313,7 @@ private static Class<?>[] httpParamTypes(HttpRouteEntry e) {
 
 **与 `Container.commit()` 的顺序约束**：
 
-- `commit()` 阶段 1（`currentRouters.put`）→ 阶段 2（`registry` 写）→ 阶段 3（协议 Router 注册 handler）→ 阶段 4（被驱逐者 stop）——bindAll 必须在 commit 阶段 3 之前完成，即在 `ctx.start()` 返回之前
+- `commit()` 阶段 1（`currentRouters.put`）→ 阶段 2（`registry` 写）→ 阶段 3（协议 Router 注册 handler）→ 阶段 4（被驱逐者 stop）——generateAndBindRoutes 必须在 commit 阶段 3 之前完成，即在 `ctx.start()` 返回之前
 - `Container.deploy()` 阶段 6 调 `ctx.start()`，start 返回后 commit 阶段 3 自然能拿到已 bound 的 RouterHub
 
 ```java
@@ -1307,6 +1324,95 @@ private static Class<?>[] httpParamTypes(HttpRouteEntry e) {
     public Edap getEdap();
 }
 ```
+
+#### 3.5.6.1 异常：`RouteBindException`
+
+```java
+package io.edap.container.exc;
+
+/**
+ * 路由绑定失败（AppContext.generateAndBindRoutes / AppContext.generateHandler 阶段）。
+ *
+ * <p>统一承载"RouteEntry + bean + Method → 协议 typed Handler"桥接过程中的所有可恢复异常——
+ * 主要包括反射层（NoSuchMethodException / ClassNotFoundException / SecurityException /
+ * ReflectiveOperationException）与 ASM 生成层（字节码生成失败 / 类加载失败 / 实例化失败）两类。</p>
+ *
+ * <p>与 {@link NoSuchBeanException} 一致——继承 {@link RuntimeException}，不污染
+ * {@link io.edap.container.Container#generateAndBindRoutes} / {@link io.edap.container.AppContext#generateHandler}
+ * 的方法签名。</p>
+ *
+ * <p><b>失败语义</b>：抛出后 {@code AppContext.generateAndBindRoutes} 的临时 List 随栈帧释放，
+ * RouterHub.4 份 List 仍为空——AppContext 整体不进 registry；deploy 返回 fail(104)。</p>
+ */
+public class RouteBindException extends RuntimeException {
+
+    private final Object     bean;
+    private final String     methodName;
+    private final Class<?>[] paramTypes;
+
+    /**
+     * @param bean       bean 实例（已实例化；用于 message 显示 bean 类名 + 诊断时定位 bean）
+     * @param methodName RouteEntry 上的方法名（来自 EAR 扫描 / proto 解析）
+     * @param paramTypes 方法参数类型列表（与 RouteEntry.methodName 配对；空数组代表无参）
+     * @param cause      原始异常（NoSuchMethodException / ClassNotFoundException /
+     *                   SecurityException / ReflectiveOperationException / ASM 生成异常 等）
+     */
+    public RouteBindException(Object bean, String methodName, Class<?>[] paramTypes, Throwable cause) {
+        super(buildMessage(bean, methodName, paramTypes, cause), cause);
+        this.bean       = bean;
+        this.methodName = methodName;
+        this.paramTypes = (paramTypes != null) ? paramTypes.clone() : new Class<?>[0];
+    }
+
+    /** bean 实例（用于诊断 / 日志）。 */
+    public Object bean()                  { return bean; }
+
+    /** RouteEntry 上的方法名。 */
+    public String methodName()            { return methodName; }
+
+    /** 方法参数类型列表（不可变副本）。 */
+    public Class<?>[] paramTypes()        { return paramTypes.clone(); }
+
+    /**
+     * 组装 message：{@code "Route bind failed: bean=<class>.<simpleName>, method=<methodName>(<paramTypes>), cause=<exception class>: <msg>"}
+     */
+    private static String buildMessage(Object bean, String methodName, Class<?>[] paramTypes, Throwable cause) {
+        String beanDesc  = (bean != null) ? bean.getClass().getName() : "<null>";
+        String params    = paramTypesDesc(paramTypes);
+        String causeDesc = (cause != null)
+                ? cause.getClass().getSimpleName() + ": " + cause.getMessage()
+                : "<null>";
+        return "Route bind failed: bean=" + beanDesc
+                + ", method=" + methodName + "(" + params + ")"
+                + ", cause=" + causeDesc;
+    }
+
+    /**
+     * 参数类型列表的可读形式：{@code "String, long, com.example.Foo"}
+     */
+    private static String paramTypesDesc(Class<?>[] paramTypes) {
+        if (paramTypes == null || paramTypes.length == 0) return "";
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < paramTypes.length; i++) {
+            if (i > 0) sb.append(", ");
+            sb.append(paramTypes[i] != null ? paramTypes[i].getName() : "null");
+        }
+        return sb.toString();
+    }
+}
+```
+
+**触发场景速查**（与 §3.5.6 / §3.5.7 错误处理表 + §4.6.9 错误处理表对齐）：
+
+| 阶段 | 失败点 | cause 类型 |
+|------|--------|-----------|
+| generateAndBindRoutes | `RouteEntry.methodName` 在 `bean.getClass()` 找不到 / 参数类型不匹配 | `NoSuchMethodException` |
+| generateAndBindRoutes | `ErpcRouteEntry.requestType` 不能 `Class.forName` | `ClassNotFoundException` |
+| generateAndBindRoutes | `HttpRouteEntry.pathParams` 与 method 参数列表不匹配 → `resolveMethod` 抛 `NoSuchMethodException` | `NoSuchMethodException` |
+| generateAndBindRoutes | `Method.setAccessible(true)` 抛 `SecurityException`（Java 9+ module 限制） | `SecurityException` |
+| generateHandler | `Class.forName(genCL, ...)` 加载生成类失败 | `ClassNotFoundException` |
+| generateHandler | 字节码生成失败（栈计算错 / 指令非法） | `RuntimeException`（ASM 自身抛） |
+| generateHandler | 反射 `Constructor.newInstance` 失败 | `ReflectiveOperationException`（含 InvocationTargetException） |
 
 #### 3.5.7 `AppContext.generateHandler(Class<T> targetIf, RouteEntry, bean, Method)` —— ASM 字节码生成协议 typed Handler 实现类
 
@@ -1324,7 +1430,7 @@ private static Class<?>[] httpParamTypes(HttpRouteEntry e) {
 
 把"扫描期纯 String 的 RouteEntry" + "运行期 bean 实例 + Method 反射对象" + "协议 typed 接口 `targetIf`" + "ShardRegistry（仅在 entry.shard() == true 时实际被引用）" 桥接为**可立即 dispatch 的协议 Handler 实例**——Handler 实现类用 ASM 字节码生成，**直接实现 `targetIf`**（§4.6.4 已描述各协议 typed 接口与生成类的形态），本节描述生成逻辑本身。
 
-调用方：`Container.bindAll`（§3.5.6）的 4 个 for 循环内部，每解析完一条 entry 都调一次 `ctx.generateHandler(targetIf, entry, bean, method, ctx.shards())`——`targetIf` 是该 List 对应的协议接口（`HttpHandler.class` / `WSServiceMsgHandler.class` / `ErpcHandler.class` / `GrpcHandler.class`）。
+调用方：`AppContext.generateAndBindRoutes()`（§3.5.6）的 4 个 for 循环内部，每解析完一条 entry 都调一次 `this.generateHandler(targetIf, entry, bean, method, this.shards)`——`targetIf` 是该 List 对应的协议接口（`HttpHandler.class` / `WSServiceMsgHandler.class` / `ErpcHandler.class` / `GrpcHandler.class`）。
 
 **为什么用 ASM 而不是反射 / MethodHandle / LambdaMetafactory**：
 
@@ -1643,7 +1749,7 @@ private static class GeneratedClassLoader extends ClassLoader {
 | ASM 生成字节码过程异常（如栈计算错） | `RouteBindException(..., 生成异常)` | 同上 |
 | `Class.forName`（genCL）抛 ClassNotFoundException | `RouteBindException(...)` | 同上 |
 | `Constructor.newInstance` 抛异常 | `RouteBindException(...)` | 同上 |
-| `Method` 上调 `setAccessible(true)` 失败（前置 bindAll 已 catch） | — | 不进入 generateHandler |
+| `Method` 上调 `setAccessible(true)` 失败（前置 generateAndBindRoutes 已 catch） | — | 不进入 generateHandler |
 
 **`HandlerAsmGenerator.INSTANCE` 静态单例的资源约束**：
 
@@ -1811,7 +1917,7 @@ public BaseResult<String> switchVersion(String appId, String version) {
         }
         // 提交：commit() 负责 registry → currentRouters 的顺序（§3.7.10）
         //   - 不调 edap.rebindRouter：Edap 不知道 Router 逻辑，不持有路由表
-        //   - 各 AppContext 的 routes 已在 ctx.start() 时由 Container.bindAll() → RouterHub.setHandlers() 注册到 NIO
+        //   - 各 AppContext 的 routes 已在 ctx.start() 时由 AppContext.generateAndBindRoutes() → RouterHub.setHandlers() 注册到 NIO
         //   - 切换版本只是换"哪个 RouterHub 接流量"，不是重新注册 routes
         //   - 掉出三个槽位的 AppContext 由 commit 阶段4 显式 stop（I5），不能交给 GC
         commit(appId, prev, next);
@@ -2182,7 +2288,7 @@ Step 6: appLocks[appId] 保留        ← 不删（§3.7.5）
 | `AppContext` | SlotEntry 的槽位字段 + in-flight 业务线程栈 | SlotEntry 替换 **且** 业务线程退出后 | `ctx.stop()`（I5） |
 | `EdapAppClassLoader` | `AppContext.appCL` | AppContext 被回收后 | `appCL.close()`（在 `ctx.stop()` 内） |
 
-**ClassLoader 泄漏的典型来源**（`appCL.close()` 之外仍需注意）：应用代码注册的 `ThreadLocal`、JDBC `DriverManager`、`java.util.logging` handler、以及任何把 appCL 加载的对象塞进容器级静态字段的行为。这些由 `AppContext.stop()` 的清理清单负责（§4.13），registry 协议本身不介入。
+**ClassLoader 泄漏的典型来源**（`appCL.close()` 之外仍需注意）：应用代码注册的 `ThreadLocal`、JDBC `DriverManager`、`java.util.logging` handler、以及任何把 appCL 加载的对象塞进容器级静态字段的行为。这些由 `AppContext.stop()` 的清理清单负责（§4.15），registry 协议本身不介入。
 
 **`appServerGroup` 不在 GC 链里**：它在 `attach` 时一次性创建并注册到 Edap，与 appId 无关；`stop()` 后由 Edap 回收（§3.5.5）。
 
@@ -2853,7 +2959,7 @@ public void deploy(File ear) {
    │ Container             │ ───────────────────────────┘
    │  - registry (SlotEntry│  attach() 一次性 addServerGroup("apps")
    │      per appId)       │  deploy/undeploy 不再 addServer/removeServer
-   │  - appLocks[appId]    │  协议路由由 ctx.start→Container.bindAll→RouterHub.setHandlers 完成
+   │  - appLocks[appId]    │  协议路由由 ctx.start→AppContext.generateAndBindRoutes→RouterHub.setHandlers 完成
    │  - currentRouters     │  详细见 §3.7 Registry
    │  - DeployManager      │
    │  - attach(edap)       │
@@ -2913,7 +3019,7 @@ classDiagram
         -BeanContainer beans
         -Environment env
         -EventPublisher events
-        -ResourceLoader resourceLoader
+        -AppResourceLoader resourceLoader
         -RouterHub routers
         -ShardRegistry shards
         -List~BeanPostProcessor~ postProcessors
@@ -2967,16 +3073,17 @@ classDiagram
     }
 
     class ShardRegistry {
-        +int shardCount
         +Map~String, Map~Integer,Object~~ shards
         +route(beanName, shardKey) Object
-        +registerSharded(beanName, instances)
+        +routeByIndex(beanName, localIdx) Object
+        +registerSharded(beanName, template, shardCount)
+        +clear()
     }
 
     AppContext "1" *-- "1" BeanContainer
     AppContext "1" *-- "1" Environment
     AppContext "1" *-- "1" EventPublisher
-    AppContext "1" *-- "1" ResourceLoader
+    AppContext "1" *-- "1" AppResourceLoader
     AppContext "1" *-- "1" RouterHub
     AppContext "1" *-- "1" ShardRegistry
     BeanContainer "1" *-- "n" BeanDef
@@ -2989,11 +3096,335 @@ classDiagram
     class BeanContainer comp
     class Environment comp
     class EventPublisher comp
-    class ResourceLoader comp
+    class AppResourceLoader comp
     class RouterHub comp
     class ShardRegistry comp
     class BeanDef internal
 ```
+
+#### 4.2.1 AppState 枚举（生命周期状态机）
+
+```java
+package io.edap.container;
+
+/**
+ * AppContext 生命周期状态机。
+ *
+ * <pre>
+ *              ┌──→ FAILED ──→ STOPPING ──→ STOPPED
+ *              │
+ *  NEW → GATHERING → COMMITTING → READY → RUNNING
+ *                                  │           │
+ *                                  └──── STOPPING ┘
+ * </pre>
+ *
+ * 状态迁移由 lifecycleLock（AppContext 持有）串行化；并发模型详见 §3.9。
+ *
+ * 注意：与 {@code BeanContainerState}（{@code COLLECTING / INSTANTIATING / READY / DESTROYING / DESTROYED}）
+ * 不是同一层——本枚举是 AppContext 级（应用进程内子状态），BeanContainer 状态是装配细粒度。
+ * 映射规则：
+ *   - GATHERING      ↔ BeanContainerState.COLLECTING
+ *   - COMMITTING     ↔ BeanContainerState.INSTANTIATING
+ *   - READY/RUNNING  ↔ BeanContainerState.READY
+ *   - STOPPING       ↔ BeanContainerState.DESTROYING
+ *   - STOPPED        ↔ BeanContainerState.DESTROYED
+ */
+public enum AppState {
+    NEW,         // 刚 new 出来，未 start()
+    GATHERING,   // Phase 1：扫 EAR + 注册 BeanDef
+    COMMITTING,  // Phase 2：实例化 / 注入 / @PostConstruct
+    READY,       // Phase 3 完成（Bean 装配好），routes 未 bind
+    RUNNING,     // routes 已 bind，业务 dispatch 可达
+    STOPPING,    // stop() 进入：unbindAll + destroy
+    STOPPED,     // terminal
+    FAILED;      // 启动或运行期出错（terminal 之一）
+
+    public void transitionTo(AppState to) {
+        if (!canTransitionTo(to)) {
+            throw new IllegalStateException(
+                "Illegal AppState transition: " + this + " -> " + to);
+        }
+    }
+
+    public boolean canTransitionTo(AppState to) {
+        switch (this) {
+            case NEW:        return to == GATHERING || to == FAILED;
+            case GATHERING:  return to == COMMITTING || to == FAILED;
+            case COMMITTING: return to == READY      || to == FAILED;
+            case READY:      return to == RUNNING    || to == STOPPING || to == FAILED;
+            case RUNNING:    return to == STOPPING   || to == FAILED;
+            case STOPPING:   return to == STOPPED    || to == FAILED;
+            case STOPPED:    return false;
+            case FAILED:     return to == STOPPING;        // 失败后仍可走 stop() 收尾
+            default:         return false;
+        }
+    }
+
+    public boolean isTerminal()  { return this == STOPPED || this == FAILED; }
+    public boolean isServing()   { return this == RUNNING; }
+    public boolean isStopping()  { return this == STOPPING || this == STOPPED; }
+}
+```
+
+#### 4.2.2 类签名、字段与构造函数
+
+```java
+package io.edap.container;
+
+import io.edap.Server;
+import io.edap.container.app.RouterHub;
+import io.edap.container.event.ApplicationEvent;
+import io.edap.container.event.ContextClosedEvent;
+import io.edap.container.event.ContextRefreshedEvent;
+import io.edap.container.event.EventPublisher;
+import io.edap.container.mw.DeployMetaData;
+import io.edap.container.scan.EarScanner;
+import io.edap.launcher.NestedJarFile;
+import io.edap.log.Logger;
+import io.edap.log.LoggerManager;
+import io.edap.props.Props;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+
+/**
+ * 单个应用（{@code appId:version}）的运行期容器；由 {@link Container#deploy} 创建。
+ * 完整生命周期：{@link #start()} 三段式（gather / commit / ready）→ {@link #stop()} 逆序。
+ *
+ * <p>三段式 + 路由绑定契约：</p>
+ * <ul>
+ *   <li>Phase 1 GATHERING：扫 EAR（{@link EarScanner} + {@code NestedJarScanner}）汇总 BeanDef，<b>不实例化</b></li>
+ *   <li>Phase 2 COMMITTING：拓扑排序 → 逐 BeanDef instantiate / inject / @PostConstruct</li>
+ *   <li>Phase 3 READY：{@code BeanContainer.startLifecycles()} → 触发 {@link Container#generateAndBindRoutes}
+ *       生成 4 份协议 Handler、写入 RouterHub + NIO ServerGroup</li>
+ * </ul>
+ *
+ * <p>AppContext <b>不持有兄弟 AppContext</b>；跨应用通信走 eRPC/gRPC。流量入口归 Container 的
+ * {@code currentRouters[appId]} 指针——Edap 只持 NIO 抽象，不知道路由长什么样。</p>
+ *
+ * <p>全部生命周期阶段由 {@code Container.deploy} / {@code undeploy} / {@code stop} 触发，
+ * 不直接被业务代码调。</p>
+ */
+public class AppContext implements Lifecycle {
+
+    private static final Logger log = LoggerManager.getLogger(AppContext.class);
+
+    // ─── 标识 ───
+    private final String             appId;
+    private final String             version;       // composite version（SNAPSHOT 拼接 buildTime）
+    private final DeployMetaData     dmd;           // 部署元数据快照（不可变）
+    private final EdapAppClassLoader appCL;         // per-app 隔离 CL；stop() 期间 close
+
+    // ─── 容器归属 ───
+    private final Container          container;     // 父容器：访问 deployMgr / edap / currentRouters
+
+    // ─── 子系统（构造期组装，不做扫描 / 不做实例化）───
+    private final Environment        env;           // 配置视图（build.json + Container.env）
+    private final EventPublisher     events;        // 内部事件总线
+    private final RouterHub          routers;       // 4 份协议 Handler List 的被动持有者
+    private final BeanContainer      beans;         // Bean 装配核心
+    private final ShardRegistry      shards;        // @Sharded 方法所属 bean 的分片实例
+    private final AppResourceLoader     resourceLoader;// 通过 appCL 读 jar 内资源
+    private final List<BeanPostProcessor> postProcessors = new ArrayList<>(); // Bean 初始化前后钩子
+
+    /** AppContext.generateAndBindRoutes 阶段写入：与本 AppContext 绑定的 NIO Server 列表。 */
+    private final List<Server>       servers = new ArrayList<>();
+
+    private volatile AppState        state = AppState.NEW;
+
+    public AppContext(Container container, String appId, String version,
+                      EdapAppClassLoader appCL, DeployMetaData dmd) {
+        this.container = container;
+        this.appId     = appId;
+        this.version   = version;
+        this.appCL     = appCL;
+        this.dmd       = dmd;
+
+        this.env            = new Environment(this, container.env(), loadBuildJsonProps());
+        this.events         = new EventPublisher();
+        this.shards         = new ShardRegistry();                   // shardCount 由 ClusterShardRouter 运行时决定
+        this.beans          = new BeanContainer(this, env, events, shards);
+        this.routers        = new RouterHub();
+        this.resourceLoader = new AppResourceLoader(appCL);
+        // 构造函数到此为止——不做扫描、不做实例化、不调 Lifecycle.start
+    }
+
+    /** 读 build.json 的 env 段（注入 Environment 优先级链第 3 层，详见 §4.8.3）。 */
+    private Props loadBuildJsonProps() {
+        // 由 dmd.getBuildInfo() + dmd.getComponentMap() 归并出 Props；
+        // 字段级 schema（routePrefix 等）不在 Props 里——直接由 BeanContainer 读取
+        return Props.empty();
+    }
+```
+
+#### 4.2.3 关键方法
+
+```java
+    // ─── Phase 1+2+3 三段式（Container.deploy 期间调用）───
+
+    @Override
+    public void start() throws Throwable {
+        state.transitionTo(AppState.GATHERING);                 // NEW -> GATHERING
+        try {
+            // Phase 1 GATHERING：扫 EAR → BeanDef
+            List<BeanDef> defs = scanBeanDefs();
+            for (BeanDef def : defs) beans.register(def);
+            beans.topologicalSort();                            // 循环依赖此处抛
+
+            // Phase 2 COMMITTING：实例化 → 注入 → init
+            beans.transitionToCommitting();                     // COLLECTING -> INSTANTIATING
+            for (BeanDef def : beans.sorted()) {
+                Object instance = beans.instantiate(def);
+                beans.injectDependencies(def, instance);
+                beans.invokeInit(def, instance);
+                beans.registerInstance(def, instance);
+            }
+            beans.transitionToReady();                          // INSTANTIATING -> READY
+
+            state.transitionTo(AppState.COMMITTING);             // GATHERING -> COMMITTING
+
+            // Phase 3 READY：Lifecycle.start() + 路由 bind
+            beans.startLifecycles();
+            container.generateAndBindRoutes(this, routers, beans);             // ASM 生成 4 份 Handler + NIO Server 注册
+
+            state.transitionTo(AppState.READY);                  // COMMITTING -> READY
+            state.transitionTo(AppState.RUNNING);                // READY -> RUNNING
+
+            events.publish(new ContextRefreshedEvent(this));
+        } catch (Throwable t) {
+            state.transitionTo(AppState.FAILED);
+            throw t;
+        }
+    }
+
+    /**
+     * 扫 EAR：EarScanner 解析 META-INF/maven + BUILD.json；NestedJarScanner 抽每个 .jar
+     * 内的注解元数据；本方法把它们归并成本 AppContext 的 BeanDef 列表。
+     *
+     * <p>业务注解过滤（{@code @ProtoService} / {@code @MicroServiceBean} / {@code @Bean}）在
+     * NestedJarScanner.visitAnnotation 阶段完成（详见 §4.4.1）。</p>
+     */
+    private List<BeanDef> scanBeanDefs() throws Exception {
+        EarScanner scanner = new EarScanner(new NestedJarFile(appCL.earFile()));
+        DeployMetaData scanned = scanner.scanDeployMetaData();
+        // 从 DeployComponentMap 抽 @MicroServiceBean / @Bean 标注的 class 元数据 → BeanDef
+        return BeanDefExtractor.fromDeployMeta(scanned, appCL);
+    }
+
+    // ─── 销毁 ───
+
+    /** SIGTERM / undeploy / switchVersion 时的标准停止路径。幂等。 */
+    @Override
+    public void stop() throws Throwable {
+        AppState cur = state;
+        if (cur == AppState.NEW || cur == AppState.STOPPED) return;
+        if (cur == AppState.STOPPING) return;
+        state.transitionTo(AppState.STOPPING);
+
+        Throwable firstErr = null;
+        // 1. 路由摘除（让 in-flight 之外不再有请求到达本 AppContext）
+        try { routers.unbindAll(); }
+        catch (Throwable t) { firstErr = t; }
+
+        // 2. 逆序：Lifecycle.stop / @PreDestroy / 清空 singletons（含 ShardRegistry 分片）
+        try { beans.destroyAllSingletons(); }
+        catch (Throwable t) { if (firstErr == null) firstErr = t; }
+
+        // 3. 事件总线清空（释放 listener 引用链）
+        try { events.clear(); }
+        catch (Throwable t) { if (firstErr == null) firstErr = t; }
+
+        // 4. 关 per-app ClassLoader（释放 jar 文件句柄 + class 缓存，防泄漏）
+        try { appCL.close(); }
+        catch (Throwable t) { if (firstErr == null) firstErr = t; }
+
+        // 5. ContextClosedEvent（监听器抛错不影响 stop 整体）
+        try { events.publish(new ContextClosedEvent(this)); }
+        catch (Throwable t) { /* ignored */ }
+
+        if (firstErr != null) {
+            state.transitionTo(AppState.FAILED);
+            throw firstErr;
+        }
+        state.transitionTo(AppState.STOPPED);
+    }
+
+    /**
+     * {@code Container.deploy} 失败时的<b>部分回滚</b>——start() 未走完三段式也能安全收尾。
+     * 不会抛异常：部署失败的语义已由 {@code BaseResult.fail(...)} 对外承诺，无需再上抛。
+     */
+    public void destroyPartial() {
+        if (state == AppState.NEW || state == AppState.STOPPED) return;
+        try {
+            routers.unbindAll();
+            beans.destroyAllSingletons();
+            events.clear();
+            appCL.close();
+        } catch (Throwable t) {
+            log.warn("destroyPartial({}) 异常", l -> l.arg(appId).threw(t));
+        }
+        state.transitionTo(AppState.STOPPED);
+    }
+
+    // ─── 访问器 ───
+
+    public String             appId()     { return appId; }
+    public String             version()   { return version; }
+    public DeployMetaData     dmd()       { return dmd; }
+    public EdapAppClassLoader appCL()     { return appCL; }
+    public Container          container() { return container; }
+    public Environment        env()       { return env; }
+    public EventPublisher     events()    { return events; }
+    public BeanContainer      beans()     { return beans; }
+    public RouterHub          routers()   { return routers; }
+    public ShardRegistry      shards()    { return shards; }
+    public AppResourceLoader     resourceLoader() { return resourceLoader; }
+    public AppState           state()     { return state; }
+
+    /**
+     * 注册 BeanPostProcessor（在 BeanContainer Phase 2 各节点被回调，
+     * 允许外部逻辑在 Bean 实例化 / 注入 / 初始化前后插入切面）。
+     * 单线程调用方：扫描器 / 扩展插件。注册时机：AppContext 构造期；
+     * Phase 1 完成后冻结（避免运行时插入导致 bean 处理顺序错乱）。
+     *
+     * 当前状态：接口已定义（§4.12），BeanContainer 实际调用链尚未接通（§九 扩展点）。
+     */
+    public void addBeanPostProcessor(BeanPostProcessor bpp) {
+        postProcessors.add(bpp);
+    }
+
+    /** 返回已注册的 BeanPostProcessor 列表（BeanContainer 在 Phase 2 各节点读取）。 */
+    public List<BeanPostProcessor> postProcessors() {
+        return Collections.unmodifiableList(postProcessors);
+    }
+
+    /** 委托给 BeanContainer.getBean（state == READY/RUNNING 才允许调）。 */
+    public <T> T getBean(String name, Class<T> type) {
+        return beans.getBean(name, type);
+    }
+
+    /**
+     * AppContext.generateAndBindRoutes 调：把本 AppContext 的 NIO Server 注册到容器统一 ServerGroup。
+     * 列表由 Container.deploy 期间遍历 addServer() 阶段写入（详见 §3.5.6）。
+     */
+    public void addServer(Server s) {
+        servers.add(s);
+    }
+
+    /** 返回本 AppContext 关联的 NIO Server 列表（不可修改视图）。 */
+    public List<Server> getServers() {
+        return Collections.unmodifiableList(servers);
+    }
+
+    /** 事件发布快捷入口（state == GATHERING 之后可调；NEW 不允许）。 */
+    public void publishEvent(ApplicationEvent e) {
+        events.publish(e);
+    }
+}
+```
+
+> **关于 `AppContext.generateAndBindRoutes(...)`**：方法签名与实现细节见 §3.5.6。本方法内部会遍历 `beans.singletons()`，对每个带 `@HttpRoute / @WSRoute / @RpcRoute / @EdapService` 的 method 调 `AppContext.generateHandler(...)` 生成 4 份协议 typed Handler（§3.5.7），写入 `RouterHub.setHandlers(...)`，再把对应 NIO Server 通过 `ctx.addServer(s)` 注册到 `appServerGroup`。
 
 ### 4.3 字段说明
 
@@ -3005,9 +3436,9 @@ classDiagram
 | `beans` | `BeanContainer` | Bean 装配核心 |
 | `env` | `Environment` | 配置注入（build.json + Container.env） |
 | `events` | `EventPublisher` | 内部事件总线 |
-| `resourceLoader` | `ResourceLoader` | 通过 appCL 读 jar 内资源 |
-| `routers` | `RouterHub` | 协议路由集合（被动数据持有者），由 AppContext.start() 在 Phase 3 通过 `Container.bindAll() → RouterHub.setHandlers()` 注册到 NIO（**与 Edap 无关**，Edap 不知道 Router 是什么）；多版本时多个 AppContext 的 routes 都注册，Container 的 `currentRouters[appId]` 决定接流量的是哪个 |
-| `shards` | `ShardRegistry` | `@Stateful` 类的分片实例 |
+| `resourceLoader` | `AppResourceLoader` | 通过 appCL 读 jar 内资源 |
+| `routers` | `RouterHub` | 协议路由集合（被动数据持有者），由 AppContext.start() 在 Phase 3 通过 `AppContext.generateAndBindRoutes() → RouterHub.setHandlers()` 注册到 NIO（**与 Edap 无关**，Edap 不知道 Router 是什么）；多版本时多个 AppContext 的 routes 都注册，Container 的 `currentRouters[appId]` 决定接流量的是哪个 |
+| `shards` | `ShardRegistry` | `@Sharded` 方法所属 bean 的分片实例（运行时由 ClusterShardRouter 调 registerSharded 写入） |
 | `postProcessors` | `List<BeanPostProcessor>` | Bean 初始化前后钩子 |
 | `state` | `volatile AppState` | 生命周期位置 |
 
@@ -3032,26 +3463,62 @@ stateDiagram-v2
 
 #### 4.4.1 Phase 1 — GATHERING
 
-**职责**：扫描 EAR 内 class，把所有带 `@Component` / `@Service` / `@Bean` / `@EdapService` 的元素汇总成 `BeanDef`，**不实例化、不注入、不调用 @PostConstruct**。
+**职责**：扫描 EAR 内 class，把所有带 `@ProtoService` / `@MicroServiceBean` / `@Bean` 的元素汇总成 `BeanDef`，**不实例化、不注入、不调用 @PostConstruct**。
+> 注：Spring 系 `@Component` / `@Service` / `@Repository` / `@Controller` 与 Solon 系 `@Inject` / `@Bean` 也兼容识别（详见 §13.3.4 注解兼容策略）。
+
+**职责分层**：扫描逻辑不在 AppContext 里实现——AppContext 是生命周期编排器，不应该懂 EAR/JAR 内部结构。扫描由 `EarScanner` / `NestedJarScanner` 承担：
+
+| 类 | 层级 | 职责 |
+|---|------|------|
+| `NestedJarScanner` | 低层（单 JAR） | 给定 `NestedJarFile`，用 ASM 扫 class entries 的注解，产出 raw class 元数据（className + 注解 map + 方法签名） |
+| `EarScanner` | 高层（整 EAR） | 知道 EAR 结构（`APP-INF/lib/*.jar` + `APP-INF/classes/`），对每个 JAR 调 NestedJarScanner，应用业务注解过滤（`@MicroServiceBean` / `@Bean`），由 appCL 加载 class，最终产出 `BeanDef` 列表 |
+| `AppContext.start()` | 编排层 | 只调 EarScanner 拿 BeanDef 列表，循环注册到 BeanContainer；**不懂 EAR/JAR 内部结构** |
 
 ```java
+// AppContext.start() Phase 1 —— 编排而非实现
 state = GATHERING;
-AnnotationScanner scanner = new AnnotationScanner(appCL);
-scanner.scan(beanClass -> {
-    BeanDef def = BeanDef.fromClass(beanClass);
-    def.injections = scanInjections(beanClass);    // 字段/构造器/方法上的 @Inject/@Autowired
-    def.initMethod = findInitMethod(beanClass);    // @PostConstruct / @Init
-    def.destroyMethod = findDestroyMethod(beanClass);
-    def.scope = detectScope(beanClass);            // singleton/prototype/@Stateful
+EarScanner earScanner = new EarScanner(nestedJarFile);   // nestedJarFile 由 AppContext 构造期持有
+List<BeanDef> defs = earScanner.scanBeanDefs(appCL);     // ← 委托给 EarScanner
+for (BeanDef def : defs) {
     beans.register(def);
-});
+}
 state = COMMITTING;
+```
+
+**EarScanner.scanBeanDefs(ClassLoader appCL) 内部**：
+
+```java
+public List<BeanDef> scanBeanDefs(ClassLoader appCL) {
+    List<BeanDef> defs = new ArrayList<>();
+    for (String name : nestedJarFile.entryNames()) {
+        if (name.endsWith(".jar") && name.startsWith("APP-INF/lib/")) {
+            NestedJarFile nested = nestedJarFile.getNestedJarFile(name);
+            defs.addAll(new NestedJarScanner(nested).scanBeanDefs(appCL));
+        }
+    }
+    return defs;
+}
+```
+
+**NestedJarScanner.scanBeanDefs(ClassLoader appCL) 内部**（每个 class）：
+
+```java
+BeanDef def = BeanDef.fromClass(beanClass);
+def.injections   = scanInjections(beanClass);    // 字段/构造器/方法上的 @Inject/@Autowired
+def.initMethod   = findInitMethod(beanClass);    // @PostConstruct / @Init
+def.destroyMethod= findDestroyMethod(beanClass); // @PreDestroy / @Destroy
+def.scope        = detectScope(beanClass);       // SINGLETON / PROTOTYPE（无 STATEFUL）
+def.order        = beanClass.getAnnotation(Order.class)?.value() ?? 0;
+// 分片数不在 BeanDef 里固化——由 ClusterShardRouter 在运行时根据集群拓扑/资源决定
+defs.add(def);
 ```
 
 **关键不变量**：
 
+- AppContext.start() Phase 1 只调 EarScanner、注册 BeanDef，**不直接访问 EAR/JAR 内部**
 - 此阶段只生成 VO（`BeanDef`），不创建任何应用对象
 - 失败时 `state = FAILED`，清理已注册的 `BeanDef`
+- EarScanner 同时承担"扫 BeanDef"和"扫 DeployMetaData"两种扫描职责（前者用 appCL 加载 class，后者只需 ASM 元数据），共享同一份嵌套 JAR 遍历，避免重复 I/O
 
 #### 4.4.2 Phase 2 — COMMITTING
 
@@ -3082,15 +3549,13 @@ state = READY;
 
 ```java
 state = READY;
-// 路由解析由 Container.bindAll 完成（§3.5.x）：
-//   1) 按 deployMetaData.routes() 拿到 4 份 RouteEntry List
+// 路由解析由 AppContext.generateAndBindRoutes 完成（§3.5.x）：
+//   1) 按 ctx.httpRoutes() / wsRoutes() / erpcRoutes() / grpcRoutes() 拿到 4 份 RouteEntry List
 //   2) 对每条 entry 做 Method 反射 + setAccessible + bean 查找
 //   3) 把 4 份 Handler List 通过 RouterHub.setHandlers(...) 一次性写入
-container.bindAll(routers,
-                  deployMetaData.httpRoutes(),
-                  deployMetaData.wsRoutes(),
-                  deployMetaData.erpcRoutes(),
-                  deployMetaData.grpcRoutes(),
+container.generateAndBindRoutes(this,                          // AppContext（缓存挂在 ctx 上）
+                  routers,
+                  httpRoutes(), wsRoutes(), erpcRoutes(), grpcRoutes(),
                   beans);
 for (Lifecycle lc : beans.getBeansOfType(Lifecycle.class).values()) {
     lc.start();                                         // SmartLifecycle.start()
@@ -3099,7 +3564,7 @@ events.publish(new ContextRefreshedEvent(this));
 state = RUNNING;
 ```
 
-**注**：`Container.bindAll()` 在 Phase 3 已经把 routes 解析为 Handler 并写入 RouterHub——**解析工作只在 deploy 路径做一次**，SwitchVersion 时只换 `Container.currentRouters[appId]` 指针（§3.6.x），不重做 bindAll。多版本时各 AppContext 的 routes 都注册到 NIO，业务 dispatch 由 Container 的 `currentRouters[appId]` 决定走哪个 RouterHub。
+**注**：`AppContext.generateAndBindRoutes()` 在 Phase 3 已经把 routes 解析为 Handler 并写入 RouterHub——**解析工作只在 deploy 路径做一次**，SwitchVersion 时只换 `Container.currentRouters[appId]` 指针（§3.6.x），不重做 generateAndBindRoutes。多版本时各 AppContext 的 routes 都注册到 NIO，业务 dispatch 由 Container 的 `currentRouters[appId]` 决定走哪个 RouterHub。
 
 ### 4.5 BeanContainer 内部
 
@@ -3180,13 +3645,12 @@ classDiagram
 public final class BeanDef {
     private final String               name;        // bean 名（默认类简单名）
     private final Class<?>             beanClass;   // bean 类型（ClassLoader 加载后才有）
-    private final Scope                scope;       // SINGLETON / PROTOTYPE / STATEFUL
+    private final Scope                scope;       // SINGLETON / PROTOTYPE
     private final List<String>         injectionNames;  // 字段 / 方法依赖的 bean 名（拓扑排序用）
     private final List<InjectionPoint> injections;  // 字段 / 方法注入点的反射元数据
     private final Method               initMethod;  // @PostConstruct / @Init
     private final Method               destroyMethod; // @PreDestroy / @Destroy
     private final int                  order;       // @Order（同层拓扑序二级排序）
-    private final int                  shardCount;  // @Stateful 的分片数（scope=STATEFUL 时有效）
 
     public String name()              { return name; }
     public Class<?> beanClass()       { return beanClass; }
@@ -3196,10 +3660,9 @@ public final class BeanDef {
     public Method initMethod()        { return initMethod; }
     public Method destroyMethod()     { return destroyMethod; }
     public int order()                { return order; }
-    public int shardCount()           { return shardCount; }
 }
 
-public enum Scope { SINGLETON, PROTOTYPE, STATEFUL }
+public enum Scope { SINGLETON, PROTOTYPE }
 ```
 
 **`injectionNames` 与 `injections` 的区分**：
@@ -3222,8 +3685,7 @@ public final class BeanWrap {
 
     public BeanDef def()        { return def; }
     public Object  instance()   { return instance; }
-    public boolean isSingleton(){ return def.scope() == Scope.SINGLETON
-                                || def.scope() == Scope.STATEFUL; }
+    public boolean isSingleton(){ return def.scope() == Scope.SINGLETON; }
 }
 ```
 
@@ -3244,7 +3706,7 @@ public void register(BeanDef def) {
 
 /** 拓扑排序：被依赖的先初始化。
  *  返回的 List 是最终实例化顺序。
- *  循环依赖立刻抛 CyclicDependencyException（§4.5.7）。 */
+ *  循环依赖立刻抛 CyclicDependencyException（§4.5.8）。 */
 public List<BeanDef> topologicalSort() {
     List<BeanDef> sorted = new ArrayList<>(definitions.size());
     Set<String> visited = new HashSet<>();
@@ -3302,7 +3764,7 @@ public Object instantiate(BeanDef def) {
 /** 依赖注入 + Aware 回调。
  *  顺序：Aware 接口 → @Inject 字段 → @Inject 方法。 */
 public void injectDependencies(BeanDef def, Object instance) {
-    injectAware(def, instance);          // 4 个 Aware 接口
+    injectAware(def, instance);          // 5 个 Aware 接口
     for (InjectionPoint ip : def.injections()) {
         if (ip.isField()) {
             Object dep = resolveDependency(ip);
@@ -3330,6 +3792,9 @@ private void injectAware(BeanDef def, Object instance) {
     }
     if (instance instanceof RouterHubAware) {
         ((RouterHubAware) instance).setRouterHub(this.appContext.routers());
+    }
+    if (instance instanceof ResourceLoaderAware) {
+        ((ResourceLoaderAware) instance).setResourceLoader(this.appContext.resourceLoader());
     }
 }
 
@@ -3381,7 +3846,7 @@ public boolean containsBean(String name) {
     return singletons.containsKey(name);
 }
 
-/** Container.bindAll 用：拿所有 singleton BeanWrap，弱一致迭代。 */
+/** AppContext.generateAndBindRoutes 用：拿所有 singleton BeanWrap，弱一致迭代。 */
 public Collection<BeanWrap> singletons() {
     return singletons.values();
 }
@@ -3451,7 +3916,8 @@ AppContext.start()                                  BeanContainer state
   │         beans.injectDependencies(def, instance)
   │         beans.invokeInit(def, instance)
   │         if SINGLETON: beans.singletons.put(...)
-  │         if STATEFUL:  shardRegistry.registerSharded(...)
+  │         // @Sharded 标注的方法：分片实例由 ClusterShardRouter 在运行时调 shardRegistry.registerSharded(...)，
+  │         // 启动期不处理 shard 拓扑（部署时无法预知分片数）
   │
   ├─ beans.transitionTo(READY)
   │
@@ -3483,7 +3949,8 @@ AppContext.stop()
 |-------|------|----------|
 | `SINGLETON` | 默认；唯一实例，整个 AppContext 共用 | `BeanContainer.singletons` |
 | `PROTOTYPE` | 每次 `getBean` 创建新实例；不缓存 | 临时变量（调用方持有） |
-| `STATEFUL` | 由 `ShardRegistry` 接管；按 shardKey 路由到 N 个分片实例 | `ShardRegistry.shards[beanName]` |
+
+分片不在 Scope 枚举里——`@Sharded` 方法所属 bean 的分片实例由 `ClusterShardRouter` 在运行时调 `ShardRegistry.registerSharded(beanName, template, shardCount)` 注册，分片数随集群拓扑变化。
 
 **`@Primary` 候选消歧**：
 
@@ -3497,7 +3964,285 @@ AppContext.stop()
 - 跨 BeanDef（同层拓扑序内）：用 `def.order()` 二级排序
 - 同 `order` 内：用 `def.name()` 字典序
 
-#### 4.5.7 循环依赖检测
+#### 4.5.7 类型发布与按类型查找语义
+
+向用户回答的一个常见问题：**"Spring 的 `@Service` 类型，到底支不支持父类继承的接口？"** ——下面分四层把 Spring 的语义拆清楚，再落到 edap 的实现上。
+
+**先给结论**：
+
+| 场景 | Spring 行为 | edap 行为 |
+|------|------------|-----------|
+| **注解扫描**（`@Service` 是否被扫到） | 只看类自身的注解，**不继承**父类/接口上的 `@Service` | 同上（不继承，见 §4.5.7.1） |
+| **按类型查找**（`getBean(MyIf.class)`） | 跨**整个继承链**判定：父类、所有接口、Object | 同上（按 `type.isAssignableFrom(beanClass)` 判定，见 §4.5.7.2） |
+| **多实现冲突** | `NoUniqueBeanDefinitionException` → `@Primary` / `@Qualifier` 消歧 | `NoUniqueBeanException(type, candidates)` → `@Primary` 消歧（§4.5.6） |
+| **publishedTypes 物化** | Spring **不**预存，按需 `isAssignableFrom` 实时判定 | edap **预存** `BeanWrap.publishedTypes`（构造时一次性算），运行时 O(1) 查（见 §4.5.7.4） |
+
+##### 4.5.7.1 注解扫描只看类自身，不继承
+
+**Spring 行为**：`ClassPathScanningCandidateComponentProvider.findCandidateComponents()` 通过 ASM 读 `MethodVisitor.visitAnnotation` 拿到的是**类自身**声明的注解——`parent` 类 / `implements` 接口上的 `@Service` 不会被看见。
+
+```java
+// Spring 源码（简）
+// org.springframework.context.annotation.ClassPathScanningCandidateComponentProvider
+MetadataReader reader = new SimpleMetadataReaderFactory().getMetadataReader(className);
+AnnotationMetadata metadata = reader.getAnnotationMetadata();
+// metadata.getAnnotationTypes() 只返回 class 自己声明的注解
+// ——父类 @Service 不会被识别
+```
+
+**原因**：Java 反射本身不继承类注解（`Class.getAnnotation(Service.class)` 只看 declared annotations）。Spring 用 ASM 读 `.class` 字节码，`MethodVisitor.visitAnnotation` 触发的就是 `RuntimeVisibleAnnotations` attribute，**严格按 declared**。
+
+**对继承链 `@Service` 的二选一**：
+
+1. **每个具体类都标 `@Service`**（推荐）：
+
+```java
+public interface OrderService { ... }
+
+@Service                                                               //  头部 [@Service]
+public class OrderServiceImpl implements OrderService { ... }           // Spring 扫到 → 注册
+```
+
+2. **父类标了但希望子类继承**：Spring **不**支持；edap 也**不**支持——必须每个实现类自标。
+
+**edap 落实**：`AnnotationScanner.scan(Class<?>)` 在 PASS 阶段读 `c.getAnnotation(Service.class)`（declared only），父类注解忽略。如果父类 @Service 而子类没标，子类**不会被扫到**——错误在部署期通过 `NoSuchBeanException` 暴出（注入时找不到依赖），不会静默退化。
+
+##### 4.5.7.2 按类型查找跨整个继承链
+
+**Spring 行为**：`DefaultListableBeanFactory.getBeansOfType(Class<T> type)` 遍历所有 bean def，调用 `type.isAssignableFrom(bean.getClass())`——这条判定**穿透所有父类、所有接口**，包括 `Object`。
+
+```java
+// Spring 源码（简）
+// org.springframework.beans.factory.support.DefaultListableBeanFactory.getBean(Class)
+public <T> T getBean(Class<T> requiredType) {
+    String[] beanNames = getBeanNamesForType(requiredType); // ← 按 isAssignableFrom 过滤
+    if (beanNames.length > 1) { ... 抛 NoUniqueBean ... }
+    return getBean(beanNames[0], requiredType);
+}
+```
+
+**`getBeanNamesForType(Class)` 内部**（`ResolvableType.forClassWith` + `instanceof` 双层判定）：
+
+```java
+// 伪码
+for (String name : beanDefinitionNames) {
+    Class<?> beanType = getType(name);
+    if (requiredType.isAssignableFrom(beanType)) {                // ← 这里的 isAssignableFrom
+        matches.add(name);                                          //    就走整个继承链
+    }
+}
+```
+
+**对继承链 `@Service` 的"接口查找"**：
+
+```java
+public interface OrderService { void pay(); }
+
+@Service
+public class V1OrderServiceImpl implements OrderService { ... }
+
+// 用户写
+@Autowired OrderService order;        // ← Spring 找到 V1OrderServiceImpl（按 isAssignableFrom 命中接口）
+```
+
+**edap 落实**：`BeanContainer.getBean(Class<T> type)`（计划新增）：
+
+```java
+public <T> T getBean(Class<T> type) {
+    BeanWrap bw = findByType(type);
+    if (bw == null) throw new NoSuchBeanException(type);
+    return type.cast(bw.instance());
+}
+
+private BeanWrap findByType(Class<?> type) {
+    List<BeanWrap> matches = new ArrayList<>();
+    for (BeanWrap bw : singletons.values()) {                       // ← 遍历 singletons
+        if (type.isAssignableFrom(bw.beanClass())) {                // ← 跨整继承链
+            matches.add(bw);
+        }
+    }
+    if (matches.isEmpty()) return null;
+    if (matches.size() == 1) return matches.get(0);                 // ← 单候选直接返回
+    return pickPrimary(matches);                                    // ← 多候选走 @Primary 消歧
+}
+```
+
+**`isAssignableFrom` 语义的关键点**：
+
+- `type.isAssignableFrom(beanClass)` ← `type` 是 `beanClass` 的父类/接口/同类型 → `true`
+- `OrderService.class.isAssignableFrom(V1OrderServiceImpl.class)` → **`true`**（V1 实现 OrderService）
+- `Object.class.isAssignableFrom(V1OrderServiceImpl.class)` → **`true`**（任何 bean 都匹配 Object）
+- 因此 `getBean(Object.class)` 等价于 `singletons().iterator().next()`——一般不推荐
+
+##### 4.5.7.3 多实现冲突消歧
+
+**Spring 行为**：`getBean(Class)` 找到多个候选 → 抛 `NoUniqueBeanDefinitionException`。消歧三选一：
+
+1. **标记 `@Primary`**（最常用）：
+
+```java
+public interface OrderService { ... }
+
+@Service @Primary
+public class V1OrderServiceImpl implements OrderService { ... }
+
+@Service
+public class V2OrderServiceImpl implements OrderService { ... }      // ← 候选但非 primary
+```
+
+`@Autowired OrderService order` → 注入 `V1OrderServiceImpl`（primary 优先）。
+
+2. **`@Qualifier("name")`** 精确指定：
+
+```java
+@Autowired @Qualifier("v2OrderServiceImpl") OrderService order;
+```
+
+3. **`<bean id="...">` + `@Qualifier` by name**：XML 配置方式。
+
+**edap 行为**：`NoUniqueBeanException(type, candidates)`（§4.5.10），消歧仅 `@Primary`（edap 暂不实现 `@Qualifier`——按名注入直接用 `getBean(String)` 即可，`@Qualifier` 多半是为了在 `getBean(Class)` 多候选时精确选，与 edap "按名优先" 的设计哲学相悖）。
+
+```java
+private BeanWrap pickPrimary(List<BeanWrap> candidates) {
+    List<BeanWrap> primary = candidates.stream()
+        .filter(bw -> bw.beanClass().isAnnotationPresent(Primary.class))
+        .collect(Collectors.toList());
+    if (primary.size() == 1) return primary.get(0);
+    if (primary.isEmpty()) {
+        throw new NoUniqueBeanException(/* type */, /* candidates */);  // ← §4.5.10
+    }
+    throw new NoUniqueBeanException(/* 主辅多 Primary */);                   // ← 多个 @Primary 更稀有
+}
+```
+
+##### 4.5.7.4 edap 的 publishedTypes 优化
+
+**关键设计决策**：edap 预存 `BeanWrap.publishedTypes`，**不**学习 Spring 在每次 `getBean(Class)` 时遍历全 bean def。
+
+**理由**：
+
+- Spring 遍历全 bean def 是因为其 bean def 数量在容器级别（共享 ApplicationContext），但 edap 的 singleton 数量小（典型 100 ~ 5000 个），且 `getBean(Class)` 调用频率低（依赖注入只在 Phase 2 跑一次，业务 dispatch 走 `getBean(name)` 不走此路径）
+- 预存 `Set<Class<?>>` 一次 O(bean 继承链深度)，运行时 `getBean(Class)` 变 O(1) 命中（`publishedTypes.contains(type)`）
+
+**`BeanWrap.publishedTypes` 设计**：
+
+```java
+public final class BeanWrap {
+    private final BeanDef   def;
+    private final Object    instance;
+    private final Set<Class<?>> publishedTypes;   // ← 新增：构造时一次性算出
+
+    public BeanWrap(BeanDef def, Object instance) {
+        this.def = def;
+        this.instance = instance;
+        this.publishedTypes = computePublishedTypes(def.beanClass());   // ← 见下
+    }
+
+    public Set<Class<?>> publishedTypes() { return publishedTypes; }
+
+    private static Set<Class<?>> computePublishedTypes(Class<?> beanClass) {
+        // 全部接口（递归父接口 + 自身接口），与 parentClass / Object 无关
+        // ——"bean 能被按哪些类型查找" 的语义对齐 Spring isAssignableFrom 的接口切片
+        Set<Class<?>> set = new LinkedHashSet<>();
+        for (Class<?> ifc : ClassUtils.getAllInterfaces(beanClass)) {
+            set.add(ifc);
+        }
+        // 可选：要不要把 parentClass / Object 也纳进来？
+        // ——通常 NO（绝大多数 getBean 调用是按接口，按类的注入场景少；Object.class 命中会导致歧义）
+        return Collections.unmodifiableSet(set);
+    }
+}
+```
+
+**为什么不学 Solon 包含父类 / Object**：
+
+- `Object.class` 命中会导致 "用户用 `getBean(Object.class)` 期望拿到某个 bean，结果拿到第一个 bean" 的歧义
+- 按父类注入是"耦合实现" 的反模式（Spring 也不推荐）——edap 同向抑制
+- 接口 = 用户契约，按接口注入 = 解耦，这是 edap 的核心风格
+
+**`getBean(Class<T> type)` 命中算法**：
+
+```java
+public <T> T getBean(Class<T> type) {
+    if (type == null) throw new NullPointerException("type");
+    // 1. O(1) 路径：先查 publishedTypes 索引（计划加 `byType` Map，Phase 2 构造时一次性 build）
+    BeanWrap bw = byType.get(type);                                  // ← 命中 publishedTypes
+    if (bw != null) return type.cast(bw.instance());
+
+    // 2. fallback：扫 singletons（兼容 publishedTypes 不含此 type 的边缘场景）
+    BeanWrap found = null;
+    for (BeanWrap candidate : singletons.values()) {
+        if (type.isAssignableFrom(candidate.beanClass())) {
+            if (found != null) throw new NoUniqueBeanException(...);
+            found = candidate;
+        }
+    }
+    if (found == null) throw new NoSuchBeanException(type);
+    return type.cast(found.instance());
+}
+```
+
+**`byType` 索引构建**（Phase 2 末尾一次性）：
+
+```java
+private void buildByTypeIndex() {
+    for (BeanWrap bw : singletons.values()) {
+        for (Class<?> t : bw.publishedTypes()) {
+            // 多候选冲突：@Primary 优先；多 @Primary → 抛错
+            BeanWrap prev = byType.put(t, bw);
+            if (prev != null) {
+                // 按 @Primary 消歧；都不 @Primary → 抛 NoUniqueBeanException
+                byType.put(t, pickPrimary(Arrays.asList(prev, bw)));
+            }
+        }
+    }
+}
+```
+
+**为什么 `publishedTypes` 只算接口不算父类**（最终选择）：
+
+| 方案 | 优 | 劣 |
+|------|----|-----|
+| **只算接口**（选） | 接口 = 契约，按接口注入 = 解耦；避免 Object 命中歧义 | 按父类查找需 fallback 遍历 |
+| 算接口 + 父类 | byType 索引覆盖更广 | Object.class 命中 → 歧义；按实现类注入 = 耦合 |
+| 算全继承链 + Object | 100% 覆盖 | 索引意义不大（任何 getBean 都能命中）；退化 |
+
+**结论**：edap 走 "接口 + fallback isAssignableFrom" 路径，与 Spring 行为对齐，但避免 Object 命中歧义。
+
+##### 4.5.7.5 实际场景示例
+
+```java
+// 定义
+public interface OrderService { void pay(); }
+
+public interface Auditable { ... }                                  // 二级接口
+
+@Service
+@Primary
+public class V1OrderServiceImpl implements OrderService, Auditable { ... }
+
+// edap：Phase 2 末尾
+//   V1OrderServiceImpl 的 publishedTypes = { OrderService, Auditable }
+//   byType 索引：
+//     OrderService → V1OrderServiceImpl（@Primary 标记）
+//     Auditable    → V1OrderServiceImpl
+//
+// 用户在某 bean 注入
+@Inject OrderService svc;                                            // ← O(1) 命中 publishedTypes
+// → 注 V1OrderServiceImpl
+```
+
+**对照 Spring**：
+
+```java
+@Autowired OrderService svc;                                          // Spring isAssignableFrom 也命中
+```
+
+**总结一句话**：
+
+> Spring `@Service` 的语义是"**类自身声明**的注解被扫到 + **按类型查找**走整个继承链"——edap 完全对齐后者的"按类型查找走全继承链"语义，但通过 `BeanWrap.publishedTypes` 缓存 + `byType` 索引给出 O(1) 命中。
+
+#### 4.5.8 循环依赖检测
 
 **沿用 Solon 的两段式注入**——**不引入 Spring 的三级缓存**：
 
@@ -3517,11 +4262,11 @@ if (creating.contains(def.name())) {
 
 **为什么不用三级缓存**：Solon 的两段式已经够用：先 instantiate 出"半成品"（已分配内存但字段未注入），再 inject 时 setter 注入构造器参数之外的依赖——setter 循环引用（A.setB() → B.setA()）可以工作，构造器循环引用（A(B b) → B(A a)）直接挂。
 
-**`@Stateful` 的循环引用**：警告但不抛——分片实例本来就允许多实例，破坏性低。
-
 **`PROTOTYPE` 的循环引用**：警告但不抛——每次新创建，破坏性低。
 
-#### 4.5.8 并发语义
+（`@Stateful` 已被移除；分片由方法级 `@Sharded` + 运行时 `ClusterShardRouter` 协调，不影响 bean 生命周期，本节讨论保持不变。）
+
+#### 4.5.9 并发语义
 
 | 操作 | 持锁 | 备注 |
 |------|------|------|
@@ -3555,14 +4300,14 @@ if (creating.contains(def.name())) {
 - RouterHub.unbindAll 已在 destroyAllSingletons 之前完成（§4.6.6 关闭顺序）
 - 业务 dispatch 已被路由层拦截，不会再触达 bean
 
-#### 4.5.9 错误处理
+#### 4.5.10 错误处理
 
 **容器异常全部继承 `RuntimeException`**——9 个 `io.edap.container.exc.*Exception` 均为 unchecked。这是有意设计：
 
 - 容器异常是部署期错误（Phase 1/2/3 失败），不属于业务正常控制流，不需要强制 caller 处理
 - `BeanContainer.register / instantiate / injectDependencies / invokeInit / startLifecycles / getBean` 等方法签名不应被 throws 子句污染
 - 与 Spring `BeansException` / Guice `ConfigurationException` 的设计一致
-- AppContext.start 主线程 catch `RuntimeException` → `destroyPartial()` 兜底（§4.13）
+- AppContext.start 主线程 catch `RuntimeException` → `destroyPartial()` 兜底（§4.15）
 
 | 失败点 | 异常 | 阶段 | 后果 |
 |--------|------|------|------|
@@ -3579,7 +4324,7 @@ if (creating.contains(def.name())) {
 
 **所有 Phase 1/2/3 失败都回滚已创建实例**：
 
-- 由 `AppContext.start` 的 catch 块统一处理：`ctx.destroyPartial()`（§4.13）
+- 由 `AppContext.start` 的 catch 块统一处理：`ctx.destroyPartial()`（§4.15）
 - BeanContainer 自身不持有"rollback"逻辑——只要 `singletons` 还没被外部看到，GC 兜底
 - `creating` 在 instantiate 失败时已在 finally remove，不留残留
 
@@ -3589,7 +4334,7 @@ if (creating.contains(def.name())) {
 - `creating` 不可能被填（Phase 1 不调 instantiate），无残留
 - 直接让 AppContext.start 抛错即可
 
-#### 4.5.10 可观测性
+#### 4.5.11 可观测性
 
 | 指标 | 来源 | 含义 |
 |------|------|------|
@@ -3599,6 +4344,7 @@ if (creating.contains(def.name())) {
 | `beans.commitCostMs` | Phase 2 起止计时 | Bean 实例化 + 注入 + init 总耗时 |
 | `beans.injectFailures` | 注入失败计数（累计） | 健康度指标 |
 | `beans.cyclicDependencies` | 循环依赖检测抛出次数 | 部署期问题计数 |
+
 | `beans.state` | `state.name()` | 当前状态机位置 |
 
 **自检**（与 §3.7.13 registry-selfcheck 联动）：
@@ -3606,7 +4352,7 @@ if (creating.contains(def.name())) {
 - `singletons` 中每个 `BeanWrap.instance` 的 `getClass().getClassLoader()` 应等于 `appCL`（防止 ClassLoader 泄漏）
 - `definitions` 中所有 `name` 在 `singletons` / `shardRegistry` 至少有一处可达（`@Primary` / 显式 getBean 引用）
 
-#### 4.5.11 BeanContainerState
+#### 4.5.12 BeanContainerState
 
 ```java
 public enum BeanContainerState {
@@ -3647,7 +4393,7 @@ public enum BeanContainerState {
 - `BeanContainerState` 由 AppContext 的 `lifecycleLock` 串行化（与 §3.3 ContainerState 共用同一把锁）
 - 不为 BeanContainer 单独加锁——AppContext 持有锁期间 BeanContainer 全部方法都是单线程调用
 
-#### 4.5.12 类完整实现
+#### 4.5.13 类完整实现
 
 > 上述各方法的串联版，对应 `edap-container-parent/edap-container/src/main/java/io/edap/container/BeanContainer.java`：
 
@@ -3729,7 +4475,7 @@ public class BeanContainer {
         }
     }
 
-    /** 拓扑排序：被依赖的先初始化。循环依赖立刻抛 CyclicDependencyException（§4.5.7）。 */
+    /** 拓扑排序：被依赖的先初始化。循环依赖立刻抛 CyclicDependencyException（§4.5.8）。 */
     public List<BeanDef> topologicalSort() {
         List<BeanDef> result = new ArrayList<>(definitions.size());
         Set<String> visited = new HashSet<>();
@@ -3825,7 +4571,7 @@ public class BeanContainer {
 
     /** 依赖注入 + Aware 回调。顺序：Aware → @Inject 字段 → @Inject 方法。 */
     public void injectDependencies(BeanDef def, Object instance) {
-        injectAware(def, instance);          // 4 个 Aware 接口
+        injectAware(def, instance);          // 5 个 Aware 接口
         for (InjectionPoint ip : def.injections()) {
             if (ip.isField()) {
                 Object dep = resolveDependency(ip);
@@ -3851,7 +4597,7 @@ public class BeanContainer {
         }
     }
 
-    /** 4 个 Aware 接口回调。顺序：ApplicationContextAware → EnvironmentAware → BeanNameAware → RouterHubAware。 */
+    /** 5 个 Aware 接口回调。顺序：ApplicationContextAware → EnvironmentAware → BeanNameAware → RouterHubAware → ResourceLoaderAware（注入类型为 AppResourceLoader）。 */
     private void injectAware(BeanDef def, Object instance) {
         if (instance instanceof ApplicationContextAware) {
             ((ApplicationContextAware) instance).setApplicationContext(this.appContext);
@@ -3864,6 +4610,9 @@ public class BeanContainer {
         }
         if (instance instanceof RouterHubAware) {
             ((RouterHubAware) instance).setRouterHub(this.appContext.routers());
+        }
+        if (instance instanceof ResourceLoaderAware) {
+            ((ResourceLoaderAware) instance).setResourceLoader(this.appContext.resourceLoader());
         }
     }
 
@@ -3938,15 +4687,14 @@ public class BeanContainer {
         }
     }
 
-    /** 把 instance 存入 singletons（按 BeanDef.scope 选择 SINGLETON / STATEFUL 路径）。 */
+    /** 把 instance 存入 singletons（按 BeanDef.scope 选 SINGLETON / PROTOTYPE 路径）。 */
     public void registerInstance(BeanDef def, Object instance) {
         if (def.scope() == Scope.SINGLETON) {
             singletons.put(def.name(), new BeanWrap(def, instance));
-        } else if (def.scope() == Scope.STATEFUL) {
-            singletons.put(def.name(), new BeanWrap(def, instance));  // template 实例
-            shards.registerSharded(def.name(), instance, def.shardCount());  // 扩展为 N 个分片
         }
         // PROTOTYPE 不缓存
+        // @Sharded 方法所属 bean 的分片注册由 ClusterShardRouter 在运行时调 shards.registerSharded(...)，
+        // 本方法只管"主实例"的 SINGLETON / PROTOTYPE 落点。
     }
 
     /** Phase 2 → Phase 3 状态迁移。 */
@@ -3989,7 +4737,7 @@ public class BeanContainer {
         return singletons.containsKey(name);
     }
 
-    /** Container.bindAll 用：拿所有 singleton BeanWrap，弱一致迭代。 */
+    /** AppContext.generateAndBindRoutes 用：拿所有 singleton BeanWrap，弱一致迭代。 */
     public Collection<BeanWrap> singletons() {
         return singletons.values();
     }
@@ -4031,7 +4779,7 @@ public class BeanContainer {
             }
         }
 
-        // 3. 清空 singletons（STATEFUL 的分片实例也由 ShardRegistry 释放）
+        // 3. 清空 singletons（@Sharded bean 的分片实例也由 ShardRegistry 释放）
         singletons.clear();
         shards.clear();
         state.transitionTo(BeanContainerState.DESTROYED);
@@ -4110,36 +4858,36 @@ public final class InjectionPoint {
 - `def.injections()` 返回 `List<InjectionPoint>`，Phase 2 `injectDependencies` 按 `isField()` 分支执行
 - `resolveDependency(ip)` 优先按 `beanName` 取（`@Inject("name")` 显式声明），无则按 `requiredType` 走 `resolveDependencyByType`（含 @Primary 消歧）
 - `resolveMethodArgs(m, def)` 用于方法注入：按方法参数类型递归 `resolveDependencyByType`（仅 @Inject 标注参数解析，非 @Inject 参数为 null——罕见场景）
-- `injectAware` 与 `resolveDependencyByType` 共同覆盖了 4 个 Aware 接口 + 普通依赖注入
+- `injectAware` 与 `resolveDependencyByType` 共同覆盖了 5 个 Aware 接口 + 普通依赖注入
 
-**与 §4.5.4 §4.5.5 §4.5.7 §4.5.8 §4.5.9 §4.5.10 的对应**：
+**与 §4.5.4 §4.5.5 §4.5.7 §4.5.8 §4.5.9 §4.5.10 §4.5.11 的对应**：
 
 - §4.5.4 关键方法：所有方法在 `BeanContainer` 类完整实现中已展开
 - §4.5.5 与 AppContext 三段式协作：调用方为 `AppContext.start()` 三段，BeanContainer 暴露 `register` / `topologicalSort` / `transitionToCommitting` / `instantiate` / `injectDependencies` / `invokeInit` / `registerInstance` / `transitionToReady` / `startLifecycles` / `destroyAllSingletons` 一组阶段性 API
-- §4.5.7 循环依赖检测：`creating` HashSet 由 `instantiate` 维护；`topologicalSort` 用 `inStack` / `visited` 提前检测
-- §4.5.8 并发语义：所有 §4.5.8 表格的"无锁"行都由"持有 lifecycleLock / 写 final 字段 / CHM"三种机制保证
-- §4.5.9 错误处理：异常类型 `DuplicateBeanException` / `CyclicDependencyException` / `NoSuitableConstructorException` / `BeanInstantiationException` / `NoSuchBeanException` / `NoUniqueBeanException` / `BeanInjectFailedException` / `BeanTypeMismatchException` / `BeanInitFailedException` / `LifecycleStartFailedException` 在 §4.5.9 表里逐项对应
-- §4.5.10 可观测性：`state()` / `size()` / `definitions.size()` / `singletons.size()` / `shards.size()` 这一组访问器对外暴露自检指标
+- §4.5.8 循环依赖检测：`creating` HashSet 由 `instantiate` 维护；`topologicalSort` 用 `inStack` / `visited` 提前检测
+- §4.5.9 并发语义：所有 §4.5.9 表格的"无锁"行都由"持有 lifecycleLock / 写 final 字段 / CHM"三种机制保证
+- §4.5.10 错误处理：异常类型 `DuplicateBeanException` / `CyclicDependencyException` / `NoSuitableConstructorException` / `BeanInstantiationException` / `NoSuchBeanException` / `NoUniqueBeanException` / `BeanInjectFailedException` / `BeanTypeMismatchException` / `BeanInitFailedException` / `LifecycleStartFailedException` 在 §4.5.10 表里逐项对应
+- §4.5.11 可观测性：`state()` / `size()` / `definitions.size()` / `singletons.size()` / `shards.size()` 这一组访问器对外暴露自检指标
 
 ### 4.6 RouterHub
 
 #### 4.6.1 角色与边界
 
-**RouterHub = 单个 AppContext 的"业务方法入口"集合**，是**被动数据持有者**——只存储由 `Container.bindAll`（§3.5.x）解析好的 4 份 `Handler` List（每条 `Handler` 含 `RouteEntry` + 已实例化的 bean + 已 `setAccessible(true)` 的 `Method`），交给 Container / 协议 Router 使用。
+**RouterHub = 单个 AppContext 的"业务方法入口"集合**，是**被动数据持有者**——只存储由 `AppContext.generateAndBindRoutes`（§3.5.x）解析好的 4 份 `Handler` List（每条 `Handler` 含 `RouteEntry` + 已实例化的 bean + 已 `setAccessible(true)` 的 `Method`），交给 Container / 协议 Router 使用。
 
 - 它**不**做注解扫描——`@HttpRoute` / `@WSRoute` / `@RpcRoute` / `@EdapService` / `@ShardKey` 在 EAR 部署时由 scanner 用 ASM 读 `.class` 字节码生成 `RouteEntry` 列表，存到 `DeployMetaData`（§3.6.5 持久化格式）
-- 它**不**做"`RouteEntry` → `Handler`"的解析（`Method` 反射 + `setAccessible` + bean 查找）——这是 `Container.bindAll` 的职责，RouterHub 只承接结果
+- 它**不**做"`RouteEntry` → `Handler`"的解析（`Method` 反射 + `setAccessible` + bean 查找）——这是 `AppContext.generateAndBindRoutes` 的职责，RouterHub 只承接结果
 - 它**不**直接接 NIO 流量（NIO 在 Edap 那侧）
 - 它**不**做协议编解码（HTTP/WS/eRPC/gRPC 编解码在各自的协议 Router 中）
-- 它**只**做两件事：**接受 `Container.bindAll` 调用 `setHandlers(...)` 写入的 4 份 `Handler` List** + **把 List 直读给协议 Router**
+- 它**只**做两件事：**接受 `AppContext.generateAndBindRoutes` 调用 `setHandlers(...)` 写入的 4 份 `Handler` List** + **把 List 直读给协议 Router**
 
-**为什么 `bindAll` 的 `Method` 解析由 Container 做而不是 RouterHub**：
+**为什么 `generateAndBindRoutes` 的 `Method` 解析由 Container 做而不是 RouterHub**：
 
 - `Method` 反射依赖 `bean.getClass()`（appCL 已加载的类），而 appCL 由 Container 持有 + 管理；解析阶段要访问 ClassLoader 资源，由 Container 来做最自然
-- `bindAll` 失败（`NoSuchMethodException` / bean 缺失 / `SecurityException`）时需要回滚 AppContext 启动；这一上下文只有 Container 有（它持 `appLocks[appId]`，知道当前是不是 deploy 路径）
-- 部署期（`Container.deploy`）和 SwitchVersion 路径上 RouterHub 的写入逻辑完全一致——只在 deploy 路径做一次解析，SwitchVersion 只换 `currentRouters[appId]` 指针，**不重做 bindAll**（见 §3.6.x 多版本切换章节）
+- `generateAndBindRoutes` 失败（`NoSuchMethodException` / bean 缺失 / `SecurityException`）时需要回滚 AppContext 启动；这一上下文只有 Container 有（它持 `appLocks[appId]`，知道当前是不是 deploy 路径）
+- 部署期（`Container.deploy`）和 SwitchVersion 路径上 RouterHub 的写入逻辑完全一致——只在 deploy 路径做一次解析，SwitchVersion 只换 `currentRouters[appId]` 指针，**不重做 generateAndBindRoutes**（见 §3.6.x 多版本切换章节）
 
-**为什么由 AppContext 而不是 Container 持有**：路由本质上绑定到某个应用版本上——v1 的 `/v1/hello` 跟 v2 的 `/v1/hello` 是不同 Java `Method` 对象。多版本共存时，每个版本独立持有自己的 RouterHub，路由注册到 NIO 后，由 Container 的 `currentRouters[appId]` 决定接流量的是哪个 RouterHub。`Container.switchVersion` 只换指针、**不调 `Container.bindAll`**——映射工作在 deploy 路径上 `Container.deploy() → ctx.start() Phase 3 → Container.bindAll(...) → RouterHub.setHandlers(...)` 已一次性做好。
+**为什么由 AppContext 而不是 Container 持有**：路由本质上绑定到某个应用版本上——v1 的 `/v1/hello` 跟 v2 的 `/v1/hello` 是不同 Java `Method` 对象。多版本共存时，每个版本独立持有自己的 RouterHub，路由注册到 NIO 后，由 Container 的 `currentRouters[appId]` 决定接流量的是哪个 RouterHub。`Container.switchVersion` 只换指针、**不调 `AppContext.generateAndBindRoutes`**——映射工作在 deploy 路径上 `Container.deploy() → ctx.start() Phase 3 → AppContext.generateAndBindRoutes(...) → RouterHub.setHandlers(...)` 已一次性做好。
 
 ```
                 Container 三张表
@@ -4162,18 +4910,18 @@ public final class InjectionPoint {
 **清楚不做**：
 
 - **不做注解扫描**（`@HttpRoute` / `@WSRoute` / `@RpcRoute` / `@EdapService` / `@ShardKey`）——由 EAR scanner 在部署时完成，扫到 `DeployMetaData.routes`
-- **不做 `RouteEntry → Handler` 解析**（`Method` 反射 + `setAccessible` + bean 查找）——由 `Container.bindAll` 完成（§3.5.x），RouterHub 只承接结果
+- **不做 `RouteEntry → Handler` 解析**（`Method` 反射 + `setAccessible` + bean 查找）——由 `AppContext.generateAndBindRoutes` 完成（§3.5.x），RouterHub 只承接结果
 - 不做协议编解码（HTTP 头解析、gRPC frame 切分等）
 - 不持 NIO Channel / 不做 I/O
 - 不做 in-flight 统计（精确 drain 太贵；走 `container.undeploy.drainMillis` 静默期方案）
 - 不做路径匹配的 Trie / Radix tree 优化（路由条目的查找由协议 Router 完成，RouterHub 只暴露 Handler List）
-- **不做 (method, path) 冲突检测**——也是 EAR scanner 的事，部署期 fail，`Container.bindAll` 拿到的是无冲突列表
+- **不做 (method, path) 冲突检测**——也是 EAR scanner 的事，部署期 fail，`AppContext.generateAndBindRoutes` 拿到的是无冲突列表
 
 #### 4.6.2 字段
 
 | 字段 | 类型 | 可见性 | 作用 | 同步 |
 |------|------|--------|------|------|
-| `httpHandlers` | `List<HttpHandler>` | `private final` | HTTP handler 列表（实现类由 `AppContext.generateHandler` 用 ASM 字节码生成 `HttpHandler` 实现，handle 热路径零反射；当 `HttpRouteEntry.shard == true` 时 handle 内部按 shardKey 走 ShardRegistry） | `Container.bindAll` 单线程写，setHandlers 后只读 |
+| `httpHandlers` | `List<HttpHandler>` | `private final` | HTTP handler 列表（实现类由 `AppContext.generateHandler` 用 ASM 字节码生成 `HttpHandler` 实现，handle 热路径零反射；当 `HttpRouteEntry.shard == true` 时 handle 内部按 shardKey 走 ShardRegistry） | `AppContext.generateAndBindRoutes` 单线程写，setHandlers 后只读 |
 | `wsHandlers` | `List<WSServiceMsgHandler<?>>` | `private final` | WS 服务消息 handler 列表（实现类由 ASM 生成 `WSServiceMsgHandler<T>` 实现，T = String 或 byte[]，由 `WsRouteEntry.msgType` 决定；`handle(msg)` 直接 invokevirtual bean method，热路径零反射；当 `WsRouteEntry.shard == true` 时按 shardKey 走 ShardRegistry） | 同上 |
 | `erpcHandlers` | `List<ErpcHandler>` | `private final` | eRPC handler 列表（实现类由 ASM 生成 `ErpcHandler` 实现，按 methodId 派发 → bean method；当 `ErpcRouteEntry.shard == true` 时按 shardKey 走 ShardRegistry） | 同上 |
 | `grpcHandlers` | `List<GrpcHandler>` | `private final` | gRPC handler 列表（实现类由 ASM 生成 `GrpcHandler` 实现，handle 时按 FQCN 字符串定位 PB 描述 → dispatch；当 `GrpcMethodEntry.shard == true` 时按 shardKey 走 ShardRegistry） | 同上 |
@@ -4197,8 +4945,8 @@ public final class InjectionPoint {
 
 > **本节定义的 `RouteEntry` = RouterHub 的输入**，由 EAR scanner 在**部署期**用 ASM 读 `.class` 字节码生成，存到 `DeployMetaData.routes`（§3.6.5 持久化格式）；启动期由 `Container.start()` 读磁盘 JSON 还原回内存 List。
 >
-> RouterHub **不**做注解扫描——它只承接 `Container.bindAll`（§3.5.6）写入的 Handler，**不生成、不修改** RouteEntry。
-> `(method, path)` 冲突检测也在 EAR scanner 阶段完成（部署期 fail），`Container.bindAll` 拿到的是无冲突列表。
+> RouterHub **不**做注解扫描——它只承接 `AppContext.generateAndBindRoutes`（§3.5.6）写入的 Handler，**不生成、不修改** RouteEntry。
+> `(method, path)` 冲突检测也在 EAR scanner 阶段完成（部署期 fail），`AppContext.generateAndBindRoutes` 拿到的是无冲突列表。
 
 每种协议一个 final class，**全部 immutable**（field final + 构造一次）。4 份 RouteEntry 之间**不**共享基接口或抽象类——它们只是"协议入参到 bean method"的纯数据载体，4 份之间没有共同泛型操作（HTTP 有 path、eRPC 有 methodId，公共字段只有 `beanName` / `methodName` / `shard` 等，但那是具体业务相似性，不是类型契约的一部分）。
 
@@ -4239,7 +4987,7 @@ public final class HttpRouteEntry {
 **字段命名区分两个 method**：`method` = HTTP 动词（GET/POST），`methodName` = bean 上的 Java 方法名（"sayHello"）。前者决定路由匹配维度，后者用于反射查 Method。
 
 - `pathParams` 在 EAR scanner 阶段（部署期）正则解析一次，存到 RouteEntry；避免每次 dispatch 都跑正则
-- **不持有 `Method` 对象**：Method 是运行期反射对象，扫描期未稳定持有（依赖 appCL 是否就绪、bean 是否已实例化）。RouteEntry 只承载扫描期就确定的元数据，Method 由 `Container.bindAll` 阶段解析（见 §3.5.6）
+- **不持有 `Method` 对象**：Method 是运行期反射对象，扫描期未稳定持有（依赖 appCL 是否就绪、bean 是否已实例化）。RouteEntry 只承载扫描期就确定的元数据，Method 由 `AppContext.generateAndBindRoutes` 阶段解析（见 §3.5.6）
 
 **WsRouteEntry**
 
@@ -4350,7 +5098,7 @@ gRPC 走 PB 描述序列化（区别于 eRPC 的 methodId + FQCN）。一组 Grp
 
 **Shard 不再独立成第 5 份 RouteEntry**：
 
-shard 信息下沉为每个 RouteEntry / GrpcMethodEntry 的 `shard` 字段——所有协议的路由都可以声明为 shard 亲和。shard 实例的注册（ShardRegistry `registerSharded`）由 AppContext.start() Phase 2 COMMITTING 期在做 `@Stateful` bean 实例化时完成（§4.5.5），与 dispatch 路径解耦。Sharding 维度（shardCount）也归 ShardRegistry / BeanDef，与 RouteEntry 无关——分片实例数是 bean 维度（同一 bean 上所有路由共享 shardCount），不是路由维度。
+shard 信息下沉为每个 RouteEntry / GrpcMethodEntry 的 `shard` 字段——所有协议的路由都可以声明为 shard 亲和。ShardRegistry 的 `registerSharded` 由 ClusterShardRouter 在运行时调用（启动初始化 + 拓扑变化时重建），不与 BeanContainer.registerInstance 耦合。Sharding 维度（shardCount）由 ClusterShardRouter 根据集群拓扑/资源运行时计算并传给 ShardRegistry，与 BeanDef 无关——分片实例数是运行时决策，不是 bean 维度。
 
 #### 4.6.4 Handler 类型
 
@@ -4656,20 +5404,20 @@ record HandlerKey(Class<?> targetIf, Method method) {}
 
 #### 4.6.5 关键方法
 
-RouterHub 只有 3 个方法：**`setHandlers`** 写入、**`unbindAll`** 清空、**4 个访问器** 直读。它**不做** RouteEntry → Handler 的解析——这部分逻辑归 `AppContext.generateHandler` + `Container.bindAll`（§3.5.x）。
+RouterHub 只有 3 个方法：**`setHandlers`** 写入、**`unbindAll`** 清空、**4 个访问器** 直读。它**不做** RouteEntry → Handler 的解析——这部分逻辑归 `AppContext.generateHandler` + `AppContext.generateAndBindRoutes`（§3.5.x）。
 
 **`setHandlers(4 × List<XxxHandler>)` —— 一次性写入**
 
-调用方：`Container.bindAll`（§3.5.x）解析完 Method + 调 `ctx.generateHandler(targetIf, entry, bean, method, shards)` 用 ASM 生成 4 份协议 typed Handler 实现类 + 实例化后，作为最后一步调用。
+调用方：`AppContext.generateAndBindRoutes`（§3.5.x）解析完 Method + 调 `ctx.generateHandler(targetIf, entry, bean, method, shards)` 用 ASM 生成 4 份协议 typed Handler 实现类 + 实例化后，作为最后一步调用。
 
 ```java
 /**
- * 一次性写入 4 份 Handler List。调用方：Container.bindAll（§3.5.x）。
+ * 一次性写入 4 份 Handler List。调用方：AppContext.generateAndBindRoutes（§3.5.x）。
  *
  * 原子语义：4 个 List 写入后才将 bound 置 true；
  *   任一参数为 null 时整体抛 IllegalArgumentException，4 个字段保持未变。
  * 幂等：bound==true 时拒绝再次写入（throw IllegalStateException），
- *   ——重复 setHandlers 通常意味着 Container.bindAll 被调了两次，属于调用方 bug。
+ *   ——重复 setHandlers 通常意味着 AppContext.generateAndBindRoutes 被调了两次，属于调用方 bug。
  *
  * 4 份 List 元素类型 = 各协议 typed Handler 接口：
  *   List<HttpHandler> / List<WSServiceMsgHandler<?>> / List<ErpcHandler> / List<GrpcHandler>
@@ -4705,7 +5453,7 @@ public void setHandlers(List<HttpHandler>            httpHandlers,
 
 **关键约束**：
 
-- `setHandlers` 是 `Container.bindAll` 的**最后一步**——`Container.bindAll` 在内部按 RouteEntry 解析 + `setAccessible` + 调 `ctx.generateHandler(targetIf, ...)` 用 ASM 生成对应协议 typed Handler 实现类 + 实例化后，调本方法一次性提交
+- `setHandlers` 是 `AppContext.generateAndBindRoutes` 的**最后一步**——`AppContext.generateAndBindRoutes` 在内部按 RouteEntry 解析 + `setAccessible` + 调 `ctx.generateHandler(targetIf, ...)` 用 ASM 生成对应协议 typed Handler 实现类 + 实例化后，调本方法一次性提交
 - 4 份 List 用 `addAll` 而非整引用替换：保留本对象 4 个 final List 字段的引用，协议 Router 在 `bindRoutes` 之前即使读到本对象（理论上不会发生），也只会看到空 List 而非 NPE
 - `setHandlers` 失败抛异常 → RouterHub 4 份 List 仍为空，partial 状态不会出现——AppContext.start 整体 fail，registry 不写（I5 保护）
 - **4 份 List 元素类型是各协议 typed Handler 接口**：`HttpHandler` / `WSServiceMsgHandler<?>` / `ErpcHandler` / `GrpcHandler`，定义在各协议模块 / 容器 ws 子包（§4.6.4）；协议 Router 拿到 typed List 后直接调协议入口方法，无需 downcast
@@ -4757,7 +5505,7 @@ import java.util.List;
 
 public class RouterHub {
 
-    /** 4 份 Handler 列表：setHandlers 阶段由 Container.bindAll 写入，unbindAll 后清空。
+    /** 4 份 Handler 列表：setHandlers 阶段由 AppContext.generateAndBindRoutes 写入，unbindAll 后清空。
      *  元素类型 = 各协议 typed Handler 接口：
      *    - HttpHandler             （io.edap.http）
      *    - WSServiceMsgHandler<?>  （io.edap.container.ws —— 容器内 functional interface）
@@ -4778,7 +5526,7 @@ public class RouterHub {
     private volatile boolean bound;
 
     /**
-     * 一次性写入 4 份 Handler List（调用方：Container.bindAll，见 §3.5.x）。
+     * 一次性写入 4 份 Handler List（调用方：AppContext.generateAndBindRoutes，见 §3.5.x）。
      * 原子：bound==true 时拒绝再次写入；任一参数 null 整体抛异常，4 个字段保持不变。
      * 元素是 AppContext.generateHandler 阶段 ASM 生成、对应协议 typed Handler 接口的实现类。
      */
@@ -4827,11 +5575,11 @@ public class RouterHub {
 ```
 
 > 与之前版本的差异：
-> 1. `bindAll` 删除——Method 解析 / `setAccessible` / bean 查找全部上提到 `Container.bindAll`（§3.5.x），RouterHub 不再做反射
+> 1. `generateAndBindRoutes` 删除——Method 解析 / `setAccessible` / bean 查找全部上提到 `AppContext.generateAndBindRoutes`（§3.5.x），RouterHub 不再做反射
 > 2. **4 份 List 元素类型从统一 `Handler<R extends RouteEntry>` 泛型接口改为各协议 typed Handler 接口**（`HttpHandler` / `WSServiceMsgHandler<?>` / `ErpcHandler` / `GrpcHandler`，散落在各协议模块 / 容器 ws 子包）——协议 Router 拿到 typed List 后直接调协议入口方法（`handle(req, resp)` / `handle(msg)` 等），无需 downcast；实现类由 `AppContext.generateHandler(targetIf, entry, bean, method, shards)` 用 ASM 字节码生成，缓存挂在 ctx 上。**WS 注意**：dispatch 用的是 `WSServiceMsgHandler<T>`（容器内 functional interface），与 `io.edap.http.WSHandler`（连接级事件接口）不同——后者由 `ServiceWSHandler implements WSHandler` 处理连接生命周期，不进 4 份路由表。
 > 3. `setHandlers` 签名变化：4 份 List 类型从 `List<Handler<XxxRouteEntry>>` 改为 `List<XxxHandler>`——元素直接是协议 typed 接口，与各协议 Router 入口签名一致
 > 4. **Shard 不再独立成第 5 份 List / Handler 类型**——`shard` 字段下沉到每个 RouteEntry / GrpcMethodEntry，所有协议的路由都可以同时是 shard 亲和的；生成 Handler 内部根据 `entry.shard()` 决定是否走 ShardRegistry（用同一份 `setHandlers` 入口 + 同一组 typed Handler 接口）
-> 5. `resolveMethod` / `httpParamTypes` 删除——这两个 helper 是 RouterHub.bindAll 时代的产物，现已归 Container + ASM 生成阶段
+> 5. `resolveMethod` / `httpParamTypes` 删除——这两个 helper 是 RouterHub.generateAndBindRoutes 时代的产物，现已归 Container + ASM 生成阶段
 
 #### 4.6.6 与 AppContext 的协作
 
@@ -4840,22 +5588,19 @@ public class RouterHub {
 ```java
 // AppContext.start() 内部
 state = State.READY;
-container.bindAll(this,                          // AppContext（缓存挂在 ctx 上）
+container.generateAndBindRoutes(this,                          // AppContext（缓存挂在 ctx 上）
                   routers,
-                  deployMetaData.httpRoutes(),
-                  deployMetaData.wsRoutes(),
-                  deployMetaData.erpcRoutes(),
-                  deployMetaData.grpcRoutes(),
+                  httpRoutes(), wsRoutes(), erpcRoutes(), grpcRoutes(),
                   beans);
-//   ↑ Container.bindAll 解析 4 份 RouteEntry List → 调 ctx.generateHandler(targetIf, ...) ASM 生成各协议 typed Handler → 调 routers.setHandlers(...) 一次性写入
+//   ↑ AppContext.generateAndBindRoutes 解析 4 份 RouteEntry List → 调 ctx.generateHandler(targetIf, ...) ASM 生成各协议 typed Handler → 调 routers.setHandlers(...) 一次性写入
 events.publish(new ContextRefreshedEvent(this));
 beans.getBeansOfType(Lifecycle.class).forEach(Lifecycle::start);
 state = State.RUNNING;
 ```
 
-`Container.bindAll` 返回时 RouterHub 持有完整 handler 表。**此时 AppContext 还没进 registry**——`Container.deploy(ear)` 在 `ctx.start()` 返回后才调 `commit()`，三表写入是 `Container.bindAll` 之后的事。
+`AppContext.generateAndBindRoutes` 返回时 RouterHub 持有完整 handler 表。**此时 AppContext 还没进 registry**——`Container.deploy(ear)` 在 `ctx.start()` 返回后才调 `commit()`，三表写入是 `AppContext.generateAndBindRoutes` 之后的事。
 
-**为什么 `Container.bindAll` 不直接通知协议 Router**：协议 Router 在 Container 层（`Container.protocolRouters`，按节点能力激活），不是 AppContext 层。`Container.bindAll` 把 handler 收齐写入 RouterHub，commit 阶段 3 拿到 `ctx.routers().httpHandlers()` 再选择性 bind 到协议 Router。
+**为什么 `AppContext.generateAndBindRoutes` 不直接通知协议 Router**：协议 Router 在 Container 层（`Container.protocolRouters`，按节点能力激活），不是 AppContext 层。`AppContext.generateAndBindRoutes` 把 handler 收齐写入 RouterHub，commit 阶段 3 拿到 `ctx.routers().httpHandlers()` 再选择性 bind 到协议 Router。
 
 **注册到 NIO（deploy 路径）**
 
@@ -5008,14 +5753,14 @@ httpRouter（协议级）持有：
 
 | 操作 | 持锁 | 备注 |
 |------|------|------|
-| `Container.bindAll` → `RouterHub.setHandlers` | **无锁**（AppContext.start() Phase 3 在 lifecycleLock 内单线程） | `Container.bindAll` 解析 + `setHandlers` 一次性写入 |
+| `AppContext.generateAndBindRoutes` → `RouterHub.setHandlers` | **无锁**（AppContext.start() Phase 3 在 lifecycleLock 内单线程） | `AppContext.generateAndBindRoutes` 解析 + `setHandlers` 一次性写入 |
 | `unbindAll` | **无锁** | List.clear 非线程安全，但只有 AppContext.stop() 单线程调 |
 | 业务 dispatch 读 `httpHandlers()` | 无锁（读 final 字段的 final List） | 见下 |
 
 **`httpHandlers()` 的发布安全性**
 
 1. `httpHandlers` 是 final 字段——构造期可见性由 JMM 保证（final field safe publication）
-2. `ArrayList` 内部数组 `elementData` 不是 final——但 `Container.bindAll` 阶段没有并发读，`setHandlers` 完成后通过 `currentRouters.put(...)`（CHM 内部 happens-before）把 RouterHub 发布给业务线程，业务线程看到的就是完整的 List
+2. `ArrayList` 内部数组 `elementData` 不是 final——但 `AppContext.generateAndBindRoutes` 阶段没有并发读，`setHandlers` 完成后通过 `currentRouters.put(...)`（CHM 内部 happens-before）把 RouterHub 发布给业务线程，业务线程看到的就是完整的 List
 
 **为什么不防御性复制**：协议 Router 在 bindRoutes 后会建自己的 path → handler 索引（自己的 HashMap/Trie），它不再回头读 httpHandlers。所以"httpHandlers 在 `unbindAll` 后被 clear"对协议 Router 无影响——它的索引已经独立了。
 
@@ -5054,24 +5799,24 @@ T1 (业务): handler = routers.httpHandlers().get(i)     ← 但 T1 还在 dispa
 
 | 失败点 | 处理 | 后果 |
 |--------|------|------|
-| `Container.bindAll` 期间 `RouteEntry.beanName` 在 `BeanContainer` 中找不到 | 抛 `NoSuchBeanException(beanName)`，整体 fail | AppContext.start() 失败，registry 不写 |
-| `Container.bindAll` 期间 `RouteEntry.methodName` 在 `bean.getClass()` 中找不到 / 参数类型不匹配 | 抛 `RouteBindException(bean, methodName, paramTypes, NoSuchMethodException)` | 同上 |
-| `Container.bindAll` 期间 `ErpcRouteEntry.requestType` 不能 `Class.forName` | 抛 `RouteBindException(...)`（cause 是 `ClassNotFoundException`） | 同上 |
-| `Container.bindAll` 期间 `HttpRouteEntry.pathParams` 与实际 method 参数列表不匹配 | `resolveMethod` 抛 `NoSuchMethodException` → `RouteBindException` | 同上 |
-| `Container.bindAll` 期间 `Method.setAccessible(true)` 抛 `SecurityException` | 抛 `RouteBindException(bean, methodName, ..., SecurityException)` | 同上 |
+| `AppContext.generateAndBindRoutes` 期间 `RouteEntry.beanName` 在 `BeanContainer` 中找不到 | 抛 `NoSuchBeanException(beanName)`，整体 fail | AppContext.start() 失败，registry 不写 |
+| `AppContext.generateAndBindRoutes` 期间 `RouteEntry.methodName` 在 `bean.getClass()` 中找不到 / 参数类型不匹配 | `resolveMethod` 抛 `NoSuchMethodException` → `RouteBindException(bean, methodName, paramTypes, ...)` | 同上 |
+| `AppContext.generateAndBindRoutes` 期间 `ErpcRouteEntry.requestType` 不能 `Class.forName` | 抛 `RouteBindException(...)`（cause 是 `ClassNotFoundException`） | 同上 |
+| `AppContext.generateAndBindRoutes` 期间 `HttpRouteEntry.pathParams` 与实际 method 参数列表不匹配 | `resolveMethod` 抛 `NoSuchMethodException` → `RouteBindException` | 同上 |
+| `AppContext.generateAndBindRoutes` 期间 `Method.setAccessible(true)` 抛 `SecurityException` | 抛 `RouteBindException(bean, methodName, ..., SecurityException)` | 同上 |
 | 业务 dispatch 时 Handler 协议入口方法（`handle(req, resp)` / `handle(msg)` / ...）抛业务异常 | 由协议 Router 捕获 → 返回 500；发 `RouteInvokeErrorEvent` | 不影响 bean 实例 |
 | 业务 dispatch 时 Handler 抛 `IllegalAccessException`（CL 已 close，bean 所在 appCL 被 close） | 路由层捕获 → 返回 503；log ERROR | 这是 undeploy 与 in-flight 并发的预期情况 |
 | `unbindAll` 期间业务 dispatch 抛 `IndexOutOfBoundsException` | dispatch 层兜底 → 返回 503 | 同上 |
-| ASM 生成 Handler impl class 阶段抛 `RouteBindException`（如字节码生成失败 / 类加载失败 / 反射实例化失败） | 由 `Container.bindAll` 冒泡 → AppContext.start() 失败 | registry 不写，deploy fail(104) |
+| ASM 生成 Handler impl class 阶段抛 `RouteBindException`（如字节码生成失败 / 类加载失败 / 反射实例化失败） | 由 `AppContext.generateHandler` 冒泡 → `generateAndBindRoutes` 抛 → AppContext.start() 失败 | registry 不写，deploy fail(104) |
 | `commit` 阶段 4 `evicted.stop()` 中 `unbindAll` 抛错 | 记 WARN 继续（I5 尽力而为） | 驱逐者已从三表摘除，业务不再会路由到它 |
 
-**不在 `Container.bindAll` 处理的失败**（已下沉到 EAR scanner，部署期 fail）：
+**不在 `AppContext.generateAndBindRoutes` 处理的失败**（已下沉到 EAR scanner，部署期 fail）：
 
 - `(method, path)` 冲突：`RouteConflictException(key, 新 entry, 已存在 entry)`
 - `@ShardKey` 参数名找不到 method 参数：`ShardKeyNotFoundException(bean, method, keyName)`
 - path 格式非法（如 `parsePathParams` 失败）：`RouteFormatException`
 
-**`Container.bindAll` 的失败语义**：失败时**临时 List 随栈帧释放，RouterHub.4 份 List 仍为空**——AppContext 整体不进 registry，但 partial 状态不存在（`bound` 仍为 false）。**不在失败路径上 unbindAll**——失败本身就是部署失败，没有"在协议 Router 上 unbind" 的需求（路由从未 register 过）。
+**`AppContext.generateAndBindRoutes` 的失败语义**：失败时**临时 List 随栈帧释放，RouterHub.4 份 List 仍为空**——AppContext 整体不进 registry，但 partial 状态不存在（`bound` 仍为 false）。**不在失败路径上 unbindAll**——失败本身就是部署失败，没有"在协议 Router 上 unbind" 的需求（路由从未 register 过）。
 
 #### 4.6.10 可观测性
 
@@ -5079,8 +5824,8 @@ T1 (业务): handler = routers.httpHandlers().get(i)     ← 但 T1 还在 dispa
 |------|------|------|
 | `routerHub.httpHandlers` | `httpHandlers.size()` | 该 AppContext 注册的 HTTP handler 数 |
 | `routerHub.totalHandlers` | 4 个 Handler List size 之和 | 总 handler 数 |
-| `routerHub.bound` | `isBound()` | true = `Container.bindAll` 已完成；false = `unbindAll` 已完成 |
-| `routerHub.bindCostMs` | `Container.bindAll` 前后计时 | Method 解析 + setAccessible 开销（与 entry 数线性相关） |
+| `routerHub.bound` | `isBound()` | true = `AppContext.generateAndBindRoutes` 已完成；false = `unbindAll` 已完成 |
+| `routerHub.bindCostMs` | `AppContext.generateAndBindRoutes` 前后计时 | Method 解析 + setAccessible 开销（与 entry 数线性相关） |
 
 **自检任务（与 §3.7.13 联动）**
 
@@ -5105,15 +5850,15 @@ private void routerHubSelfCheck() {
 
 | 层 | 类 | 职责 |
 |----|------|------|
-| 路由解析层 | Container.bindAll（§3.5.6，AppContext.start() Phase 3 调用）+ AppContext.generateHandler（§3.5.7） | 消费 EAR scanner 生成的 4 份 RouteEntry List → Method 反射 + setAccessible → 调 `ctx.generateHandler(targetIf, entry, bean, method, shards)` 用 ASM 字节码生成 4 份协议 typed Handler（`HttpHandler` / `WSServiceMsgHandler<?>` / `ErpcHandler` / `GrpcHandler`）impl class 并实例化（缓存挂在 ctx 上；entry.shard() == true 时生成 Handler 持有 ShardRegistry 引用） → 调 `RouterHub.setHandlers(...)` 一次性写入 |
-| 业务层 | RouterHub（AppContext 持有） | 被动数据持有者：只承接 `Container.bindAll` 写入的 4 份协议 typed Handler List + 提供直读访问器 |
+| 路由解析层 | AppContext.generateAndBindRoutes（§3.5.6，AppContext.start() Phase 3 调用）+ AppContext.generateHandler（§3.5.7） | 消费 EAR scanner 生成的 4 份 RouteEntry List → Method 反射 + setAccessible → 调 `ctx.generateHandler(targetIf, entry, bean, method, shards)` 用 ASM 字节码生成 4 份协议 typed Handler（`HttpHandler` / `WSServiceMsgHandler<?>` / `ErpcHandler` / `GrpcHandler`）impl class 并实例化（缓存挂在 ctx 上；entry.shard() == true 时生成 Handler 持有 ShardRegistry 引用） → 调 `RouterHub.setHandlers(...)` 一次性写入 |
+| 业务层 | RouterHub（AppContext 持有） | 被动数据持有者：只承接 `AppContext.generateAndBindRoutes` 写入的 4 份协议 typed Handler List + 提供直读访问器 |
 | 协议层 | HttpRouter / WsRouter / RpcRouter / GrpcRouter（Container.protocolRouters） | 按节点能力 bind handler；做 path/methodId 查找；dispatch 时调该协议 Handler 的入口方法（`h.handle(req, resp)` / `h.handle(msg)` / ...） |
 | NIO 层 | Edap / FastNetIO | 持有 Selector / Channel；接收字节流交给协议层 |
 | 业务调用层 | ASM 生成、各协议 typed Handler 接口的实现类（持有 typed bean + entry 字段，协议入口方法字节码：协议提参 → 硬编码 cast → 直接 invokevirtual → 协议响应写入） | 真正的 Java 方法调用 + 协议数据转换，**热路径零反射** |
 
 **RouterHub 严格只在业务层**——它不知道 HTTP 头长什么样、不知道 gRPC frame 怎么切。这些都是协议 Router + 各协议 Handler 实现类的事，RouterHub 只把"业务方法的入口"以 typed Handler List 的形式交出去。
 
-**为什么不让协议 Router 直接扫 bean**：协议 Router 在 Container 层，而 bean 在 AppContext 层；让 Container 去反射 AppContext 的 ClassLoader 加载的类，既绕开 ClassLoader 边界又破坏职责分层。`Container.bindAll` + `AppContext.generateHandler` 是"AppContext 启动路径上把 RouteEntry 解析为 ASM 生成的 Handler 并写入 RouterHub"，是干净的分层；RouterHub 不感知 ClassLoader、不做反射。
+**为什么不让协议 Router 直接扫 bean**：协议 Router 在 Container 层，而 bean 在 AppContext 层；让 Container 去反射 AppContext 的 ClassLoader 加载的类，既绕开 ClassLoader 边界又破坏职责分层。`AppContext.generateAndBindRoutes` + `AppContext.generateHandler` 是"AppContext 启动路径上把 RouteEntry 解析为 ASM 生成的 Handler 并写入 RouterHub"，是干净的分层；RouterHub 不感知 ClassLoader、不做反射。
 
 **为什么 ASM 生成逻辑放 `AppContext` 而不是 `Container`**：
 
@@ -5132,10 +5877,10 @@ private void routerHubSelfCheck() {
 
 #### 4.7.1 角色与边界
 
-**ShardRegistry = 单个 AppContext 的分片实例注册表**。@Stateful bean 的 template 实例会被扩展为 N 个独立分片实例（每个分片一份独立状态），运行时按 shardKey 路由到具体分片。
+**ShardRegistry = 单个 AppContext 的分片实例注册表**。@Sharded 标注方法所属 bean 的 template 实例会被扩展为 N 个独立分片实例（每个分片一份独立状态），运行时按 shardKey 路由到具体分片。分片数 N 由 ClusterShardRouter 在运行时根据集群拓扑/资源状况计算后传入。
 
-- 它**只**做 4 件事：**接受 BeanContainer.registerInstance 阶段 `registerSharded` 注册分片** + **`route(beanName, shardKey)` 按路由策略选实例** + **`clear()` 释放** + **`size()` 自检**
-- 它**不**做分片 key 提取（由各协议 Handler 在 `handle` 提参后从请求里取 `@ShardKey` 标注的字段）——ShardRegistry 只接收已经提取好的 String
+- 它**只**做 4 件事：**接受 ClusterShardRouter 在运行时调的 `registerSharded` 注册分片** + **`route(beanName, shardKey)` 按路由策略选实例** + **`clear()` 释放** + **`size()` 自检**
+- 它**不**做分片 key 提取（由各协议 Handler 在 `handle` 提参后从请求里取 `@Sharded(shardKey)` 标注的字段）——ShardRegistry 只接收已经提取好的 String
 - 它**不**做 bean 实例化——实例由 BeanContainer.instantiate 创建，ShardRegistry 只负责 clone
 - 它**不**做生命周期管理——分片实例与 BeanContainer.singletons 中的 template 同步销毁
 - 它**不**感知集群拓扑——ClusterShardRouter 包 ShardRegistry 做多节点路由决策；ShardRegistry 自身只负责"本节点分片存储 + 查找"
@@ -5153,13 +5898,15 @@ private void routerHubSelfCheck() {
 - 外层 key = bean name（与 BeanContainer.singletons 的 key 同空间）
 - 内层 key = shardIdx 整数（0..N-1），value = 该分片独立实例
 - 路由计算：`Math.abs(shardKey.hashCode()) % shardCount` → idx → `shards.get(beanName).get(idx)`
+- shardCount 不在 BeanDef 里固化——开发者部署时无法预知数据量/机器配置，由 ClusterShardRouter 在运行时按集群拓扑/资源计算后调用 `registerSharded` 时传入
 
 **为什么不用 `shardKey → instance` 的直接哈希表**：相同 key 总落到同一分片即可，不需要 key → idx 的反向查表；省一层 Map。
 
 #### 4.7.4 关键方法
 
 ```java
-/** 把 @Stateful bean 的 template 实例扩展为 shardCount 个分片实例。 */
+/** 把 @Sharded 方法所属 bean 的 template 实例扩展为 shardCount 个分片实例。
+ * shardCount 由 ClusterShardRouter 在运行时计算后传入。 */
 public void registerSharded(String beanName, Object template, int shardCount);
 
 /**
@@ -5297,26 +6044,28 @@ localIdx     = globalIdx % localShardCount      // 0..localShardCount-1
 
 **为什么 ShardRegistry.route() 在多节点下不能用**：它按 localShardCount 做 hash（`hash % localShardCount`），而多节点需要按 totalShards 做 hash（`hash % totalShards`）后才能映射 owningNode + localIdx——直接 route 会让"应该去节点 1 的请求"被本地 route 出错的 idx。`routeByIndex(beanName, localIdx)` 由 ClusterShardRouter 计算好 localIdx 后调用，绕开这个问题。
 
-#### 4.7.7 与 BeanContainer 的协作（§4.5.4 `registerInstance`）
+#### 4.7.7 与 ClusterShardRouter 的协作（启动期 / 拓扑变化时）
 
 ```java
-// BeanContainer.registerInstance：def.scope() == STATEFUL 时
-shards.registerSharded(def.name(), instance, def.shardCount());
+// ClusterShardRouter 启动初始化（或扩缩容时）：
+shards.registerSharded(beanName, templateInstance, computedShardCount);
+// computedShardCount 由 ClusterShardRouter 按当时集群拓扑/资源计算后传入
 // —— beanName → { 0: instance_0, 1: instance_1, ..., N-1: instance_{N-1} }
 ```
 
-- BeanContainer.singletons.put(def.name(), BeanWrap(template))——存 template（占位 + type 解析用）
-- ShardRegistry.registerSharded(def.name(), template, def.shardCount())——扩展 N 份独立实例
+- BeanContainer.singletons.put(def.name(), BeanWrap(template))——存 template（占位 + type 解析用，由 registerInstance 完成）
+- ShardRegistry.registerSharded(beanName, template, computedShardCount)——扩展 N 份独立实例，由 ClusterShardRouter 在运行时调用
 - 两份数据通过 beanName 同 key，松耦合
+- 拓扑变化（节点扩缩）时 ClusterShardRouter 重新计算 shardCount 并再次调 registerSharded 覆盖
 
 **ShardRegistry 构造**：
 
 ```java
-// Container.start：ShardRegistry 无构造参数；分片分布由 BeanContainer.registerInstance 调 registerSharded 写入
+// Container.start：ShardRegistry 无构造参数；分片实例由 ClusterShardRouter 在运行时调 registerSharded 写入
 this.shards = new ShardRegistry();
 ```
 
-节点部署形态由调用方决定——单节点部署时 shardCount 表示"全集群分片数 = 本节点分片数"；多节点部署时 shardCount 表示"本节点持有的分片数"。ShardRegistry 不需要区分，对它来说就是"我有 N 个分片实例"。
+ShardRegistry 不区分单节点 / 多节点，对它来说就是"我持有 N 个分片实例"——N 的语义由 ClusterShardRouter 解释：单节点时为"全集群总分片数"，多节点时为"本节点持有的分片数"。
 
 **销毁顺序**（AppContext.stop）：
 1. RouterHub.unbindAll——业务 dispatch 停止
@@ -5348,7 +6097,7 @@ public void handle(req, resp) {
 **单分片简化路径**（shardCount == 1）：
 - 不走 ClusterShardRouter 分支——直接 `invokevirtual this.bean.method(args)`
 - 等价于"永远 isLocal == true"
-- 由 ASM 生成器根据 BeanDef.shardCount() 静态判断，零运行时开销
+- 由 ASM 生成器根据 ClusterShardRouter 计算出的 shardCount 在生成期静态判断，零运行时开销
 
 **多节点协作流程**：
 1. HTTP Router 收到 `/v1/order?userId=123`，提取 `userId`（由 `@ShardKey("userId")` 标注）
@@ -5413,21 +6162,25 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * 分片实例注册表。@Stateful bean 的 template 实例会被扩展为 N 个分片实例，
+ * 分片实例注册表。@Sharded 方法所属 bean 的 template 实例会被扩展为 N 个分片实例，
  * 运行时按 shardKey 路由到具体分片。
  *
+ * <p>分片数不在 BeanDef 里固化——开发者部署时无法预知数据量与机器配置，
+ * 由 ClusterShardRouter 在运行时根据集群拓扑/资源状况计算后传给 registerSharded。
+ * 扩容/缩容时只需重新调一次 registerSharded 覆盖即可。</p>
+ *
  * **简化模型**：sharding 的主用例是"本地资源不够 → 多节点分担负载"——
- * shardCount 表示**本节点持有的分片数**；单节点部署时所有分片都在本节点，
- * 多节点时各节点分到 shardCount 一份（各节点 shardCount 由部署配置决定）。
+ * shardCount 表示**本节点当前持有的分片数**（运行时由 ClusterShardRouter 决定）。
  * 不引入"intra-node 进一步分片"的优化路径——本地再做分片意义不大。
  *
  * 路由语义：
- *   - route(beanName, shardKey)：本节点内分片查找，按 hash(shardKey) % shardCount 选 idx
+ *   - route(beanName, shardKey)：本节点内分片查找，按 hash(shardKey) % localShardCount 选 idx
  *   - routeByIndex(beanName, localIdx)：直接按 idx 查（ClusterShardRouter 计算好 localIdx 后调用）
  *
  * 与 ClusterShardRouter 的关系：
  *   ShardRegistry 仅承担"本节点分片存储 + 查找"，不知道集群拓扑
- *   ClusterShardRouter 是集群感知的层，包 ShardRegistry 提供本地查找
+ *   ClusterShardRouter 是集群感知的层，包 ShardRegistry 提供本地查找，
+ *   并在路由前/扩容缩容时决定 shardCount
  */
 public class ShardRegistry {
 
@@ -5630,11 +6383,11 @@ public interface RpcClient {
 1. **系统环境变量**（`System.getenv()`）—— 进程级，由 OS / 容器注入
 2. **Container 全局 Props**（`edap.getProps().child("container")`）—— 节点级
 3. **应用 build.json 的 `env` 段**（每个 appId 一份）—— 应用级
-4. **应用 build.json 的 `stateful.shards` 等结构化字段**（直接由 BeanContainer 读取，不经 Environment）—— 字段级
+4. **应用 build.json 的 `routePrefix` 等结构化字段**（直接由 BeanContainer 读取，不经 Environment）—— 字段级
 
 合并实现：构造时 `containerProps.child("").merge(buildJsonProps)`——`child("")` 取 container 全量，`merge(buildJsonProps)` 高优先级覆盖低优先级同名 key。
 
-**为什么 build.json 结构化字段不走 Environment**：这些字段（`stateful.shards`、`routePrefix` 等）有强 schema，bean 不应通过字符串 key 访问——直接读 DeployMetaData / BeanDef 更类型安全。
+**为什么 build.json 结构化字段不走 Environment**：这些字段（`routePrefix` 等）有强 schema，bean 不应通过字符串 key 访问——直接读 DeployMetaData / BeanDef 更类型安全。
 
 #### 4.8.4 关键方法
 
@@ -5677,7 +6430,7 @@ Environment 一旦构造完成，全程只读；无锁。
 | `getBean(name, type)` | bean 实例类型不匹配 | `BeanTypeMismatchException` | 同上 |
 | `getBean(name, type)` | appContext 已销毁 | `IllegalStateException` | 业务逻辑 bug |
 
-**所有容器异常为 RuntimeException**（§4.5.9 设计原则）——getBean 不需要 throws 子句。
+**所有容器异常为 RuntimeException**（§4.5.10 设计原则）——getBean 不需要 throws 子句。
 
 #### 4.8.8 可观测性
 
@@ -5707,7 +6460,7 @@ import io.edap.props.Props;
  *   1. 系统环境变量
  *   2. Container 全局 Props（edap.getProps().child("container")）
  *   3. 应用 build.json 的 env 段
- *   4. 应用 build.json 的 stateful.shards 等结构化字段（直接由 BeanContainer 读取）
+ *   4. 应用 build.json 的 routePrefix 等结构化字段（直接由 BeanContainer 读取）
  *
  * @Value("${key}") 与 @AutoConfig 都走 Environment。
  */
@@ -5978,7 +6731,266 @@ public interface EventListener<T extends ApplicationEvent> {
 }
 ```
 
-### 4.10 Aware 接口机制
+#### 4.9.11 关键内置事件类代码
+
+> 以下两个事件是 §4.9.6 表格里"AppContext 生命周期边界"事件的代码实现。
+> 与 `BeanInjectFailedEvent`（注入失败告警）并列，但本节两事件是**状态同步**语义——listener
+> 用 await 风格等 AppContext 就绪 / 关闭完成。
+
+**`ContextRefreshedEvent`** — AppContext 启动完成事件
+
+> 对应 `edap-container-parent/edap-container/src/main/java/io/edap/container/event/ContextRefreshedEvent.java`：
+
+```java
+package io.edap.container.event;
+
+import io.edap.container.AppContext;
+
+/**
+ * AppContext 启动完成事件。AppContext.start() Phase 3 完成后由 {@code EventPublisher} 发布。
+ *
+ * <p><b>触发时机</b>：{@code state.transitionTo(AppState.RUNNING)} 之后；
+ * 具体位置见 §4.2.3 {@code AppContext.start()}。</p>
+ *
+ * <p><b>典型用途</b>：</p>
+ * <ul>
+ *   <li>业务 bean 收到通知后做 post-start 钩子（不通过 {@code @PostConstruct}——那个跑在 Phase 2）</li>
+ *   <li>监控 / 告警上报"app 已就绪"</li>
+ *   <li>测试代码 await 启动完成（替代 sleep / 轮询 state()）</li>
+ * </ul>
+ *
+ * <p><b>一次性事件</b>：每个 AppContext 生命周期内最多 publish 一次（start() 成功路径上）。
+ * start() 抛错转 FAILED 时不发——避免误导监听者以为启动成功。</p>
+ */
+public final class ContextRefreshedEvent extends ApplicationEvent {
+
+    private final AppContext appContext;
+
+    public ContextRefreshedEvent(AppContext appContext) {
+        super(appContext);
+        this.appContext = appContext;
+    }
+
+    /** 触发事件的 AppContext（已 RUNNING；state() / beans() / routers() 均可安全访问）。 */
+    public AppContext appContext() {
+        return appContext;
+    }
+}
+```
+
+**`ContextClosedEvent`** — AppContext 关闭完成事件
+
+> 对应 `edap-container-parent/edap-container/src/main/java/io/edap/container/event/ContextClosedEvent.java`：
+
+```java
+package io.edap.container.event;
+
+import io.edap.container.AppContext;
+
+/**
+ * AppContext 关闭完成事件。{@code AppContext.stop()} 销毁路径走完后由 {@code EventPublisher} 发布。
+ *
+ * <p><b>触发时机</b>：{@code state.transitionTo(AppState.STOPPED)} <b>之前</b>（此时 bean /
+ * ClassLoader 还未完全释放，listener 仍可访问 {@code appContext.beans()} 等做最后清理）；
+ * 具体位置见 §4.2.3 {@code AppContext.stop()}。</p>
+ *
+ * <p><b>典型用途</b>：</p>
+ * <ul>
+ *   <li>监控 / 告警上报"app 已下线"</li>
+ *   <li>测试代码 await 关闭完成（替代 sleep / 轮询 state()）</li>
+ *   <li>业务 bean 收到通知做收尾（不通过 {@code @PreDestroy}——那个跑在
+ *       {@code destroyAllSingletons} 内，且调用顺序早于此事件）</li>
+ * </ul>
+ *
+ * <p><b>一次性事件</b>：每个 AppContext 生命周期内最多 publish 一次（成功 stop 路径上）。
+ * stop() 失败转 FAILED 时<b>不发</b>此事件——避免误导监听者以为关闭成功。</p>
+ *
+ * <p><b>为什么不在 STOPPED 之后发布</b>：{@code AppContext.stop()} 内
+ * {@code beans.destroyAllSingletons()} 已先清空所有 singleton bean——之后再 publish
+ * ContextClosedEvent，listener 内 {@code appContext.beans()} 拿不到东西，调试困难。
+ * 当前实现是在 destroyAllSingletons + appCL.close <b>之后</b>、{@code state.transitionTo(STOPPED)}
+ * <b>之前</b> publish，listener 仍能访问 beans()（已空，但容器自身引用链还在）。</p>
+ */
+public final class ContextClosedEvent extends ApplicationEvent {
+
+    private final AppContext appContext;
+
+    public ContextClosedEvent(AppContext appContext) {
+        super(appContext);
+        this.appContext = appContext;
+    }
+
+    /**
+     * 触发事件的 AppContext（state 即将转 STOPPED，beans() 已清空，appCL 已 close——
+     * listener 不应再依赖具体 bean，只能查询 appContext 自身元信息如 appId / version / dmd）。
+     */
+    public AppContext appContext() {
+        return appContext;
+    }
+}
+```
+
+**为什么两个事件都持有 AppContext 引用而非 String appId**：
+
+- listener 常见需求"刷新某 app 的缓存 / 关掉某 app 的客户端"——需要拿到完整 ctx（含 beans() / env()）才能做
+- source() 已提供引用（继承自 `ApplicationEvent`），但类型擦除到 `Object`；强类型 `appContext()` 字段让 listener 不用 cast
+- 内存代价：两个事件各持一个 AppContext 引用，AppContext.stop 后随事件对象一起 GC，无泄漏
+
+### 4.10 AppResourceLoader
+
+#### 4.10.1 角色与边界
+
+**AppResourceLoader = 单个 AppContext 的 classpath 资源加载器**，包装 per-app ClassLoader（`appCL`）提供"以本 AppContext 视角"的资源访问。
+
+**为什么必须有**：不能走 `Thread.currentThread().getContextClassLoader()`，否则不同 AppContext 之间的 jar 资源会互相可见——破坏 per-app 隔离。任何读 `META-INF/services`、读 SPI 配置、读 HTML 模板、读 proto descriptor 副本的代码都必须走 AppResourceLoader。
+
+**清楚不做**：
+
+- 不做注解扫描（`EarScanner` 的职责）
+- 不做 jar 遍历（`NestedJarScanner` 的职责）
+- **不做资源缓存**——appCL 自身对 jar entry 有缓存（`URLClassPath` / `Resource`），AppResourceLoader 不重复缓存，避免多级缓存一致性
+- 不做流关闭管理——返回的 `InputStream` 由调用方负责；`getBytes` / `getString` 内部 try-with-resources 已处理
+- 不感知协议（不做 HTTP `Last-Modified` / `ETag`）
+
+#### 4.10.2 字段
+
+| 字段 | 类型 | 作用 |
+|------|------|------|
+| `appCL` | `ClassLoader` | 透传 `AppContext.appCL`；所有资源查找都走它 |
+
+#### 4.10.3 关键方法（参考实现）
+
+> 对应 `edap-container-parent/edap-container/src/main/java/io/edap/container/AppResourceLoader.java`：
+
+```java
+package io.edap.container;
+
+import io.edap.container.exc.NoSuchResourceException;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
+import java.util.Enumeration;
+import java.util.Objects;
+
+/**
+ * AppContext 的资源加载器——包装 per-app ClassLoader，提供"以本 AppContext 视角"的资源访问。
+ *
+ * <p><b>为什么必须有</b>：资源必须走 appCL 而不是 {@code Thread.currentThread().getContextClassLoader()}，
+ * 否则不同 AppContext 之间的 jar 资源会互相可见（破坏 per-app 隔离）。</p>
+ *
+ * <p><b>设计要点</b>：</p>
+ * <ul>
+ *   <li>资源查找走 appCL：保证"per-app 资源隔离"——appA 看不到 appB 的资源</li>
+ *   <li>不做缓存：appCL 自身对 jar entry 有缓存（URLClassPath / Resource）；
+ *       AppResourceLoader 不重复缓存，避免多级缓存一致性</li>
+ *   <li>资源不存在时 {@link #getResourceAsStream(String)} / {@link #getResource(String)}
+ *       返回 null（与 JDK ClassLoader 行为一致）；需要严格语义的场景调
+ *       {@link #getBytes(String)} / {@link #getString(String)}，不存在时抛
+ *       {@link NoSuchResourceException}</li>
+ *   <li>路径规范：使用 ClassLoader 路径（{@code '/'} 分隔），不强制以 {@code '/'} 开头（与 JDK 一致）</li>
+ *   <li>流关闭由调用方负责：本类只返回 {@link InputStream}；{@link #getBytes(String)} /
+ *       {@link #getString(String)} 内部已 try-with-resources</li>
+ * </ul>
+ */
+public class AppResourceLoader {
+
+    private final ClassLoader appCL;
+
+    public AppResourceLoader(ClassLoader appCL) {
+        this.appCL = Objects.requireNonNull(appCL, "appCL");
+    }
+
+    /**
+     * 加载 classpath 资源，返回的 {@link InputStream} 由调用方 close。
+     * @param name ClassLoader 路径（{@code "META-INF/services/io.edap.X"} 等）
+     * @return 资源流；资源不存在返回 null
+     */
+    public InputStream getResourceAsStream(String name) {
+        if (name == null || name.isEmpty()) return null;
+        return appCL.getResourceAsStream(name);
+    }
+
+    /** 加载所有匹配资源（如 {@code META-INF/services/...} 多个实现）。 */
+    public Enumeration<URL> getResources(String name) throws IOException {
+        if (name == null || name.isEmpty()) return null;
+        return appCL.getResources(name);
+    }
+
+    /** 加载单个资源 URL（资源不存在返回 null）。 */
+    public URL getResource(String name) {
+        if (name == null || name.isEmpty()) return null;
+        return appCL.getResource(name);
+    }
+
+    /**
+     * 读资源到字节数组（小资源用，如 SPI 配置 / 短文本）。
+     * @throws NoSuchResourceException 资源不存在
+     * @throws IOException 读取失败
+     */
+    public byte[] getBytes(String name) throws IOException {
+        try (InputStream in = getResourceAsStream(name)) {
+            if (in == null) throw new NoSuchResourceException(name);
+            return in.readAllBytes();
+        }
+    }
+
+    /** 读资源为字符串（UTF-8；资源不存在抛 {@link NoSuchResourceException}）。 */
+    public String getString(String name) throws IOException {
+        return new String(getBytes(name), StandardCharsets.UTF_8);
+    }
+
+    /**
+     * 当前 per-app ClassLoader（用于 framework 内部扩展：如 SPI 查找、
+     * ASM 生成类定义加载、{@code Class.forName(name, false, appCL)}）。
+     */
+    public ClassLoader classLoader() {
+        return appCL;
+    }
+}
+```
+
+#### 4.10.4 异常：`NoSuchResourceException`
+
+```java
+package io.edap.container.exc;
+
+/**
+ * 资源不存在（AppResourceLoader.getBytes / getString 严格语义下抛出）。
+ *
+ * <p>与 {@link NoSuchBeanException} 一致——都是"按名找不到"，都继承
+ * {@link RuntimeException}，不污染上层方法签名。</p>
+ */
+public class NoSuchResourceException extends RuntimeException {
+
+    public NoSuchResourceException(String name) {
+        super("Resource not found in app classpath: " + name);
+    }
+}
+```
+
+#### 4.10.5 与 AppContext / Container 的协作
+
+- **构造期**：`AppContext` 构造时 `new AppResourceLoader(appCL)`（§4.2.2），不做任何资源预加载
+- **运行期**：业务 bean 可注入 `AppResourceLoader`（经 `ResourceLoaderAware` Aware 接口，见 §4.11）或通过 `AppContext.resourceLoader()` 获取
+- **销毁期**：随 AppContext 引用链释放；本类无显式 close（持有的就是 appCL 引用，appCL.close() 时整条链断）
+
+**典型用法**：
+
+```java
+// SPI 查找
+Enumeration<URL> impls = ctx.resourceLoader().getResources("META-INF/services/io.edap.MySpi");
+while (impls.hasMoreElements()) {
+    URL u = impls.nextElement();
+    // ...
+}
+
+// 短配置
+String propsJson = ctx.resourceLoader().getString("META-INF/edap/config.json");
+```
+
+### 4.11 Aware 接口机制
 
 ```java
 // 标记接口
@@ -5986,6 +6998,7 @@ public interface ApplicationContextAware { void setApplicationContext(AppContext
 public interface EnvironmentAware        { void setEnvironment(Environment env); }
 public interface RouterHubAware          { void setRouterHub(RouterHub hub); }
 public interface BeanNameAware           { void setBeanName(String name); }
+public interface ResourceLoaderAware     { void setResourceLoader(AppResourceLoader rl); }
 ```
 
 **调用时机**：Phase 2 COMMITTING 中，`injectDependencies` 后、`invokeInit` 前。
@@ -6004,7 +7017,226 @@ void injectDependencies(BeanDef def, Object instance) {
 }
 ```
 
-### 4.11 Bean 装配顺序
+### 4.12 BeanPostProcessor（Bean 生命周期扩展点）
+
+#### 4.12.1 角色与边界
+
+**BeanPostProcessor = 对一批 bean 做集中处理的扩展点**。注册到 `AppContext.postProcessors()` 后，在 BeanContainer Phase 2 COMMITTING 的 instantiate / inject / init 各节点被回调，可读 / 改 bean 实例（典型用途：AOP 织入、注解驱动的 wrapper 包装）。
+
+**与 Aware 接口的区别**：
+
+| 维度 | Aware | BeanPostProcessor |
+|------|-------|-------------------|
+| 语义 | "被注入"（N 个 setter 调一次） | "批量处理"（M 个 BPP 处理 N 个 bean） |
+| 实现位置 | 在 bean 类里 | 在外部 PostProcessor 类里 |
+| 调用方 | BeanContainer.injectAware | BeanContainer.{instantiate, invokeInit} |
+| 典型用途 | 让 bean 拿到容器能力（env / routers） | 让容器批量改造 bean（AOP 代理） |
+
+**设计原则**（与 edap 整体一致）：
+
+- **接口稳定**：`postProcessBeforeInit` / `postProcessAfterInit` 签名未来不轻易改
+- **实例隔离**：BPP 实例 per-AppContext，不跨 appId 共享（避免 BPP 内部缓存了别的 AppContext 的 bean / appCL 引用，导致 ClassLoader 泄漏）
+- **抛错隔离**：单个 BPP 抛错不影响其他 bean 和其他 BPP，BeanContainer 内部 catch + WARN 继续
+- **返回新对象 = 替换 bean**：用于 wrapper / 代理织入（典型 AOP 场景）
+- **注册时机**：AppContext 构造期 `addBeanPostProcessor()`；Phase 1 完成后冻结（避免运行时插入导致 bean 处理顺序错乱）
+
+#### 4.12.2 接口层次
+
+```
+                BeanPostProcessor                       ← 基接口：init 前后两个回调
+                        △
+                        │ extends
+                        │
+        InstantiationAwareBeanPostProcessor            ← 实例化前/后回调（可替换 bean）
+                        △
+                        │ extends
+                        │
+SmartInstantiationAwareBeanPostProcessor              ← 提前暴露引用（循环依赖 / AOP 早期织入）
+```
+
+**调用时机**（在 `BeanContainer.instantiate()` / `invokeInit()` 内）：
+
+```
+1. selectConstructor(beanClass)
+   ↓
+2. for each IABPP: iabpp.postProcessBeforeInstantiation(beanClass, name)
+   └─ 任一返回非 null → 用返回值作为 instance（跳过 ctor.newInstance）
+   └─ 全部返回 null → 走 ctor.newInstance
+   ↓
+3. raw instance = ctor.newInstance(...)
+   ↓
+4. for each IABPP: iabpp.postProcessAfterInstantiation(instance, name)
+   └─ 返回 false = 跳过后续字段注入
+   ↓
+5. injectDependencies(def, instance)
+   ↓
+6. invokeInit(def, instance)  // @PostConstruct
+   ↓
+7. for each BPP: bpp.postProcessBeforeInit(instance, name)
+   └─ 返回新对象 = 替换为 wrapper
+   ↓
+8. for each BPP: bpp.postProcessAfterInit(instance, name)
+   └─ 返回新对象 = 替换为最终 wrapper（典型 AOP 织入点）
+```
+
+#### 4.12.3 关键接口（参考实现）
+
+> 对应 `edap-container-parent/edap-container/src/main/java/io/edap/container/BeanPostProcessor.java`：
+
+```java
+package io.edap.container;
+
+/**
+ * Bean 生命周期钩子基接口。注册到 {@link AppContext#postProcessors()} 后，
+ * 在 BeanContainer COMMITTING 阶段（Phase 2）的对应节点被回调，可读 / 改 bean 实例。
+ *
+ * <p>与 Aware 接口的区别：Aware 是"被注入"语义（bean 实现 Aware 接口 → setter 被调一次），
+ * BPP 是"批量处理"语义（M 个 BPP 处理 N 个 bean → 每个 bean 走 M 个回调）。
+ * 典型用途：AOP 织入、注解驱动的 wrapper 包装（{@code @Transactional / @RateLimit}）。</p>
+ *
+ * <p><b>当前状态</b>：接口已定义，BeanContainer 实际调用链尚未接通（见 §4.5 + §九 扩展点）。
+ * AppContext.addBeanPostProcessor() 已可用——后续 BeanContainer 接通后即生效。</p>
+ */
+public interface BeanPostProcessor {
+
+    /**
+     * Bean 初始化前回调（{@code @PostConstruct} 之前）。
+     * @param bean     当前实例（已经过 injectDependencies，字段已注入）
+     * @param beanName Bean 名
+     * @return 继续处理的 bean（返回原 bean = 不变；返回新对象 = 替换为 wrapper）
+     */
+    default Object postProcessBeforeInit(Object bean, String beanName) {
+        return bean;
+    }
+
+    /**
+     * Bean 初始化后回调（{@code @PostConstruct} 之后）。
+     * @param bean     当前实例
+     * @param beanName Bean 名
+     * @return 最终 bean（返回原 bean = 不变；返回新对象 = 替换为最终 wrapper，典型 AOP 织入点）
+     */
+    default Object postProcessAfterInit(Object bean, String beanName) {
+        return bean;
+    }
+}
+```
+
+> 对应 `edap-container-parent/edap-container/src/main/java/io/edap/container/InstantiationAwareBeanPostProcessor.java`：
+
+```java
+package io.edap.container;
+
+/**
+ * 实例化前/后钩子。可在 BeanContainer.instantiate 之前替换 / 增强 bean。
+ *
+ * <p>调用时机（在 {@code BeanContainer.instantiate()} 内）：</p>
+ * <ol>
+ *   <li>{@code selectConstructor(beanClass)} 选构造器</li>
+ *   <li>{@code postProcessBeforeInstantiation} 调所有注册的 IABPP
+ *       <ul>
+ *         <li>任一返回非 null → 用返回值作为 instance（跳过 ctor.newInstance）</li>
+ *         <li>全部返回 null → 走 ctor.newInstance</li>
+ *       </ul>
+ *   </li>
+ *   <li>{@code ctor.newInstance(...)} → raw instance</li>
+ *   <li>{@code postProcessAfterInstantiation} 调所有注册的 IABPP
+ *       <ul><li>返回 false = 跳过后续字段注入（罕见）</li></ul>
+ *   </li>
+ *   <li>{@code injectDependencies} + {@code @PostConstruct}</li>
+ * </ol>
+ *
+ * <p><b>替换 instance 注意事项</b>：替换对象必须能被后续 {@code injectDependencies} 安全处理——
+ * 字段注入按 {@code BeanDef.injections()} 反射写字段，不区分原 instance / 替换 instance
+ * （除非替换对象类型与 {@code BeanDef.beanClass()} 不匹配，{@code NoSuchFieldException}
+ * 会立刻暴露问题，不会"脏数据 + 静默错"）。</p>
+ */
+public interface InstantiationAwareBeanPostProcessor extends BeanPostProcessor {
+
+    /**
+     * 实例化前回调。返回非 null = 用返回值代替 {@code ctor.newInstance} 的结果。
+     * 典型用途：{@code @Async} 异步代理、{@code @Transactional} 事务代理的预创建。
+     */
+    default Object postProcessBeforeInstantiation(Class<?> beanClass, String beanName) {
+        return null;
+    }
+
+    /**
+     * 实例化后、注入前回调。
+     * @return true = 继续走默认注入路径；false = 跳过字段 / 方法注入
+     */
+    default boolean postProcessAfterInstantiation(Object bean, String beanName) {
+        return true;
+    }
+}
+```
+
+> 对应 `edap-container-parent/edap-container/src/main/java/io/edap/container/SmartInstantiationAwareBeanPostProcessor.java`：
+
+```java
+package io.edap.container;
+
+/**
+ * 智能实例化钩子。在循环依赖 / 早期引用场景下被回调：
+ * BeanContainer.instantiate 检测到正在创建本 bean 时，
+ * 让 SIBPP 决定"提前暴露的引用对象"是什么（用于打破构造器循环依赖 + 保持 AOP 代理一致性）。
+ *
+ * <p><b>典型场景</b>：构造器循环依赖 {@code A(B b) → B(A a)}；AOP 织入后
+ * bean 实际类型是 Proxy，BeanContainer 暴露给其他 bean 的引用必须也是同一个 Proxy，
+ * 否则拿到的不是代理对象，事务/限流失效。</p>
+ *
+ * <p><b>当前 BeanContainer 仅支持 setter / 字段循环</b>
+ * （{@code A → setB(B b) → B → setA(A a)}），本接口为未来"构造器循环" /
+ * "提前 AOP 织入"预留。</p>
+ */
+public interface SmartInstantiationAwareBeanPostProcessor extends InstantiationAwareBeanPostProcessor {
+
+    /**
+     * 预测 bean 类型。AOP 场景：返回代理类型（而不是原 class），
+     * 让其他 bean 的 {@code instanceof} / 类型注入检查通过。
+     */
+    default Class<?> predictBeanType(Class<?> beanClass, String beanName) {
+        return beanClass;
+    }
+
+    /**
+     * 早期引用：循环依赖或 AOP 场景下，BeanContainer 暴露给其他 bean 的"早期引用对象"。
+     * 默认返回 bean 本身（无 wrapper）；AOP 场景应返回 proxy。
+     */
+    default Object getEarlyBeanReference(Object bean, String beanName) {
+        return bean;
+    }
+}
+```
+
+#### 4.12.4 与 AppContext / BeanContainer 的协作
+
+- **注册面**：`AppContext.addBeanPostProcessor(BeanPostProcessor bpp)`（§4.2.3）—— 构造期调用，Phase 1 完成后冻结
+- **读取面**：`AppContext.postProcessors()` 返回不可修改视图（§4.2.3）—— BeanContainer 在 Phase 2 末尾读取
+- **当前状态**：接口已定义，**调用链尚未接通**。BeanContainer 的 `instantiate / invokeInit` 当前直接走 ctor.newInstance → injectDependencies → invokeInit，不调 BPP。后续 Stage 1+ 任务（见 §九 扩展点第 1 / 4 项）接通完整 AOP 织入点
+- **占位策略**：接通前 `appContext.postProcessors()` 返回空 list，BeanContainer 走默认路径，行为不变——零迁移成本
+
+#### 4.12.5 典型用法
+
+```java
+// AOP 代理织入示例
+public class TransactionalBeanPostProcessor implements InstantiationAwareBeanPostProcessor {
+    @Override
+    public Object postProcessBeforeInit(Object bean, String beanName) {
+        for (Method m : bean.getClass().getDeclaredMethods()) {
+            if (m.isAnnotationPresent(Transactional.class)) {
+                return createTxProxy(bean);   // 替换为事务代理
+            }
+        }
+        return bean;
+    }
+}
+
+// 注册到 AppContext（在 container.attach / deploy 阶段）
+AppContext ctx = ...;
+ctx.addBeanPostProcessor(new TransactionalBeanPostProcessor());
+```
+
+### 4.13 Bean 装配顺序
 
 ```mermaid
 graph TB
@@ -6034,12 +7266,12 @@ graph TB
 2. 同层用 `@Order` 升序
 3. 无 `@Order` 时按 bean name 字典序（确定性，便于测试）
 
-### 4.12 错误处理
+### 4.14 错误处理
 
 | 阶段 | 异常 | 处理 |
 |------|------|------|
 | GATHERING | `ClassNotFoundException` | EAR 缺关键依赖 → 部署失败，记录到 `apps.error.log` |
-| GATHERING | `@Component` 类构造抛错 | 跳过此 bean，记 warn，继续收集其他 |
+| GATHERING | `@MicroServiceBean` / `@Bean` 类构造抛错 | 跳过此 bean，记 warn，继续收集其他 |
 | COMMITTING | `CyclicDependencyException(A→B→A)` | 整体部署失败，`state = FAILED` |
 | COMMITTING | `NoSuchBeanException(name)` | 部署失败 |
 | COMMITTING | `@Inject` 字段类型有多个候选 | 部署失败；要求显式 `@Primary` |
@@ -6047,7 +7279,7 @@ graph TB
 | READY | 路由注册冲突（同一 path 已被占用） | 部署失败，列出冲突的 bean+method |
 | RUNTIME | 路由调用时抛错 | 该次请求 500，**不影响 bean 实例**，发 `RouteInvokeErrorEvent` |
 
-### 4.13 stop() 反向流程
+### 4.15 stop() 反向流程
 
 ```mermaid
 sequenceDiagram
@@ -6079,7 +7311,7 @@ sequenceDiagram
 
 - `stop()` 必须**幂等**：多次调用是 no-op
 - `stop()` 期间任何业务请求被 Router 拒收（RouterHub 已 unbind）
-- 关闭 CL 顺序：先 `BeanContainer` → 再 `ResourceLoader` → 再 `appCL.close()`（必须最后，否则上面两步找不到 class）
+- 关闭 CL 顺序：先 `BeanContainer` → 再 `AppResourceLoader`（释放对 appCL 的引用，避免后续步骤持有已关闭 CL）→ 再 `appCL.close()`（必须最后，否则上面两步找不到 class）
 
 ---
 
@@ -6207,7 +7439,7 @@ sequenceDiagram
     C->>A: start()
     A->>A: Phase 1 GATHERING (scan annotations)
     A->>A: Phase 2 COMMITTING (instantiate + inject)
-    A->>A: Phase 3 READY (Container.bindAll 消费 RouteEntry List → 生成 Handler List → RouterHub.setHandlers)
+    A->>A: Phase 3 READY (AppContext.generateAndBindRoutes 消费 RouteEntry List → 生成 Handler List → RouterHub.setHandlers)
     A-->>-C: state = RUNNING
     Note over C,CR: commit(appId, prev, next) —— 三张表唯一提交口
     C->>+Reg: 【阶段2】put(appId, prev.withSlot(slot, ctx))
@@ -6232,7 +7464,7 @@ sequenceDiagram
     participant New as AppContext v2
 
     C->>C: deploy(ear-v2) → 预热 New → staging 槽
-    Note over C,New: Container.bindAll() 已在 start() 完成<br/>(Handler 写入 RouterHub；与 Edap 无关)
+    Note over C,New: AppContext.generateAndBindRoutes() 已在 start() 完成<br/>(Handler 写入 RouterHub；与 Edap 无关)
     Note over CR: currentRouters[appId] = Old.routers<br/>(旧版本接流量)
     C->>C: switchVersion(appId, v2.composite)
     C->>+CR: put(appId, New.routers)
@@ -6309,7 +7541,7 @@ sequenceDiagram
 
 - I/O 线程由协议层负责（HTTP 用 edap NIO 的 Selector 线程池）
 - 业务逻辑在 I/O 线程上**直接执行**（不带额外线程切换）
-- `@Stateful` bean 的分片实例**仅在同一 I/O 线程访问**（同一 shardKey 落到同节点），无需锁
+- `@Sharded` 方法所属 bean 的分片实例**仅在同一 I/O 线程访问**（同一 shardKey 落到同节点），无需锁
 
 ### 7.5 部署与运行期重叠
 
@@ -6346,7 +7578,7 @@ sequenceDiagram
 
 > 以下条目是当前未完成、Stage 1+ 才会触达的扩展点；列在这里是为后续工作留位置。
 
-1. `BeanPostProcessor` 注册机制（目前 Phase 2 只支持 Aware，未来支持自定义 PostProcessor）
+1. `BeanPostProcessor` 调用链接通（接口已在 §4.12 定义，BeanContainer 实际调用 Phase 2 各节点待实施）
 2. `@Conditional` 条件 bean（按节点类型 / 配置动态决定是否注册）
 3. `@Scope("custom")` 自定义 Scope SPI
 4. `BeanPostProcessor` 与 AOP 织入的集成（`@Transactional` / `@RateLimit` 等）
