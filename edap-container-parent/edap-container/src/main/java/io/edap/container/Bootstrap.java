@@ -65,6 +65,9 @@ public class Bootstrap {
             log.info("MicroService Container start...");
             File baseDir = locateBootJarFile().getParentFile();
             Container container = new Container(new File(baseDir, "apps"));
+            // 注入 Container 给 DeployManager——能力查询（http/ws/erpc/grpc 路由是否启用）
+            // 委托给 Container.capabilities()，DeployManager 不再单独解析 NodeType 配置
+            deployManager.setContainer(container);
             container.run(edap);
             log.info("MicroService Container start finished.");
         } catch (IOException e) {

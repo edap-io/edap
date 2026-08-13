@@ -87,15 +87,15 @@ graph TB
     GRPCN -->|deploy| Ear
 ```
 
-**节点类型对照**：
+**节点能力对照**：
 
-| 节点类型 | 激活的协议 option | 用途 | 典型端口 |
-|---------|-----------------|------|---------|
-| HTTP 节点 | `google.api.http` + `edap.ws` | Web 全栈服务（HTTP 请求 + WebSocket 同端口，HTTP server 按 path 区分） | 8080 |
-| eRPC 节点 | `edap.rpc` | 微服务内部通信 | 9090 |
-| gRPC 节点 | `edap.grpc` | 微服务内部通信（外部互通） | 9091 |
+| 节点能力组合 | 激活的协议 option | 用途 | 典型端口 |
+|------------|-----------------|------|---------|
+| `{HTTP, WS}` | `google.api.http` + `edap.ws` | Web 全栈服务（HTTP 请求 + WebSocket 同端口，HTTP server 按 path 区分） | 8080 |
+| `{ERPC}` | `edap.rpc` | 微服务内部通信 | 9090 |
+| `{GRPC}` | `edap.grpc` | 微服务内部通信（外部互通） | 9091 |
 
-> **HTTP 节点 = HTTP + WebSocket**：HTTP server 本身就是 WebSocket 的载体——客户端通过 HTTP Upgrade 握手升级为 WebSocket 连接（按请求 path 区分走 HTTP Router 还是 WS Router），不需要额外端口。把 HTTP 和 WebSocket 拆成两种节点类型反而割裂了"一个 HTTP server 同时承担普通 HTTP 与 WebSocket"的天然能力。
+> **HTTP 节点 = HTTP + WebSocket 两个独立能力**：HTTP 和 WebSocket 物理上同端口（HTTP Upgrade 握手），但握手后的消息处理模型完全不同——HTTP 是请求-响应单向（服务器不能主动 push），WS 是双向长连接（服务器可主动推送）。拆成两个独立 `Capability` 让 bind 阶段把 WS 路由独立写入，与多协议嗅探（§8.1）一致——HTTP 节点默认 `{HTTP, WS}` 同端口共存，未来也可独立关闭其中之一。
 
 **关键收益**：
 
@@ -615,9 +615,9 @@ graph TB
         Impl[HelloServiceImpl<br/>用户只写 SayHello 业务逻辑<br/>不关心协议]
     end
 
-    subgraph ContainerLayer [容器层 - 节点驱动]
-        NodeType[节点类型<br/>HTTP / ERPC / GRPC]
-        Reg[Protocol Registry<br/>按节点类型激活对应 Router]
+    subgraph ContainerLayer [容器层 - 节点能力驱动]
+        Caps[节点能力<br/>Set&lt;Capability&gt;<br/>HTTP / WS / ERPC / GRPC]
+        Reg[Protocol Registry<br/>按能力集合激活对应 Router]
     end
 
     subgraph ProtocolLayer [协议层]
@@ -632,12 +632,12 @@ graph TB
     Service -->|生成| Cli
     Srv --> Impl
 
-    Proto -.声明所有可能的协议.-> NodeType
-    NodeType -->|激活| Reg
+    Proto -.声明所有可能的协议.-> Caps
+    Caps -->|激活| Reg
     Impl --> Reg
-    Reg -->|HTTP 节点| HTTP
-    Reg -->|eRPC 节点| ERPC
-    Reg -->|gRPC 节点| GRPC
+    Reg -->|含 HTTP| HTTP
+    Reg -->|含 ERPC| ERPC
+    Reg -->|含 GRPC| GRPC
 ```
 
 ### 6.2 proto option 解析流程
@@ -1410,34 +1410,39 @@ sequenceDiagram
 
 > **底层说明**：图中的 `edap NIO` 是 edap 自研的 NIO 框架（`io.edap.nio` 包，含 `FastNetIO` 等原生实现），不是 Netty。HTTP 层基于 `io.edap.http.server.HttpServerBuilder`，WS / eRPC 同理均为 edap 自研。整个容器不依赖任何第三方 NIO / HTTP 库。
 
-### 8.2 节点驱动的协议发布
+### 8.2 节点能力驱动的协议发布
 
-**应用零协议配置**。节点的类型在容器启动时由系统配置（或环境变量）决定，容器按节点类型激活对应的协议 Router。
+**应用零协议配置**。容器节点的能力集合（`Set<Capability>`，详见 §13.1）在容器启动时由系统配置（或环境变量）决定，容器按能力集合激活对应的协议 Router。
 
 ```mermaid
 flowchart LR
-    NodeType[节点类型<br/>由系统配置决定]
-    NodeType -->|HTTP 节点| Reg1[激活 HTTP Router + WS Router<br/>同端口扫描 google.api.http + edap.ws]
-    NodeType -->|eRPC 节点| Reg2[激活 eRPC Router<br/>扫描 edap.rpc]
-    NodeType -->|gRPC 节点| Reg3[激活 gRPC Router<br/>扫描 edap.grpc]
+    Caps[节点能力<br/>edap.node.capabilities 决定]
+    Caps -->|含 HTTP| Reg1[激活 HTTP Router<br/>扫描 google.api.http]
+    Caps -->|含 WS| Reg2[激活 WS Router<br/>同端口按 path 分流<br/>扫描 edap.ws]
+    Caps -->|含 ERPC| Reg3[激活 eRPC Router<br/>扫描 edap.rpc]
+    Caps -->|含 GRPC| Reg4[激活 gRPC Router<br/>扫描 edap.grpc]
 
-    Reg1 --> R1[HTTP Server :8080<br/>按 path 路由到 HTTP/WS Router]
-    Reg2 --> R2[eRPC Router :9090]
-    Reg3 --> R3[gRPC Router :9091]
+    Reg1 --> R1[HTTP Server :8080]
+    Reg2 --> R2[HTTP Server :8080<br/>同端口]
+    Reg3 --> R3[eRPC Router :9090]
+    Reg4 --> R4[gRPC Router :9091]
 ```
 
-**节点类型的配置方式**（容器侧，不是应用侧）：
+**节点能力的配置方式**（容器侧，不是应用侧）：
 
 ```bash
-# 通过系统属性
--Dedap.node.type=HTTP
+# 通过系统属性（推荐）—— 逗号分隔能力名，大小写不敏感
+-Dedap.node.capabilities=http,ws          # HTTP 节点（默认）
+-Dedap.node.capabilities=erpc             # eRPC 节点
+-Dedap.node.capabilities=grpc             # gRPC 节点
+-Dedap.node.capabilities=http,ws,erpc     # 混合节点
 
 # 或环境变量
-EDAP_NODE_TYPE=ERPC
+EDAP_NODE_CAPABILITIES=http,ws
 
 # 或容器启动配置文件
 node:
-  type: HTTP
+  capabilities: [HTTP, WS]    # HTTP 节点
 ```
 
 ### 8.3 单端口 vs 多端口方案对比
@@ -2695,6 +2700,8 @@ public class AppContext {
 | Spring | `@PostConstruct` / `@PreDestroy` | 方法 | 生命周期回调 |
 | Spring | `@Order` | 类 / 方法 | 决定 bean 初始化 / 销毁顺序 |
 | Solon | `@Inject` | 字段 / 构造器 / 方法 | 依赖注入 |
+| Solon | `@Inject(required=false)` | 构造器 / 方法 / 字段参数 | 可选依赖，缺失 → null |
+| Solon | `Optional<T>` | 构造器 / 方法 / 字段参数 | 可选依赖，缺失 → `Optional.empty()` |
 | Solon | `@Bean` | `@Configuration` 类里的方法 | 编程式注册一个 bean |
 | edap | `@EdapService` | 类 | 标记为 RPC 服务，封装进 `ProtoServiceData` |
 | edap | `@EdapMethod` | 方法 | 标记为服务方法，封装进 `ProtoMethodData` |
@@ -2744,20 +2751,50 @@ public class ShardRegistry {
 请求进入时由 `@ShardKey` 标注的参数自动参与路由；同 shard key 的请求一定命中同一节点，无跨节点状态同步。
 多节点集群下 `ClusterShardRouter` 先算 globalIdx → 映射 localIdx → `routeByIndex`，外部分发只能减少 invokeRemote 概率不能消除，invokeRemote 始终是错位请求的兜底（详见 §10 / `feedback_minimal_locking` 备忘）。
 
-#### 13.3.7 Router 注册（与 §8、§19 联动）
+#### 13.3.7 Router 注册（与 §8、§19 联动）—— 两阶段按能力过滤
+
+**两阶段过滤形成闭环**：
+
+```
+deploy 阶段（Container.deployAppToContainer）：  按 capabilities() bind 协议 Router
+       ↓
+生成阶段（AppContext.generateAndBindRoutes）：  按 capabilities() 生成 Handler → 写入 RouterHub
+       ↓
+dispatch 阶段：  Router 按 path/methodId 查表 → 调 Handler 入口
+```
+
+任意一阶段能力缺失，handler 都不会出现在 dispatch 路径上。例：eRPC 节点部署含 `@HttpRoute` 的 EAR → 不生成 HttpHandler，HTTP Router 不 bind，HTTP 请求无法到达（**也根本不会被收**——eRPC 节点只 listen eRPC 端口）。
+
+**生成阶段过滤**（`AppContext.generateAndBindRoutes`，§3.5.6）—— 节点不具备的能力，对应 handler 不生成、不进 RouterHub：
+
+```java
+if (container.hasCapability(Capability.HTTP)) {
+    for (HttpRouteEntry e : httpRoutes) { httpH.add(generateHandler(HttpHandler.class, ...)); }
+}
+if (container.hasCapability(Capability.WS)) {
+    for (WsRouteEntry e : wsRoutes) { wsH.add(generateHandler(WSServiceMsgHandler.class, ...)); }
+}
+if (container.hasCapability(Capability.ERPC)) { ... }
+if (container.hasCapability(Capability.GRPC)) { ... }
+routers.setHandlers(httpH, wsH, erpcH, grpcH);
+```
+
+> 为什么过滤点放在 Phase 3（`generateAndBindRoutes`）而不是 Phase 1（`scanRouteEntries`）：① scanRouteEntries 保持纯解析职责，不依赖 Container 状态；② 未来 hotswap capability 只需重跑本方法，不用重扫 EAR；③ RouteEntry POJO 内存占用可忽略。
+
+**bind 阶段过滤**（`Container.deployAppToContainer`，§3.5.3）—— 节点不具备的能力，对应 Router 不 bind：
 
 ```
 Container.start()
   └── for each AppContext:
         ├── ctx.start()                       // 内部已把所有 @HttpRoute / @WSRoute / @RpcRoute 挂到 ctx.routers()
-        └── 按本节点协议能力选择性 bind：
-              ├── httpEnable?  httpRouter.bindRoutes(ctx.routers().httpRoutes())
-              ├── wsEnable?    wsRouter.bindRoutes(ctx.routers().wsRoutes())
-              ├── erpcEnable?  rpcRouter.bindRoutes(ctx.routers().rpcRoutes())
-              └── grpcEnable?  grpcRouter.bindRoutes(ctx.routers().grpcRoutes())
+        └── 按本节点 capabilities() 选择性 bind：
+              ├── HTTP?    httpRouter.bindRoutes(ctx.routers().httpHandlers())
+              ├── WS?      wsRouter.bindRoutes(ctx.routers().wsHandlers())
+              ├── ERPC?    rpcRouter.bindRoutes(ctx.routers().erpcHandlers())
+              └── GRPC?    grpcRouter.bindRoutes(ctx.routers().grpcHandlers())
 ```
 
-每个节点只 bind 自己协议范围内的路由，零冗余。
+每个节点只 bind 自己能力范围内的 Router，每个 AppContext 只生成自己能力范围内的 handler——零冗余、零死代码。
 
 #### 13.3.8 事件机制
 
@@ -2852,7 +2889,7 @@ public class AppContext implements Lifecycle {
 │  │     │     └── shards (@Sharded 才用；shardCount 由 ClusterShardRouter 决定)        │
 │  │     ├── AppContext hello:1.1.0                              │
 │  │     └── AppContext world:1.0.0                              │
-│  ├── protocolRouters 按 NodeType 能力选择性 bind                 │
+│  ├── protocolRouters 按 capabilities() 选择性 bind                │
 │  └── deployManager  操作 AppContext                             │
 └────────────────────────────────────────────────────────────────┘
 ```
@@ -3054,11 +3091,11 @@ edap 项目已有以下基础，需要在新架构中保留和增强：
 | `EarScanner.java` | **废弃 proto 扫描职责**，只保留 EAR 结构扫描（manifest / lib / classes / 资源） |
 | `NestedJarScanner.java` | **废弃**（不再扫 proto）；保留为 jar / 资源列表读取器 |
 | `MicroServiceInfo.java` | 加 `protocols` 字段 |
-| `NodeType.java` | 仍然是 protocols 的枚举雏形，启动期按它决定激活哪些 Router |
+| `NodeType.java`（旧 `mw/NodeType.java`） | **已删除**——被 `io.edap.container.Capability` 取代；新枚举 4 个常量 `HTTP / WS / ERPC / GRPC`，无 `_ROUTING` 后缀；`Container` 持有 `Set<Capability> capabilities` 启动期解析 `edap.node.capabilities` 系统属性 |
 | `ProtoServiceData.java` / `ProtoMethodData.java` / `AnnoData.java` | **运行期 API**：扫描 EAR 加载完类后，通过反射读取 `@EdapService` / `@EdapMethod` / `@HttpRoute` / `@WSRoute` / `@RpcRoute` / `@ShardKey` / `@LocalCache` / `@Sharded` 等注解汇总成 `ProtoServiceData` / `ProtoMethodData` / `AnnoData` 对象；Router 注册、部署决策、状态查询都基于这些对象 |
 | `DeployInfo.java` / `DeployMeta.java` / `DeployMetaData.java` | 部署元数据保持不变 |
 
-> 你现有的 `NodeType` 已经枚举了 `WEB / WEB_SOCKET / ERPC / GRPC`，说明这个架构思路早就有了。
+> 你现有的 `NodeType`（`WEB / WEB_SOCKET / ERPC / GRPC`）说明"按节点能力激活 Router"的架构思路早就有了——但 1:1 绑定枚举 + 固定4 个常量无法表达组合（HTTP 节点同时需要 HTTP+WS 两个独立能力）。新 `Capability` 改成可组合 `Set<Capability>` 后：① 启动期一次解析；② 任意组合（未来混合节点）；③ HTTP 和 WS 是两个独立能力（消息处理模型不同，不能绑死）。
 > 你现有的 `ProtoServiceData` / `ProtoMethodData` / `AnnoData` 既是 proto 描述符在内存里的雏形，也是**运行期天然的注解聚合容器**——扫描完类后把这些注解字段映射到 VO 里，注册、部署、查询都基于这些对象。
 
 ### 19.3 运行时注解一览（proto option → Java 注解的映射）

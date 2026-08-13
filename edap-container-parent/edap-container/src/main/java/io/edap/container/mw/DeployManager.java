@@ -19,6 +19,8 @@ package io.edap.container.mw;
 import io.edap.Edap;
 import io.edap.Server;
 import io.edap.ServerGroup;
+import io.edap.container.Capability;
+import io.edap.container.Container;
 import io.edap.container.EdapAppClassLoader;
 import io.edap.container.scan.EarScanner;
 import io.edap.json.Eson;
@@ -27,7 +29,6 @@ import io.edap.log.Logger;
 import io.edap.log.LoggerManager;
 import io.edap.microservice.annotation.ParamConf;
 import io.edap.util.CollectionUtils;
-import io.edap.util.StringUtil;
 
 import java.io.*;
 import java.net.URLClassLoader;
@@ -49,6 +50,7 @@ public class DeployManager {
     private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
     private Edap edap;
+    private Container container;
 
     private File appsDir;
 
@@ -64,6 +66,21 @@ public class DeployManager {
 
     public void setEdap(Edap edap) {
         this.edap = edap;
+    }
+
+    /**
+     * 注入 Container——能力查询（{@link #hasCapability}）由 Container 统一持有，
+     * DeployManager 不再单独解析 NodeType 配置。
+     */
+    public void setContainer(Container container) {
+        this.container = container;
+    }
+
+    /**
+     * 节点是否具备某协议路由能力。委托给 {@link Container#hasCapability(Capability)}。
+     */
+    public boolean hasCapability(Capability cap) {
+        return container != null && container.hasCapability(cap);
     }
 
     public BaseResult<List<MicroServiceInfo>> queryAppList() {
@@ -184,65 +201,31 @@ public class DeployManager {
 
     }
 
-    private List<NodeType> getNodeType() {
-        List<NodeType> types = new ArrayList<>();
-        String nodeType = System.getProperty("NODE_TYPE_KEY");
-        if (StringUtil.isEmpty(nodeType)) {
-            nodeType = System.getenv("NODE_TYPE_KEY");
-        }
-        if (!StringUtil.isEmpty(nodeType)) {
-            String[] typeArray = nodeType.trim().split(",");
-            for (String type : typeArray) {
-                try {
-                    types.add(NodeType.valueOf(type.toUpperCase()));
-                } catch (IllegalArgumentException e) {
-                    log.warn("{} isn't a NodeType", l -> l.arg(type).threw(e));
-                }
-            }
-        }
-        if (types.isEmpty()) {
-            types.add(NodeType.WEB);
-            types.add(NodeType.WEB_SOCKET);
-            types.add(NodeType.ERPC);
-            types.add(NodeType.GRPC);
-        }
-
-        return types;
-    }
-
-    private boolean httpEnable() {
-        List<NodeType> nodeTypes = getNodeType();
-        for (NodeType nt : nodeTypes) {
-            switch (nt) {
-                case WEB:
-                    return true;
-                case GRPC:
-                    return true;
-                case WEB_SOCKET:
-                    return true;
-                default:
-            }
-        }
-
-        return false;
-    }
-
-    private boolean eRPCEnable() {
-        return getNodeType().contains(NodeType.ERPC);
-    }
-
+    /**
+     * 按节点能力选择性启动协议 Router（替代旧的 httpEnable/eRPCEnable + NodeType）。
+     * 能力集合由 {@link Container#capabilities()} 持有，启动期解析一次。
+     *
+     * <p>当前阶段（Stage 1）：ServerGroup 占位，等 Stage 4（多协议 Router）落地后
+     * 在此按 capabilities() 逐个 bind 对应 Router。</p>
+     */
     private void deployAppToContainer(String appId, DeployMetaData dmd) {
         Map<String, ServerGroup> groups = edap.getServerGroups();
         ServerGroup sg = groups.get(APP_SERVER_GROUO_KEY);
         // 如果应用的服务组还没有创建则创建应用的服务组
         if (sg == null) {
             sg = new ServerGroup();
-            boolean httpEnable = httpEnable();
-
-            if (httpEnable) {
-
+            if (hasCapability(Capability.HTTP)) {
+                // bind http router（Stage 4）
             }
-
+            if (hasCapability(Capability.WS)) {
+                // bind ws router（Stage 4，同端口按 path 分流）
+            }
+            if (hasCapability(Capability.ERPC)) {
+                // bind erpc router（Stage 4）
+            }
+            if (hasCapability(Capability.GRPC)) {
+                // bind grpc router（Stage 4）
+            }
             groups.put(APP_SERVER_GROUO_KEY, sg);
         } else {
             List<Server> servers = sg.getServers();

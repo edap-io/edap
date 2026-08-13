@@ -7,19 +7,22 @@ public enum BeanContainerState {
     DESTROYING,       // stop() 进入：Lifecycle.stop / @PreDestroy
     DESTROYED;        // terminal
 
+    /**
+     * 严格状态断言：当前状态必须等于 expected，否则抛 IllegalStateException。
+     * 用于 register / instantiate 等阶段方法的入口校验。
+     */
     public void checkTransitionGuard(BeanContainerState expected) {
         if (this != expected) {
             throw new IllegalStateException(
                     "BeanContainer state " + this + " ≠ expected " + expected);
         }
     }
-    public void transitionTo(BeanContainerState to) {
-        if (!canTransitionTo(to)) {
-            throw new IllegalStateException(
-                    "Illegal BeanContainerState transition: " + this + " -> " + to);
-        }
-        // setter 由 lifecycleLock 串行化（AppContext 持有）
-    }
+
+    /**
+     * 纯逻辑判定：当前状态是否允许迁移到 to。仅校验，不更新任何字段。
+     * 真正的"校验 + 写回"由 BeanContainer 私有 transitionTo(BeanContainerState) 封装，
+     * 避免 enum 不知道 own 谁、caller 又忘了赋值的死锁类 bug。
+     */
     public boolean canTransitionTo(BeanContainerState to) {
         switch (this) {
             case COLLECTING:    return to == INSTANTIATING;

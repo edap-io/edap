@@ -5,7 +5,7 @@ import io.edap.container.AppContext;
 /**
  * AppContext 启动完成事件。AppContext.start() Phase 3 完成后由 {@code EventPublisher} 发布。
  *
- * <p><b>触发时机</b>：{@code state.transitionTo(AppState.RUNNING)} 之后；
+ * <p><b>触发时机</b>：{@code transitionTo(AppState.RUNNING)} 之后；
  * 具体位置见 §4.2.3 {@code AppContext.start()}。</p>
  *
  * <p><b>典型用途</b>：</p>

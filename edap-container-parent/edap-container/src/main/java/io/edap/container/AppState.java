@@ -32,13 +32,6 @@ public enum AppState {
     STOPPED,     // terminal
     FAILED;      // 启动或运行期出错（terminal 之一）
 
-    public void transitionTo(AppState to) {
-        if (!canTransitionTo(to)) {
-            throw new IllegalStateException(
-                    "Illegal AppState transition: " + this + " -> " + to);
-        }
-    }
-
     public boolean canTransitionTo(AppState to) {
         switch (this) {
             case NEW:        return to == GATHERING || to == FAILED;

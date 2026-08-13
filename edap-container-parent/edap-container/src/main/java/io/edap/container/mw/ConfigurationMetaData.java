@@ -3,7 +3,7 @@ package io.edap.container.mw;
 import java.util.ArrayList;
 import java.util.List;
 
-public class ProtoServiceData {
+public class ConfigurationMetaData {
 
     private String typeName;
     private List<AnnoData> annoDatas;

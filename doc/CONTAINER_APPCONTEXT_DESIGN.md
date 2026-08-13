@@ -353,7 +353,7 @@ public class Edap {
 
 | 字段 | 类型 | 作用 |
 |------|------|------|
-| `cfg` | `Props` | 全局配置（节点名、协议开关、JVM 参数、节点类型等） |
+| `cfg` | `Props` | 全局配置（节点名、协议开关、JVM 参数、节点能力等） |
 | `nio` | `FastNetIO` | **核心**：edap 自研的 NIO 框架实例 |
 | `serverGroups` | `Map<String, ServerGroup>` | 按名称管理的 ServerGroup，**下游模块通过 addServerGroup 在这里挂载自己的 Server** |
 | `state` | `volatile EdapState` | 顶层状态机 |
@@ -739,6 +739,7 @@ public enum ContainerState {
 | `lifecycleLock` | `ReentrantLock` | `private final` | 串行化 `attach` / `start` / `stop` 与 `state` 迁移 | — |
 | `appServerGroup` | `ServerGroup` | `private` | Container 持有，**只在 `attach` 时一次性创建并 `addServerGroup` 到 Edap**；后续 deploy/undeploy/stop 不再 addServer/removeServer | `attach` 时创建并 addServerGroup 到 edap；之后不再变动 |
 | `currentRouters` | `ConcurrentHashMap<String, RouterHub>` | `private final` | appId → 当前接流量的 RouterHub 指针；由 `commit()` 统一维护，不调任何 Edap 方法 | 写：`appLocks[appId]` 内，经 `commit()`（§3.7.3）；读：业务 dispatch 0 锁 |
+| `capabilities` | `Set<Capability>` | `private final` | 容器节点的能力集合（HTTP / WS / eRPC / gRPC），启动期一次性解析，决定 deploy 阶段 bind 哪些协议 Router；详见 §3.5.13 | 启动构造期从 `edap.node.capabilities` 系统属性解析；之后只读 |
 
 ### 3.5 关键方法
 
@@ -1843,6 +1844,103 @@ stop():
   4.    try { ctx.stop() } catch (Throwable e) { log.warn }
   5. state = STOPPED
 ```
+
+#### 3.5.16 节点能力（`Capability`）—— Container 启动期按能力 bind Router
+
+```java
+public enum Capability {
+    HTTP,    // HTTP 请求-响应路由（GET/POST/PUT/DELETE + body 解析）
+    WS,      // WebSocket 双向长连接路由（Upgrade 握手 + 消息帧分发）
+    ERPC,    // eRPC 二进制帧路由（微服务内部通信）
+    GRPC     // gRPC 帧路由（protobuf 序列化，对外互通）
+}
+```
+
+**核心思想**：容器节点"能做什么"——决定 deploy 阶段 bind 哪些协议 Router。能力是**可组合的**（HTTP 节点默认 `{HTTP, WS}` 同端口；eRPC 节点 `{ERPC}`；混合节点可任意组合），不绑定到固定枚举常量。
+
+**为什么 `HTTP` 和 `WS` 是两个独立能力**：虽然 HTTP 和 WebSocket 物理上同端口（HTTP Upgrade 握手），但握手后的**消息处理模型完全不同**——HTTP 是请求-响应单向（服务器不能主动 push），WS 是双向长连接（服务器可主动推送）。绑成同一个 capability 会让 bind 阶段把 WS 路由强行塞进 HTTP Router 的 path 列表，违反多协议嗅探设计（README §8.1）。
+
+**与"协议"的区别**：
+- **协议**（HTTP / WS / eRPC / gRPC）是**应用侧**视角——"我这个 service 用了哪个协议发布"
+- **能力**（本枚举）是**容器侧**视角——"我这个节点能不能处理这种协议请求"
+
+**Container 上的字段**：
+
+```java
+private final Set<Capability> capabilities;     // 启动期一次性解析，之后只读
+```
+
+**配置来源**：
+
+| 优先级 | 来源 | 格式 |
+|--------|------|------|
+| 1 | `new Container(appsDir, EnumSet.of(...))` 编程式传入 | `Set<Capability>` |
+| 2 | 系统属性 `edap.node.capabilities` | 逗号分隔字符串，如 `http,ws,erpc` |
+| 3 | 环境变量 `EDAP_NODE_CAPABILITIES` | 同上 |
+| 4 | 兜底默认 | `{HTTP, WS}`（HTTP 节点默认形态） |
+
+**deploy 阶段使用**（§3.5.3 的 `deployAppToContainer`）：
+
+```java
+if (hasCapability(Capability.HTTP)) {
+    // bind http router（Stage 4 落地 HttpRouter.bindRoutes(ctx.routers().httpHandlers())）
+}
+if (hasCapability(Capability.WS)) {
+    // bind ws router（同端口按 path 分流）
+}
+// ...
+```
+
+**AppContext 生成期过滤**（§3.5.6 的 `generateAndBindRoutes`）：
+
+光在 deploy 阶段按能力 bind Router 还不够——**AppContext 在生成 handler 时也要按能力过滤**，否则 HTTP 节点会白生成一堆 `@WSRoute` 对应的 `WSServiceMsgHandler`，handler 类进了 RouterHub 但 WS Router 没 bind，**永远不会被 dispatch**。4 个协议分支都加 `if (container.hasCapability(...))` 守卫：
+
+```java
+private void generateAndBindRoutes() {
+    List<HttpHandler> httpH = ...;
+    List<WSServiceMsgHandler<?>> wsH = ...;
+    // ...
+
+    // 1. HTTP —— 节点具备 HTTP 能力才生成
+    if (container.hasCapability(Capability.HTTP)) {
+        for (HttpRouteEntry e : httpRoutes) {
+            httpH.add(generateHandler(HttpHandler.class, e, ...));
+        }
+    }
+    // 2. WS —— HTTP + WS 是两个独立能力
+    if (container.hasCapability(Capability.WS)) {
+        for (WsRouteEntry e : wsRoutes) {
+            wsH.add(generateHandler(WSServiceMsgHandler.class, e, ...));
+        }
+    }
+    // 3. eRPC / 4. gRPC 同理
+    if (container.hasCapability(Capability.ERPC)) { ... }
+    if (container.hasCapability(Capability.GRPC)) { ... }
+
+    routers.setHandlers(httpH, wsH, erpcH, grpcH);
+}
+```
+
+**为什么过滤点放在 Phase 3（`generateAndBindRoutes`）而不是 Phase 1（`scanRouteEntries`）**：
+
+| 选项 | 优点 | 缺点 |
+|------|------|------|
+| Phase 1 过滤 | RouteEntry 内存占用也省 | ① scanRouteEntries 要传 capabilities，签名污染；② 未来 hotswap capability 时 Phase 1 收过的就没了，得重扫 EAR |
+| **Phase 3 过滤**（当前选择） | ① scanRouteEntries 保持纯解析职责，不依赖 Container 状态；② 未来 hotswap capability 只需重跑本方法，不用重扫 EAR | RouteEntry POJO 内存占用稍多（可忽略） |
+
+**两阶段过滤形成闭环**：
+
+```
+deploy 阶段（Container.deployAppToContainer）：  按能力 bind 协议 Router
+       ↓
+生成阶段（AppContext.generateAndBindRoutes）：  按能力生成 Handler → 写入 RouterHub
+       ↓
+dispatch 阶段：  Router 按 path/methodId 查表 → 调 Handler 入口
+```
+
+任意一阶段能力缺失，handler 都不会出现在 dispatch 路径上。例：eRPC 节点部署含 `@HttpRoute` 的 EAR → 不生成 HttpHandler，HTTP Router 不 bind，HTTP 请求无法到达（**也根本不会被收**——eRPC 节点只 listen eRPC 端口）。
+
+**历史**：旧版用 `io.edap.container.mw.NodeType` 枚举（`WEB / WEB_SOCKET / ERPC / GRPC`），固定4 个常量；每次 `httpEnable()` / `eRPCEnable()` 都重新解析 `System.getProperty("NODE_TYPE_KEY")`——重复解析 + 与协议 1:1 绑定，无法表达"HTTP 节点同时激活 HTTP+WS"这种复合。改为 `Set<Capability>` 后：① 启动期一次解析；② 任意组合（未来混合节点）；③ 跟协议完全解耦，容器层只关心"能不能路由"。
 
 ### 3.6 多版本与蓝绿部署
 
@@ -3741,7 +3839,7 @@ private void dfs(BeanDef def, Set<String> visited, Set<String> inStack,
 **COMMITTING 阶段（Phase 2，单线程）**
 
 ```java
-/** 实例化（不注入、不调 init）。selectConstructor 选最多 @Inject 参数的；无则无参。 */
+/** 实例化（不注入、不调 init）。selectConstructor 按 §4.5.4.10.1 规则选构造器；ctorArgs 按 §4.5.4.10.2 解析参数。 */
 public Object instantiate(BeanDef def) {
     state.checkTransitionGuard(BeanContainerState.INSTANTIATING);
     if (creating.contains(def.name())) {
@@ -3891,6 +3989,226 @@ public void destroyAllSingletons() {
 /** destroyAll 是 destroyAllSingletons 的语义别名。 */
 public void destroyAll() { destroyAllSingletons(); }
 ```
+
+#### 4.5.4.10 构造器选择规则 + 可选依赖语义
+
+**核心立场**：edap 构造器选择走"简单三规则 + 参数级可选依赖"路径，**不引入贪心匹配或平手消歧**。"参数是否必需"由 bean 作者显式标注，容器不替开发者做"魔法容错"。
+
+##### 4.5.4.10.1 构造器选择（`selectConstructor`）
+
+```
+规则 1：bean 只有一个构造器（任意访问修饰符 / 有无 @Inject）→ 直接用它
+规则 2：bean 有多个构造器，其中**恰好一个**标了 @Inject → 用它
+规则 3：bean 有多个构造器，其中多个标了 @Inject → 抛 AmbiguousConstructorException
+规则 4：bean 有多个构造器，但 0 个标了 @Inject → 抛 NoSuitableConstructorException
+```
+
+**为什么不允许"多 @Inject 贪心匹配"**：
+
+- 贪心匹配需要 `selectConstructor` 拿到 `singletons` 上下文，破坏 `static` 简洁性
+- 贪心匹配语义复杂："可解析最多参数" vs "参数总数最多" vs "全部可解析优先"——平手规则每个项目都要 re-arg
+- 实际场景中"模块自由组合"用 `@Inject(required=false)` + `Optional<T>` 参数表达就够了，不需要搞多构造器
+
+**为什么不放松 `0 @Inject + 多构造器 → 抛错`**：
+
+- Spring 4.3+ 同样抛 `NoSuchBeanDefinitionException`——edap 跟 Spring 保持一致
+- 静默退化选无参会让多参构造器的依赖永远是 null，业务层 NPE 才暴露——属于"运行时坑"
+- 部署期 fail 强于运行时 NPE
+
+**示例**：
+
+```java
+// 规则 1：单构造器 → 自动检测
+@Service
+public class OrderService {
+    public OrderService(OrderRepo repo) { ... }    // 单构造器，无需 @Inject
+}
+
+// 规则 2：单 @Inject → 用它
+@Service
+public class PaymentService {
+    public PaymentService() { ... }                          // 默认构造器
+    @Inject
+    public PaymentService(PaymentGateway gw) { ... }         // 选这个
+}
+
+// 规则 3：多 @Inject → 抛错
+@Service
+public class AmbiguousService {
+    @Inject
+    public AmbiguousService(A a) { ... }
+    @Inject
+    public AmbiguousService(B b) { ... }                     // 抛 AmbiguousConstructorException
+}
+
+// 规则 4：0 @Inject + 多构造器 → 抛错
+@Service
+public class UnmarkedService {
+    public UnmarkedService() { ... }                        // 抛 NoSuitableConstructorException
+    public UnmarkedService(X x) { ... }                      // 开发者必须显式 @Inject
+}
+```
+
+##### 4.5.4.10.2 参数解析（`ctorArgs`）
+
+```
+规则 a：参数类型是 Optional<T> → 找到 → Optional.of(bean)；找不到 → Optional.empty()
+规则 b：参数标了 @Inject(required=false) → 找到 → bean；找不到 → null
+规则 c：参数标了 @Inject（默认 required=true）→ 找到 → bean；找不到 → 抛 NoSuchBeanException
+规则 d：参数无 @Inject 注解 → null（保留原行为——bean 代码自主处理）
+```
+
+**为什么 `required` 默认 true**：
+
+- JSR-330（JSR-330 1.0 / javax.inject.Inject）规定 `required` 默认 true
+- 与字段注入的语义一致：未指定 required 时按必需处理
+- 显式优于隐式：开发者必须**主动声明**"这个依赖是可选的"，容器才走容错
+
+**"模块自由组合"场景下 bean 写法**：
+
+```java
+@Service
+public class MetricsService {
+    // 单构造器（规则 1）+ 参数级可选依赖（规则 a/b）
+    public MetricsService(
+        OrderRepo repo,                                     // 规则 d：无 @Inject = 必需按类型解析
+        @Inject(required=false) KafkaReporter kafka,         // 规则 b：可选，缺失 → null
+        PrometheusReporter prom,                             // 规则 d：必需
+        Optional<AuditLogger> audit                          // 规则 a：Optional 包裹
+    ) {
+        // kafka 可能是 null；audit 可能是 Optional.empty()
+    }
+}
+```
+
+**部署场景对照**：
+
+| 部署的 bean | OrderRepo | KafkaReporter | PrometheusReporter | AuditLogger | 容器行为 |
+|------------|-----------|---------------|-------------------|-------------|---------|
+| `{OrderRepo, Kafka, Prom, Audit}` | 注入 | 注入 | 注入 | Optional.of(audit) | 全部命中 |
+| `{OrderRepo, Kafka, Prom}` | 注入 | 注入 | 注入 | Optional.empty() | audit 缺失 → empty |
+| `{OrderRepo, Kafka}` | 注入 | 注入 | null | Optional.empty() | kafka 命中 → 注入；prom 缺失 → 抛 NoSuchBean |
+| `{OrderRepo}` | 注入 | null | null | Optional.empty() | prom 缺失 → 抛 NoSuchBean |
+| `{}` | 抛 NoSuchBeanException | - | - | - | 必需依赖缺失 → fail |
+
+**关键设计原则**：
+
+> **"参数是否必需"由 bean 作者显式标注，容器不替开发者做"魔法容错"** —— 必需依赖缺失立刻 fail（部署期暴露）；可选依赖缺失走 null / Optional.empty()（运行时降级，业务代码 null-check 后跳过）。
+
+##### 4.5.4.10.3 与 Spring 6.x 对齐
+
+| 维度 | edap | Spring 6.x |
+|------|------|-----------|
+| 单构造器自动检测 | ✅ | ✅ (4.3+) |
+| 单 @Inject | ✅ | ✅ |
+| 多 @Inject | ❌ 抛错（更严格） | ❌ 抛错 |
+| 多构造器 0 @Inject | ❌ 抛错 | ❌ 抛错 (4.3+) |
+| `@Inject(required=false)` 参数 | ✅ | ✅ |
+| `Optional<T>` 构造器参数 | ✅ | ✅ |
+| `@Nullable` 构造器参数 | ⚠️ 待定（需 javax.annotation.Nullable） | ✅ Spring `@Nullable` |
+
+##### 4.5.4.10.4 对 BeanContainer 实现的影响
+
+```java
+// BeanContainer.selectConstructor —— 简化后的版本
+private static Constructor<?> selectConstructor(Class<?> beanClass) {
+    Constructor<?>[] all = beanClass.getDeclaredConstructors();
+    
+    // 规则 1：单构造器 → 自动检测
+    if (all.length == 1) return all[0];
+    
+    // 规则 2/3：多构造器 → 找 @Inject 标注的
+    List<Constructor<?>> injected = new ArrayList<>();
+    for (Constructor<?> c : all) {
+        if (c.getAnnotation(Inject.class) != null) injected.add(c);
+    }
+    
+    if (injected.size() == 1) return injected.get(0);                                     // 规则 2
+    if (injected.size() > 1)  throw new AmbiguousConstructorException(beanClass, injected);  // 规则 3
+    
+    throw new NoSuitableConstructorException(beanClass);                                    // 规则 4
+}
+
+// BeanContainer.ctorArgs —— 简化后的版本
+private Object[] ctorArgs(Constructor<?> ctor, BeanDef def) {
+    Parameter[] params = ctor.getParameters();
+    Object[] args = new Object[params.length];
+    for (int i = 0; i < params.length; i++) {
+        Class<?> type = params[i].getType();
+        Inject ann = params[i].getAnnotation(Inject.class);
+        
+        // 规则 a：Optional<T> 特殊处理
+        if (type == Optional.class) {
+            Class<?> inner = (Class<?>) ((ParameterizedType) params[i].getParameterizedType())
+                              .getActualTypeArguments()[0];
+            args[i] = resolveOptional(inner);
+            continue;
+        }
+        
+        // 规则 d：无 @Inject → null
+        if (ann == null) {
+            args[i] = null;
+            continue;
+        }
+        
+        // 规则 b/c：@Inject 按 required 走
+        try {
+            args[i] = resolveDependencyByType(type);
+        } catch (NoSuchBeanException e) {
+            if (ann.required()) throw e;       // 规则 c：必需 → 抛
+            args[i] = null;                    // 规则 b：可选 → null
+        }
+    }
+    return args;
+}
+
+private Optional<Object> resolveOptional(Class<?> inner) {
+    try {
+        return Optional.ofNullable(resolveDependencyByType(inner));
+    } catch (NoSuchBeanException e) {
+        return Optional.empty();
+    }
+}
+```
+
+##### 4.5.4.10.5 字段 / 方法注入的设计决策（已搁置）
+
+**当前状态**：edap 完整支持字段 / 构造器 / 方法三处 `@Inject` + `@Autowired`（与 Spring 6.x 一致；详见 README §13.3.4 注解兼容表）。`BeanContainer.injectDependencies` 阶段会按 `BeanDef.injections()` 列表顺序执行"Aware → 字段 → setter-style 方法"。
+
+**未来可能收紧方向**：限定为"仅构造器注入"——丢弃字段 / 方法分支，与 Kotlin / Micronaut / Quarkus 的倾向对齐。
+
+**收紧的动机**：
+
+1. **不可变性**：构造器注入把依赖固化在 `final` 字段，bean 一旦创建就是完整状态；字段 / setter 注入的字段在生命周期内可被任何 BPP / 测试代码 / 反射修改，状态不可见
+2. **测试友好**：构造器注入直接 `new Service(mockRepo, mockGateway)`；字段 / setter 注入要 `ReflectionTestUtils.setField(...)` 或 `@InjectMocks` 走 Mockito 反射
+3. **final 字段支持**：Spring 字段注入在 `final` 字段上要么挂，要么要 `-XX:+EnableDynamicAgentLoading` 兜底；构造器注入天然兼容
+4. **循环依赖暴露**：构造器循环依赖（A(B b) → B(A a)）立刻抛 `CyclicDependencyException`，比字段 / setter 循环引用更早暴露问题
+5. **类体积**：每多一个 `@Inject` 字段就是隐式依赖契约；构造器签名一目了然，新人 5 秒读完 bean 依赖图
+
+**为什么现在不动**：
+
+- edap 当前定位是"Spring / Solon 兼容框架"——切到仅构造器等于强迫迁移项目改写所有 `@Autowired` 字段
+- Spring 6.x / Spring Boot 3 都仍支持字段注入（社区推荐构造器但兼容字段），edap 跟随主流
+- BeanPostProcessor / AOP 织入（§4.12）尚未接通——字段注入是某些 AOP 场景（如 `@Async` 注入上下文）的临时接线口
+
+**假想迁移路径**（如果未来要切）：
+
+```java
+// 阶段 1：扫描阶段发现 field/method @Inject 全部 WARN，但不报错
+// 阶段 2：版本号警告 edap 3.x 起不再支持 field/method 注入
+// 阶段 3：edap 4.x 起严格 throw BeanInjectFailedException("field/method injection deprecated")
+// 阶段 4：BeanDef.injections 列表移除 field/method 项；InjectionPoint.isField() 等废弃
+```
+
+**对 BeanContainer 的影响**：如果落实，§4.5.4 中 `injectDependencies` 方法简化为"只跑 Aware + 构造器后的不可变量校验"；`InjectionPoint` 仅保留构造器参数语义；`BeanDef.injections` 字段不变（仍存构造器参数元数据），但 `isField()` / `method()` 分支消失。
+
+**对调用方影响**：业务 bean 写法从 `@Inject private X x;` 改为"`X x` 字段 + 构造器参数"；Spring 迁移项目需批量改写。
+
+**对 AOP / BeanPostProcessor 影响**：不受影响——BPP 仍按 `postProcessBeforeInit` / `postProcessAfterInit` 链插入，与注入点独立。
+
+**对 listener / 工具代码影响**：不大。listener（如 `ApplicationListener<E>`）的注入走构造器即可；`@PostConstruct` / `@PreDestroy` 不变。
+
+**决策点**：暂列 TODO —— 进入 edap 3.0 marker 时重新评估。
 
 #### 4.5.5 与 AppContext 三段式协作
 
@@ -4302,7 +4620,7 @@ if (creating.contains(def.name())) {
 
 #### 4.5.10 错误处理
 
-**容器异常全部继承 `RuntimeException`**——9 个 `io.edap.container.exc.*Exception` 均为 unchecked。这是有意设计：
+**容器异常全部继承 `RuntimeException`**——10 个 `io.edap.container.exc.*Exception` 均为 unchecked。这是有意设计：
 
 - 容器异常是部署期错误（Phase 1/2/3 失败），不属于业务正常控制流，不需要强制 caller 处理
 - `BeanContainer.register / instantiate / injectDependencies / invokeInit / startLifecycles / getBean` 等方法签名不应被 throws 子句污染
@@ -4313,14 +4631,18 @@ if (creating.contains(def.name())) {
 |--------|------|------|------|
 | `register` 同名 bean 重复 | `DuplicateBeanException(name)` | Phase 1 | AppContext.start fail |
 | `topologicalSort` 循环依赖 | `CyclicDependencyException(路径)` | Phase 1 末 | Phase 2 fail |
-| `instantiate` 找不到合适构造器 | `NoSuitableConstructorException(beanClass)` | Phase 2 | fail |
+| `selectConstructor` 多构造器 + 0 个 `@Inject` | `NoSuitableConstructorException(beanClass)` | Phase 2 | fail |
+| `selectConstructor` 多构造器 + 多个 `@Inject` | `AmbiguousConstructorException(beanClass, candidates)` | Phase 2 | fail |
 | `instantiate` 构造器抛业务异常 | `BeanInstantiationException(name, cause)` | Phase 2 | fail，cause 是原异常 |
+| `ctorArgs` 必需依赖（`@Inject` / 无 `@Inject` / `Optional<T>` 内部）找不到 bean | `NoSuchBeanException(type)` | Phase 2 | fail |
 | `injectDependencies` `@Inject` 找不到 bean | `NoSuchBeanException(name)` | Phase 2 | fail |
 | `injectDependencies` 多候选无 `@Primary` | `NoUniqueBeanException(type, candidates)` | Phase 2 | fail |
 | `invokeInit` `@PostConstruct` 抛错 | `BeanInitFailedException(name, cause)` | Phase 2 | fail，cause 是原异常 |
 | `startLifecycles` `Lifecycle.start` 抛错 | `LifecycleStartFailedException(name, cause)` | Phase 3 | fail |
 | `destroyAllSingletons` `Lifecycle.stop` 抛错 | 记 WARN 继续 | 销毁 | 业务已不触达，宽容 |
 | `destroyAllSingletons` `@PreDestroy` 抛错 | 记 WARN 继续 | 销毁 | 同上 |
+
+**注意**：`@Inject(required=false)` / `Optional<T>` 参数的依赖缺失**不抛异常**——按 §4.5.4.10.2 规则 b/a 走 null / `Optional.empty()` 兜底，由 bean 代码 null-check 后跳过。`NoSuchBeanException` 只在"必需依赖"路径下抛。
 
 **所有 Phase 1/2/3 失败都回滚已创建实例**：
 
@@ -4519,7 +4841,7 @@ public class BeanContainer {
 
     // —— Phase 2 COMMITTING ——
 
-    /** 实例化（不注入、不调 init）。selectConstructor 选最多 @Inject 注解参数的；无则无参。 */
+    /** 实例化（不注入、不调 init）。selectConstructor 按 §4.5.4.10.1 规则选构造器；ctorArgs 按 §4.5.4.10.2 解析参数。 */
     public Object instantiate(BeanDef def) {
         state.checkTransitionGuard(BeanContainerState.INSTANTIATING);
         if (creating.contains(def.name())) {
@@ -4539,34 +4861,68 @@ public class BeanContainer {
         }
     }
 
-    /** 选构造器：最多 @Inject 注解参数的；无则无参；无则 NoSuitableConstructorException。 */
+    /** 选构造器——按 §4.5.4.10.1 规则：
+     *  1. 单构造器 → 直接用（Spring 4.3+ 自动检测）
+     *  2. 多构造器 + 单 @Inject → 用它
+     *  3. 多构造器 + 多 @Inject → 抛 AmbiguousConstructorException
+     *  4. 多构造器 + 0 @Inject → 抛 NoSuitableConstructorException */
     private static Constructor<?> selectConstructor(Class<?> beanClass) {
         Constructor<?>[] all = beanClass.getDeclaredConstructors();
-        Constructor<?> best = null;
-        int bestScore = -1;
+        if (all.length == 1) return all[0];                                       // 规则 1
+
+        List<Constructor<?>> injected = new ArrayList<>();
         for (Constructor<?> c : all) {
-            Inject ann = c.getAnnotation(Inject.class);
-            int score = (ann != null) ? c.getParameterCount() : 0;
-            if (score > bestScore) { bestScore = score; best = c; }
+            if (c.getAnnotation(Inject.class) != null) injected.add(c);
         }
-        if (best == null) {
-            throw new NoSuitableConstructorException(beanClass);
-        }
-        return best;
+        if (injected.size() == 1) return injected.get(0);                         // 规则 2
+        if (injected.size() > 1)  throw new AmbiguousConstructorException(beanClass, injected);  // 规则 3
+        throw new NoSuitableConstructorException(beanClass);                       // 规则 4
     }
 
-    /** 按构造器参数类型递归 getBean（依赖解析）；@Inject 标注的入参才解析。 */
+    /** 按构造器参数解析——按 §4.5.4.10.2 规则：
+     *  a. Optional<T> → 找到 → Optional.of(bean)；找不到 → Optional.empty()
+     *  b. @Inject(required=false) → 找到 → bean；找不到 → null
+     *  c. @Inject (默认 required=true) → 找到 → bean；找不到 → 抛 NoSuchBeanException
+     *  d. 无 @Inject 注解 → null */
     private Object[] ctorArgs(Constructor<?> ctor, BeanDef def) {
         Parameter[] params = ctor.getParameters();
         Object[] args = new Object[params.length];
         for (int i = 0; i < params.length; i++) {
-            if (params[i].getAnnotation(Inject.class) == null) {
-                args[i] = null;          // 非 @Inject 参数由调用方自行处理（罕见）
-            } else {
-                args[i] = resolveDependencyByType(params[i].getType());
+            Class<?> type = params[i].getType();
+            Inject ann = params[i].getAnnotation(Inject.class);
+
+            // 规则 a：Optional<T> 特殊处理
+            if (type == Optional.class) {
+                Class<?> inner = (Class<?>) ((ParameterizedType) params[i].getParameterizedType())
+                                  .getActualTypeArguments()[0];
+                args[i] = resolveOptional(inner);
+                continue;
+            }
+
+            // 规则 d：无 @Inject → null
+            if (ann == null) {
+                args[i] = null;
+                continue;
+            }
+
+            // 规则 b/c：@Inject 按 required 走
+            try {
+                args[i] = resolveDependencyByType(type);
+            } catch (NoSuchBeanException e) {
+                if (ann.required()) throw e;     // 规则 c：必需 → 抛
+                args[i] = null;                  // 规则 b：可选 → null
             }
         }
         return args;
+    }
+
+    /** Optional<T> 解析：找到 → Optional.of(bean)；找不到 → Optional.empty()。 */
+    private Optional<Object> resolveOptional(Class<?> inner) {
+        try {
+            return Optional.ofNullable(resolveDependencyByType(inner));
+        } catch (NoSuchBeanException e) {
+            return Optional.empty();
+        }
     }
 
     /** 依赖注入 + Aware 回调。顺序：Aware → @Inject 字段 → @Inject 方法。 */
@@ -4866,7 +5222,7 @@ public final class InjectionPoint {
 - §4.5.5 与 AppContext 三段式协作：调用方为 `AppContext.start()` 三段，BeanContainer 暴露 `register` / `topologicalSort` / `transitionToCommitting` / `instantiate` / `injectDependencies` / `invokeInit` / `registerInstance` / `transitionToReady` / `startLifecycles` / `destroyAllSingletons` 一组阶段性 API
 - §4.5.8 循环依赖检测：`creating` HashSet 由 `instantiate` 维护；`topologicalSort` 用 `inStack` / `visited` 提前检测
 - §4.5.9 并发语义：所有 §4.5.9 表格的"无锁"行都由"持有 lifecycleLock / 写 final 字段 / CHM"三种机制保证
-- §4.5.10 错误处理：异常类型 `DuplicateBeanException` / `CyclicDependencyException` / `NoSuitableConstructorException` / `BeanInstantiationException` / `NoSuchBeanException` / `NoUniqueBeanException` / `BeanInjectFailedException` / `BeanTypeMismatchException` / `BeanInitFailedException` / `LifecycleStartFailedException` 在 §4.5.10 表里逐项对应
+- §4.5.10 错误处理：异常类型 `DuplicateBeanException` / `CyclicDependencyException` / `NoSuitableConstructorException` / `AmbiguousConstructorException` / `BeanInstantiationException` / `NoSuchBeanException` / `NoUniqueBeanException` / `BeanInjectFailedException` / `BeanTypeMismatchException` / `BeanInitFailedException` / `LifecycleStartFailedException` 在 §4.5.10 表里逐项对应
 - §4.5.11 可观测性：`state()` / `size()` / `definitions.size()` / `singletons.size()` / `shards.size()` 这一组访问器对外暴露自检指标
 
 ### 4.6 RouterHub
@@ -7579,7 +7935,7 @@ sequenceDiagram
 > 以下条目是当前未完成、Stage 1+ 才会触达的扩展点；列在这里是为后续工作留位置。
 
 1. `BeanPostProcessor` 调用链接通（接口已在 §4.12 定义，BeanContainer 实际调用 Phase 2 各节点待实施）
-2. `@Conditional` 条件 bean（按节点类型 / 配置动态决定是否注册）
+2. `@Conditional` 条件 bean（按节点能力 / 配置动态决定是否注册）
 3. `@Scope("custom")` 自定义 Scope SPI
 4. `BeanPostProcessor` 与 AOP 织入的集成（`@Transactional` / `@RateLimit` 等）
 5. `Environment` 集成远端配置中心（Nacos / Consul）的刷新机制

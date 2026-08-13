@@ -21,10 +21,14 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantLock;
+
+import static io.edap.container.scan.EarScanner.clazzCount;
 
 public class Container {
 
@@ -54,11 +58,52 @@ public class Container {
     private final File appsDir;
     private static final ReentrantLock lifecycleLock = new ReentrantLock();
 
+    /**
+     * 容器节点的能力集——决定启动期 bind 哪些 Router（HTTP/WS/eRPC/gRPC）。
+     * 详见 {@link Capability}。
+     *
+     * <p>来源：构造器显式传入（推荐测试 / 单节点脚本用）或默认构造时从
+     * 系统属性 {@code edap.node.capabilities} 解析（逗号分隔，大小写不敏感）。
+     * 空值 / 未识别 token / 属性缺失 → 兜底为 {@code HTTP_ROUTING + WS_ROUTING}
+     * （HTTP 节点默认形态）。</p>
+     */
+    private final Set<Capability> capabilities;
+
 
     public Container(File appsDir) {
-        this.state       = ContainerState.NEW;
-        this.appsDir     = appsDir;
-        this.containerCL = Container.class.getClassLoader();
+        this(appsDir, parseDefaultCapabilities());
+    }
+
+    public Container(File appsDir, Set<Capability> capabilities) {
+        this.state        = ContainerState.NEW;
+        this.appsDir      = appsDir;
+        this.containerCL  = Container.class.getClassLoader();
+        this.capabilities = capabilities == null || capabilities.isEmpty()
+                ? EnumSet.of(Capability.HTTP, Capability.WS)
+                : EnumSet.copyOf(capabilities);
+    }
+
+    /**
+     * 从系统属性 {@code edap.node.capabilities} 解析能力集合。
+     * 格式 "http,ws,erpc"；token 简写自动补 {@code _ROUTING} 后缀。
+     */
+    private static Set<Capability> parseDefaultCapabilities() {
+        String raw = System.getProperty("edap.node.capabilities");
+        if (raw == null) raw = System.getenv("EDAP_NODE_CAPABILITIES");
+        Set<Capability> parsed = Capability.parse(raw);
+        if (parsed.isEmpty()) {
+            return EnumSet.of(Capability.HTTP, Capability.WS);
+        }
+        return parsed;
+    }
+
+    /** 节点能力集合（不可变副本）。Router bind 阶段按这个集合选择性挂载。 */
+    public Set<Capability> capabilities() {
+        return Collections.unmodifiableSet(capabilities);
+    }
+
+    public boolean hasCapability(Capability c) {
+        return capabilities.contains(c);
     }
 
     public Props env() {
@@ -286,11 +331,14 @@ public class Container {
     public BaseResult<String> deploy(File ear) {
         // 1. 解析 EAR
         DeployMetaData dmd;
+        long start = System.currentTimeMillis();
         try {
             dmd = new EarScanner(new NestedJarFile(ear)).scanDeployMetaData();
         } catch (IOException e) {
             return BaseResult.fail(103, "EAR 包结构错误: " + e.getMessage());
         }
+        log.info("DeployMetaData scan {} file time: {}", l -> l.arg(clazzCount.get())
+                .arg(System.currentTimeMillis() - start));
         String appId   = dmd.getMavenInfo().getGroupId() + ":" + dmd.getMavenInfo().getArtifactId();
         String mavenVersion = dmd.getMavenInfo().getVersion();
         // 2. 计算 composite version（SNAPSHOT 加 buildTime 后缀；详见 resolveVersion）

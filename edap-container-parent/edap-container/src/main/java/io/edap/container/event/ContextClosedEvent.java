@@ -5,7 +5,7 @@ import io.edap.container.AppContext;
 /**
  * AppContext 关闭完成事件。{@code AppContext.stop()} 销毁路径走完后由 {@code EventPublisher} 发布。
  *
- * <p><b>触发时机</b>：{@code state.transitionTo(AppState.STOPPED)} <b>之前</b>（此时 bean /
+ * <p><b>触发时机</b>：{@code transitionTo(AppState.STOPPED)} <b>之前</b>（此时 bean /
  * ClassLoader 还未完全释放，listener 仍可访问 {@code appContext.beans()} 等做最后清理）；
  * 具体位置见 §4.2.3 {@code AppContext.stop()}。</p>
  *
@@ -23,7 +23,7 @@ import io.edap.container.AppContext;
  * <p><b>为什么不在 STOPPED 之后发布</b>：{@code AppContext.stop()} 内
  * {@code beans.destroyAllSingletons()} 已先清空所有 singleton bean——之后再 publish
  * ContextClosedEvent，listener 内 {@code appContext.beans()} 拿不到东西，调试困难。
- * 当前实现是在 destroyAllSingletons + appCL.close <b>之后</b>、{@code state.transitionTo(STOPPED)}
+ * 当前实现是在 destroyAllSingletons + appCL.close <b>之后</b>、{@code transitionTo(STOPPED)}
  * <b>之前</b> publish，listener 仍能访问 beans()（已空，但容器自身引用链还在）。</p>
  */
 public final class ContextClosedEvent extends ApplicationEvent {

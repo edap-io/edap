@@ -6,6 +6,7 @@ import io.edap.container.event.EventPublisher;
 import io.edap.container.exc.*;
 import io.edap.log.Logger;
 import io.edap.log.LoggerManager;
+import io.edap.microservice.annotation.Optional;
 import io.edap.microservice.annotation.Primary;
 import io.edap.microservice.Scope;
 
@@ -60,6 +61,20 @@ public class BeanContainer {
         this.shards     = shards;
     }
 
+    /**
+     * 状态迁移封装：canTransitionTo 校验 → 写回 state 字段。
+     * 由 lifecycleLock 串行化（AppContext 持有），单线程写。
+     * 不暴露为 public——只有同类的 transitionToCommitting / transitionToReady /
+     * destroyAllSingletons 内部调，杜绝外部乱跳状态。
+     */
+    private void transitionTo(BeanContainerState to) {
+        if (!state.canTransitionTo(to)) {
+            throw new IllegalStateException(
+                    "Illegal BeanContainerState transition: " + state + " -> " + to);
+        }
+        state = to;
+    }
+
     // —— Phase 1 GATHERING ——
 
     /**
@@ -99,10 +114,12 @@ public class BeanContainer {
             throw new CyclicDependencyException(tracePath(inStack, def.name()));
         }
         inStack.add(def.name());
-        for (String depName : def.injectionNames()) {
-            BeanDef dep = definitions.get(depName);
-            if (dep != null) {
-                dfs(dep, visited, inStack, result);
+        if (def.injectionNames() != null && !def.injectionNames().isEmpty()) {
+            for (String depName : def.injectionNames()) {
+                BeanDef dep = definitions.get(depName);
+                if (dep != null) {
+                    dfs(dep, visited, inStack, result);
+                }
             }
         }
         inStack.remove(def.name());
@@ -121,12 +138,12 @@ public class BeanContainer {
      * Phase 1 → Phase 2 状态迁移。
      */
     public void transitionToCommitting() {
-        state.transitionTo(BeanContainerState.INSTANTIATING);
+        transitionTo(BeanContainerState.INSTANTIATING);
     }
 
     // —— Phase 2 COMMITTING ——
 
-    /** 实例化（不注入、不调 init）。selectConstructor 选最多 @Inject 注解参数的；无则无参。 */
+    /** 实例化（不注入、不调 init）。selectConstructor 按 §4.5.4.10.1 规则选构造器；ctorArgs 按 §4.5.4.10.2 解析参数。 */
     public Object instantiate(BeanDef def) throws BeanInstantiationException, CyclicDependencyException {
         state.checkTransitionGuard(BeanContainerState.INSTANTIATING);
         if (creating.contains(def.name())) {
@@ -147,41 +164,86 @@ public class BeanContainer {
     }
 
     /**
-     * 选构造器：最多 @Inject 注解参数的；无则无参；无则 NoSuitableConstructorException。
-     * @param beanClass
+     * 选构造器——按 §4.5.4.10.1 规则：
+     * <ol>
+     *   <li>单构造器 → 直接用（Spring 4.3+ 自动检测，无需 @Inject）</li>
+     *   <li>多构造器 + 单 @Inject → 用它</li>
+     *   <li>多构造器 + 多 @Inject → 抛 AmbiguousConstructorException</li>
+     *   <li>多构造器 + 0 @Inject → 抛 NoSuitableConstructorException</li>
+     * </ol>
+     *
+     * @param beanClass 目标 bean 类型
+     * @return 选中的构造器
+     * @throws AmbiguousConstructorException   规则 3：多个 @Inject 构造器
+     * @throws NoSuitableConstructorException 规则 4：多构造器无 @Inject
      */
-    private static Constructor<?> selectConstructor(Class<?> beanClass) throws NoSuitableConstructorException {
+    private static Constructor<?> selectConstructor(Class<?> beanClass)
+            throws AmbiguousConstructorException, NoSuitableConstructorException {
         Constructor<?>[] all = beanClass.getDeclaredConstructors();
-        Constructor<?> best = null;
-        int bestScore = -1;
+        if (all.length == 1) return all[0];                                                // 规则 1
+
+        List<Constructor<?>> injected = new ArrayList<>();
         for (Constructor<?> c : all) {
-            Inject ann = c.getAnnotation(Inject.class);
-            int score = (ann != null) ? c.getParameterCount() : 0;
-            if (score > bestScore) {
-                bestScore = score;
-                best = c;
-            }
+            if (c.getAnnotation(Inject.class) != null) injected.add(c);
         }
-        if (best == null) {
-            throw new NoSuitableConstructorException(beanClass);
-        }
-        return best;
+        if (injected.size() == 1) return injected.get(0);                                  // 规则 2
+        if (injected.size() > 1)  throw new AmbiguousConstructorException(beanClass, injected);  // 规则 3
+        throw new NoSuitableConstructorException(beanClass);                               // 规则 4
     }
 
     /**
-     * 按构造器参数类型递归 getBean（依赖解析）；@Inject 标注的入参才解析。
+     * 按构造器参数解析——按 §4.5.4.10.2 规则：
+     * <ol>
+     *   <li>参数类型是 {@code java.util.Optional<T>} → resolveOptional(内层类型)</li>
+     *   <li>{@code @io.edap.container.Optional} → 缺失 → null；找到 → bean</li>
+     *   <li>{@code @Inject}（默认必需）→ 缺失 → 抛 NoSuchBeanException；找到 → bean</li>
+     *   <li>无 @Inject 注解 → null（保留原行为，业务代码自主处理）</li>
+     * </ol>
      */
     private Object[] ctorArgs(Constructor<?> ctor, BeanDef def) {
         Parameter[] params = ctor.getParameters();
         Object[] args = new Object[params.length];
         for (int i = 0; i < params.length; i++) {
-            if (params[i].getAnnotation(Inject.class) == null) {
-                args[i] = null;          // 非 @Inject 参数由调用方自行处理（罕见）
-            } else {
-                args[i] = resolveDependencyByType(params[i].getType());
+            Class<?> type = params[i].getType();
+            Inject ann = params[i].getAnnotation(Inject.class);
+
+            // 规则 a：java.util.Optional<T> 特殊处理
+            //         （FQN 避免与本类的 io.edap.container.Optional 注解同名冲突）
+            if (type == java.util.Optional.class) {
+                Class<?> inner = (Class<?>) ((ParameterizedType) params[i].getParameterizedType())
+                                  .getActualTypeArguments()[0];
+                args[i] = resolveOptional(inner);
+                continue;
+            }
+
+            // 规则 d：无 @Inject → null
+            if (ann == null) {
+                args[i] = null;
+                continue;
+            }
+
+            // 规则 b/c：@Optional 标记 → 缺失 → null；@Inject（默认必需）→ 缺失 → 抛
+            io.edap.microservice.annotation.Optional opt = params[i].getAnnotation(Optional.class);
+            try {
+                args[i] = resolveDependencyByType(type);
+            } catch (NoSuchBeanException e) {
+                if (opt == null) throw e;               // 规则 c：必需 → 抛
+                args[i] = null;                         // 规则 b：可选 → null
             }
         }
         return args;
+    }
+
+    /**
+     * java.util.Optional&lt;T&gt; 解析：找到 → Optional.of(bean)；找不到 → Optional.empty()。
+     * 用于构造器参数解析（§4.5.4.10.2 规则 a），不抛 NoSuchBeanException。
+     */
+    private java.util.Optional<Object> resolveOptional(Class<?> inner) {
+        try {
+            return java.util.Optional.ofNullable(resolveDependencyByType(inner));
+        } catch (NoSuchBeanException e) {
+            return java.util.Optional.empty();
+        }
     }
 
     /**
@@ -189,6 +251,9 @@ public class BeanContainer {
      */
     public void injectDependencies(BeanDef def, Object instance) {
         injectAware(def, instance);          // 4 个 Aware 接口
+        if (def.injections() == null || def.injections().isEmpty()) {
+            return;
+        }
         for (InjectionPoint ip : def.injections()) {
             if (ip.isField()) {
                 Object dep = resolveDependency(ip);
@@ -318,7 +383,7 @@ public class BeanContainer {
 
     /** Phase 2 → Phase 3 状态迁移。 */
     public void transitionToReady() {
-        state.transitionTo(BeanContainerState.READY);
+        transitionTo(BeanContainerState.READY);
     }
 
     // —— Phase 3 READY ——
@@ -371,7 +436,7 @@ public class BeanContainer {
     /** 逆序：Lifecycle.stop() → @PreDestroy → 清空 singletons。
      *  异常一律记 WARN 继续——已 unbind 路由，业务不会再到这。 */
     public void destroyAllSingletons() {
-        state.transitionTo(BeanContainerState.DESTROYING);
+        transitionTo(BeanContainerState.DESTROYING);
 
         // 1. 逆序 Lifecycle.stop()
         List<BeanWrap> ordered = new ArrayList<>(singletons.values());
@@ -401,7 +466,7 @@ public class BeanContainer {
         // 3. 清空 singletons（@Sharded 方法的分片实例也由 ShardRegistry 释放）
         singletons.clear();
         shards.clear();
-        state.transitionTo(BeanContainerState.DESTROYED);
+        transitionTo(BeanContainerState.DESTROYED);
     }
 
     /** destroyAll 是 destroyAllSingletons 的语义别名（classDiagram 兼容）。 */

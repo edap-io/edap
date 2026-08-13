@@ -36,7 +36,11 @@ import io.edap.container.scan.EarScanner;
 import io.edap.container.ws.WSServiceMsgHandler;
 import io.edap.grpc.GrpcHandler;
 import io.edap.http.HttpHandler;
+import io.edap.log.Logger;
+import io.edap.log.LoggerManager;
 import io.edap.microservice.Scope;
+import io.edap.microservice.annotation.Bean;
+import io.edap.microservice.annotation.MicroServiceBean;
 import io.edap.props.Props;
 import io.edap.rpc.ErpcHandler;
 import io.edap.util.CollectionUtils;
@@ -70,6 +74,8 @@ import java.util.concurrent.ConcurrentHashMap;
  * 不直接被业务代码调。</p>
  */
 public class AppContext implements Lifecycle {
+
+    static Logger log = LoggerManager.getLogger(AppContext.class);
 
     // ─── 标识 ───
     private final String             appId;
@@ -124,6 +130,19 @@ public class AppContext implements Lifecycle {
         // 构造函数到此为止——不做扫描、不做实例化、不调 Lifecycle.start
     }
 
+    /**
+     * 状态迁移封装：canTransitionTo 校验 → 写回 state 字段。
+     * 由 lifecycleLock 串行化（start / stop 调用方），单线程写。
+     * 不暴露为 public——只有本类的 start() / stop() 内部调，杜绝外部乱跳状态。
+     */
+    private void transitionTo(AppState to) {
+        if (!state.canTransitionTo(to)) {
+            throw new IllegalStateException(
+                    "Illegal AppState transition: " + state + " -> " + to);
+        }
+        state = to;
+    }
+
     /** 读 build.json 的 env 段（注入 Environment 优先级链第 3 层，详见 §4.8.3）。 */
     private Props loadBuildJsonProps() {
         // 由 dmd.getBuildInfo() + dmd.getComponentMap() 归并出 Props；
@@ -134,7 +153,7 @@ public class AppContext implements Lifecycle {
 
     @Override
     public void start() throws Throwable {
-        state.transitionTo(AppState.GATHERING);                 // NEW -> GATHERING
+        transitionTo(AppState.GATHERING);                 // NEW -> GATHERING
         try {
             // Phase 1 GATHERING：扫 EAR → BeanDef + 4 份 RouteEntry 列表
             List<BeanDef> defs = scanBeanDefs();
@@ -154,7 +173,7 @@ public class AppContext implements Lifecycle {
             }
             beans.transitionToReady();                          // INSTANTIATING -> READY
 
-            state.transitionTo(AppState.COMMITTING);             // GATHERING -> COMMITTING
+            transitionTo(AppState.COMMITTING);             // GATHERING -> COMMITTING
 
             // Phase 3 READY：Lifecycle.start() + 路由 bind
             beans.startLifecycles();
@@ -162,12 +181,12 @@ public class AppContext implements Lifecycle {
             // Container 在 deploy() 末尾 / switchVersion() / 启动恢复时统一切 currentRouters 指针
             // —— AppContext 不回调 Container，保持单向数据流
 
-            state.transitionTo(AppState.READY);                  // COMMITTING -> READY
-            state.transitionTo(AppState.RUNNING);                // READY -> RUNNING
+            transitionTo(AppState.READY);                  // COMMITTING -> READY
+            transitionTo(AppState.RUNNING);                // READY -> RUNNING
 
             events.publish(new ContextRefreshedEvent(this));
         } catch (Throwable t) {
-            state.transitionTo(AppState.FAILED);
+            transitionTo(AppState.FAILED);
             throw t;
         }
     }
@@ -180,7 +199,7 @@ public class AppContext implements Lifecycle {
         AppState cur = state;
         if (cur == AppState.NEW || cur == AppState.STOPPED) return;
         if (cur == AppState.STOPPING) return;
-        state.transitionTo(AppState.STOPPING);
+        transitionTo(AppState.STOPPING);
 
         Throwable firstErr = null;
         // 1. 路由摘除（让 in-flight 之外不再有请求到达本 AppContext）
@@ -208,10 +227,10 @@ public class AppContext implements Lifecycle {
         catch (Throwable t) { /* ignored */ }
 
         if (firstErr != null) {
-            state.transitionTo(AppState.FAILED);
+            transitionTo(AppState.FAILED);
             throw firstErr;
         }
-        state.transitionTo(AppState.STOPPED);
+        transitionTo(AppState.STOPPED);
     }
 
     /**
@@ -238,10 +257,42 @@ public class AppContext implements Lifecycle {
             String name;
             Scope scope = Scope.SINGLETON;
             Map<String, AnnoData> annoDatas = meta.getAnnoDatas();
-            if (annoDatas.containsKey("")) {
-                name = beanName(meta.getClassName());
+            String microServicerBeanName = MicroServiceBean.class.getName();
+            String beanAnnName = Bean.class.getName();
+            if (annoDatas.containsKey(microServicerBeanName)) {
+                AnnoData microServiceBeanAnn = annoDatas.get(microServicerBeanName);
+                String beanName = (String)microServiceBeanAnn.getValues().get("name");
+                if (beanName != null && beanName.trim().length() > 0) {
+                    name = beanName;
+                } else {
+                    name = beanSimpleName(meta.getClassName());
+                }
+                String annScope = (String)microServiceBeanAnn.getValues().get("scope");
+                if (annScope != null && annScope.trim().length() > 0) {
+                    try {
+                        scope = Scope.valueOf(annScope);
+                    } catch (Exception e) {
+                        log.warn("scope {} valueOf error", l -> l.arg(annScope).threw(e));
+                    }
+                }
+            } else if (annoDatas.containsKey(beanAnnName)) {
+                AnnoData beanAnn = annoDatas.get(beanAnnName);
+                String beanName = (String)beanAnn.getValues().get("name");
+                if (beanName != null && beanName.trim().length() > 0) {
+                    name = beanName;
+                } else {
+                    name = beanSimpleName(meta.getClassName());
+                }
+                String annScope = (String)beanAnn.getValues().get("scope");
+                if (annScope != null && annScope.trim().length() > 0) {
+                    try {
+                        scope = Scope.valueOf(annScope);
+                    } catch (Exception e) {
+                        log.warn("scope {} valueOf error", l -> l.arg(annScope).threw(e));
+                    }
+                }
             } else {
-                name = beanName(meta.getClassName());
+                name = beanSimpleName(meta.getClassName());
             }
             try {
                 Class<?> beanCls = Class.forName(meta.getClassName(), false, appCL);
@@ -252,7 +303,7 @@ public class AppContext implements Lifecycle {
         }
     }
 
-    private String beanName(String name) {
+    private String beanSimpleName(String name) {
         int index = name.lastIndexOf(".");
         if (index != -1) {
             name = name.substring(index + 1);
@@ -268,8 +319,9 @@ public class AppContext implements Lifecycle {
      * EarScanner 中实现，相关字段由后续 PR 补全）。</p>
      */
     private void scanRouteEntries() {
+        Set<Capability> capabilities = container.capabilities();
         // HTTP：从 dmd.protoHttpMap（path → ProtoMethodData）汇总
-        for (Map.Entry<String, ?> e : dmd.getProtoHttpMap().entrySet()) {
+        for (Map.Entry<String, DeployComponent> e : dmd.getComponentMap().entrySet()) {
             // 占位实现：EarScanner 当前的 ProtoMethodData → HttpRouteEntry 转换尚未落地
             // 等 Stage 3 option 体系稳定后由 EarScanner 直接产出 HttpRouteEntry，
             // 本方法改为直接遍历 dmd.getHttpRoutes() / dmd.getWsRoutes() 等。
@@ -338,6 +390,16 @@ public class AppContext implements Lifecycle {
      * Phase 3 末尾调用：遍历 4 份 RouteEntry → 逐条 {@link #generateHandler} → 一次性写入
      * {@link RouterHub#setHandlers}。
      *
+     * <p><b>按节点能力过滤</b>：4 份 RouteEntry 都会按 {@link Container#capabilities()} 过滤——
+     * 节点不具备的能力（如 eRPC 节点没有 {@link Capability#HTTP}），即使应用里写了
+     * {@code @HttpRoute}，也不会生成对应 Handler，避免白生成 + 永不 dispatch 的死代码。
+     * 过滤点放在 Phase 3 而非 Phase 1 的 {@code scanRouteEntries}：
+     * <ul>
+     *   <li>RouteEntry 本身很小（POJO），内存占用可忽略</li>
+     *   <li>scanRouteEntries 不依赖 Container 状态，保持纯解析职责</li>
+     *   <li>未来节点能力热调整（hotswap capability）只需重跑本方法，不需要重扫 EAR</li>
+     * </ul></p>
+     *
      * <p><b>为什么在这里做、而不是 Container.bindAll</b>：Handler 类生成依赖 appCL（bean/entry
      * 类型由 appCL 解析），同时生成结果（generatedHandlers 缓存 + generatedCLs ClassLoader 映射）
      * 必须与 AppContext 同生死——否则 appCL 引用链会跨 stop 边界泄漏。
@@ -360,36 +422,44 @@ public class AppContext implements Lifecycle {
         ClassLoader prevCL = Thread.currentThread().getContextClassLoader();
         Thread.currentThread().setContextClassLoader(appCL);
         try {
-            // 1. HTTP
-            for (HttpRouteEntry e : httpRoutes) {
-                Object bean = resolveBean(e.beanName());
-                Method m = resolveMethod(bean, e.methodName(), httpParamTypes(e));
-                httpH.add(generateHandler(HttpHandler.class, e, bean, m, shards));
+            // 1. HTTP —— 节点具备 HTTP 能力才生成
+            if (container.hasCapability(Capability.HTTP)) {
+                for (HttpRouteEntry e : httpRoutes) {
+                    Object bean = resolveBean(e.beanName());
+                    Method m = resolveMethod(bean, e.methodName(), httpParamTypes(e));
+                    httpH.add(generateHandler(HttpHandler.class, e, bean, m, shards));
+                }
             }
-            // 2. WS
-            for (WsRouteEntry e : wsRoutes) {
-                Object bean = resolveBean(e.beanName());
-                Method m = resolveMethod(bean, e.methodName(),
-                        new Class<?>[]{ Class.forName(e.msgType(), false, appCL) });
-                @SuppressWarnings({"rawtypes", "unchecked"})
-                WSServiceMsgHandler h = (WSServiceMsgHandler)generateHandler(
-                        (Class) WSServiceMsgHandler.class, e, bean, m, shards);
-                wsH.add(h);
+            // 2. WS —— 节点具备 WS 能力才生成（HTTP + WS 是两个独立能力，见 Capability 注释）
+            if (container.hasCapability(Capability.WS)) {
+                for (WsRouteEntry e : wsRoutes) {
+                    Object bean = resolveBean(e.beanName());
+                    Method m = resolveMethod(bean, e.methodName(),
+                            new Class<?>[]{ Class.forName(e.msgType(), false, appCL) });
+                    @SuppressWarnings({"rawtypes", "unchecked"})
+                    WSServiceMsgHandler h = (WSServiceMsgHandler)generateHandler(
+                            (Class) WSServiceMsgHandler.class, e, bean, m, shards);
+                    wsH.add(h);
+                }
             }
             // 3. eRPC
-            for (ErpcRouteEntry e : erpcRoutes) {
-                Object bean = resolveBean(e.beanName());
-                Method m = resolveMethod(bean, e.methodName(),
-                        new Class<?>[]{ Class.forName(e.requestType(), false, appCL) });
-                erpcH.add(generateHandler(ErpcHandler.class, e, bean, m, shards));
+            if (container.hasCapability(Capability.ERPC)) {
+                for (ErpcRouteEntry e : erpcRoutes) {
+                    Object bean = resolveBean(e.beanName());
+                    Method m = resolveMethod(bean, e.methodName(),
+                            new Class<?>[]{ Class.forName(e.requestType(), false, appCL) });
+                    erpcH.add(generateHandler(ErpcHandler.class, e, bean, m, shards));
+                }
             }
             // 4. gRPC：每个 GrpcRouteEntry 含多个 GrpcMethodEntry → 每个方法一个 Handler
-            for (GrpcRouteEntry e : grpcRoutes) {
-                Object bean = resolveBean(e.serviceName());
-                for (GrpcRouteEntry.GrpcMethodEntry me : e.methods()) {
-                    Method m = resolveMethod(bean, me.javaMethodName(),
-                            new Class<?>[]{ Class.forName(me.reqDesc(), false, appCL) });
-                    grpcH.add(generateHandler(GrpcHandler.class, me, bean, m, shards));
+            if (container.hasCapability(Capability.GRPC)) {
+                for (GrpcRouteEntry e : grpcRoutes) {
+                    Object bean = resolveBean(e.serviceName());
+                    for (GrpcRouteEntry.GrpcMethodEntry me : e.methods()) {
+                        Method m = resolveMethod(bean, me.javaMethodName(),
+                                new Class<?>[]{ Class.forName(me.reqDesc(), false, appCL) });
+                        grpcH.add(generateHandler(GrpcHandler.class, me, bean, m, shards));
+                    }
                 }
             }
         } catch (ClassNotFoundException e) {
