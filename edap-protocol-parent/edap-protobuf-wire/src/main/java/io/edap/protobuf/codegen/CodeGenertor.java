@@ -1,12 +1,9 @@
-package io.edap.protobuf.idl;
+package io.edap.protobuf.codegen;
 
 import io.edap.protobuf.builder.JavaBuildOption;
-import io.edap.protobuf.codegen.IfaceGenerator;
 import io.edap.protobuf.wire.Proto;
 import io.edap.protobuf.wire.exceptions.ProtoParseException;
 import io.edap.protobuf.wire.parser.ProtoParser;
-import io.edap.util.CollectionUtils;
-import io.edap.util.StringUtil;
 
 import java.io.*;
 import java.nio.file.*;
@@ -20,14 +17,14 @@ public class CodeGenertor {
     public static void main(String[] args) throws IOException {
         FuncParams params = parseFuncParams(args);
         String protoPath = params.options.get("-I");
-        if (StringUtil.isEmpty(protoPath)) {
+        if (protoPath == null || protoPath.length() == 0) {
             protoPath = params.options.get("--proto_path");
         }
-        if (StringUtil.isEmpty(protoPath)) {
+        if (isEmpty(protoPath)) {
             protoPath = "./";
         }
         String javaOut = params.options.get("--java_out");
-        if (StringUtil.isEmpty(javaOut)) {
+        if (isEmpty(javaOut)) {
             if (protoPath.equals("./")) {
                 System.out.println("使用--java_out 指定java代码存放路径");
                 return;
@@ -36,10 +33,18 @@ public class CodeGenertor {
             }
         }
 
+        generate(protoPath, javaOut);
 
+    }
+
+    private static boolean isEmpty(String str) {
+        return str == null || str.isEmpty();
+    }
+
+    public static void generate(String protoPath, String javaOut) throws IOException {
         long startTime = System.currentTimeMillis();
         List<Path> protoPaths = findByExtension(Paths.get(protoPath), "proto");
-        if (CollectionUtils.isEmpty(protoPaths)) {
+        if (protoPaths == null || protoPaths.isEmpty()) {
             System.out.println(new File(protoPath).getAbsolutePath() + " 目录没有.proto的文件");
             return;
         }
