@@ -29,7 +29,19 @@ import static io.edap.util.Constants.FNV_1a_INIT_VAL;
 
 public class PathDecoder implements RangeTokenDecoder<PathInfo> {
 
-    static PathInfoMatcher PATH_INFO_MATCHER = PathInfoMatcher.instance();
+    /**
+     * per-HttpServer 的 {@link PathInfoMatcher} —— 由 {@link io.edap.http.server.HttpServer} 注入。
+     * <ul>
+     *   <li>cache（精确路径）由 {@link HttpServer#setHttpMapping} 整张原子替换</li>
+     *   <li>routers（prefix/postfix wildcard）保留：未来扩展通配符路由时不改 PathDecoder 接口</li>
+     * </ul>
+     * 旧实现直接拿静态单例 {@code PathInfoMatcher.instance()} —— 全 JVM 共享，多 Container 互踩。
+     */
+    private final PathInfoMatcher pathInfoMatcher;
+
+    public PathDecoder(PathInfoMatcher pathInfoMatcher) {
+        this.pathInfoMatcher = pathInfoMatcher;
+    }
 
     @Override
     public PathInfo decode(FastBuf buf, HttpFastBufDataRange dataRange, HttpRequest request) {
@@ -61,7 +73,8 @@ public class PathDecoder implements RangeTokenDecoder<PathInfo> {
                     }
                     _buf.rpos(pos+i);
                     request.setPath(dataRange.getString());
-                    return PATH_INFO_MATCHER.match(dataRange);
+                    // dispatch 走 pathInfoMatcher（cache 命中 → PathInfo；miss → 走 routers 通配符）
+                    return pathInfoMatcher.match(dataRange);
                 case '+':
                     decodeByte = (byte)' ';
                     hashCode ^= decodeByte;

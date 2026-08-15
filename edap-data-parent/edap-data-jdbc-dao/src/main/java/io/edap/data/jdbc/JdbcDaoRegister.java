@@ -27,7 +27,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.util.*;
 import java.util.concurrent.locks.ReentrantLock;
 
-import static io.edap.util.AsmUtil.saveJavaFile;
+import static io.edap.util.AsmUtil.saveClassFile;
 import static io.edap.util.AsmUtil.toLangName;
 
 
@@ -129,7 +129,7 @@ public class JdbcDaoRegister {
             GeneratorClassInfo gci = generator.getClassInfo();
 
             byte[] bs = gci.clazzBytes;
-            saveJavaFile("./" + gci.clazzName + ".class", bs);
+            saveClassFile("./" + gci.clazzName + ".class", bs);
             funcCls = daoLoader.define(toLangName(gci.clazzName), bs, 0, bs.length);
         } catch (Exception e) {
             LOG.info("daoLoader.loadClass error", e);
@@ -178,7 +178,7 @@ public class JdbcDaoRegister {
         try {
             GeneratorClassInfo gci = generator.getClassInfo();
             byte[] bs = gci.clazzBytes;
-            saveJavaFile("./" + gci.clazzName + ".class", bs);
+            saveClassFile("./" + gci.clazzName + ".class", bs);
             daoCls = daoLoader.define(toLangName(gci.clazzName), bs, 0, bs.length);
         } catch (Exception e) {
             e.printStackTrace();
@@ -232,7 +232,7 @@ public class JdbcDaoRegister {
         try {
             GeneratorClassInfo gci = generator.getClassInfo();
             byte[] bs = gci.clazzBytes;
-            saveJavaFile("./" + gci.clazzName + ".class", bs);
+            saveClassFile("./" + gci.clazzName + ".class", bs);
             daoCls = daoLoader.define(toLangName(gci.clazzName), bs, 0, bs.length);
         } catch (Exception e) {
             e.printStackTrace();

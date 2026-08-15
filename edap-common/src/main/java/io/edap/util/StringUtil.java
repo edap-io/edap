@@ -19,6 +19,7 @@ package io.edap.util;
 import java.lang.reflect.Field;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.util.Locale;
 
 import static io.edap.util.UnsafeUtil.copyMemory;
 
@@ -153,5 +154,109 @@ public class StringUtil {
      */
     public static boolean isEmpty(String str) {
         return str==null || str.isEmpty();
+    }
+
+    /**
+     * 由下划线分割的命名转换为驼峰命名
+     * @return
+     */
+    public static String toCamelCase(String underScore) {
+        int start = 0;
+        int index = underScore.indexOf('_', start);
+        StringBuilder name = new StringBuilder();
+        while (index != -1) {
+            if (index > start) {
+                name.append(underScore.substring(start, start + 1).toUpperCase(Locale.ENGLISH))
+                        .append(underScore.substring(start+1, index));
+            }
+            start = index + 1;
+            index = underScore.indexOf('_', start);
+        }
+        name.append(underScore.substring(start, start + 1).toUpperCase(Locale.ENGLISH))
+                .append(underScore.substring(start+1, index));
+        return name.toString();
+    }
+
+    /**
+     * 将驼峰命名的风格字符串转为下划线风格的命名字符串。连续多个大些字母时，如果以连续的大写字母
+     * 结束则在第一个大写字母前增加下划线，如果不是以大写字母结束则在第一个大写字母前增加一个下划线
+     * 然后再最后一个大写字母前增加一个下划线
+     * @param camel
+     * @return
+     */
+    public static String toUnderScore(String camel) {
+        if (camel == null || camel.isEmpty()) {
+            return "";
+        }
+        StringBuilder sb = new StringBuilder();
+        int len = camel.length();
+        for (int i=0;i<len;i++) {
+            char c = camel.charAt(i);
+            if (isUpperCase(c) && i>0) { //如果为大写字母则判断后面是否是大写字母
+                int upCount = getUpperCaseCount(i, camel, len);
+                if (upCount + i == len) {
+                    if (i == len - 1) {
+                        sb.append(toLowerCase(camel.charAt(i)));
+                    } else {
+                        sb.append("_").append(toLowerCase(c));
+                        for (int j = 0; j < upCount - 1; j++) {
+                            i++;
+                            sb.append(toLowerCase(camel.charAt(i)));
+                        }
+                    }
+                } else {
+                    if (i > 0) {
+                        sb.append("_");
+                    }
+                    sb.append(toLowerCase(c));
+                    if (upCount > 1) {
+                        for (int j=0;j<upCount-2;j++) {
+                            i++;
+                            sb.append(toLowerCase(camel.charAt(i)));
+                        }
+                    }
+                }
+            } else {
+                if (isUpperCase(c)) {
+                    sb.append(toLowerCase(c));
+                } else {
+                    sb.append(c);
+                }
+            }
+        }
+        return sb.toString();
+    }
+
+    /**
+     * 查询连续大写字母的个数
+     * @param start 开始位置
+     * @param camel 原字符串
+     * @param len 字符传长度
+     * @return
+     */
+    private static int getUpperCaseCount(int start, String camel, int len) {
+        if (start == len -1) {
+            return 1;
+        }
+        for (int i=start + 1;i<len;i++) {
+            char c = camel.charAt(i);
+            if (!isUpperCase(c)) {
+                return i - start;
+            }
+        }
+        return len - start;
+    }
+
+    public static char toLowerCase(char c) {
+        return (char)(c + 32);
+    }
+
+    /**
+     * 判断一个字符是否是大写字母
+     * @param c
+     * @return
+     */
+    public static boolean isUpperCase(char c) {
+        return c >= 'A' && c <= 'Z';
     }
 }

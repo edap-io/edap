@@ -15,15 +15,17 @@ public class NestedJarScanner {
 
     private NestedJarFile nestedJarFile;
 
+    private DeployComponent tmpDc = new DeployComponent();
+
     public NestedJarScanner(NestedJarFile nestedJarFile) {
         this.nestedJarFile = nestedJarFile;
     }
 
     public DeployComponent scan() {
-        DeployComponent dc = new DeployComponent();
+        DeployComponent dc = tmpDc;
         NestedJarFile          njar     = nestedJarFile;
         Set<String>            names    = njar.entryNames();
-        List<ProtoServiceData> infoList = new ArrayList<>();
+        List<ProtoServiceData> infoList = dc.getProtoServiceInfos();
         Map<String, ServiceMeta> serviceMetaMap = dc.getServiceMetaMap();
         Map<String, ConfigurationMetaData> configurationMetaDataMap = dc.getConfigurationMetaMap();
         for (String name : names) {
@@ -44,7 +46,10 @@ public class NestedJarScanner {
             }
         }
         dc.setProtoServiceInfos(infoList);
-
+        if (serviceMetaMap.isEmpty() && configurationMetaDataMap.isEmpty() && infoList.isEmpty()) {
+            return null;
+        }
+        tmpDc = new DeployComponent();
         return dc;
     }
 

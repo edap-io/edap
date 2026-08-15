@@ -32,7 +32,7 @@ public class AsmUtil {
 
     private AsmUtil() {}
 
-    public static void saveJavaFile(String javaFilePath, byte[] data)
+    public static void saveClassFile(String javaFilePath, byte[] data)
             throws IOException {
         String saveClassFile = System.getProperty("edap.debug.saveClassFile");
         if (saveClassFile == null || saveClassFile.trim().length() == 0) {

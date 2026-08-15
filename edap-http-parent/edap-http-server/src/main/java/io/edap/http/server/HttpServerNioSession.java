@@ -166,10 +166,15 @@ public class HttpServerNioSession extends HttpNioSession implements WSConnection
 						secKeyVal.getValue() + WEBSOCKET_SEC_KEY)));
 				Map<String, String> headers = new HashMap<>();
 				headers.put("Sec-WebSocket-Accept", secAccept);
-				resp.setSimpleResponse(101, headers, HeaderConnection.UPGRADE, UPGRADE_WEBSOCKET);
-				upgraded = true;
-				this.httpRequest = request;
-				wsHandler.onOpen(this);
+                String token = request.getParameter("token");
+                if (wsHandler.tokenVerify(token)) {
+                    resp.setSimpleResponse(101, headers, HeaderConnection.UPGRADE, UPGRADE_WEBSOCKET);
+                    upgraded = true;
+                    this.httpRequest = request;
+                    wsHandler.onOpen(this);
+                } else {
+                    resp.setSimpleResponse(400, null);
+                }
 			}
 		} else {
 			resp.setSimpleResponse(400, null);
@@ -189,11 +194,17 @@ public class HttpServerNioSession extends HttpNioSession implements WSConnection
 				handeshake(request, resp);
 				return;
 			} else {
+				// dispatch：旧实现按 HTTP method index 索引 httpHandlers[]（一个 path 多个 method 各占一位），
+				// 新模型每个 path 对应一个（proto service 方法 → asm handler），路径已把方法编进去了（{@code /Service/method}），
+				// 所以 [0] 就是该 path 的唯一 handler。
+				// HTTP method (GET/POST/...) 的校验交由 asm 生成 handler 在字节码里完成（基于 @ProtoHttp.method 元数据）。
+				HttpHandler[] handlers = pathInfo.getHttpHandlers();
 				try {
-					handler = pathInfo.getHttpHandlers()[request.getMethodInfo().getMethodIndex()];
+					if (handlers != null && handlers.length > 0) {
+						handler = handlers[0];
+					}
 				} catch (Exception e) {
-					log.warn("{} get method {} HttpHandler error {}", (l -> l.arg(request.getPath())
-							.arg(request.getMethod()).arg(e)));
+					log.warn("{} get HttpHandler error {}", (l -> l.arg(request.getPath()).arg(e)));
 				}
 				if (handler == null) {
 					handler = NOT_SUPPORT_METHO_HANDLER;

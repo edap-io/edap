@@ -16,7 +16,6 @@
 
 package io.edap.nio.impl;
 
-import io.edap.Server;
 import io.edap.nio.AbstractAcceptor;
 import io.edap.nio.EdapSelectorInfo;
 import io.edap.nio.EventDispatcherSet;

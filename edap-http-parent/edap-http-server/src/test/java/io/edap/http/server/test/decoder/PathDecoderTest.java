@@ -21,6 +21,7 @@ import io.edap.http.HttpRequest;
 import io.edap.http.PathInfo;
 import io.edap.http.ValueHttpRequest;
 import io.edap.http.codec.HttpFastBufDataRange;
+import io.edap.http.server.PathInfoMatcher;
 import io.edap.http.server.rangedecoder.PathDecoder;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -35,7 +36,7 @@ public class PathDecoderTest {
 
     @Test
     public void testDecode() throws UnsupportedEncodingException {
-        PathDecoder pathDecoder = new PathDecoder();
+        PathDecoder pathDecoder = new PathDecoder(new PathInfoMatcher());
         FastBuf buf = new FastBuf(1024);
         HttpFastBufDataRange hbdr = new HttpFastBufDataRange();
         HttpRequest request = new ValueHttpRequest();

@@ -28,7 +28,6 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 import static io.edap.log.helps.TextEncoderGenerator.getConverterName;
-import static io.edap.util.AsmUtil.saveJavaFile;
 
 public class TextConverterFactory {
 

@@ -1,5 +1,6 @@
 package io.edap.container.mw;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -26,6 +27,9 @@ public class DeployComponent {
     private Map<String, ConfigurationMetaData> configurationMetaMap = new HashMap<>();
 
     public List<ProtoServiceData> getProtoServiceInfos() {
+        if (protoServiceInfos == null) {
+            protoServiceInfos = new ArrayList<>();
+        }
         return protoServiceInfos;
     }
 

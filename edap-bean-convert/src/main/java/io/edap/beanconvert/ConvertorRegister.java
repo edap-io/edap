@@ -25,7 +25,7 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantLock;
 
-import static io.edap.util.AsmUtil.saveJavaFile;
+import static io.edap.util.AsmUtil.saveClassFile;
 import static io.edap.util.AsmUtil.toLangName;
 
 /**
@@ -169,7 +169,7 @@ public class ConvertorRegister {
         try {
             GeneratorClassInfo gci = generator.getClassInfo();
             byte[] bs = gci.clazzBytes;
-            saveJavaFile("./" + gci.clazzName + ".class", bs);
+            saveClassFile("./" + gci.clazzName + ".class", bs);
             convertorLoader.define(codecName, bs, 0, bs.length);
             return codecName;
         } catch (Exception e) {
@@ -222,7 +222,7 @@ public class ConvertorRegister {
         try {
             GeneratorClassInfo gci = generator.getClassInfo();
             byte[] bs = gci.clazzBytes;
-            saveJavaFile("./" + gci.clazzName + ".class", bs);
+            saveClassFile("./" + gci.clazzName + ".class", bs);
             encoderCls = convertorLoader.define(codecName, bs, 0, bs.length);
         } catch (Exception e) {
             try {

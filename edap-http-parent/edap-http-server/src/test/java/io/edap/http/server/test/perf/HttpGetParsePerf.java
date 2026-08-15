@@ -25,7 +25,6 @@ import io.edap.http.rangedecoder.ContentTypeValueDecoder;
 import io.edap.http.rangedecoder.HeaderValueDecoder;
 import io.edap.http.server.BytesHttpRequestDecoder;
 import io.edap.http.server.RangeHttpRequestDecoder;
-import io.edap.http.server.cache.PathCache;
 import io.edap.nio.ParseResult;
 import io.edap.nio.codec.FastBufDataRange;
 import io.edap.util.ByteArrayBuilder;
@@ -91,17 +90,6 @@ public class HttpGetParsePerf {
 
         byteArrayBuilder = new ByteArrayBuilder();
 
-
-
-
-        PathCache CACHE   = PathCache.instance();
-        headerNameCache = HeaderNameCache.instance();
-        headerNameCache.get(range);
-		HeaderValueDecoder connectionDecoder = new ContentTypeValueDecoder();
-		FastBufDataRange connectionDecoderDr = FastBufDataRange.from("Connection");
-		HeaderName connectionName = headerNameCache.get(connectionDecoderDr);
-		connectionName.valueDecoder = connectionDecoder;
-
 		HeaderValueCache hvcache = HeaderValueCache.instance();
 		hvcache.get(FastBufDataRange.from("server"));
 		hvcache.get(FastBufDataRange.from("keep-alive"));
@@ -112,16 +100,7 @@ public class HttpGetParsePerf {
 //		hostName.valueDecoder = hostDecoder;
 
 
-        CACHE.registerHandler("/zh_cn/A1SRI-2758F", new HttpHandler() {
-            @Override
-            public void handle(HttpRequest req, HttpResponse resp) {
 
-            }
-        });
-		PathInfo pathInfo = CACHE.get("/zh_cn/A1SRI-2758F");
-		HttpHandleOption option = new HttpHandleOption();
-		option.setLazyParseHeader(true);
-		pathInfo.setHandlerOption(option);
 //        CACHE.registerHandler("/zh_cn/motherboard/A1SRI-2758F2", new HttpHandler() {
 //            @Override
 //            public void handle(HttpRequest req, HttpResponse resp) {

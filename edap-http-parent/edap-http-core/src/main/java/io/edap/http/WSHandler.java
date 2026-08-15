@@ -59,4 +59,13 @@ public interface WSHandler {
     default void onClose(WSConnection webSocket) {
 
     }
+
+    /**
+     * websocket协议uprade时进行token校验
+     * @param token 用户的accessToken
+     * @return
+     */
+    default boolean tokenVerify(String token) {
+        return true;
+    }
 }

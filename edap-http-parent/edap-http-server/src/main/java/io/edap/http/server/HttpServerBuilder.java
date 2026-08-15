@@ -21,13 +21,17 @@ import io.edap.http.HttpHandleOption;
 import io.edap.http.HttpHandler;
 import io.edap.http.PathInfo;
 import io.edap.http.WSHandler;
-import io.edap.http.server.cache.PathCache;
+import io.edap.http.codec.HttpFastBufDataRange;
 import io.edap.http.server.handler.FaviconHandler;
+import io.edap.nio.codec.FastBufDataRange;
 import io.edap.pool.SimpleFastBufPool;
+import io.edap.util.CollectionUtils;
 import io.edap.util.StringUtil;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static io.edap.http.HttpHandleOption.defaultHttpHandleOption;
 
@@ -37,7 +41,17 @@ public class HttpServerBuilder {
 
     List<String> addrs = new ArrayList<>();
 
+    /**
+     * HttpServerBuilder 自己持有的 PathInfoMatcher —— wildcard 注册（prefix/postfix *）
+     * 都打到这个实例上，build() 时通过 {@code new HttpServer(pathInfoMatcher)} 转交给 HttpServer，
+     * 保证 dispatch 链（HttpServer.pathInfoMatcher → PathDecoder）能命中 wildcard。
+     * 旧实现走 {@code PathInfoMatcher.instance()} 静态单例，全 JVM 共享，多 Container 互踩。
+     */
+    private final PathInfoMatcher pathInfoMatcher = new PathInfoMatcher();
+
     HttpServer.DecoderType decoderType;
+
+    private Map<String, PathInfo> mapping = new HashMap<>();
 
     public HttpServerBuilder listen(int... ports) {
         if (ports == null) {
@@ -170,12 +184,11 @@ public class HttpServerBuilder {
     }
 
     public HttpServerBuilder websocket(String path, WSHandler wsHandler) {
-        PathCache pathCache = PathCache.instance();
         PathInfo pathInfo = new PathInfo();
         pathInfo.setPath(path);
         pathInfo.setFound(true);
         pathInfo.setWsHandler(wsHandler);
-        pathCache.registerPathInfo(path, pathInfo);
+        mapping.put(path, pathInfo);
 
         return this;
     }
@@ -191,39 +204,41 @@ public class HttpServerBuilder {
 
     private void addPathHandler(String path, HttpHandler handler, HttpHandleOption option, String... methods) {
         if (path.startsWith("*")) {
-            PathInfoMatcher pim = PathInfoMatcher.instance();
             PathInfo pathInfo = new PathInfo();
             pathInfo.setMatchPath(path);
             pathInfo.setPath(path);
             pathInfo.setHttpHandlers(new HttpHandler[]{handler});
             pathInfo.setHandlerOption(option);
-            pim.registerPrefixMatcher(pathInfo);
+            pathInfoMatcher.registerPrefixMatcher(pathInfo);
         } else if (path.endsWith("*")) {
-            PathInfoMatcher pim = PathInfoMatcher.instance();
             PathInfo pathInfo = new PathInfo();
             pathInfo.setMatchPath(path);
             pathInfo.setPath(path);
             pathInfo.setHttpHandlers(new HttpHandler[]{handler});
             pathInfo.setHandlerOption(option);
-            pim.registerPostfixMatcher(pathInfo);
+            pathInfoMatcher.registerPostfixMatcher(pathInfo);
         } else {
-            PathCache pathCache = PathCache.instance();
-            pathCache.registerHandler(path, handler, option, methods);
+            PathInfo pathInfo = new PathInfo();
+            pathInfo.setMatchPath(path);
+            pathInfo.setPath(path);
+            pathInfo.setHttpHandlers(new HttpHandler[]{handler});
+            pathInfo.setHandlerOption(option);
+            pathInfo.setFound(true);
+            mapping.put(path, pathInfo);
         }
     }
 
     public HttpServer build() {
-        PathCache pathCache = PathCache.instance();
-        if (pathCache.get("/favicon.ico") == null) {
+        if (mapping.get("/favicon.ico") == null) {
             this.get("/favicon.ico", new FaviconHandler());
         }
-        if (pathCache.get("/icon.svg") == null) {
+        if (mapping.get("/icon.svg") == null) {
             this.get("/icon.svg", new FaviconHandler());
         }
-        if (pathCache.get("/icon.svg") == null) {
+        if (mapping.get("/icon.svg") == null) {
             this.get("/favicon.ico", new FaviconHandler());
         }
-        HttpServer server = new HttpServer();
+        HttpServer server = new HttpServer(pathInfoMatcher);
         String httpDecoderType = System.getProperty("edap.http.decoder.type");
         if (!StringUtil.isEmpty(httpDecoderType) && "fast".equalsIgnoreCase(httpDecoderType)) {
             server.setDecoderType(HttpServer.DecoderType.FAST);
@@ -233,6 +248,13 @@ public class HttpServerBuilder {
             } else {
                 server.setDecoderType(HttpServer.DecoderType.NORMAL);
             }
+        }
+        if (!CollectionUtils.isEmpty(mapping)) {
+            Map<FastBufDataRange, PathInfo> serverMapping = new HashMap<>();
+            for (Map.Entry<String, PathInfo> entry : mapping.entrySet()) {
+                serverMapping.put(HttpFastBufDataRange.from(entry.getKey()), entry.getValue());
+            }
+            server.setHttpMapping(serverMapping);
         }
         BufPool bufPool = new SimpleFastBufPool();
         server.setBufPool(bufPool);

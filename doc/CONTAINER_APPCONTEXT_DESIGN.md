@@ -2546,22 +2546,22 @@ public BaseResult<String> deploy(File ear) {
 
 `deploy` 的驱逐集恒为空（只往空槽写），因此 `commit` 阶段 4 是 no-op。
 
-> **⚠ 待确认：`firstEmptySlot` 的槽位优先级与 §3.6 的语义冲突**
+> **✅ 已落定（2026-08-15）：deploy 永不写 PREVIOUS / CURRENT，只写 STAGING**
 >
-> 当前 `firstEmptySlot` 按 `PREVIOUS → CURRENT → STAGING` 顺序找空槽，于是**一个全新应用的首次 deploy 会落到 PREVIOUS 槽**——而 §3.6.1 定义 PREVIOUS 是"上一个 current 的快速回滚备份"，§3.6.2 又说 `deploy(ear)` 应写 staging 槽。三处对不上，且首次部署后应用不接流量（`current` 为空 → 业务 503），必须再手工 `switchVersion` 一次。
->
-> 建议改为按语义选槽，PREVIOUS 只由 `switchVersion` 的降级动作填充、`deploy` 永不主动写入：
+> `firstEmptySlot` 改为：
 >
 > ```java
-> /** deploy 的目标槽（替代 firstEmptySlot） */
-> private Slot deployTargetSlot(SlotEntry entry) {
->     if (entry.isEmpty())         return Slot.CURRENT;    // 首次部署：直接接流量
+> private Slot firstEmptySlot(SlotEntry entry) {
 >     if (entry.staging() == null) return Slot.STAGING;    // 灰度槽空闲
 >     return null;                                          // → 105：先 undeploy staging 或 switchVersion
 > }
 > ```
 >
-> 这会让 105 的语义从"已存在 3 个版本"收紧为"staging 槽被占用"。**本项未落定，待决策后同步修改 §3.5.3 / §3.6.2 / §3.9.2。**
+> 行为：
+> - 全新应用首次 deploy → STAGING（写 `staging-*.json`），需手工 `switchVersion(staging → current)` 才上线
+> - 已有 current + staging 占满 → 105（必须先 undeploy staging 或 switchVersion 把它挪走）
+> - PREVIOUS 永远由 `switchVersion` 退位时填入；deploy 不再触碰
+> - CURRENT 由 `switchVersion`（staging → current）或 `restoreToSlot`（启动恢复按磁盘文件名）写入；deploy 不再触碰
 
 **路径二：`undeploy(String appId, String compositeVersion)`**
 
@@ -5229,10 +5229,10 @@ public final class InjectionPoint {
 
 #### 4.6.1 角色与边界
 
-**RouterHub = 单个 AppContext 的"业务方法入口"集合**，是**被动数据持有者**——只存储由 `AppContext.generateAndBindRoutes`（§3.5.x）解析好的 4 份 `Handler` List（每条 `Handler` 含 `RouteEntry` + 已实例化的 bean + 已 `setAccessible(true)` 的 `Method`），交给 Container / 协议 Router 使用。
+**RouterHub = 单个 AppContext 的"业务方法入口"集合**，是**被动数据持有者**——只存储由 `AppContext.generateAndBindRoutes`（§3.5.x）解析好的 4 份 `Handler` List（每条 Handler 含已实例化的 bean + 已 `setAccessible(true)` 的 `Method` + 协议注解 `AnnoData`），交给 Container / 协议 Router 使用。
 
-- 它**不**做注解扫描——`@HttpRoute` / `@WSRoute` / `@RpcRoute` / `@EdapService` / `@ShardKey` 在 EAR 部署时由 scanner 用 ASM 读 `.class` 字节码生成 `RouteEntry` 列表，存到 `DeployMetaData`（§3.6.5 持久化格式）
-- 它**不**做"`RouteEntry` → `Handler`"的解析（`Method` 反射 + `setAccessible` + bean 查找）——这是 `AppContext.generateAndBindRoutes` 的职责，RouterHub 只承接结果
+- 它**不**做注解扫描——`@ProtoHttp` / `@ProtoWebSocket` / `@Sharded` 等方法级注解在 EAR 部署时由 scanner 用 ASM 读 `.class` 字节码解析进 `pmd.annoDatas`（见 `ProtoServiceUtils.collectInto`）；`AppContext.generateAndBindRoutes` 直接遍历 `DeployComponent.protoServiceInfos` 即可
+- 它**不**做"`ProtoServiceData → Handler`"的解析（`Method` 反射 + `setAccessible` + bean 查找）——这是 `AppContext.generateAndBindRoutes` 的职责，RouterHub 只承接结果
 - 它**不**直接接 NIO 流量（NIO 在 Edap 那侧）
 - 它**不**做协议编解码（HTTP/WS/eRPC/gRPC 编解码在各自的协议 Router 中）
 - 它**只**做两件事：**接受 `AppContext.generateAndBindRoutes` 调用 `setHandlers(...)` 写入的 4 份 `Handler` List** + **把 List 直读给协议 Router**
@@ -5265,8 +5265,8 @@ public final class InjectionPoint {
 
 **清楚不做**：
 
-- **不做注解扫描**（`@HttpRoute` / `@WSRoute` / `@RpcRoute` / `@EdapService` / `@ShardKey`）——由 EAR scanner 在部署时完成，扫到 `DeployMetaData.routes`
-- **不做 `RouteEntry → Handler` 解析**（`Method` 反射 + `setAccessible` + bean 查找）——由 `AppContext.generateAndBindRoutes` 完成（§3.5.x），RouterHub 只承接结果
+- **不做注解扫描**（`@ProtoHttp` / `@ProtoWebSocket` / `@Sharded` 等方法级注解）——由 EAR scanner 在部署时完成，结果写入 `DeployComponent.protoServiceInfos` 的 `pmd.annoDatas`
+- **不做 `ProtoServiceData → Handler` 解析**（`Method` 反射 + `setAccessible` + bean 查找）——由 `AppContext.generateAndBindRoutes` 完成（§3.5.x），RouterHub 只承接结果
 - 不做协议编解码（HTTP 头解析、gRPC frame 切分等）
 - 不持 NIO Channel / 不做 I/O
 - 不做 in-flight 统计（精确 drain 太贵；走 `container.undeploy.drainMillis` 静默期方案）
@@ -5277,13 +5277,13 @@ public final class InjectionPoint {
 
 | 字段 | 类型 | 可见性 | 作用 | 同步 |
 |------|------|--------|------|------|
-| `httpHandlers` | `List<HttpHandler>` | `private final` | HTTP handler 列表（实现类由 `AppContext.generateHandler` 用 ASM 字节码生成 `HttpHandler` 实现，handle 热路径零反射；当 `HttpRouteEntry.shard == true` 时 handle 内部按 shardKey 走 ShardRegistry） | `AppContext.generateAndBindRoutes` 单线程写，setHandlers 后只读 |
-| `wsHandlers` | `List<WSServiceMsgHandler<?>>` | `private final` | WS 服务消息 handler 列表（实现类由 ASM 生成 `WSServiceMsgHandler<T>` 实现，T = String 或 byte[]，由 `WsRouteEntry.msgType` 决定；`handle(msg)` 直接 invokevirtual bean method，热路径零反射；当 `WsRouteEntry.shard == true` 时按 shardKey 走 ShardRegistry） | 同上 |
-| `erpcHandlers` | `List<ErpcHandler>` | `private final` | eRPC handler 列表（实现类由 ASM 生成 `ErpcHandler` 实现，按 methodId 派发 → bean method；当 `ErpcRouteEntry.shard == true` 时按 shardKey 走 ShardRegistry） | 同上 |
-| `grpcHandlers` | `List<GrpcHandler>` | `private final` | gRPC handler 列表（实现类由 ASM 生成 `GrpcHandler` 实现，handle 时按 FQCN 字符串定位 PB 描述 → dispatch；当 `GrpcMethodEntry.shard == true` 时按 shardKey 走 ShardRegistry） | 同上 |
+| `httpHandlers` | `List<HttpHandler>` | `private final` | HTTP handler 列表（实现类由 `AppContext.generateHandler` 用 ASM 字节码生成 `HttpHandler` 实现，handle 热路径零反射；当 `pmd.annoDatas` 含 `@Sharded` 时 handle 内部按 shardKey 走 ShardRegistry） | `AppContext.generateAndBindRoutes` 单线程写，setHandlers 后只读 |
+| `wsHandlers` | `List<WSServiceMsgHandler<?>>` | `private final` | WS 服务消息 handler 列表（实现类由 ASM 生成 `WSServiceMsgHandler<T>` 实现，T 由 `pmd.paramType` 推得（String 或 byte[]）；`handle(msg)` 直接 invokevirtual bean method，热路径零反射） | 同上 |
+| `erpcHandlers` | `List<ErpcHandler>` | `private final` | eRPC handler 列表（实现类由 ASM 生成 `ErpcHandler` 实现，按 methodId 派发 → bean method） | 同上 |
+| `grpcHandlers` | `List<GrpcHandler>` | `private final` | gRPC handler 列表（实现类由 ASM 生成 `GrpcHandler` 实现，handle 时按 FQCN 字符串定位 PB 描述 → dispatch） | 同上 |
 | `bound` | `volatile boolean` | `private volatile` | `setHandlers` 是否已执行（防止重复绑定）；同时给 unbindAll 当幂等栅栏 | 单写单读 |
 
-**Shard 不再是独立的第 5 份 Handler 列表**：分片亲和是每个 `RouteEntry` 的 `shard` 字段（`HttpRouteEntry.shard` / `WsRouteEntry.shard` / `ErpcRouteEntry.shard` / `GrpcMethodEntry.shard`），与协议路由**正交**——任何协议的路由都可以同时是 shard 亲和的。`shard == true` 时，生成 Handler 内部持有 `ShardRegistry` 引用，`handle` 提参后从 shardKey 参数提取 key、`shardRegistry.route(beanName, shardKey)` 选实例、再 `invokevirtual`；`shard == false` 时直接 `invokevirtual this.bean.method(...)`。所有 4 份 Handler List 元素类型仍然是各自的协议 typed 接口。
+**Shard 不再是独立的第 5 份 Handler 列表**：分片亲和由方法级 `@Sharded` 注解承载（位于 `pmd.annoDatas`，与协议路由**正交**——任何协议的路由都可以同时是 shard 亲和的）。`shard == true` 时，生成 Handler 内部持有 `ShardRegistry` 引用，`handle` 提参后从 shardKey 参数提取 key、`shardRegistry.route(beanName, shardKey)` 选实例、再 `invokevirtual`；`shard == false` 时直接 `invokevirtual this.bean.method(...)`。所有 4 份 Handler List 元素类型仍然是各自的协议 typed 接口。
 
 **为什么 4 个 List 而不是 1 个 Map<协议, List>**：
 
@@ -5297,164 +5297,84 @@ public final class InjectionPoint {
 - 同一 path 多入口（GET + POST）List 比 Map 友好：Map 要把 method 拼到 key 里
 - Handler 元素是 ASM 生成的 final class 实例，**不允许**做 hash key（基于 `==` 或 `hashCode` 的语义都不可靠；且 entry 内的 path/methodId 字符串才是真正要索引的）
 
-#### 4.6.3 路由条目类型
+#### 4.6.3 RouteEntry 已消除：路由数据由 ProtoServiceData + ProtoMethodData 直接承载
 
-> **本节定义的 `RouteEntry` = RouterHub 的输入**，由 EAR scanner 在**部署期**用 ASM 读 `.class` 字节码生成，存到 `DeployMetaData.routes`（§3.6.5 持久化格式）；启动期由 `Container.start()` 读磁盘 JSON 还原回内存 List。
+> **早期版本**曾在 `io.edap.container.app` 下定义 4 个 `RouteEntry` POJO（`HttpRouteEntry` /
+> `WsRouteEntry` / `ErpcRouteEntry` / `GrpcRouteEntry` / `GrpcMethodEntry`），由 EAR scanner
+> 二次封装 ProtoMethodData 后再交给 `AppContext.generateAndBindRoutes`。**当前版本已删去**
+> 这 5 个 POJO——直接消费 `DeployComponent.protoServiceInfos`（即 `List<ProtoServiceData>`）
+> + 每条 `ProtoMethodData.annoDatas`（含 `@ProtoHttp` / `@ProtoWebSocket` / `@Sharded` 等
+> 方法级注解的解析值）+ `Capability` 过滤来生成 4 份协议 typed Handler。
 >
-> RouterHub **不**做注解扫描——它只承接 `AppContext.generateAndBindRoutes`（§3.5.6）写入的 Handler，**不生成、不修改** RouteEntry。
-> `(method, path)` 冲突检测也在 EAR scanner 阶段完成（部署期 fail），`AppContext.generateAndBindRoutes` 拿到的是无冲突列表。
+> 为什么删：① 4 个 POJO 字段近似一一对应 ProtoMethodData 已有数据（interfaceName ↔
+> psi.typeName，methodName ↔ pmd.name，path ↔ annoData.getValues().get("path")...），
+> POJO 既不带来信息增量也不提供类型安全；② 扫描器不需要为每条路由再组装一遍 POJO；
+> ③ asm emit 模板直接从 `AnnoData.values` 取 path/method 字符串，少一次字符串→字段的拷贝；
+> ④ `AppContext` 上少 4 个 `List<>` 字段 + 4 个 accessor，构造期也无需扫 EAR 时汇总路由。
+>
+> RouterHub **不**做注解扫描——EAR scanner 阶段已把每条路由相关的所有方法级注解（@ProtoHttp /
+> @ProtoWebSocket / @Sharded 等）解析进 `pmd.annoDatas`；`AppContext.generateAndBindRoutes`
+> 直接遍历 `dmd.protoServiceInfos` 即可。
+> `(method, path)` 冲突检测仍在 EAR scanner 阶段完成（部署期 fail），`generateAndBindRoutes`
+> 拿到的是无冲突列表。
 
-每种协议一个 final class，**全部 immutable**（field final + 构造一次）。4 份 RouteEntry 之间**不**共享基接口或抽象类——它们只是"协议入参到 bean method"的纯数据载体，4 份之间没有共同泛型操作（HTTP 有 path、eRPC 有 methodId，公共字段只有 `beanName` / `methodName` / `shard` 等，但那是具体业务相似性，不是类型契约的一部分）。
+**数据流**：
 
-**HttpRouteEntry**
+```
+            EAR scanner (部署期)
+                     │
+                     │   读 .class 字节码 → ASM 解析方法级注解
+                     ▼
+       DeployComponent.protoServiceInfos
+       └─ List<ProtoServiceData>
+           ├─ typeName           = "io.edap.proto.HelloService"（接口 FQCN）
+           ├─ annoDatas          = [@ProtoService(...)]          （类级注解）
+           └─ methodInfos
+               └─ ProtoMethodData
+                   ├─ name       = "sayHello"
+                   ├─ paramType  = "com.demo.HelloRequest"
+                   ├─ respType   = "com.demo.HelloReply"
+                   └─ annoDatas
+                       ├─ @ProtoHttp(path="/v1/hello", method="POST")
+                       └─ @Sharded(shardKey="userId")
 
-```java
-public final class HttpRouteEntry {
-    private final String   method;     // "GET" / "POST" / "PUT" / "DELETE" / "PATCH"，与 @HttpRoute.method() 字面值一致
-    private final String   path;       // "/v1/hello"
-    private final String   beanName;   // "helloServiceImpl"
-    private final String   methodName; // bean 方法名（"sayHello"），不持有 Method 对象
-    private final boolean  hasBody;    // path 上的 body="*" 标记
-    private final String[] pathParams; // 解析出的 {id} / {name} 顺序（用于 handler 拼装）
-    private final boolean  shard;      // true = 路由 shard 亲和（@ShardKey 标注）；handle 内部按 shardKey 走 ShardRegistry
-
-    public HttpRouteEntry(String method, String path, String beanName,
-                          String methodName, boolean hasBody, String[] pathParams,
-                          boolean shard) {
-        this.method = method;
-        this.path = path;
-        this.beanName = beanName;
-        this.methodName = methodName;
-        this.hasBody = hasBody;
-        this.pathParams = pathParams;
-        this.shard = shard;
-    }
-
-    public String   method()     { return method; }
-    public String   path()       { return path; }
-    public String   beanName()   { return beanName; }
-    public String   methodName() { return methodName; }
-    public boolean  hasBody()    { return hasBody; }
-    public String[] pathParams() { return pathParams; }
-    public boolean  shard()      { return shard; }
-}
+                     │
+                     │   AppContext.generateAndBindRoutes
+                     │     → 按 anno.type 分派到协议 Handler 生成
+                     ▼
+            4 份 Handler List（写入 RouterHub）
 ```
 
-**字段命名区分两个 method**：`method` = HTTP 动词（GET/POST），`methodName` = bean 上的 Java 方法名（"sayHello"）。前者决定路由匹配维度，后者用于反射查 Method。
+**关键点**：
 
-- `pathParams` 在 EAR scanner 阶段（部署期）正则解析一次，存到 RouteEntry；避免每次 dispatch 都跑正则
-- **不持有 `Method` 对象**：Method 是运行期反射对象，扫描期未稳定持有（依赖 appCL 是否就绪、bean 是否已实例化）。RouteEntry 只承载扫描期就确定的元数据，Method 由 `AppContext.generateAndBindRoutes` 阶段解析（见 §3.5.6）
+- **`psi.typeName` 给出接口 FQCN**，`AppContext.findBeanNameForInterface` 在
+  `dmd.componentMap[*].serviceMetaMap` 中反查"实现该接口的 bean name"（依据
+  `ServiceMeta.interfaceList`）。一个 proto 接口通常有唯一一个实现类
+  （@Bean / @MicroServiceBean 标记）；多个实现类场景下取第一个命中，扩展机制留待后续 PR。
 
-**WsRouteEntry**
+- **每条 `pmd.annoDatas` 是协议路由的"驱动表"**——同一条 `pmd` 同时标注 `@ProtoHttp` +
+  `@ProtoWebSocket`，则产 2 份 Handler（HttpHandler + WSServiceMsgHandler）。本方法按
+  `anno.type` 字符串分派：`io.edap.protobuf.annotation.ProtoHttp` → HTTP 分支，
+  `io.edap.protobuf.annotation.ProtoWebSocket` → WS 分支，`io.edap.protobuf.annotation.Sharded`
+  → 决定 shard 亲和（影响 emit 模板是否插入 `ShardRegistry.route(...)` 字节码）。
 
-```java
-public final class WsRouteEntry {
-    private final String  path;        // "/ws/chat"
-    private final String  beanName;    // "chatServiceImpl"
-    private final String  methodName;  // "handleMsg"
-    private final String  msgType;     // "java.lang.String" 或 "byte[]"
-    // 决定生成类 WSServiceMsgHandler<T> 中 T 的具体类型
-    private final boolean shard;       // true = 路由 shard 亲和（@ShardKey 标注）；handle 内部按 shardKey 走 ShardRegistry
+- **HTTP path/method、WS path、shard shardKey 等协议参数** 不另设字段，直接从
+  `annoData.getValues()` 取（已由 EAR scanner 的 `visitProtoService` 在解析方法级注解
+  时填好，见 `ProtoServiceUtils.collectInto`）。如此一来，EAR scanner 输出层与
+  AppContext 路由生成层共用同一份 AnnoData 表示，零二次封装。
 
-    public WsRouteEntry(String path, String beanName, String methodName, String msgType, boolean shard) {
-        this.path = path;
-        this.beanName = beanName;
-        this.methodName = methodName;
-        this.msgType = msgType;
-        this.shard = shard;
-    }
+- **Shard 不再独立成第 5 份 RouteEntry**：shard 信息下沉为 `pmd.annoDatas` 里的一条
+  `@Sharded` 注解（值为 `shardKey`），所有协议的路由都可以声明为 shard 亲和。
+  ShardRegistry 的 `registerSharded` 由 ClusterShardRouter 在运行时调用（启动初始化 +
+  拓扑变化时重建），不与 BeanContainer.registerInstance 耦合。Sharding 维度（shardCount）
+  由 ClusterShardRouter 根据集群拓扑/资源运行时计算并传给 ShardRegistry，与 BeanDef 无关
+  ——分片实例数是运行时决策，不是 bean 维度。
 
-    public String  path()       { return path; }
-    public String  beanName()   { return beanName; }
-    public String  methodName() { return methodName; }
-    public String  msgType()    { return msgType; }
-    public boolean shard()     { return shard; }
-}
-```
-
-**WS 是单 path 路由**：一个 path 对应一个 bean 入口方法。dispatch 入口是 `WSServiceMsgHandler<T>.handle(T msg)`（容器内 functional interface，T 由 `msgType` 限定为 `String` 或 `byte[]`），bean method 入参 / 返回类型与 msgType 一致。RouterHub 只做 path → `WSServiceMsgHandler<?>` 实例的映射；具体业务方法分发由 typed 接口 + ASM 生成类完成。
-
-**连接生命周期回调（`@OnOpen` / `@OnClose` / `@OnError`）不属于 RouterHub 路由表**——这些是连接级回调而非消息路由，由 `ServiceWSHandler implements io.edap.http.WSHandler` 单独处理（参见 §4.6.4 WSHandler 角色说明）。
-
-**RpcRouteEntry（eRPC）**
-
-```java
-public final class ErpcRouteEntry {
-    private final int      methodId;     // eRPC methodId（PB descriptor 算出）
-    private final String   beanName;
-    private final String   methodName;
-    private final String   requestType;  // 请求体 FQCN，用于反序列化
-    private final String   responseType; // 响应体 FQCN，用于序列化
-    private final boolean  shard;        // true = 路由 shard 亲和（@ShardKey 标注）；handle 内部按 shardKey 走 ShardRegistry
-
-    public ErpcRouteEntry(int methodId, String beanName, String methodName,
-                          String requestType, String responseType, boolean shard) {
-        this.methodId = methodId;
-        this.beanName = beanName;
-        this.methodName = methodName;
-        this.requestType = requestType;
-        this.responseType = responseType;
-        this.shard = shard;
-    }
-
-    public int      methodId()     { return methodId; }
-    public String   beanName()     { return beanName; }
-    public String   methodName()   { return methodName; }
-    public String   requestType()  { return requestType; }
-    public String   responseType() { return responseType; }
-    public boolean  shard()        { return shard; }
-}
-```
-
-eRPC 用 methodId 做请求路由（不是 path）。methodId 在编译期由 edap-protocol 生成器固化到 `@RpcRoute` 上。`requestType` / `responseType` 是 FQCN 字符串（不是 `Class<?>`），保持与 DeployMetaData 一致的"扫描期纯 String"原则。
-
-**GrpcRouteEntry（gRPC）**
-
-```java
-public final class GrpcRouteEntry {
-    private final String                serviceName; // "helloworld.Greeter"
-    private final List<GrpcMethodEntry> methods;
-
-    public GrpcRouteEntry(String serviceName, List<GrpcMethodEntry> methods) {
-        this.serviceName = serviceName;
-        this.methods = methods;
-    }
-
-    public String                serviceName() { return serviceName; }
-    public List<GrpcMethodEntry> methods()     { return methods; }
-}
-
-public final class GrpcMethodEntry {
-    private final String  methodName;     // "SayHello"（PB 描述里的方法名）
-    private final String  javaMethodName; // "sayHello"（bean 上的 Java 方法名）
-    private final String  reqDesc;        // 请求体 PB 描述的 FQCN（保持与 HttpRouteEntry 同样的"扫描期纯 String"原则）
-    private final String  respDesc;       // 响应体 PB 描述的 FQCN
-    private final boolean shard;          // true = 此 gRPC 方法 shard 亲和（@ShardKey 标注）；handle 内部按 shardKey 走 ShardRegistry
-
-    public GrpcMethodEntry(String methodName, String javaMethodName,
-                           String reqDesc, String respDesc, boolean shard) {
-        this.methodName = methodName;
-        this.javaMethodName = javaMethodName;
-        this.reqDesc = reqDesc;
-        this.respDesc = respDesc;
-        this.shard = shard;
-    }
-
-    public String  methodName()     { return methodName; }
-    public String  javaMethodName() { return javaMethodName; }
-    public String  reqDesc()        { return reqDesc; }
-    public String  respDesc()       { return respDesc; }
-    public boolean shard()          { return shard; }
-}
-```
-
-gRPC 走 PB 描述序列化（区别于 eRPC 的 methodId + FQCN）。一组 GrpcRouteEntry 对应一个 `@EdapService` 接口的所有 method。`methodName` 是 PB 描述里的方法名（"SayHello"），`javaMethodName` 是 bean 上对应的 Java 方法名（"sayHello"），`reqDesc` / `respDesc` 是请求/响应体的 PB 描述 FQCN 字符串。
-
-**edap 的 gRPC 是 gRPC 兼容实现，不依赖 gRPC 与 Google 官方 protobuf**：扫描期读 `.proto` 文件解析出 FQCN 字符串（不持有 `com.google.protobuf.Descriptors.Descriptor` 运行时对象），运行时按 FQCN 走应用自己的 PB 描述查询路径。这样 `edap-container` 模块**不**引入 `io.grpc:grpc-api` 或 `com.google.protobuf:protobuf-java` 依赖，应用层按需引入自己的 PB 实现即可。
-
-**Shard 不再独立成第 5 份 RouteEntry**：
-
-shard 信息下沉为每个 RouteEntry / GrpcMethodEntry 的 `shard` 字段——所有协议的路由都可以声明为 shard 亲和。ShardRegistry 的 `registerSharded` 由 ClusterShardRouter 在运行时调用（启动初始化 + 拓扑变化时重建），不与 BeanContainer.registerInstance 耦合。Sharding 维度（shardCount）由 ClusterShardRouter 根据集群拓扑/资源运行时计算并传给 ShardRegistry，与 BeanDef 无关——分片实例数是运行时决策，不是 bean 维度。
+- **eRPC / gRPC option 解析的现状**：eRPC（`@RpcRoute(methodId=, requestType=, responseType=)`）
+  与 gRPC（`@EdapService` + PB FQCN）在 ProtoMethodData 的 annoDatas 里也按相同方式持有
+  注解值；当前阶段 EarScanner 还没有把它们从 annoDatas 里抽到独立字段，但消费路径已通
+  —— `AppContext.generateAndBindRoutes` 在 eRPC/gRPC 分支直接读 annoData.getValues()，
+  无需 RouteEntry 中间结构。
 
 #### 4.6.4 Handler 类型
 

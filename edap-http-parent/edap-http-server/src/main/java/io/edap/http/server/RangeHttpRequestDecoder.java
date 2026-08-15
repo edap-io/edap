@@ -26,6 +26,7 @@ import io.edap.buffer.FastBuf;
 import io.edap.http.cache.HeaderNameCache;
 import io.edap.http.codec.HttpFastBufDataRange;
 import io.edap.http.model.QueryInfo;
+import io.edap.http.server.PathInfoMatcher;
 import io.edap.util.ByteData;
 
 import java.util.ArrayList;
@@ -39,7 +40,11 @@ import static io.edap.nio.NioSession.THREAD_WRITE_BUF;
 public class RangeHttpRequestDecoder extends AbstractHttpDecoder implements Decoder<HttpRequest, HttpNioSession> {
 
     static MethodDecoder         METHOD_DECODER      = new MethodDecoder();
-    static PathDecoder           PATH_DECODER        = new PathDecoder();
+    /**
+     * per-instance PathDecoder（被 {@link io.edap.http.server.HttpServer} 注入）—— 每 HttpServer 独立 dispatch 表。
+     * 旧实现是 static 单例，全 JVM 共享一份 mapping，多 Container 互踩。
+     */
+    private final PathDecoder pathDecoder;
     static QueryStringDecoder    QUERY_DECODER       = new QueryStringDecoder();
     static HttpVersionDecoder    VERSION_DECODER     = new HttpVersionDecoder();
     static HeaderDataDecoder     HEADER_DECODER      = new HeaderDataDecoder();
@@ -54,6 +59,18 @@ public class RangeHttpRequestDecoder extends AbstractHttpDecoder implements Deco
 
     static ThreadLocal<DecodeContext> THREAD_DECODE_CONTEXT;
     static ThreadLocal<List<HttpRequest>>      THREAD_USED_REQUEST;
+
+    /**
+     * 默认构造：自建空 PathInfoMatcher + PathDecoder，用于纯解析的 perf 测试（不依赖 HttpServer）。
+     * 生产路径走 {@link #RangeHttpRequestDecoder(PathDecoder)}，由 HttpServer 注入。
+     */
+    public RangeHttpRequestDecoder() {
+        this(new PathDecoder(new PathInfoMatcher()));
+    }
+
+    public RangeHttpRequestDecoder(PathDecoder pathDecoder) {
+        this.pathDecoder = pathDecoder;
+    }
 
     static {
         THREAD_DECODE_CONTEXT = ThreadLocal.withInitial(() -> {
@@ -145,7 +162,7 @@ public class RangeHttpRequestDecoder extends AbstractHttpDecoder implements Deco
                 }
 
             case READ_PATH:
-                PathInfo path = PATH_DECODER.decode(buf, dataRange, request);
+                PathInfo path = pathDecoder.decode(buf, dataRange, request);
                 if (path == null) {
 					httpNioSession.setDecodeState(State.READ_PATH);
                     break;

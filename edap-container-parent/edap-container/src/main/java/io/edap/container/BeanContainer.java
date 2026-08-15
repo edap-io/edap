@@ -40,6 +40,16 @@ public class BeanContainer {
     /** COMMITTING 阶段写、运行时多线程读：singleton / stateful 实例 + BeanWrap。 */
     private final ConcurrentHashMap<String, BeanWrap> singletons = new ConcurrentHashMap<>();
 
+    /**
+     * COMMITTING 阶段写、运行时多线程读：按 Type 索引（自类 + 父类 + 所有接口含父接口）。
+     * <p>List value 是为支持"同 type 多实现"——{@link #beanWrapByType} 在多候选时按
+     *     {@code @Primary} 消歧，无 @Primary 抛 {@link NoUniqueBeanException}。</p>
+     * <p>与 {@link #singletons} 二者构成 BeanContainer 的两张查表：name → instance + type → instance。
+     *     AppContext.generateAndBindRoutes 走 byType（接口→bean），运行时 @Inject 字段/方法注入
+     *     也走 byType（类型→bean）。</p>
+     */
+    private final ConcurrentHashMap<Class<?>, List<BeanWrap>> byType = new ConcurrentHashMap<>();
+
     /** COMMITTING 阶段内、循环依赖检测用：当前正在 instantiate 的 bean name。 */
     private final HashSet<String> creating = new HashSet<>();
 
@@ -318,33 +328,69 @@ public class BeanContainer {
         return args;
     }
 
-    /** 按类型 + @Primary 解析候选 bean。 */
+    /**
+     * 按类型 + @Primary 解析候选 bean（依赖注入 / getBean(type) 走它）。
+     * <p>实现：直查 {@link #byType} O(1)，多候选时按 {@code @Primary} 消歧——
+     *     与原"扫 singletons 全表 isInstance 过滤"等价但常数开销降到 1。
+     *     零候选 → {@link NoSuchBeanException}；多候选无 @Primary 或多个 @Primary → {@link NoUniqueBeanException}。</p>
+     */
     private Object resolveDependencyByType(Class<?> type) throws NoUniqueBeanException, NoSuchBeanException {
         if (type == AppContext.class)     return this.appContext;
         if (type == Environment.class)    return this.env;
         if (type == EventPublisher.class) return this.events;
         if (type == RouterHub.class)      return this.appContext.routers();
         if (type == ShardRegistry.class)  return this.shards;
+        return beanWrapByType(type).instance();
+    }
 
-        List<BeanWrap> candidates = new ArrayList<>();
-        for (BeanWrap bw : singletons.values()) {
-            if (type.isInstance(bw.instance())) {
-                candidates.add(bw);
-            }
-        }
-        if (candidates.isEmpty()) throw new NoSuchBeanException(type);
-        if (candidates.size() == 1) return candidates.get(0).instance();
+    /**
+     * 按类型直查 {@code byType}，返回唯一 BeanWrap。多候选时按 {@code @Primary} 消歧。
+     * <p>由 {@link #resolveDependencyByType} 复用，也是 {@link #getBean(Class)} 的核心。
+     * <b>为什么 List value</b>：同 type 可能多实现（{@code class A implements I, class B implements I}）；
+     *     List 保留所有候选，{@code @Primary} 消歧逻辑一处统一；不是 Map<type, Bean> 单值
+     *     "last-write-wins"——那种写法碰到多实现会丢失早期的 bean。</p>
+     *
+     * @throws NoSuchBeanException   byType 中无该 type 的注册
+     * @throws NoUniqueBeanException 多候选 + 0/多个 @Primary
+     */
+    public BeanWrap beanWrapByType(Class<?> type) {
+        List<BeanWrap> list = byType.get(type);
+        if (list == null || list.isEmpty()) throw new NoSuchBeanException(type);
+        if (list.size() == 1) return list.get(0);
 
-        // 多个候选：@Primary 消歧
         BeanWrap primary = null;
-        for (BeanWrap bw : candidates) {
+        List<BeanWrap> all = list;
+        for (BeanWrap bw : all) {
             if (bw.def().beanClass().isAnnotationPresent(Primary.class)) {
-                if (primary != null) throw new NoUniqueBeanException(type, candidates);
+                if (primary != null) throw new NoUniqueBeanException(type, all);
                 primary = bw;
             }
         }
-        if (primary == null) throw new NoUniqueBeanException(type, candidates);
-        return primary.instance();
+        if (primary == null) throw new NoUniqueBeanException(type, all);
+        return primary;
+    }
+
+    /**
+     * 自类 + 父类链 + 全部接口（含父接口继承）的 Class token 集合。
+     * <p>BFS：{@link ArrayDeque} 做层序，{@link LinkedHashSet} 同时去重 + 保遍历序确定性。
+     *     {@code Object} 终止递归。</p>
+     * <p>典型情况输出 ≈ 5-15 个 Class（一个含 2-3 个接口的 service 实现）；
+     *     注册开销可忽略。</p>
+     */
+    private static Set<Class<?>> collectTypeTokens(Class<?> cls) {
+        Set<Class<?>> tokens = new LinkedHashSet<>();
+        Deque<Class<?>> queue = new ArrayDeque<>();
+        queue.add(cls);
+        while (!queue.isEmpty()) {
+            Class<?> c = queue.poll();
+            if (c == null || c == Object.class) continue;
+            if (tokens.add(c)) {
+                Collections.addAll(queue, c.getInterfaces());
+                Class<?> sup = c.getSuperclass();
+                if (sup != null) queue.add(sup);
+            }
+        }
+        return tokens;
     }
 
     /** 按 bean 名直接取（InjectionPoint 编译期已绑定名）。 */
@@ -371,14 +417,24 @@ public class BeanContainer {
         }
     }
 
-    /** 把 instance 存入 singletons（按 BeanDef.scope 选 SINGLETON / PROTOTYPE 路径）。 */
+    /** 把 instance 存入 singletons（按 BeanDef.scope 选 SINGLETON / PROTOTYPE 路径）。
+     *
+     * <p>同时填充 {@link #byType}（自类 + 父类链 + 全部接口含父接口）——runtime @Inject
+     * 类型注入 / {@link #getBean(Class)} / AppContext.generateAndBindRoutes 走 byType 直查。</p>
+     *
+     * <p>PROTOTYPE scope 不写入 byType（每次新建，不缓存）；分片实例注册由
+     *     {@code @Sharded} 标注的方法扫描阶段单独触发
+     *     {@code shards.registerSharded(...)}，本方法只管"主实例"的 SINGLETON / PROTOTYPE 落点。</p>
+     */
     public void registerInstance(BeanDef def, Object instance) {
         if (def.scope() == Scope.SINGLETON) {
-            singletons.put(def.name(), new BeanWrap(def, instance));
+            BeanWrap wrap = new BeanWrap(def, instance);
+            singletons.put(def.name(), wrap);
+            for (Class<?> t : collectTypeTokens(instance.getClass())) {
+                byType.computeIfAbsent(t, k -> new ArrayList<>()).add(wrap);
+            }
         }
         // PROTOTYPE 不缓存
-        // 分片实例的注册由 @Sharded 标注的方法扫描阶段单独触发 shards.registerSharded(...)，
-        // 本方法只管"主实例"的 SINGLETON / PROTOTYPE 落点。
     }
 
     /** Phase 2 → Phase 3 状态迁移。 */
@@ -415,6 +471,39 @@ public class BeanContainer {
 
     public <T> T getBean(String name, Class<T> type) throws NoSuchBeanException {
         return type.cast(getBean(name));
+    }
+
+    /**
+     * 按 type 查 bean 实例（O(1) 直查 {@link #byType}）。
+     * <p>多实现 + @Primary 消歧逻辑与 {@link #resolveDependencyByType} 共用
+     *     {@link #beanWrapByType}。</p>
+     *
+     * @throws NoSuchBeanException   byType 中无该 type 的注册
+     * @throws NoUniqueBeanException 多候选 + 0/多个 @Primary
+     */
+    public Object getBean(Class<?> type) throws NoSuchBeanException, NoUniqueBeanException {
+        return beanWrapByType(type).instance();
+    }
+
+    /**
+     * 同 {@link #getBean(Class)} 但返回 BeanWrap（含 def.name()，
+     * AppContext.generateAndBindRoutes 需要 beanName 给 ShardRegistry 用）。
+     *
+     * <p>无匹配返回 null（不同于 {@link #beanWrapByType} 抛 NoSuchBeanException
+     *     ——router 生成阶段对未实现接口选择性跳过，<b>不</b>中断启动）。</p>
+     */
+    public BeanWrap findBeanWrapByType(Class<?> type) {
+        List<BeanWrap> list = byType.get(type);
+        if (list == null || list.isEmpty()) return null;
+        if (list.size() == 1) return list.get(0);
+        BeanWrap primary = null;
+        for (BeanWrap bw : list) {
+            if (bw.def().beanClass().isAnnotationPresent(Primary.class)) {
+                if (primary != null) return null;       // 多个 @Primary：路由阶段视作歧义，返回 null
+                primary = bw;
+            }
+        }
+        return primary != null ? primary : list.get(0);  // 多实现无 @Primary：取首个（注册顺序）
     }
 
     public boolean containsBean(String name) {
@@ -463,8 +552,9 @@ public class BeanContainer {
             }
         }
 
-        // 3. 清空 singletons（@Sharded 方法的分片实例也由 ShardRegistry 释放）
+        // 3. 清空 singletons + byType（@Sharded 方法的分片实例也由 ShardRegistry 释放）
         singletons.clear();
+        byType.clear();
         shards.clear();
         transitionTo(BeanContainerState.DESTROYED);
     }

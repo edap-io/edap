@@ -23,7 +23,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 import static io.edap.log.helps.EncoderGenerator.getEncoderName;
-import static io.edap.util.AsmUtil.saveJavaFile;
+import static io.edap.util.AsmUtil.saveClassFile;
 import static io.edap.util.AsmUtil.toLangName;
 import static io.edap.util.CollectionUtils.isEmpty;
 
@@ -70,13 +70,13 @@ public class LogEncoderRegister {
             EncoderGenerator generator = new EncoderGenerator(format);
             GeneratorClassInfo gci = generator.getClassInfo();
             byte[] bs = gci.clazzBytes;
-            saveJavaFile("./" + gci.clazzName + ".class", bs);
+            saveClassFile("./" + gci.clazzName + ".class", bs);
             encoderCls = codecLoader.define(encoderName, bs, 0, bs.length);
             if (!isEmpty(gci.inners)) {
                 for (GeneratorClassInfo inner : gci.inners) {
                     bs = inner.clazzBytes;
                     String innerName = toLangName(inner.clazzName);
-                    saveJavaFile("./" + inner.clazzName + ".class", bs);
+                    saveClassFile("./" + inner.clazzName + ".class", bs);
                     codecLoader.define(innerName, bs, 0, bs.length);
                 }
             }

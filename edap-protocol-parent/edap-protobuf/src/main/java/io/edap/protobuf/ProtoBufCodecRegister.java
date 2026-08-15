@@ -236,7 +236,7 @@ public enum ProtoBufCodecRegister {
             if (decoderCls == null) {
                 MapDecoderGenerator mdeg = new MapDecoderGenerator(mapType, option);
                 GeneratorClassInfo gci = mdeg.getClassInfo();
-                saveJavaFile("./" + toInternalName(gci.clazzName) + ".class", gci.clazzBytes);
+                saveClassFile("./" + toInternalName(gci.clazzName) + ".class", gci.clazzBytes);
                 try {
                     decoderCls = definer.define(decoderName, gci.clazzBytes, 0, gci.clazzBytes.length);
                 } catch (Throwable e) {
@@ -305,7 +305,7 @@ public enum ProtoBufCodecRegister {
             if (encoderCls == null) {
                 MapEntryDecoderGenerator meeg = new MapEntryDecoderGenerator(mapType, option);
                 GeneratorClassInfo gci = meeg.getClassInfo();
-                saveJavaFile("./" + toInternalName(gci.clazzName) + ".class", gci.clazzBytes);
+                saveClassFile("./" + toInternalName(gci.clazzName) + ".class", gci.clazzBytes);
                 try {
                     encoderCls = definer.define(decoderName, gci.clazzBytes, 0, gci.clazzBytes.length);
                 } catch (Throwable e) {
@@ -373,7 +373,7 @@ public enum ProtoBufCodecRegister {
             if (encoderCls == null) {
                 MapEntryEncoderGenerator meeg = new MapEntryEncoderGenerator(mapType, option);
                 GeneratorClassInfo gci = meeg.getClassInfo();
-                saveJavaFile("./" + toInternalName(gci.clazzName) + ".class", gci.clazzBytes);
+                saveClassFile("./" + toInternalName(gci.clazzName) + ".class", gci.clazzBytes);
                 try {
                     encoderCls = definer.define(encoderName, gci.clazzBytes, 0, gci.clazzBytes.length);
                 } catch (Throwable e) {
@@ -419,7 +419,7 @@ public enum ProtoBufCodecRegister {
             MapEntryGenerator meg = new MapEntryGenerator(
                     toInternalName(mapEntryName), mapType);
             byte[] bs = meg.getEntryBytes();
-            saveJavaFile("./" + toInternalName(mapEntryName) + ".class", bs);
+            saveClassFile("./" + toInternalName(mapEntryName) + ".class", bs);
             mapEntryCls = definer.define(mapEntryName, bs, 0, bs.length);
             if (mapEntryCls != null) {
                 mapEncoders.put(ownerCls, mapEntryCls);
@@ -460,7 +460,7 @@ public enum ProtoBufCodecRegister {
             MapEntryGenerator meg = new MapEntryGenerator(
                     toInternalName(mapEntryName), mapType);
             byte[] bs = meg.getEntryBytes();
-            saveJavaFile("./" + toInternalName(mapEntryName) + ".class", bs);
+            saveClassFile("./" + toInternalName(mapEntryName) + ".class", bs);
             mapEntryCls = definer.define(mapEntryName, bs, 0, bs.length);
             if (mapEntryCls != null) {
                 fmapEncoders.put(mapType, mapEntryCls);
@@ -533,7 +533,7 @@ public enum ProtoBufCodecRegister {
             ProtoBufEncoderGenerator generator = new ProtoBufEncoderGenerator(cls, otpion);
             GeneratorClassInfo gci = generator.getClassInfo();
             byte[] bs = gci.clazzBytes;
-            saveJavaFile("./" + gci.clazzName + ".class", bs);
+            saveClassFile("./" + gci.clazzName + ".class", bs);
             encoderCls = definer.define(encoderName, bs, 0, bs.length);
             if (!CollectionUtils.isEmpty(gci.inners)) {
                 for (GeneratorClassInfo inner : gci.inners) {
@@ -588,13 +588,13 @@ public enum ProtoBufCodecRegister {
             ProtoBufDecoderGenerator generator = new ProtoBufDecoderGenerator(cls, option);
             GeneratorClassInfo gci = generator.getClassInfo();
             byte[] bs = gci.clazzBytes;
-            saveJavaFile("./" + gci.clazzName + ".class", bs);
+            saveClassFile("./" + gci.clazzName + ".class", bs);
             decoderCls = definer.define(decoderName, bs, 0, bs.length);
             if (!isEmpty(gci.inners)) {
                 for (GeneratorClassInfo inner : gci.inners) {
                     bs = inner.clazzBytes;
                     String innerName = toLangName(inner.clazzName);
-                    saveJavaFile("./" + inner.clazzName + ".class", bs);
+                    saveClassFile("./" + inner.clazzName + ".class", bs);
                     definer.define(innerName, bs, 0, bs.length);
                 }
             }

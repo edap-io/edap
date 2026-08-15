@@ -1,6 +1,5 @@
 package io.edap.eproto;
 
-import io.edap.protobuf.CodecType;
 import io.edap.protobuf.ProtoPersister;
 import io.edap.util.CollectionUtils;
 import io.edap.util.internal.GeneratorClassInfo;
@@ -92,7 +91,7 @@ public class EprotoCodecRegister {
             EprotoEncoderGenerator generator = new EprotoEncoderGenerator(cls);
             GeneratorClassInfo gci = generator.getClassInfo();
             byte[] bs = gci.clazzBytes;
-            saveJavaFile("./" + gci.clazzName + ".class", bs);
+            saveClassFile("./" + gci.clazzName + ".class", bs);
             encoderCls = encoderLoader.define(encoderName, bs, 0, bs.length);
             if (!CollectionUtils.isEmpty(gci.inners)) {
                 for (GeneratorClassInfo inner : gci.inners) {
@@ -134,7 +133,7 @@ public class EprotoCodecRegister {
             MapEntryGenerator meg = new MapEntryGenerator(
                     toInternalName(mapEntryName), mapType);
             byte[] bs = meg.getEntryBytes();
-            saveJavaFile("./" + toInternalName(mapEntryName) + ".class", bs);
+            saveClassFile("./" + toInternalName(mapEntryName) + ".class", bs);
             mapEntryCls = encoderLoader.define(mapEntryName, bs, 0, bs.length);
             if (mapEntryCls != null) {
                 mapEncoders.put(ownerCls, mapEntryCls);

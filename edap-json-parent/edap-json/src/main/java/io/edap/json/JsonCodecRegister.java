@@ -20,7 +20,6 @@ import io.edap.json.decoders.ReflectDecoder;
 import io.edap.json.encoders.*;
 import io.edap.json.enums.DataType;
 import io.edap.json.enums.JsonVersion;
-import io.edap.log.LoggerManager;
 import io.edap.util.internal.GeneratorClassInfo;
 
 import java.lang.reflect.InvocationTargetException;
@@ -34,7 +33,7 @@ import java.util.concurrent.locks.ReentrantLock;
 
 import static io.edap.json.util.JsonUtil.*;
 import static io.edap.json.util.JsonUtil.buildMapDecoderName;
-import static io.edap.util.AsmUtil.saveJavaFile;
+import static io.edap.util.AsmUtil.saveClassFile;
 import static io.edap.util.AsmUtil.toLangName;
 import static io.edap.util.CollectionUtils.isEmpty;
 
@@ -161,13 +160,13 @@ public class JsonCodecRegister {
             GeneratorClassInfo gci = generator.getClassInfo();
 
             byte[] bs = gci.clazzBytes;
-            saveJavaFile("./" + gci.clazzName + ".class", bs);
+            saveClassFile("./" + gci.clazzName + ".class", bs);
             encoderCls = loader.define(encoderName, bs, 0, bs.length);
             if (!isEmpty(gci.inners)) {
                 for (GeneratorClassInfo inner : gci.inners) {
                     bs = inner.clazzBytes;
                     String innerName = toLangName(inner.clazzName);
-                    saveJavaFile("./" + inner.clazzName + ".class", bs);
+                    saveClassFile("./" + inner.clazzName + ".class", bs);
                     loader.define(innerName, bs, 0, bs.length);
                 }
             }
@@ -246,13 +245,13 @@ public class JsonCodecRegister {
             JsonEncoderGenerator generator = new JsonEncoderGenerator(cls);
             GeneratorClassInfo gci = generator.getClassInfo();
             byte[] bs = gci.clazzBytes;
-            saveJavaFile("./" + gci.clazzName + ".class", bs);
+            saveClassFile("./" + gci.clazzName + ".class", bs);
             encoderCls = codecLoader.define(encoderName, bs, 0, bs.length);
             if (!isEmpty(gci.inners)) {
                 for (GeneratorClassInfo inner : gci.inners) {
                     bs = inner.clazzBytes;
                     String innerName = toLangName(inner.clazzName);
-                    saveJavaFile("./" + inner.clazzName + ".class", bs);
+                    saveClassFile("./" + inner.clazzName + ".class", bs);
                     codecLoader.define(innerName, bs, 0, bs.length);
                 }
             }
@@ -286,13 +285,13 @@ public class JsonCodecRegister {
             JsonDecoderGenerator generator = new JsonDecoderGenerator(cls, dataType, version);
             GeneratorClassInfo gci = generator.getClassInfo();
             byte[] bs = gci.clazzBytes;
-            saveJavaFile("./" + gci.clazzName + ".class", bs);
+            saveClassFile("./" + gci.clazzName + ".class", bs);
             decoderCls = codecLoader.define(decoderName, bs, 0, bs.length);
             if (!isEmpty(gci.inners)) {
                 for (GeneratorClassInfo inner : gci.inners) {
                     bs = inner.clazzBytes;
                     String innerName = toLangName(inner.clazzName);
-                    saveJavaFile("./" + inner.clazzName + ".class", bs);
+                    saveClassFile("./" + inner.clazzName + ".class", bs);
                     codecLoader.define(innerName, bs, 0, bs.length);
                 }
             }

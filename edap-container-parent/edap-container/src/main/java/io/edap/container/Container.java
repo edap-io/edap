@@ -1,12 +1,15 @@
 package io.edap.container;
 
 import io.edap.Edap;
-import io.edap.Server;
 import io.edap.ServerGroup;
 import io.edap.Stoppable;
 import io.edap.container.app.RouterHub;
 import io.edap.container.mw.*;
 import io.edap.container.scan.EarScanner;
+import io.edap.http.server.HttpServer;
+import io.edap.http.HttpHandler;
+import io.edap.http.PathInfo;
+import io.edap.nio.codec.FastBufDataRange;
 import io.edap.json.Eson;
 import io.edap.launcher.NestedJarFile;
 import io.edap.log.Logger;
@@ -16,11 +19,18 @@ import io.edap.props.Props;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
+import java.util.Set;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
@@ -38,6 +48,12 @@ public class Container {
     private ClassLoader   containerCL;
     private DeployManager deployManager;
     private ServerGroup   appServerGroup;
+    /**
+     * HTTP 协议 Server 实例。attach() 阶段按 Capability.HTTP 创建并加入 appServerGroup；
+     * deploy / undeploy / switchVersion / 启动恢复 时通过 {@link HttpServer#setHttpMapping}
+     * 整体替换 path → handler 映射（dispatch 热路径无锁读）。
+     */
+    private HttpServer    httpServer;
     private Props         env;
 
     private volatile ContainerState state;
@@ -54,6 +70,13 @@ public class Container {
      * ③ 锁表：appId → 写锁。只增不删（原因见 §3.7.5）
      */
     private final ConcurrentHashMap<String, ReentrantLock> appLocks = new ConcurrentHashMap<>();
+
+    /**
+     * ④ ProtoService 接口 FQCN → 拥有它的 appId。冲突检测表：deploy / switchVersion 时
+     * 检查 dmd 里所有 ProtoService FQCN，若已被另一个 appId 注册 → 409 拒绝部署。
+     * 同 appId 重部署允许（覆盖语义，version 切换场景）；undeploy 摘除。
+     */
+    private final ConcurrentHashMap<String, String> registeredIfs = new ConcurrentHashMap<>();
 
     private final File appsDir;
     private static final ReentrantLock lifecycleLock = new ReentrantLock();
@@ -81,6 +104,10 @@ public class Container {
         this.capabilities = capabilities == null || capabilities.isEmpty()
                 ? EnumSet.of(Capability.HTTP, Capability.WS)
                 : EnumSet.copyOf(capabilities);
+    }
+
+    public File appsDir() {
+        return appsDir;
     }
 
     /**
@@ -123,6 +150,24 @@ public class Container {
             this.edap = edap;
             this.env  = edap.getProps().child("container");
             this.appServerGroup = sg;
+
+            // 按 capabilities 建对应协议 Server 实例。所有 app 共享端口（同一 Container 内
+            // HTTP/WS 各只 listen 一个端口），dispatch 通过 HttpServer.httpMapping 区分 app。
+            // 不同端口需求 → 起多个 Container（每个 Container 独立进程、独立 classloader、
+            // 互不干扰）。
+            //
+            // 当前依赖只覆盖 edap-http-server；WS / eRPC / gRPC Server impl 暂缺，留 TODO
+            // 等对应 server impl jar 加入依赖后再启用。
+            if (capabilities.contains(Capability.HTTP)) {
+                int httpPort = Integer.parseInt(
+                        System.getProperty("edap.container.http.port", "8080"));
+                HttpServer http = new HttpServer();
+                http.listen(httpPort);
+                sg.addServer(http);
+                this.httpServer = http;                          // rebuildHttpMapping 时引用
+            }
+            // TODO: Capability.WS / ERPC / GRPC Server 实例创建
+
             edap.addServerGroup(appServerGroup);               // 唯一对外暴露点
             // 进程停止时触发 Container.stop()（在 Edap.doStop() 中位于 ServerGroup.stop() 之前）：
             // 先做内存级清理（unbind routes / @PreDestroy / appCL.close），再关监听 socket。
@@ -161,6 +206,19 @@ public class Container {
      * 元数据里的 earName 指明要启动的具体 EAR 包。
      * 不再遍历 appsDir 下所有 .ear，否则同一个 app 的多个历史版本都会被加载，
      * 三个槽位的语义就失效了。
+     *
+     * <p><b>恢复路径与 {@link #deploy(File)} 路径分离</b>：按文件名里的 role 强制写到对应槽位
+     * （{@code current-*.json} → CURRENT 槽），不重走 {@code firstEmptySlot()}——否则
+     * 只有 {@code current-*.json} 存在时 EAR 会落进 PREVIOUS 槽，{@code currentRouters}
+     * 拨不到指针，业务首条请求拿不到路由。
+     *
+     * <p>启动期只恢复 <b>current + staging</b> 两个槽位，<b>previous 不初始化</b>——
+     * previous 是"快速回滚"语义下的"待命角色"，由 {@link #switchVersion} 退位时填入
+     * （把走下舞台的 current 落入 previous 槽），启动期过早初始化 previous 会浪费 Phase 1/2/3
+     * 全部开销（Bean 实例化、路由 ASM 生成），且 previous 暂时不在 currentRouters 视野内，
+     * 没有 dispatch 价值。
+     *
+     * <p>两个槽位独立恢复：缺哪个就跳过哪个；恢复失败 WARN 跳过，不阻断其它 appId / 槽位。
      */
     public void start() {
         lifecycleLock.lock();
@@ -171,14 +229,11 @@ public class Container {
             lifecycleLock.unlock();
         }
 
-        // 锁外做恢复；deploy() 内部用各自 appId 的 appLock 串行（不同 appId 并行）
-        boolean fatal = false;
+        // 锁外做恢复；restoreToSlot() 内部用各自 appId 的 appLock 串行（不同 appId 并行）
         List<String> appIds = readDeployAppIds();
         for (String appId : appIds) {
-            // 按 previous → current → staging 顺序部署，
-            // 对应 firstEmptySlot() 的填充顺序，槽位语义自然对齐。
-            String[] roles = { "previous", "current", "staging" };
-            for (String role : roles) {
+            // current + staging 走 restoreToSlot()；previous 跳过（理由见 javadoc）
+            for (String role : new String[]{"current", "staging"}) {
                 DeployMeta meta = readDeployMetaFile(role + "-" + appId + ".json");
                 if (meta == null) continue;
                 File ear = locateEar(meta.getEarName());
@@ -187,34 +242,32 @@ public class Container {
                             l -> l.arg(appId).arg(role).arg(meta.getEarName()));
                     continue;
                 }
-                BaseResult<String> r = deploy(ear);
-                if (!r.isSuccess() && isFatalDeployCode(r.getCode())) {
-                    fatal = true;
-                    break;
-                } else if (!r.isSuccess()) {
-                    log.warn("EAR {} 启动失败: {}",
+                BaseResult<String> r = restoreToSlot(ear, Slot.valueOf(role.toUpperCase()));
+                if (!r.isSuccess()) {
+                    log.warn("EAR {} 恢复失败: {}",
                             l -> l.arg(ear.getAbsolutePath()).arg(r.getMessage()));
                 }
             }
-            if (fatal) break;
         }
 
-        // 恢复完 registry 之后，把每个 appId 的 currentRouters 指针拨到当前槽的 RouterHub，
-        // 否则重启后首条请求拿不到路由。
-        for (Map.Entry<String, SlotEntry> e : registry.entrySet()) {
-            AppContext cur = e.getValue().current();
+        // 拨 currentRouters 指针：只对 current 槽非空的 appId 拨；staging-only 等 switchVersion
+        for (String appId : appIds) {
+            SlotEntry e = registry.get(appId);
+            if (e == null) {
+                continue;
+            }
+            AppContext cur = e.current();
             if (cur != null && cur.routers() != null) {
-                currentRouters.put(e.getKey(), cur.routers());
+                currentRouters.put(appId, cur.routers());
             }
         }
+        // 启动恢复末位 rebuild HTTP mapping：所有 current 指针已就位，dispatch 必须 ready 才接受流量
+        rebuildHttpMapping();
 
+        appServerGroup.run();
         lifecycleLock.lock();
         try {
-            if (fatal) {
-                state = ContainerState.START_FAILED;
-            } else {
-                state = ContainerState.RUNNING;                // STARTING -> RUNNING
-            }
+            state = ContainerState.RUNNING;                // STARTING -> RUNNING
         } finally {
             lifecycleLock.unlock();
         }
@@ -273,10 +326,6 @@ public class Container {
         }
     }
 
-    private boolean isFatalDeployCode(int code) {
-        return code == 10000;
-    }
-
     /**
      * Bootstrap / SIGTERM 时调
      */
@@ -316,7 +365,13 @@ public class Container {
             } catch (Throwable t) {
                 log.warn("Container.stop 时 {} 异常", l -> l.arg(ctx.appId()).threw(t));
             }
+            // 同步清掉本 appId 的 currentRouters 指针 + FQCN 注册
+            // （ctx.stop() 不动这两张表，因为 undeploy 路径由 Container 自己清 —— 这里是 stop 路径）
+            currentRouters.remove(ctx.appId());
+            unregisterIfs(ctx.appId(), ctx.dmd());
         }
+        // 最终 rebuild HTTP mapping：所有 appId 已停 → 重建结果为空 mapping，dispatch 兜底 404
+        rebuildHttpMapping();
 
         lifecycleLock.lock();
         try {
@@ -337,6 +392,7 @@ public class Container {
         } catch (IOException e) {
             return BaseResult.fail(103, "EAR 包结构错误: " + e.getMessage());
         }
+        dmd.setOrignalFile(ear);                          // EarScanner 不主动设，writeDeployMeta 依赖
         log.info("DeployMetaData scan {} file time: {}", l -> l.arg(clazzCount.get())
                 .arg(System.currentTimeMillis() - start));
         String appId   = dmd.getMavenInfo().getGroupId() + ":" + dmd.getMavenInfo().getArtifactId();
@@ -363,11 +419,20 @@ public class Container {
             EdapAppClassLoader appCL = new EdapAppClassLoader(ear, containerCL);
             AppContext ctx = new AppContext(this, appId, version, appCL, dmd);
 
+            // 5.5 FQCN 冲突检测（不同 appId 抛 409；同 appId 允许覆盖语义）
+            //     必须在 ctx.start() 之前 —— 否则 Bean 已经注册到容器再发现冲突，回滚成本高
+            String ifErr = checkAndRegisterIfs(appId, dmd);
+            if (ifErr != null) {
+                appCL.close();
+                return BaseResult.fail(409, ifErr);
+            }
+
             // 6. 三段式启动（GATHERING → COMMITTING → READY）
             try {
                 ctx.start();                                   // 详见 §4
             } catch (Throwable t) {
                 ctx.destroyPartial();                          // 回滚已注册的 Bean / 路由
+                unregisterIfs(appId, dmd);                     // 回滚 FQCN 注册
                 appCL.close();                                // 释放 ClassLoader
                 return BaseResult.fail(104, "AppContext 启动失败: " + t.getMessage());
             }
@@ -376,12 +441,14 @@ public class Container {
             Slot target = firstEmptySlot(empty);
             SlotEntry next = empty.withSlot(target, ctx);
             registry.put(appId, next);
-            // 8. 把 ctx 的 NIO Server 注册到 ServerGroup；Container 只做"映射"（registry 槽位 +
-            //    currentRouters 指针切换），路由生成 / RouterHub 写入由 AppContext.start() Phase 3
-            //    内部完成（详见 AppContext.generateAndBindRoutes()）
-            for (Server s : ctx.getServers()) {
-                appServerGroup.addServer(s);
-            }
+            // 7.5 整体 rebuild HTTP mapping
+            //     deploy() 路径 target 只可能是 STAGING（firstEmptySlot 永不返回 CURRENT/PREVIOUS），
+            //     不拨 currentRouters —— STAGING 不接流量，需 switchVersion(staging → current) 才上线
+            rebuildHttpMapping();
+            // 8. 持久化 .deploy/<role>-<appId>.json（start() 启动恢复靠它定位 EAR）
+            writeDeployMeta(appId, target.name().toLowerCase(), dmd);
+            // 9. 更新 apps.json（start() 启动恢复靠它找 appId）
+            appendDeployAppId(appId);
             return BaseResult.success(appId + ":" + version + " -> " + target);
 
         } catch (RuntimeException e) {
@@ -392,6 +459,127 @@ public class Container {
         } finally {
             appLock.unlock();
         }
+    }
+
+    /**
+     * 恢复路径专用的 deploy：按 role 强制写指定槽位，不调 firstEmptySlot()，
+     * 不写 .deploy/*.json（恢复是只读磁盘，持久化由 deploy()/switchVersion() 负责）。
+     *
+     * <p>调用方：
+     * <ul>
+     *   <li>{@link #start} 启动期 current/staging 恢复</li>
+     *   <li>{@link #lazyRestorePrevious} switchVersion() 回滚 previous 按需重建</li>
+     * </ul>
+     *
+     * <p>与 {@link #deploy(File)} 的差异：
+     * <ul>
+     *   <li>槽位由参数传入（按文件名 role 决定），不调 firstEmptySlot()</li>
+     *   <li>不查 findSlotByCompositeVersion（重名 composite 表示恢复目标，不该当重复部署）</li>
+     *   <li>不写 apps.json / role-*.json（已经在磁盘上）</li>
+     *   <li>不调 writeDeployMeta（恢复路径不该回写）</li>
+     * </ul>
+     */
+    private BaseResult<String> restoreToSlot(File ear, Slot slot) {
+        DeployMetaData dmd;
+        long start = System.currentTimeMillis();
+        try {
+            dmd = new EarScanner(new NestedJarFile(ear)).scanDeployMetaData();
+        } catch (IOException e) {
+            return BaseResult.fail(103, "EAR 包结构错误: " + e.getMessage());
+        }
+        dmd.setOrignalFile(ear);                          // EarScanner 不主动设，writeDeployMeta 依赖
+        log.info("DeployMetaData scan {} file time: {}", l -> l.arg(clazzCount.get())
+                .arg(System.currentTimeMillis() - start));
+        String appId   = dmd.getMavenInfo().getGroupId() + ":" + dmd.getMavenInfo().getArtifactId();
+        String version = resolveVersion(dmd.getMavenInfo().getVersion(), dmd.getBuildInfo());
+
+        ReentrantLock appLock = appLocks.computeIfAbsent(appId, k -> new ReentrantLock());
+        appLock.lock();
+        try {
+            SlotEntry prev = registry.get(appId);
+            SlotEntry empty = prev == null ? new SlotEntry(null, null, null) : prev;
+
+            // 槽位已被占 → 跳过（不该出现，但 .deploy 串了不能挂）
+            if (empty.slotOf(slot) != null) {
+                return BaseResult.fail(106, "slot " + slot + " of " + appId + " already occupied");
+            }
+
+            // 5. 建 ClassLoader + AppContext
+            EdapAppClassLoader appCL = new EdapAppClassLoader(ear, containerCL);
+            AppContext ctx = new AppContext(this, appId, version, appCL, dmd);
+
+            // 5.5 FQCN 冲突检测（启动恢复路径同样要拦 —— 多个 appId 的 EAR 并存时必须唯一）
+            String ifErr = checkAndRegisterIfs(appId, dmd);
+            if (ifErr != null) {
+                appCL.close();
+                return BaseResult.fail(409, ifErr);
+            }
+
+            // 6. 三段式启动（GATHERING → COMMITTING → READY）；失败回滚 + close appCL
+            try {
+                ctx.start();
+            } catch (Throwable t) {
+                ctx.destroyPartial();
+                unregisterIfs(appId, dmd);
+                appCL.close();
+                return BaseResult.fail(104, "AppContext 启动失败: " + t.getMessage());
+            }
+
+            // 7. 写 registry（按 role 指定的 slot 直接写，不调 firstEmptySlot()）
+            registry.put(appId, empty.withSlot(slot, ctx));
+            // 7.5 拨 currentRouters + rebuild mapping：只在落 CURRENT 时拨指针，其它槽位只 rebuild
+            //     mapping（rebuildHttpMapping 从当前 currentRouters 全集读，无 current 变动 = no-op 重建）
+            if (slot == Slot.CURRENT) {
+                currentRouters.put(appId, ctx.routers());
+            }
+            rebuildHttpMapping();
+            return BaseResult.success(appId + ":" + version + " -> " + slot);
+
+        } catch (RuntimeException e) {
+            log.error("restoreToSlot 异常", e);
+            return BaseResult.fail(105, e.getMessage());
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        } finally {
+            appLock.unlock();
+        }
+    }
+
+    /**
+     * 启动期 previous 槽位空，但 {@code .deploy/previous-<appId>.json} 可能在（上次运行时
+     * switchVersion 退位写下的"待命角色"快照）。switchVersion() 切到 previous 时按需 lazy restore：
+     * 读 metadata 拿 EAR，{@link #restoreToSlot(File, Slot)} 写到 PREVIOUS 槽。
+     *
+     * <p>三种返回：
+     * <ul>
+     *   <li>registry.previous 已是 target version → 直接返回（in-memory hit，无需重建）</li>
+     *   <li>previous 槽空 + .deploy/previous-*.json 有 EAR → restoreToSlot 后返回</li>
+     *   <li>previous 槽被占（且版本不同）/ .deploy 缺文件 / restore 失败 → 返回 null（调用方 404）</li>
+     * </ul>
+     *
+     * <p>前置：appLock[appId] 已持有（switchVersion 持有外层锁；restoreToSlot 内部 lock 为
+     * ReentrantLock 重复入同一线程，不冲突）。
+     */
+    private AppContext lazyRestorePrevious(String appId, String version) {
+        SlotEntry entry = registry.get(appId);
+        if (entry != null && entry.previous() != null) {
+            if (version.equals(compositeOf(entry.previous()))) {
+                return entry.previous();                                      // in-memory hit
+            }
+            return null;                                                      // 槽被占且版本不同 → 不覆盖
+        }
+        DeployMeta meta = readDeployMetaFile("previous-" + appId + ".json");
+        if (meta == null) return null;
+        File ear = locateEar(meta.getEarName());
+        if (ear == null) return null;
+        BaseResult<String> r = restoreToSlot(ear, Slot.PREVIOUS);
+        if (!r.isSuccess()) return null;
+        entry = registry.get(appId);
+        if (entry == null || entry.previous() == null
+                || !version.equals(compositeOf(entry.previous()))) {
+            return null;                                                      // restore 后版本不匹配
+        }
+        return entry.previous();
     }
 
     /**
@@ -424,19 +612,25 @@ public class Container {
     }
 
     /**
-     * 辅助：找第一个空槽位（deploy target）
+     * 选 deploy 目标槽（按 §3.6.2 语义）：
+     * <ul>
+     *   <li>STAGING 空闲 → 写 STAGING（新版本默认进灰度槽，需 switchVersion 才接流量）</li>
+     *   <li>STAGING 占用 → null（返回 105：先 undeploy staging 或 switchVersion 把它挪走）</li>
+     * </ul>
+     * <b>PREVIOUS 不在选择范围内</b> —— PREVIOUS 是"上一个 current 的快速回滚备份"，
+     * 只由 {@link #switchVersion} 退位时填入（deploy() 永不主动写 PREVIOUS）。
+     * <b>CURRENT 不在选择范围内</b> —— CURRENT 只由 switchVersion 把 staging 切过来、
+     * 或 {@link #restoreToSlot} 启动恢复期间按磁盘文件名写。
+     *
+     * <p>历史 bug：原实现按 {@code PREVIOUS → CURRENT → STAGING} 顺序找空槽，导致
+     * 全新应用首次 deploy 落到 PREVIOUS 槽，写出 {@code previous-*.json}，
+     * 且不接流量（{@code currentRouters} 未拨指针 → 业务 503），必须再手工 switchVersion 一次。
      */
     private Slot firstEmptySlot(SlotEntry entry) {
-        if (entry.previous() == null) {
-            return Slot.PREVIOUS;
-        }
-        if (entry.current()  == null) {
-            return Slot.CURRENT;
-        }
-        if (entry.staging()  == null) {
+        if (entry.staging() == null) {
             return Slot.STAGING;
         }
-        return null;       // 三个都非空——调用方已检查
+        return null;       // staging 已被占——三个槽里只有 staging 允许 deploy 写入
     }
 
     public BaseResult<String> undeploy(String appId, String version) {
@@ -464,6 +658,9 @@ public class Container {
             } catch (Throwable t) {
                 log.warn("undeploy 时 AppContext.stop() 异常", t);
             }
+            // 1.5 摘除本 appId 注册的 ProtoService FQCN —— 必须 ctx.stop() 之后调，避免新 deploy
+            //     自冲突的瞬时误判（见 unregisterIfs javadoc）
+            unregisterIfs(appId, ctx.dmd());
             // 2. 写 registry（整 SlotEntry 替换）
             SlotEntry next = prev.withSlot(slot, null);
             if (next.isEmpty()) {
@@ -471,6 +668,18 @@ public class Container {
                 appLocks.remove(appId, appLock);                // 锁对象 GC 友好
             } else {
                 registry.put(appId, next);
+            }
+            // 3. 清掉 currentRouters 指针：被卸的是 current → 业务不再接流量；非 current 不动
+            if (next.current() == null) {
+                currentRouters.remove(appId);
+            }
+            // 3.5 rebuild HTTP mapping：current 变动必触发；非 current 变动 → 重建是 no-op（指针未动）
+            rebuildHttpMapping();
+            // 4. 同步 .deploy/<role>-<appId>.json（被卸的 slot 文件删，其它 slot 文件按 registry 实际状态重写）
+            syncDeployMetaFiles(appId);
+            // 5. SlotEntry 全空 → apps.json 移除 appId
+            if (next.isEmpty()) {
+                removeDeployAppId(appId);
             }
             return BaseResult.success(appId + ":" + version + " (slot=" + slot + ")");
 
@@ -498,11 +707,14 @@ public class Container {
             if (prev.staging() != null && version.equals(compositeOf(prev.staging()))) {
                 // staging → current；current 落入 previous
                 next = new SlotEntry(demotedCurrent, prev.staging(), null);
-            } else if (prev.previous() != null && version.equals(compositeOf(prev.previous()))) {
-                // previous → current（快速回滚）；current 落入 staging
-                next = new SlotEntry(null, prev.previous(), demotedCurrent);
             } else {
-                return BaseResult.fail(404, "版本不在 staging/previous 中，无法切换");
+                // previous → current（快速回滚）；current 落入 staging
+                // 启动期 previous 槽位空但 .deploy/previous-*.json 可能在 → lazyRestorePrevious 按需重建
+                AppContext restored = lazyRestorePrevious(appId, version);
+                if (restored == null) {
+                    return BaseResult.fail(404, "版本不在 staging/previous 中，无法切换");
+                }
+                next = new SlotEntry(null, restored, demotedCurrent);
             }
             // 整 SlotEntry 替换，ConcurrentHashMap.put 原子发布
             registry.put(appId, next);
@@ -513,8 +725,10 @@ public class Container {
             //     appServerGroup.addServer(s) 完成
             //   - 切换版本只是换"哪个 RouterHub 接流量"，不是重新注册 routes
             currentRouters.put(appId, next.current().routers());
-            // 持久化 current-*.json
-            writeDeployMeta(appId, "current", next.current().dmd());
+            // rebuild HTTP mapping：current 指针动了 → 必须重建 dispatch 表
+            rebuildHttpMapping();
+            // 同步 .deploy/<role>-<appId>.json 三个文件：非空 slot 写、空 slot 删
+            syncDeployMetaFiles(appId);
             return BaseResult.success("切换到 " + version);
         } finally {
             appLock.unlock();
@@ -529,10 +743,15 @@ public class Container {
 
     /**
      * 持久化部署元数据到 appsDir/.deploy/&lt;role&gt;-&lt;appId&gt;.json。
-     * 用于 Container.start 启动恢复（读） + switchVersion/undeploy 阶段回写（写）。
+     * 用于 Container.start 启动恢复（读） + deploy/switchVersion 阶段回写（写）。
      *
-     * 写入格式：JSON 序列化 DeployMetaData（依赖 edap.json.Eson）；
-     * 当前 stub 阶段只写空文件占位，等 Eson 注册 DeployMetaData 序列化器后接上完整逻辑。
+     * <p>写入 DeployMeta（轻量记录：earName / buildTime / artifactVersion / deployTime /
+     * onlineTime / deployer / onliner / previousEarName），不是 DeployMetaData（后者过重：包含
+     * 整个 EAR 扫出的 Bean 定义 / 注解元数据，反序列化开销不值）。start() 启动恢复只读
+     * {@link #readDeployMetaFile} 拿 earName 即可定位 EAR。
+     *
+     * <p>前置：{@code dmd.getOrignalFile()} 必须已设（deploy() / restoreToSlot() 解析后立即调
+     * {@code dmd.setOrignalFile(ear)}），否则 {@code getName()} NPE。
      */
     private void writeDeployMeta(String appId, String role, DeployMetaData dmd) {
         File metaFile = new File(new File(appsDir, ".deploy"), role + "-" + appId + ".json");
@@ -543,10 +762,121 @@ public class Container {
                 log.warn("无法创建 .deploy 目录: {}", l -> l.arg(deployDir.getAbsolutePath()));
                 return;
             }
-            // TODO: Eson 注册 DeployMetaData 序列化器后改为 Eson.toJson(dmd)
-            // 当前 stub 阶段先写空内容，让启动恢复逻辑跳过该文件（与 readDeployMetaFile 返回 null 一致）
+            LocalDateTime now = LocalDateTime.now();
+            String time = now.format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"));
+            DeployMeta meta = new DeployMeta();
+            meta.setEarName(dmd.getOrignalFile().getName());
+            meta.setBuildTime(dmd.getBuildInfo() == null ? null : dmd.getBuildInfo().getBuildTime());
+            meta.setArtifactVersion(dmd.getMavenInfo() == null ? null : dmd.getMavenInfo().getVersion());
+            meta.setDeployer("container");
+            meta.setOnliner("container");
+            meta.setDeployTime(time);
+            meta.setOnlineTime(time);
+            // previousEarName: 仅 current 角色关心（"刚退位的老 current" ->
+            // stashVersion staging→current/previous→current 时 registry.previous() 就是它）；
+            // previous/staging 角色无"前一个 current"语义，统一空串。
+            if ("current".equals(role)) {
+                SlotEntry entry = registry.get(appId);
+                if (entry != null && entry.previous() != null
+                        && entry.previous().dmd().getOrignalFile() != null) {
+                    meta.setPreviousEarName(entry.previous().dmd().getOrignalFile().getName());
+                } else {
+                    meta.setPreviousEarName("");
+                }
+            } else {
+                meta.setPreviousEarName("");
+            }
+            try (FileOutputStream out = new FileOutputStream(metaFile)) {
+                out.write(Eson.toJsonString(meta).getBytes(StandardCharsets.UTF_8));
+            }
         } catch (Exception e) {
             log.warn("writeDeployMeta 失败: {}", l -> l.arg(metaFile.getAbsolutePath()).threw(e));
+        }
+    }
+
+    /**
+     * 追加 appId 到 appsDir/.deploy/apps.json。start() 启动恢复以这个文件为 appId 索引，
+     * 缺了它 {apps.json, current-*.json, staging-*.json} 三个文件就脱节。
+     *
+     * <p>已存在则 no-op（不重复写）；不存在则读现有列表 → 追加 → 整文件回写。
+     * 写盘失败只 WARN 不抛 —— 启动期恢复退化为空 registry，不阻断运行期。
+     */
+    private void appendDeployAppId(String appId) {
+        File deployDir = new File(appsDir, ".deploy");
+        if (!deployDir.exists() && !deployDir.mkdirs()) {
+            log.warn("无法创建 .deploy 目录: {}", l -> l.arg(deployDir.getAbsolutePath()));
+            return;
+        }
+        File appsFile = new File(deployDir, "apps.json");
+        List<String> appIds = new ArrayList<>(readDeployAppIds());
+        if (appIds.contains(appId)) {
+            return;
+        }
+        appIds.add(appId);
+        try (FileOutputStream out = new FileOutputStream(appsFile)) {
+            out.write(Eson.toJsonString(appIds).getBytes(StandardCharsets.UTF_8));
+        } catch (IOException e) {
+            log.warn("更新 apps.json 失败: {}", l -> l.arg(appsFile.getAbsolutePath()).threw(e));
+        }
+    }
+
+    /**
+     * 从 appsDir/.deploy/apps.json 移除 appId。undeploy 末位 SlotEntry 全空时调。
+     * 列表变空则删整个文件（保持目录干净），否则整文件回写。
+     */
+    private void removeDeployAppId(String appId) {
+        File deployDir = new File(appsDir, ".deploy");
+        if (!deployDir.exists()) return;
+        File appsFile = new File(deployDir, "apps.json");
+        if (!appsFile.exists()) return;
+        List<String> appIds = new ArrayList<>(readDeployAppIds());
+        if (!appIds.remove(appId)) {
+            return;                                                  // 本来就不在
+        }
+        if (appIds.isEmpty()) {
+            if (!appsFile.delete()) {
+                log.warn("删除空 apps.json 失败: {}", l -> l.arg(appsFile.getAbsolutePath()));
+            }
+        } else {
+            try (FileOutputStream out = new FileOutputStream(appsFile)) {
+                out.write(Eson.toJsonString(appIds).getBytes(StandardCharsets.UTF_8));
+            } catch (IOException e) {
+                log.warn("更新 apps.json 失败: {}", l -> l.arg(appsFile.getAbsolutePath()).threw(e));
+            }
+        }
+    }
+
+    /**
+     * 同步 registry 当前状态到 .deploy/role-*.json。每个 slot 非空写文件，slot 空删文件。
+     * 用于 switchVersion / undeploy 之后清理磁盘 —— 比"按事件驱动的精确写"鲁棒（有重复写开销，
+     * 但 deploy/switch/undeploy 不是热路径）。
+     *
+     * <p>覆盖三种典型场景：
+     * <ul>
+     *   <li>switchVersion staging→current：写 current、新写 previous、删 staging</li>
+     *   <li>switchVersion previous→current（lazy restore）：写 current、写 staging、删 previous</li>
+     *   <li>undeploy：被卸的 slot 文件删，其它 slot 文件按 registry 实际状态重写</li>
+     *   <li>registry 整条 appId 都没了（undeploy 卸最后一个版本）：3 个文件全删</li>
+     * </ul>
+     */
+    private void syncDeployMetaFiles(String appId) {
+        SlotEntry entry = registry.get(appId);
+        syncDeployMetaSlot(appId, "current",  entry == null ? null : entry.current());
+        syncDeployMetaSlot(appId, "staging",  entry == null ? null : entry.staging());
+        syncDeployMetaSlot(appId, "previous", entry == null ? null : entry.previous());
+    }
+
+    /**
+     * 单 slot 同步：ctx != null → 写文件；ctx == null → 删文件（不存在 no-op）。
+     */
+    private void syncDeployMetaSlot(String appId, String role, AppContext ctx) {
+        File metaFile = new File(new File(appsDir, ".deploy"), role + "-" + appId + ".json");
+        if (ctx == null) {
+            if (metaFile.exists() && !metaFile.delete()) {
+                log.warn("删除 .deploy/{} 失败", l -> l.arg(metaFile.getName()));
+            }
+        } else {
+            writeDeployMeta(appId, role, ctx.dmd());
         }
     }
 
@@ -570,5 +900,146 @@ public class Container {
     // 状态
     public ContainerState getState() {
         return state;
+    }
+
+    // ─── ProtoService FQCN 冲突检测 + HTTP mapping rebuild ───
+
+    /**
+     * 从 dmd 提取所有 ProtoService FQCN（去重）。覆盖 dmd.protoServiceInfos（顶层）和
+     * dmd.componentMap[*].protoServiceInfos（per-component），两者可能并存。
+     *
+     * <p>为什么用 LinkedHashSet：保留遍历顺序便于报错时列出；FQCN 通常 < 100，set 开销可忽略。</p>
+     */
+    private Set<String> extractProtoServiceFQCNs(DeployMetaData dmd) {
+        Set<String> fqcns = new LinkedHashSet<>();
+        if (dmd == null) {
+            return fqcns;
+        }
+        List<ProtoServiceData> top = dmd.getProtoServiceInfos();
+        if (top != null) {
+            for (ProtoServiceData psi : top) {
+                if (psi != null && psi.getTypeName() != null) {
+                    fqcns.add(psi.getTypeName());
+                }
+            }
+        }
+        Map<String, DeployComponent> comps = dmd.getComponentMap();
+        if (comps != null) {
+            for (DeployComponent comp : comps.values()) {
+                if (comp == null) continue;
+                List<ProtoServiceData> psiList = comp.getProtoServiceInfos();
+                if (psiList == null) continue;
+                for (ProtoServiceData psi : psiList) {
+                    if (psi != null && psi.getTypeName() != null) {
+                        fqcns.add(psi.getTypeName());
+                    }
+                }
+            }
+        }
+        return fqcns;
+    }
+
+    /**
+     * 冲突检测 + 注册：deploy / switchVersion 入口。
+     *
+     * <p>规则：每个 ProtoService FQCN 在一 Container 内只能被一个 appId 注册。
+     * <ul>
+     *   <li>已被「其他 appId」注册 → 拒绝（409）</li>
+     *   <li>已被「同一 appId」注册 → 允许（version 切换覆盖语义）</li>
+     *   <li>未注册 → 直接注册</li>
+     * </ul>
+     *
+     * @return null 表示成功；非 null 是失败原因（BaseResult 的 message）
+     */
+    private String checkAndRegisterIfs(String appId, DeployMetaData dmd) {
+        Set<String> fqcns = extractProtoServiceFQCNs(dmd);
+        if (fqcns.isEmpty()) {
+            return null;                                   // 没有 ProtoService 接口，无需检测
+        }
+        // 先全部校验（不中途写）——避免半写状态
+        for (String fqcn : fqcns) {
+            String owner = registeredIfs.get(fqcn);
+            if (owner != null && !owner.equals(appId)) {
+                return "ProtoService " + fqcn + " 已被 appId=" + owner + " 注册，与 "
+                        + appId + " 冲突（同一 Container 内 ProtoService FQCN 需唯一）";
+            }
+        }
+        // 全部通过 → 注册（覆盖同 appId 的旧条目；version 切换场景）
+        for (String fqcn : fqcns) {
+            registeredIfs.put(fqcn, appId);
+        }
+        return null;
+    }
+
+    /**
+     * 摘除本 appId 注册的 FQCN。undeploy 调用。注意：只在 ctx 真的被释放后才调——
+     * 否则同 appId 立即重新 deploy 会失败（自冲突——其实不会，因为 check 允许同 appId，
+     * 但 FQCN 还没摘除时，会看到 "owner=我自己" 通过，行为正确）。
+     *
+     * <p>为了避免「先 undeploy 再 deploy 同 appId 的瞬间」误报，建议 undeploy 末尾调。</p>
+     */
+    private void unregisterIfs(String appId, DeployMetaData dmd) {
+        Set<String> fqcns = extractProtoServiceFQCNs(dmd);
+        for (String fqcn : fqcns) {
+            // 仅当 owner 是自己时才删——避免误删并发注册的同 FQCN（虽然冲突检测会拦住）
+            registeredIfs.remove(fqcn, appId);
+        }
+    }
+
+    /**
+     * 从所有 currentRouters 的 AppContext 收集 HTTP path → handler 映射，
+     * 整张替换 {@link HttpServer#setHttpMapping}。
+     *
+     * <p>调用时机（都在 appLock 持有内）：
+     * <ul>
+     *   <li>deploy() 末尾：ctx.start() 后 + currentRouters 指针拨到新 ctx 之后</li>
+     *   <li>restoreToSlot(CURRENT) 末尾：同上</li>
+     *   <li>switchVersion() 替换 currentRouters 之后</li>
+     *   <li>undeploy() 删 currentRouters 之后</li>
+     *   <li>start() 启动恢复 currentRouters 拨完之后</li>
+     * </ul>
+     *
+     * <p>WS/eRPC/gRPC Server impl 暂缺，对应 mapping 留 TODO；当前只处理 HTTP。</p>
+     *
+     * <p>空 mapping（无任何 app 部署）：传空 Map 而非 null，HttpServer 内部兜底。</p>
+     */
+    private void rebuildHttpMapping() {
+        if (httpServer == null) {
+            return;                                        // HTTP capability 未启用
+        }
+        Map<FastBufDataRange, PathInfo> combined = new HashMap<>();
+        for (Map.Entry<String, RouterHub> e : currentRouters.entrySet()) {
+            AppContext ctx = appContextForRouter(e.getValue());
+            if (ctx == null) continue;
+            Map<String, HttpHandler> httpByPath = ctx.httpHandlersByPath();
+            if (httpByPath == null) continue;
+            for (Map.Entry<String, HttpHandler> pe : httpByPath.entrySet()) {
+                String path = pe.getKey();
+                HttpHandler handler = pe.getValue();
+                FastBufDataRange key = FastBufDataRange.from(path);
+                PathInfo pi = new PathInfo();
+                pi.setPath(path);
+                pi.setFound(true);
+                pi.setHttpHandlers(new HttpHandler[]{handler});
+                PathInfo prev = combined.put(key, pi);
+                if (prev != null) {
+                    // 这种情况理论上不该发生——FQCN 冲突检测已拦了同 path；但同 FQCN 不同 method
+                    // 共享 path（@ProtoHttp 显式 path 重名）就要靠 deploy 时的检测挡住
+                    log.warn("HTTP path {} 在合并时覆盖（owner 已变更）", l -> l.arg(path));
+                }
+            }
+        }
+        httpServer.setHttpMapping(combined);
+    }
+
+    /** 通过 RouterHub 反查所属 AppContext（currentRouters 持有的是 RouterHub 引用，不是 AppContext）。 */
+    private AppContext appContextForRouter(RouterHub hub) {
+        if (hub == null) return null;
+        for (SlotEntry entry : registry.values()) {
+            if (entry.previous() != null && entry.previous().routers() == hub) return entry.previous();
+            if (entry.current()  != null && entry.current().routers()  == hub) return entry.current();
+            if (entry.staging()  != null && entry.staging().routers()  == hub) return entry.staging();
+        }
+        return null;
     }
 }

@@ -16,22 +16,14 @@
 
 package io.edap.container;
 
-import io.edap.Server;
-import io.edap.container.app.ErpcRouteEntry;
-import io.edap.container.app.GrpcRouteEntry;
-import io.edap.container.app.HttpRouteEntry;
 import io.edap.container.app.RouterHub;
-import io.edap.container.app.WsRouteEntry;
 import io.edap.container.app.asm.HandlerAsmGenerator;
 import io.edap.container.event.ApplicationEvent;
 import io.edap.container.event.ContextClosedEvent;
 import io.edap.container.event.ContextRefreshedEvent;
 import io.edap.container.event.EventPublisher;
 import io.edap.container.exc.RouteBindException;
-import io.edap.container.mw.AnnoData;
-import io.edap.container.mw.DeployComponent;
-import io.edap.container.mw.DeployMetaData;
-import io.edap.container.mw.ServiceMeta;
+import io.edap.container.mw.*;
 import io.edap.container.scan.EarScanner;
 import io.edap.container.ws.WSServiceMsgHandler;
 import io.edap.grpc.GrpcHandler;
@@ -42,12 +34,19 @@ import io.edap.microservice.Scope;
 import io.edap.microservice.annotation.Bean;
 import io.edap.microservice.annotation.MicroServiceBean;
 import io.edap.props.Props;
+import io.edap.protobuf.annotation.ProtoHttp;
+import io.edap.protobuf.annotation.ProtoWebSocket;
+import io.edap.protobuf.annotation.Sharded;
 import io.edap.rpc.ErpcHandler;
 import io.edap.util.CollectionUtils;
 
+import java.io.IOException;
 import java.lang.reflect.Method;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+
+import static io.edap.util.AsmUtil.saveClassFile;
+import static io.edap.util.AsmUtil.toInternalName;
 
 /**
  * 单个应用（{@code appId:version}）的运行期容器；由 {@link Container#deploy} 创建。
@@ -95,21 +94,20 @@ public class AppContext implements Lifecycle {
     private final AppResourceLoader  resourceLoader;// 通过 appCL 读 jar 内资源
     private final List<BeanPostProcessor> postProcessors = new ArrayList<>(); // Bean 初始化前后钩子
 
-    /** Container.deploy() 末尾把本 AppContext 的 NIO Server 注册到 ServerGroup 时写入。 */
-    private final List<Server>       servers = new ArrayList<>();
-
-    // ─── 路由条目（Phase 3 内部 generateAndBindRoutes() 的输入；Phase 1 GATHERING 期间由 scanRouteEntries 汇总） ───
-    private final List<HttpRouteEntry>  httpRoutes = new ArrayList<>();
-    private final List<WsRouteEntry>    wsRoutes   = new ArrayList<>();
-    private final List<ErpcRouteEntry>  erpcRoutes = new ArrayList<>();
-    private final List<GrpcRouteEntry>  grpcRoutes = new ArrayList<>();
+    // ─── per-app path → handler 索引 ───
+    // Container.rebuildHttpMapping() 在 deploy / undeploy / switchVersion 末尾聚合各 app 的
+    // httpHandlersByPath + wsHandlersByPath，整张替换 HttpServer 的 httpMapping（volatile 写，
+    // dispatch 热路径无锁读）。同 app 不同 method 的 path 由 @ProtoHttp/@ProtoWebSocket 显式
+    // 指定；未指定时默认派生 /<interfaceSimpleName>/<methodName> 全小写。
+    private final Map<String, HttpHandler>            httpHandlersByPath = new HashMap<>();
+    private final Map<String, WSServiceMsgHandler<?>> wsHandlersByPath   = new HashMap<>();
 
     // ─── ASM 生成 Handler impl class 的缓存 ───
     // 挂在 AppContext 上（不是 Container 单例），原因：Method → Class → genCL →(parent)→ appCL
     // 整条引用链必须与 ctx 同生死；放 Container 上会永久持有 appCL 引用 → appCL 永远 GC 不掉
     // （违反 §3.8 防内存泄漏不变量）。详见 §3.5.7 缓存归属说明。
     private final Map<HandlerKey, Class<?>>           generatedHandlers = new ConcurrentHashMap<>();
-    private final Map<ClassLoader, ClassLoader>       generatedCLs      = new ConcurrentHashMap<>();
+    private final Map<ClassLoader, GeneratedClassLoader> generatedCLs   = new ConcurrentHashMap<>();
 
     private volatile AppState        state = AppState.NEW;
 
@@ -155,13 +153,13 @@ public class AppContext implements Lifecycle {
     public void start() throws Throwable {
         transitionTo(AppState.GATHERING);                 // NEW -> GATHERING
         try {
-            // Phase 1 GATHERING：扫 EAR → BeanDef + 4 份 RouteEntry 列表
+            // Phase 1 GATHERING：扫 EAR → BeanDef 列表
+            // （路由信息直接来自 dmd.protoServiceInfos，Phase 3 末尾再消费——见 generateAndBindRoutes）
             List<BeanDef> defs = scanBeanDefs();
             for (BeanDef def : defs) {
                 beans.register(def);
             }
             beans.topologicalSort();                            // 循环依赖此处抛
-            scanRouteEntries();                                 // 汇总 4 份 RouteEntry（httpRoutes/wsRoutes/erpcRoutes/grpcRoutes）
 
             // Phase 2 COMMITTING：实例化 → 注入 → init
             beans.transitionToCommitting();                     // COLLECTING -> INSTANTIATING
@@ -203,7 +201,11 @@ public class AppContext implements Lifecycle {
 
         Throwable firstErr = null;
         // 1. 路由摘除（让 in-flight 之外不再有请求到达本 AppContext）
-        try { routers.unbindAll(); }
+        try {
+            routers.unbindAll();
+            httpHandlersByPath.clear();
+            wsHandlersByPath.clear();
+        }
         catch (Throwable t) { firstErr = t; }
 
         // 2. 逆序：Lifecycle.stop / @PreDestroy / 清空 singletons（含 ShardRegistry 分片）
@@ -312,154 +314,130 @@ public class AppContext implements Lifecycle {
     }
 
     /**
-     * 汇总 4 份 RouteEntry 列表（Phase 1 末尾、Phase 2 之前）。
+     * 把 (protoIf, targetIf, annoData, shard, method) 桥接为可立即 dispatch 的协议 typed Handler 实例。
      *
-     * <p>数据源：dmd.protoHttpMap / dmd.protoWebSocketMap（来自 EarScanner.filterProtoHttp）；
-     * eRPC / gRPC 的 RouteEntry 列表当前为空（eRPC / gRPC option 解析尚未在
-     * EarScanner 中实现，相关字段由后续 PR 补全）。</p>
-     */
-    private void scanRouteEntries() {
-        Set<Capability> capabilities = container.capabilities();
-        // HTTP：从 dmd.protoHttpMap（path → ProtoMethodData）汇总
-        for (Map.Entry<String, DeployComponent> e : dmd.getComponentMap().entrySet()) {
-            // 占位实现：EarScanner 当前的 ProtoMethodData → HttpRouteEntry 转换尚未落地
-            // 等 Stage 3 option 体系稳定后由 EarScanner 直接产出 HttpRouteEntry，
-            // 本方法改为直接遍历 dmd.getHttpRoutes() / dmd.getWsRoutes() 等。
-        }
-        // WS：当前 EarScanner 产出的是 Map<String, Map<String, ProtoMethodData>>，
-        //     与 WsRouteEntry 一对一转换同样尚未实现
-        // eRPC / gRPC：proto 层目前没有对应 option，列表保持空
-    }
-
-    /**
-     * 把 (targetIf, entry, bean, method) 桥接为可立即 dispatch 的协议 typed Handler 实例。
-     *
-     * <p>同一 (targetIf, Method) 二元组只生成一次 Handler impl class（{@code generatedHandlers} 缓存）。
-     * 生成类实现 {@code targetIf} 接口（HttpHandler / WSServiceMsgHandler / ErpcHandler / GrpcHandler）。
-     * 生成类的 ClassLoader parent = appCL（能引用 appCL 加载的 bean 类 / entry 类）。
+     * <p>同一 (targetIf, protoIf, methodName, annoType) 四元组只生成一次 Handler impl class
+     * （{@code generatedHandlers} 缓存）。生成类实现 {@code targetIf} 接口（HttpHandler /
+     * WSServiceMsgHandler / ErpcHandler / GrpcHandler），构造器签名 {@code (BeanContainer, ShardRegistry)}。
+     * 生成类的 ClassLoader parent = appCL（能引用 appCL 加载的 bean / proto 接口类）。
      * 缓存挂在 ctx 上：AppContext.stop() 后整条引用链断开，appCL 可 GC。</p>
      *
-     * <p>当 {@code entry.shard() == true} 时，生成 Handler 持有 ShardRegistry 引用，
+     * <p><b>bean 由 Handler 自己查，AppContext 不参与</b>：Handler 构造时调
+     * {@code this.beans.findBeanWrapByType(protoIf)}，找到则缓存到字段、缺失则抛
+     * {@link IllegalStateException}（"No bean for <protoIf>"），本方法把异常包成
+     * {@link RouteBindException} 冒泡 → deploy 失败（fail-fast）。是否使用 bean / 走本地
+     * invokevirtual 还是 ShardRegistry / ClusterShardRouter 远端 RPC，<b>全由 Handler 字节码
+     * 自己决定</b>，AppContext 不感知。</p>
+     *
+     * <p>当 {@code shard == true} 时，生成 Handler 持有 ShardRegistry 引用，
      * handle 内部按 shardKey 选实例。</p>
      *
      * @param targetIf 协议 typed Handler 接口的 Class 对象（HttpHandler.class / WSServiceMsgHandler.class / ...）
-     * @param entry    具体 RouteEntry / GrpcMethodEntry
-     * @param bean     已实例化的 bean
-     * @param method   bean 上的目标 Method（已 setAccessible(true)）
-     * @param shards   ShardRegistry 引用（entry.shard() == true 时生成 Handler 内部使用；否则可传 null）
+     * @param protoIf  proto 服务接口的 Class 对象（{@code GreeterService.class}）—— 用于 className、
+     *                  cache key 与 Handler 构造时查 bean；<b>注意</b>是接口本身（FQCN），不是实现类
+     * @param annoDatas 协议注解（{@code @ProtoHttp} / {@code @ProtoWebSocket} / ...）—— asm 模板从中读 path/method 等
+     * @param annoData    true = 此路由 shard 亲和（{@code @Sharded} 标注）
+     * @param method   proto 接口上的目标 Method（{@code protoIf.getMethod(...)} 取得）——
+     *                  仅取方法名 + 参数类型用于 cache key 与 className
+     * @param shards   ShardRegistry 引用（shard == true 时生成 Handler 内部使用；否则可传 null）
      * @return 新实例化的 targetIf 实例
-     * @throws RouteBindException ASM 生成 / 类加载 / 实例化失败时抛出
+     * @throws RouteBindException ASM 生成 / 类加载 / 实例化失败 / Handler 查不到 bean 时抛出
      */
     @SuppressWarnings("unchecked")
-    public <T> T generateHandler(Class<T> targetIf, Object entry, Object bean, Method method,
-                                 ShardRegistry shards) {
-        Class<?> beanClass = bean.getClass();
-        HandlerKey cacheKey = new HandlerKey(targetIf, method);
+    public <T> T generateHandler(Class<T> targetIf, Class<?> protoIf, List<AnnoData> annoDatas, AnnoData annoData,
+                                 Method method, ShardRegistry shards) {
+        // cache key 用 (targetIf, protoIf, methodName, annoType) —— 不用 Method，
+        // 避免 declaringClass（实现类）污染 cache，确保同 proto 接口的多种实现共享同一 Handler class
+        HandlerKey cacheKey = new HandlerKey(targetIf, protoIf, method.getName(), annoData.getType());
 
-        // 1. 缓存查找：同一 (targetIf, Method) → 复用之前生成的 Handler impl class
+        // 1. 缓存查找：同一四元组 → 复用之前生成的 Handler impl class
         Class<?> handlerClass = generatedHandlers.computeIfAbsent(cacheKey, k -> {
-            // 2. 拿生成类专用 ClassLoader（parent = appCL）
-            ClassLoader appCL = beanClass.getClassLoader();      // bean 必被 appCL 加载
-            ClassLoader genCL = generatedCLs.computeIfAbsent(appCL, cl -> new GeneratedClassLoader(cl));
+            // 2. 拿生成类专用 ClassLoader（parent = appCL）—— protoIf 必被 appCL 加载
+            ClassLoader appCL = protoIf.getClassLoader();
+            GeneratedClassLoader genCL = generatedCLs.computeIfAbsent(appCL, GeneratedClassLoader::new);
 
             // 3. ASM 字节码生成（无状态工具 HandlerAsmGenerator.INSTANCE，不持有 app 状态）
             byte[] bytes = HandlerAsmGenerator.INSTANCE.generateHandlerClass(
-                    targetIf, k.method(), entry.getClass(), beanClass);
+                    targetIf, protoIf, method, annoDatas);
 
-            // 4. 加载类（defineClass 不走双亲委派；走 genCL → parent (appCL) 解析 bean/entry 类型）
+            // 4. defineClass 把字节码实际注册到 genCL（不走双亲委派；不向上找 parent (appCL)）——
+            //    用 Class.forName(name, true, genCL) 会先走 genCL → appCL 双亲委派，
+            //    appCL 没有这个类就 CNFE，Handler impl 永远不会被实际注册。
             try {
-                return Class.forName(
-                        HandlerAsmGenerator.INSTANCE.className(targetIf, k.method()),
-                        true, genCL);
-            } catch (ClassNotFoundException e) {
-                throw new RouteBindException(bean, k.method().getName(), k.method().getParameterTypes(), e);
+                String handlerName = HandlerAsmGenerator.INSTANCE.handlerName(targetIf, protoIf, method);
+                saveClassFile("./" + toInternalName(handlerName) + ".class", bytes);
+                return genCL.define(handlerName, bytes);
+            } catch (LinkageError | IllegalArgumentException | IOException e) {
+                // LinkageError：重复 define 同一 name；IllegalArgumentException：name 不合法 / bytes 越界
+                throw new RouteBindException(null, method.getName(), method.getParameterTypes(), e);
             }
         });
 
-        // 5. 反射实例化：(bean, entry, shards) → 构造器签名 (beanClass, entryClass, ShardRegistry)
+        // 5. 反射实例化：(beans, shards) → 构造器签名 (BeanContainer, ShardRegistry)
+        // Handler 构造时自己按 protoIf 查 bean；缺失 → IllegalStateException → 包成 RouteBindException
         try {
             return (T) handlerClass
-                .getConstructor(beanClass, entry.getClass(), ShardRegistry.class)
-                .newInstance(bean, entry, shards);
+                .getConstructor(AppContext.class)
+                .newInstance(this);
         } catch (ReflectiveOperationException ex) {
-            throw new RouteBindException(bean, method.getName(), method.getParameterTypes(), ex);
+            throw new RouteBindException(null, method.getName(), method.getParameterTypes(), ex);
         }
     }
 
     /**
-     * Phase 3 末尾调用：遍历 4 份 RouteEntry → 逐条 {@link #generateHandler} → 一次性写入
-     * {@link RouterHub#setHandlers}。
+     * Phase 3 末尾调用：遍历 ProtoServiceData → 按方法上的协议注解（{@code @ProtoHttp} /
+     * {@code @ProtoWebSocket} / ...）生成对应协议 typed Handler → 一次性写入 RouterHub。
      *
-     * <p><b>按节点能力过滤</b>：4 份 RouteEntry 都会按 {@link Container#capabilities()} 过滤——
+     * <p><b>为什么不再用 RouteEntry 中间结构</b>：扫描期产出的 {@link ProtoServiceData} 已
+     * 包含 {@link ProtoServiceData#getTypeName()}（接口 FQCN）+ {@link ProtoMethodData#getName()}
+     * （方法名）+ {@link ProtoMethodData#getAnnoDatas()}（含 {@code @ProtoHttp}/{@code @ProtoWebSocket}/
+     * {@code @Sharded} 等所有方法级注解的值）；直接消费这两层数据 + {@link Capability} 过滤即可生成
+     * 4 份协议 typed Handler，<b>不再需要中间的 RouteEntry POJO 二次封装</b>。
+     * 好处：① 减少约 4 个 POJO + 4 份 List 字段 + 4 个 accessor；② 扫描器不需要为每条路由额外组装
+     * POJO；③ 协议注解里的 path/method/body 等直接被 asm emit 模板消费，少一次字符串→字段的拷贝。</p>
+     *
+     * <p><b>数据流</b>：
+     * <pre>
+     *   dmd.getComponentMap().values()
+     *       .forEach comp -&gt; comp.protoServiceInfos
+     *           .forEach psi -&gt; psi.methodInfos.forEach pmd -&gt;
+     *               pmd.annoDatas.forEach anno -&gt;
+     *                   按 anno.type 分派到 (HTTP/WS/eRPC/gRPC) Handler 生成
+     * </pre>
+     *
+     * <p><b>按节点能力过滤</b>：协议注解按 {@link Container#capabilities()} 过滤——
      * 节点不具备的能力（如 eRPC 节点没有 {@link Capability#HTTP}），即使应用里写了
-     * {@code @HttpRoute}，也不会生成对应 Handler，避免白生成 + 永不 dispatch 的死代码。
-     * 过滤点放在 Phase 3 而非 Phase 1 的 {@code scanRouteEntries}：
+     * {@code @ProtoHttp}，也不会生成对应 Handler，避免白生成 + 永不 dispatch 的死代码。
+     * 过滤点放在 Phase 3 而非 Phase 1：
      * <ul>
-     *   <li>RouteEntry 本身很小（POJO），内存占用可忽略</li>
-     *   <li>scanRouteEntries 不依赖 Container 状态，保持纯解析职责</li>
+     *   <li>ProtoServiceData 本身不大，遍历成本远低于 RouteEntry POJO 的二次封装</li>
+     *   <li>本方法不依赖 EAR 重扫——只走 dmd 内存结构</li>
      *   <li>未来节点能力热调整（hotswap capability）只需重跑本方法，不需要重扫 EAR</li>
      * </ul></p>
-     *
-     * <p><b>为什么在这里做、而不是 Container.bindAll</b>：Handler 类生成依赖 appCL（bean/entry
-     * 类型由 appCL 解析），同时生成结果（generatedHandlers 缓存 + generatedCLs ClassLoader 映射）
-     * 必须与 AppContext 同生死——否则 appCL 引用链会跨 stop 边界泄漏。
-     * 把生成逻辑挪到 Container 会让 Container 单例永久持有 appCL 引用，违反 §3.8 防内存泄漏不变量。</p>
      *
      * <p><b>为什么 eRPC/gRPC 要切 TCCL</b>：{@code ErpcHandler.generateHandler} 内部要从
      * requestType 字符串解析 Class（appCL 加载），{@link java.lang.Class#forName(String)} 默认走
      * caller 的 ClassLoader——非 appCL。切到 TCCL 才能保证 appCL 找到类。</p>
      *
-     * <p><b>失败处理</b>：任一 RouteEntry 生成失败 → 抛 {@link RouteBindException} →
+     * <p><b>失败处理</b>：任一 Handler 生成失败 → 抛 {@link RouteBindException} →
      * start() 捕到后状态转 FAILED，Container.deploy 失败回滚。</p>
      */
     private void generateAndBindRoutes() {
-        List<HttpHandler> httpH = new ArrayList<>(httpRoutes.size());
-        List<WSServiceMsgHandler<?>> wsH = new ArrayList<>(wsRoutes.size());
-        List<ErpcHandler> erpcH = new ArrayList<>(erpcRoutes.size());
-        List<GrpcHandler> grpcH = new ArrayList<>(grpcRoutes.size());
-
-        // eRPC requestType / gRPC reqDesc-respDesc 解析需要 appCL；切 TCCL 让 Class.forName 走 appCL
+        // 切 TCCL：后续 Class.forName(pmd.paramType, false, appCL) 不需要再切，但保持习惯避免后续 emit 漏掉
         ClassLoader prevCL = Thread.currentThread().getContextClassLoader();
         Thread.currentThread().setContextClassLoader(appCL);
         try {
-            // 1. HTTP —— 节点具备 HTTP 能力才生成
-            if (container.hasCapability(Capability.HTTP)) {
-                for (HttpRouteEntry e : httpRoutes) {
-                    Object bean = resolveBean(e.beanName());
-                    Method m = resolveMethod(bean, e.methodName(), httpParamTypes(e));
-                    httpH.add(generateHandler(HttpHandler.class, e, bean, m, shards));
+            for (DeployComponent comp : dmd.getComponentMap().values()) {
+                List<ProtoServiceData> psiList = comp.getProtoServiceInfos();
+                if (CollectionUtils.isEmpty(psiList)) {
+                    continue;
                 }
-            }
-            // 2. WS —— 节点具备 WS 能力才生成（HTTP + WS 是两个独立能力，见 Capability 注释）
-            if (container.hasCapability(Capability.WS)) {
-                for (WsRouteEntry e : wsRoutes) {
-                    Object bean = resolveBean(e.beanName());
-                    Method m = resolveMethod(bean, e.methodName(),
-                            new Class<?>[]{ Class.forName(e.msgType(), false, appCL) });
-                    @SuppressWarnings({"rawtypes", "unchecked"})
-                    WSServiceMsgHandler h = (WSServiceMsgHandler)generateHandler(
-                            (Class) WSServiceMsgHandler.class, e, bean, m, shards);
-                    wsH.add(h);
-                }
-            }
-            // 3. eRPC
-            if (container.hasCapability(Capability.ERPC)) {
-                for (ErpcRouteEntry e : erpcRoutes) {
-                    Object bean = resolveBean(e.beanName());
-                    Method m = resolveMethod(bean, e.methodName(),
-                            new Class<?>[]{ Class.forName(e.requestType(), false, appCL) });
-                    erpcH.add(generateHandler(ErpcHandler.class, e, bean, m, shards));
-                }
-            }
-            // 4. gRPC：每个 GrpcRouteEntry 含多个 GrpcMethodEntry → 每个方法一个 Handler
-            if (container.hasCapability(Capability.GRPC)) {
-                for (GrpcRouteEntry e : grpcRoutes) {
-                    Object bean = resolveBean(e.serviceName());
-                    for (GrpcRouteEntry.GrpcMethodEntry me : e.methods()) {
-                        Method m = resolveMethod(bean, me.javaMethodName(),
-                                new Class<?>[]{ Class.forName(me.reqDesc(), false, appCL) });
-                        grpcH.add(generateHandler(GrpcHandler.class, me, bean, m, shards));
-                    }
+
+                for (ProtoServiceData psi : psiList) {
+                    // AppContext 只负责按 proto 接口生成 Handler 类 + 实例化；
+                    // bean 由 Handler 构造时自己从 BeanContainer 查（缺失 → 抛 → deploy 失败）。
+                    Class<?> ifaceClass = Class.forName(psi.getTypeName(), false, appCL);
+                    generateMethodsHandlers(ifaceClass, psi.getMethodInfos());
                 }
             }
         } catch (ClassNotFoundException e) {
@@ -467,8 +445,74 @@ public class AppContext implements Lifecycle {
         } finally {
             Thread.currentThread().setContextClassLoader(prevCL);
         }
-        // 5. 一次性写入 RouterHub（替换原 4 份 Handler List 的原子操作）
-        routers.setHandlers(httpH, wsH, erpcH, grpcH);
+
+    }
+
+    private void generateMethodsHandlers(Class<?> protoIf, List<ProtoMethodData> protoMethodDatas)
+            throws ClassNotFoundException {
+        List<HttpHandler>            httpH = routers.httpHandlers();
+        List<WSServiceMsgHandler<?>> wsH   = routers.wsHandlers();
+        List<ErpcHandler>            erpcH = routers.erpcHandlers();
+        List<GrpcHandler>            grpcH = routers.grpcHandlers();
+
+        String protoHttpAnn = ProtoHttp.class.getName();
+        String protoWsAnn   = ProtoWebSocket.class.getName();
+        String shardedAnn   = Sharded.class.getName();
+        for (ProtoMethodData pmd : protoMethodDatas) {
+            // Method 从 proto 接口上取（不是 bean 实例）—— Handler 字节码后续自己按 protoIf 查 bean
+            Method m;
+            try {
+                m = protoIf.getMethod(pmd.getName(), pmdParamTypes(pmd));
+            } catch (NoSuchMethodException ex) {
+                throw new RouteBindException(null, pmd.getName(), pmdParamTypes(pmd), ex);
+            }
+            boolean shard = false;
+            for (AnnoData a : pmd.getAnnoDatas()) {
+                if (shardedAnn.equals(a.getType())) {
+                    shard = true;
+                    break;
+                }
+            }
+
+            for (AnnoData anno : pmd.getAnnoDatas()) {
+                String t = anno.getType();
+                // 1. HTTP：方法上有 @ProtoHttp 才生成；节点具备 HTTP 能力
+                if (protoHttpAnn.equals(t)) {
+                    if (container.hasCapability(Capability.HTTP)) {
+                        HttpHandler h = generateHandler(HttpHandler.class, protoIf, pmd.getAnnoDatas(), anno, m, shards);
+                        httpH.add(h);
+                        httpHandlersByPath.put(deriveHttpPath(protoIf, m, anno), h);
+                    }
+                    // 2. WS：方法上有 @ProtoWebSocket 才生成；节点具备 WS 能力
+                } else if (protoWsAnn.equals(t)) {
+                    if (container.hasCapability(Capability.WS)) {
+                        @SuppressWarnings({"rawtypes", "unchecked"})
+                        WSServiceMsgHandler h = (WSServiceMsgHandler) generateHandler(
+                                (Class) WSServiceMsgHandler.class, protoIf, pmd.getAnnoDatas(), anno, m, shards);
+                        wsH.add(h);
+                        wsHandlersByPath.put(deriveHttpPath(protoIf, m, anno), h);
+                    }
+                }
+                // eRPC / gRPC option 解析尚未在 EarScanner 落地——对应 Capability 检查留待后续 PR
+            }
+        }
+    }
+
+    /**
+     * 派生 HTTP/WS path：优先用注解的 path 属性；未指定则按 "/<simpleName>/<methodName>" 全小写派生。
+     * 同 app 内不同 method 共享 FQCN → simpleName 段，method 段区分——保证 path 全局唯一（同 app 内）。
+     * Container 在 deploy 时再做跨 app 冲突检测（FQCN 维度）。
+     */
+    private static String deriveHttpPath(Class<?> protoIf, Method m, AnnoData anno) {
+        Object p = anno.getValues().get("path");
+        if (p != null) {
+            String s = p.toString();
+            if (!s.isEmpty()) {
+                return s;
+            }
+        }
+        String simple = protoIf.getSimpleName();
+        return ("/" + simple + "/" + m.getName()).toLowerCase(Locale.ENGLISH);
     }
 
     /** 从 BeanContainer 按 name 拿已实例化的 bean；找不到 → BeanContainer 内部抛 NoSuchBeanException（启动期 fail-fast）。 */
@@ -476,22 +520,16 @@ public class AppContext implements Lifecycle {
         return beans.getBean(beanName);
     }
 
-    /** 按 bean + methodName + 参数类型在 bean 类上找到 Method；找不到 → 抛 RouteBindException。 */
-    private Method resolveMethod(Object bean, String methodName, Class<?>[] paramTypes) {
-        Class<?> cls = bean.getClass();
-        try {
-            Method m = cls.getMethod(methodName, paramTypes);
-            m.setAccessible(true);
-            return m;
-        } catch (NoSuchMethodException ex) {
-            throw new RouteBindException(bean, methodName, paramTypes, ex);
+    /**
+     * 从 ProtoMethodData 推 Method 参数类型。当前实现按 pmd.paramType（单个 FQCN，对应单参数方法）展开；
+     * 复杂多参数方法（HTTP 按 path/body 拆）由后续 emit 模板补全。
+     */
+    private Class<?>[] pmdParamTypes(ProtoMethodData pmd) throws ClassNotFoundException {
+        String pt = pmd.getParamType();
+        if (pt == null || pt.isEmpty()) {
+            return new Class<?>[0];
         }
-    }
-
-    /** HttpRouteEntry → 协议方法参数 Class[]；当前实现直接走 entry.pathParams()（占位，待 Stage 3 稳定后调整）。 */
-    private Class<?>[] httpParamTypes(HttpRouteEntry e) {
-        // TODO Stage 3：按 pathParams + body + @HttpRoute(method, path, body) 推出参数类型
-        return new Class<?>[0];
+        return new Class<?>[]{ Class.forName(pt, false, appCL) };
     }
 
     /**
@@ -512,40 +550,12 @@ public class AppContext implements Lifecycle {
         return beans.getBean(name, type);
     }
 
-    /**
-     * Container.bindAll 调：把本 AppContext 的 NIO Server 注册到容器统一 ServerGroup。
-     * 列表由 Container.deploy 期间遍历 addServer() 阶段写入（详见 §3.5.6）。
-     */
-    public void addServer(Server s) {
-        servers.add(s);
-    }
-
-    /** 返回本 AppContext 关联的 NIO Server 列表（不可修改视图）。 */
-    public List<Server> getServers() {
-        return Collections.unmodifiableList(servers);
-    }
-
     /** 事件发布快捷入口（state == GATHERING 之后可调；NEW 不允许）。 */
     public void publishEvent(ApplicationEvent e) {
         events.publish(e);
     }
 
     public void destroyPartial() {}
-
-
-    // ─── 路由条目访问器（Container.bindAll 入参）───
-
-    /** HTTP 路由条目（来自 EarScanner 阶段汇总）。 */
-    public List<HttpRouteEntry> httpRoutes() { return Collections.unmodifiableList(httpRoutes); }
-
-    /** WS 路由条目。 */
-    public List<WsRouteEntry>   wsRoutes()   { return Collections.unmodifiableList(wsRoutes); }
-
-    /** eRPC 路由条目。 */
-    public List<ErpcRouteEntry> erpcRoutes() { return Collections.unmodifiableList(erpcRoutes); }
-
-    /** gRPC 路由条目。 */
-    public List<GrpcRouteEntry> grpcRoutes() { return Collections.unmodifiableList(grpcRoutes); }
 
 
     // ─── 访问器 ───
@@ -563,23 +573,23 @@ public class AppContext implements Lifecycle {
      * BeanContainer.injectAware 在 RouterHubAware 回调时通过本方法取。
      */
     public RouterHub          routers()   { return routers; }
+    /**
+     * 本 app 的 HTTP path → handler 映射（Container.rebuildHttpMapping 聚合来源）。
+     * 不可修改视图：返回的 Map 由本 AppContext 独占，外部只读，stop() 期间随 routers.unbindAll 一起清空。
+     */
+    public Map<String, HttpHandler> httpHandlersByPath() {
+        return Collections.unmodifiableMap(httpHandlersByPath);
+    }
+    /** 同上，WS path → handler。 */
+    public Map<String, WSServiceMsgHandler<?>> wsHandlersByPath() {
+        return Collections.unmodifiableMap(wsHandlersByPath);
+    }
     public ShardRegistry      shards()    { return shards; }
     public AppResourceLoader resourceLoader() { return resourceLoader; }
     public AppState           state()     { return state; }
 
 
     // ─── 内部类型 ───
-
-    /**
-     * (targetIf, Method) 二元组，作为 generatedHandlers 的 key。
-     *
-     * <p>为什么 key 是 HandlerKey 而不是单个 Method：同一 bean method 可能被多个协议路由
-     * （如 sayHello 同时是 HttpHandler 和 ErpcHandler），不同 targetIf → 不同实现类
-     * （不同 typed 接口 + 不同协议提参 / 响应字节码），需要各自缓存、彼此互不干扰。</p>
-     */
-    public record HandlerKey(Class<?> targetIf, Method method) {
-        // 自动 equals/hashCode 基于 targetIf + Method
-    }
 
     /**
      * 生成类专用 ClassLoader（parent = appCL）。
@@ -597,6 +607,16 @@ public class AppContext implements Lifecycle {
     static final class GeneratedClassLoader extends ClassLoader {
         GeneratedClassLoader(ClassLoader parent) {
             super(parent);
+        }
+
+        /**
+         * 把 ASM 字节码注册为 named class。直接 defineClass，<b>不走双亲委派</b>——
+         * 不会因 parent (appCL) 已有同名 class 而被遮蔽；多次 define 同一 name 抛 LinkageError。
+         *
+         * <p>专供 {@code AppContext.generateHandler} 用；包内可见。</p>
+         */
+        Class<?> define(String name, byte[] bytes) {
+            return defineClass(name, bytes, 0, bytes.length);
         }
     }
 

@@ -28,7 +28,13 @@ import static io.edap.util.StringUtil.fastInstance;
 
 public class BytesPathDecoder implements BytesTokenDecoder<PathInfo> {
 
-    static PathInfoMatcher PATH_INFO_MATCHER = PathInfoMatcher.instance();
+    /**
+     * legacy 字节数组 parser 路径的 PathInfoMatcher —— 旧实现是
+     * {@code PathInfoMatcher.instance()} 静态单例；单例删除后改为本类独立持有。
+     * BytesPathDecoder 当前已被 RangeHttpRequestDecoder/PathDecoder 取代，仅作保留；
+     * 此处不与 HttpServer 的 per-instance matcher 互通（走的是另一条 decoder 链）。
+     */
+    static PathInfoMatcher PATH_INFO_MATCHER = new PathInfoMatcher();
 
     @Override
     public PathInfo decode(FastBuf buf, ByteArrayBuilder sb, HttpRequest request) {

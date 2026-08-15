@@ -54,6 +54,10 @@ public class Bootstrap {
                 getClassMethod(DeployManager.class, "deployApp", String.class, String.class),
                 deployManager));
 
+        builder.get("/online_app", createGetHandler(
+                getClassMethod(DeployManager.class, "online", String.class, String.class),
+                deployManager));
+
         managerGroup.addServer(builder.build());
         managerGroup.setName("deploy-manager");
         edap.addServerGroup(managerGroup);
