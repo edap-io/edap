@@ -55,4 +55,10 @@ public @interface ProtoField {
      * @return
      */
     String comment() default "";
+
+    /**
+     * proto文件的message的field名称
+     * @return
+     */
+    String name() default "";
 }

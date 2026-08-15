@@ -723,9 +723,19 @@ public class JavaBuilder {
             }
             buildDocComment(cb, f.getComment(), level);
             cb.t(level).c("@ProtoField(tag = ").c(String.valueOf(f.getTag()))
-                    .c(", type = ").c(typeName).c(")").ln();
-            String type = getJavaType(f, imps, buildOps, proto);
+                    .c(", type = ").c(typeName);
             String name = f.getName();
+            int underline = name.indexOf("_");
+            String javaFieldName;
+            if (underline != -1) {
+                cb.c(", name=\"").c(name).c("\"");
+                javaFieldName = toCamelCase(name);
+            } else {
+                javaFieldName = name;
+            }
+            cb.c(")").ln();
+            String type = getJavaType(f, imps, buildOps, proto);
+
             if (f.getCardinality() == Field.Cardinality.REPEATED) {
                 String boxedTypeName = getBoxedTypeName(f, buildOps, proto);
                 type = "List<" + boxedTypeName + ">";
@@ -736,21 +746,21 @@ public class JavaBuilder {
             }
 
             cb.t(level).e("private $type$ $name$;")
-                    .arg(type, name).ln();
+                    .arg(type, javaFieldName).ln();
 
             String getMethod;
             if (!"bool".equalsIgnoreCase(f.getType())) {
                 getMethod = "get" +
-                        f.getName().substring(0, 1).toUpperCase(Locale.ENGLISH) +
-                        f.getName().substring(1);
+                        javaFieldName.substring(0, 1).toUpperCase(Locale.ENGLISH) +
+                        javaFieldName.substring(1);
             } else {
                 getMethod = "is" +
-                        f.getName().substring(0, 1).toUpperCase(Locale.ENGLISH) +
-                        f.getName().substring(1);
+                        javaFieldName.substring(0, 1).toUpperCase(Locale.ENGLISH) +
+                        javaFieldName.substring(1);
             }
             getCode.t(level).e("public $type$ $getMethod$() {")
                     .arg(type, getMethod).ln();
-            getCode.t(level + 1).e("return $name$;").arg(f.getName()).ln();
+            getCode.t(level + 1).e("return $name$;").arg(javaFieldName).ln();
             getCode.t(level).c("}").ln();
             getCodes.add(getCode.toString());
 
@@ -761,12 +771,12 @@ public class JavaBuilder {
                 retType = "void";
             }
             String setMethod = "set" +
-                    f.getName().substring(0, 1).toUpperCase(Locale.ENGLISH) +
-                    f.getName().substring(1);
+                    javaFieldName.substring(0, 1).toUpperCase(Locale.ENGLISH) +
+                    javaFieldName.substring(1);
             setCode.t(level).e("public $retType$ $setMethod$($type$ $name$) {")
-                    .arg(retType, setMethod, type, name).ln();
+                    .arg(retType, setMethod, type, javaFieldName).ln();
             setCode.t(level + 1).e("this.$name$ = $name$;")
-                    .arg(f.getName(), f.getName()).ln();
+                    .arg(javaFieldName, javaFieldName).ln();
             if (buildOps.isChainOper()) {
                 setCode.t(level + 1).c("return this;").ln();
             }
@@ -808,41 +818,50 @@ public class JavaBuilder {
         CodeBuilder listCode = new CodeBuilder();
         for (int i=0;i<fields.size();i++) {
             Field f = fields.get(i);
+            String javaFieldName;
+            String name = f.getName();
+            int underline = name.indexOf('_');
+            if (underline == -1) {
+                javaFieldName = name;
+            } else {
+                javaFieldName = toCamelCase(name);
+            }
             String setMethod = "set" +
-                    f.getName().substring(0, 1).toUpperCase(Locale.ENGLISH) +
-                    f.getName().substring(1);
+                    javaFieldName.substring(0, 1).toUpperCase(Locale.ENGLISH) +
+                    javaFieldName.substring(1);
             String type = getJavaType(f, imps, buildOps, proto);
             String itemType = type;
             if (f.getCardinality() == Cardinality.REPEATED) {
                 String boxedType = getBoxedTypeName(f, buildOps, proto);
                 type = "List<" + boxedType + ">";
             }
+
             if (f.getCardinality() == Cardinality.REPEATED) {
                 String methodName = setMethod.substring(3);
                 String itemName = "itemVar";
                 itemType = getBoxedTypeName(f, buildOps, proto);
                 listCode.t(level).e("public void add$itemName$($itemType$ $itemTypeName$) {")
                         .arg(methodName, itemType, itemName).ln();
-                listCode.t(level + 1).e(LIST_IS_NULL_STR).arg(f.getName()).ln();
-                listCode.t(level + 2).e(LIST_NEW_STR).arg(f.getName()).ln();
+                listCode.t(level + 1).e(LIST_IS_NULL_STR).arg(javaFieldName).ln();
+                listCode.t(level + 2).e(LIST_NEW_STR).arg(javaFieldName).ln();
                 listCode.t(level + 1).e("}").ln();
-                listCode.t(level + 1).e("$name$.add($itemName$);").arg(f.getName(), itemName).ln();
+                listCode.t(level + 1).e("$name$.add($itemName$);").arg(javaFieldName, itemName).ln();
                 listCode.t(level).c("}").ln();
 
                 listCode.t(level).e("public void add$itemName$(int index, $itemType$ $itemTypeName$) {")
                         .arg(methodName, itemType, itemName).ln();
-                listCode.t(level + 1).e(LIST_IS_NULL_STR).arg(f.getName()).ln();
-                listCode.t(level + 2).e(LIST_NEW_STR).arg(f.getName()).ln();
+                listCode.t(level + 1).e(LIST_IS_NULL_STR).arg(javaFieldName).ln();
+                listCode.t(level + 2).e(LIST_NEW_STR).arg(javaFieldName).ln();
                 listCode.t(level + 1).e("}").ln();
-                listCode.t(level + 1).e("$name$.add(index, $itemName$);").arg(f.getName(), itemName).ln();
+                listCode.t(level + 1).e("$name$.add(index, $itemName$);").arg(javaFieldName, itemName).ln();
                 listCode.t(level).c("}").ln();
 
                 listCode.t(level).e("public void add$itemName$($type$ $itemTypeName$) {")
                         .arg(methodName, type, itemName).ln();
-                listCode.t(level + 1).e(LIST_IS_NULL_STR).arg(f.getName()).ln();
-                listCode.t(level + 2).e(LIST_NEW_STR).arg(f.getName()).ln();
+                listCode.t(level + 1).e(LIST_IS_NULL_STR).arg(javaFieldName).ln();
+                listCode.t(level + 2).e(LIST_NEW_STR).arg(javaFieldName).ln();
                 listCode.t(level + 1).e("}").ln();
-                listCode.t(level + 1).e("$name$.addAll($itemName$);").arg(f.getName(), itemName).ln();
+                listCode.t(level + 1).e("$name$.addAll($itemName$);").arg(javaFieldName, itemName).ln();
                 listCode.t(level).c("}").ln();
 
             }
@@ -1041,5 +1060,30 @@ public class JavaBuilder {
         cb.t(level-1).c("}");
 
         return cb.toString();
+    }
+
+    /**
+     * 由下划线分割的命名转换为驼峰命名
+     * @return
+     */
+    public static String toCamelCase(String underScore) {
+        int start = 0;
+        int index = underScore.indexOf('_', start);
+        StringBuilder name = new StringBuilder();
+        while (index != -1) {
+            if (index > start) {
+                if (name.length() > 0) {
+                    name.append(underScore.substring(start, start + 1).toUpperCase(Locale.ENGLISH))
+                            .append(underScore.substring(start + 1, index));
+                } else {
+                    name.append(underScore.substring(start, index));
+                }
+            }
+            start = index + 1;
+            index = underScore.indexOf('_', start);
+        }
+        name.append(underScore.substring(start, start + 1).toUpperCase(Locale.ENGLISH))
+                .append(underScore.substring(start+1));
+        return name.toString();
     }
 }
