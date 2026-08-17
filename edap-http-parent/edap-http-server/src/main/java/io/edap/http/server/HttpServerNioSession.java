@@ -22,7 +22,9 @@ import io.edap.buffer.FastBuf;
 import io.edap.http.*;
 import io.edap.http.header.HeaderConnection;
 import io.edap.http.ws.AbstractFrame;
+import io.edap.http.ws.AuthResult;
 import io.edap.http.ws.Ping;
+import io.edap.http.ws.WSAuthenticator;
 import io.edap.log.Logger;
 import io.edap.log.LoggerManager;
 import io.edap.nio.ParseResult;
@@ -148,34 +150,53 @@ public class HttpServerNioSession extends HttpNioSession implements WSConnection
 		return hasMsg;
 	}
 
-	private void handeshake(HttpRequest request, HttpResponse resp) throws IOException {
+	private void handeshake(HttpRequest request, HttpResponse resp, WSAuthenticator wsAuthenticator) throws IOException {
 		HeaderValue upgradeVal = request.getHeaderValue("Upgrade");
 		HeaderValue connectionVal = request.getHeaderValue("Connection");
 		HeaderValue secKeyVal = request.getHeaderValue("Sec-WebSocket-Key");
 		HeaderValue versionVal = request.getHeaderValue("Sec-WebSocket-Version");
-		HeaderValue secProtocolVal = request.getHeaderValue("Sec-WebSocket-Protocol");
-		HeaderValue secExtVal = request.getHeaderValue("Sec-WebSocket-Extensions");
-		HeaderValue originVal = request.getHeaderValue("Origin");
 		if (upgradeVal != null && upgradeVal.getValue().equalsIgnoreCase("websocket")
 				&& connectionVal != null && connectionVal.getValue().equalsIgnoreCase("Upgrade")
 				&& secKeyVal != null) {
 			if (versionVal == null || !versionVal.getValue().equalsIgnoreCase("13")) {
 				resp.setSimpleResponse(400, null);
-			} else {
-				String secAccept = new String(BASE64_ENCODER.encode(CryptUtil.sha1(
-						secKeyVal.getValue() + WEBSOCKET_SEC_KEY)));
-				Map<String, String> headers = new HashMap<>();
-				headers.put("Sec-WebSocket-Accept", secAccept);
-                String token = request.getParameter("token");
-                if (wsHandler.tokenVerify(token)) {
-                    resp.setSimpleResponse(101, headers, HeaderConnection.UPGRADE, UPGRADE_WEBSOCKET);
-                    upgraded = true;
-                    this.httpRequest = request;
-                    wsHandler.onOpen(this);
-                } else {
-                    resp.setSimpleResponse(400, null);
-                }
+				return;
 			}
+			// per-path 鉴权（Container.deployAppRoutes 已按 byType 注入；理论上非 null）
+			if (wsAuthenticator == null) {
+				log.warn("WS path {} 未配置 WSAuthenticator，拒绝握手", l -> l.arg(request.getPath()));
+				resp.setSimpleResponse(401, null);
+				return;
+			}
+			AuthResult result;
+			try {
+				result = wsAuthenticator.verify(request);
+			} catch (Throwable t) {
+				log.warn("WSAuthenticator.verify 抛异常", l -> l.threw(t));
+				resp.setSimpleResponse(500, null);
+				return;
+			}
+			if (result == null || !result.ok()) {
+				int status = result == null ? 401 : result.status();
+				byte[] body = (result == null || result.reason() == null)
+						? new byte[0]
+						: result.reason().getBytes(StandardCharsets.UTF_8);
+				resp.write(status, body);
+				return;
+			}
+			// 鉴权成功 → 计算 Sec-WebSocket-Accept + 协议升级 101
+			String secAccept = new String(BASE64_ENCODER.encode(CryptUtil.sha1(
+					secKeyVal.getValue() + WEBSOCKET_SEC_KEY)));
+			Map<String, String> headers = new HashMap<>();
+			headers.put("Sec-WebSocket-Accept", secAccept);
+			resp.setSimpleResponse(101, headers, HeaderConnection.UPGRADE, UPGRADE_WEBSOCKET);
+			upgraded = true;
+			this.httpRequest = request;
+			// principal → sessionContext（wsHandler.onOpen / 业务 handler 可取）
+			if (result.principal() != null) {
+				setSessionContext("principal", result.principal());
+			}
+			wsHandler.onOpen(this);
 		} else {
 			resp.setSimpleResponse(400, null);
 		}
@@ -191,7 +212,7 @@ public class HttpServerNioSession extends HttpNioSession implements WSConnection
 		if (pathInfo.isFound()) {
 			if (pathInfo.getWsHandler() != null) {
 				wsHandler = pathInfo.getWsHandler();
-				handeshake(request, resp);
+				handeshake(request, resp, pathInfo.getWsAuthenticator());
 				return;
 			} else {
 				// dispatch：旧实现按 HTTP method index 索引 httpHandlers[]（一个 path 多个 method 各占一位），

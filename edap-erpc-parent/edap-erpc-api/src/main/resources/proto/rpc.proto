@@ -1,0 +1,82 @@
+syntax = "proto3";
+
+option java_multiple_files = true;
+option java_package = "io.edap.rpc";
+option java_outer_classname = "";
+option objc_class_prefix = "edapRpc";
+
+package io.edap.rpc;
+
+// rpc框架rpc调用的请求的Message定义
+message RpcRequest {
+    // rpc请求的类型用来区分是普通的调用，还是系统命令的调用
+    RpcDataType reqType = 1;
+    // 服务在服务节点的唯一表示
+    int32 serviceId = 2;
+    // 方法在服务内的唯一标识
+    int32 methodId = 3;
+    // RPC调用的请求参数
+    bytes request = 4;
+    // RPC请求的traceId
+    fixed64 traceId = 5;
+    // 请求处理经过的节点ID的列表
+    repeated int32 workId = 6;
+    // 请求发起时间戳
+    int64 requestTime = 7;
+    // 异步请求时请求的唯一标识
+    fixed64 requestId = 8;
+}
+
+message RpcResponse {
+    // rpc请求的类型用来区分是普通的调用响应，还是系统命令的调用响应
+    RpcDataType respType = 1;
+    // 服务在服务节点的唯一表示
+    int32 serviceId = 2;
+    // 方法在服务内的唯一标识
+    int32 methodId = 3;
+    // 远程调用的返回对象protobuf序列化后的二进制数据
+    bytes response = 4;
+    // 处理响应时间戳
+    int64 respTime = 5;
+    // traceId
+    fixed64 traceId = 6;
+    // 异步请求时请求的唯一标识
+    fixed64 requestId = 7;
+    repeated int32 workId = 8;
+    // 调用是否正常
+    bool success = 9;
+    // 调用产生的异常信息
+    RpcException rpcException = 10;
+}
+
+message RpcException {
+    // 异常的类名
+    string clazzName = 1;
+    // 异常描述信息
+    string message = 2;
+    // stackElement
+    repeated StackTraceElement stackElement = 3;
+}
+
+message StackTraceElement {
+    // 抛出异常的类名
+    string declaringClass = 1;
+    // 抛出异常的方法名
+    string methodName = 2;
+    // 抛出异常的类的文件名
+    string fileName = 3;
+    // 抛异常的行号
+    int32 lineNumber = 4;
+}
+
+// rpc请求的数据类型
+enum RpcDataType {
+    // 普通的远程调用的请求
+    INVOKE_REQ  = 0;
+    // 普通的远程调用的返回
+    INVOKE_RESP = 1;
+    // meta信息请求
+    META_REQ    = 2;
+    // meta请求返回
+    META_RESP   = 3;
+}

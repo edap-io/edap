@@ -45,8 +45,12 @@ public class HttpEmptyParamHandler extends AbstractHandler implements HttpHandle
         } else {
             try {
                 HelloReq helloReq = new HelloReq();
+                helloReq.setId(toLong(req.getParameter("id")));
+                helloReq.setName(req.getParameter("name"));
+                helloReq.setTop(toBoolean(req.getParameter("is_top")));
                 resp.write(Eson.toJsonString(bean.hello(helloReq)));
             } catch (Throwable e) {
+                e.printStackTrace();
                 log.warn("", e);
                 Map<String, Object> respData = new HashMap<>();
                 respData.put("code", 101);

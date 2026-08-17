@@ -16,6 +16,8 @@
 
 package io.edap.http;
 
+import io.edap.http.ws.WSAuthenticator;
+
 /**
  * http路径信息
  */
@@ -36,6 +38,14 @@ public class PathInfo {
      * WebSocket协议处理器
      */
     private WSHandler wsHandler;
+
+    /**
+     * WebSocket 握手鉴权器（per-path 1:1 绑定，与 {@link #wsHandler} 平级）。
+     * <p>由 Container 在 {@code deployAppRoutes} 阶段填入：取该 path 对应 app 的
+     * {@code WSAuthenticator} bean（byType，AppContext → Container.beans fallback）。
+     * 必填——handshake 阶段直接调 {@link WSAuthenticator#verify}。</p>
+     */
+    private WSAuthenticator wsAuthenticator;
 
     /**
      * http的路径信息
@@ -93,5 +103,16 @@ public class PathInfo {
 
     public void setWsHandler(WSHandler wsHandler) {
         this.wsHandler = wsHandler;
+    }
+
+    /**
+     * per-path WS 握手鉴权器。
+     */
+    public WSAuthenticator getWsAuthenticator() {
+        return wsAuthenticator;
+    }
+
+    public void setWsAuthenticator(WSAuthenticator wsAuthenticator) {
+        this.wsAuthenticator = wsAuthenticator;
     }
 }

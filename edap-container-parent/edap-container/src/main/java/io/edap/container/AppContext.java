@@ -18,6 +18,7 @@ package io.edap.container;
 
 import io.edap.container.app.RouterHub;
 import io.edap.container.app.asm.HandlerAsmGenerator;
+import io.edap.container.BeanWrap;
 import io.edap.container.event.ApplicationEvent;
 import io.edap.container.event.ContextClosedEvent;
 import io.edap.container.event.ContextRefreshedEvent;
@@ -25,14 +26,18 @@ import io.edap.container.event.EventPublisher;
 import io.edap.container.exc.RouteBindException;
 import io.edap.container.mw.*;
 import io.edap.container.scan.EarScanner;
+import io.edap.container.ws.ServiceWSHandler;
 import io.edap.container.ws.WSServiceMsgHandler;
 import io.edap.grpc.GrpcHandler;
 import io.edap.http.HttpHandler;
+import io.edap.http.PathInfo;
+import io.edap.http.ws.WSAuthenticator;
 import io.edap.log.Logger;
 import io.edap.log.LoggerManager;
 import io.edap.microservice.Scope;
 import io.edap.microservice.annotation.Bean;
 import io.edap.microservice.annotation.MicroServiceBean;
+import io.edap.nio.codec.FastBufDataRange;
 import io.edap.props.Props;
 import io.edap.protobuf.annotation.ProtoHttp;
 import io.edap.protobuf.annotation.ProtoWebSocket;
@@ -100,7 +105,27 @@ public class AppContext implements Lifecycle {
     // dispatch 热路径无锁读）。同 app 不同 method 的 path 由 @ProtoHttp/@ProtoWebSocket 显式
     // 指定；未指定时默认派生 /<interfaceSimpleName>/<methodName> 全小写。
     private final Map<String, HttpHandler>            httpHandlersByPath = new HashMap<>();
-    private final Map<String, WSServiceMsgHandler<?>> wsHandlersByPath   = new HashMap<>();
+
+    /**
+     * WS method → 业务 {@link WSServiceMsgHandler}。
+     * 仅用于 {@link #generateAndBindRoutes} 末尾一次性喂给 {@link #serviceWSHandler} 的
+     * msgHandlers（volatile 替换）。dispatch 阶段不走此字段——只走 serviceWSHandler.msgHandlers()。
+     */
+    private final Map<String, WSServiceMsgHandler<?>> wsMsgHandlers = new HashMap<>();
+
+    /**
+     * 单 app 唯一一个 {@link ServiceWSHandler}（{@link #WS_PATH} 路径专用）。
+     * 持有 method → 业务 WSServiceMsgHandler 的 volatile map（version 切换时整张替换）。
+     * 长连接不断开，跨 version 复用同一 serviceWSHandler 实例 → in-flight 消息按老版本处理。
+     */
+    private final ServiceWSHandler serviceWSHandler;
+
+    /**
+     * WS 固定路径。第一期约定：所有 {@code @ProtoWebSocket} 标注的方法共用同一 path（与 HTTP per-method
+     * 不同——WS 用单一长连接 + 业务 method 二次路由）；{@code /ws} 写死在 PathInfo 里，避免每 method 自定
+     * path 引入的多 ServiceWSHandler / 多 PathInfo.wsHandler 复杂度。
+     */
+    public static final String WS_PATH = "/ws";
 
     // ─── ASM 生成 Handler impl class 的缓存 ───
     // 挂在 AppContext 上（不是 Container 单例），原因：Method → Class → genCL →(parent)→ appCL
@@ -125,6 +150,7 @@ public class AppContext implements Lifecycle {
         this.beans          = new BeanContainer(this, env, events, shards);
         this.routers        = new RouterHub();
         this.resourceLoader = new AppResourceLoader(appCL);
+        this.serviceWSHandler = new ServiceWSHandler(this);
         // 构造函数到此为止——不做扫描、不做实例化、不调 Lifecycle.start
     }
 
@@ -175,9 +201,10 @@ public class AppContext implements Lifecycle {
 
             // Phase 3 READY：Lifecycle.start() + 路由 bind
             beans.startLifecycles();
-            generateAndBindRoutes();                             // ASM 生成 4 份 Handler + 一次性写入 RouterHub
-            // Container 在 deploy() 末尾 / switchVersion() / 启动恢复时统一切 currentRouters 指针
-            // —— AppContext 不回调 Container，保持单向数据流
+            generateAndBindRoutes();                             // ASM 生成 4 份 Handler + 一次性写入 RouterHub + container.deployAppRoutes
+            // generateAndBindRoutes 末尾把全量 pathTable（HTTP + WS）推给 Container.deployAppRoutes；
+            // Container 负责 WS path 冲突检测 + 合并 + 整张替换 HttpServer.httpMapping。
+            // Container 还在 deploy() / switchVersion() / 启动恢复 时统一切 currentRouters 指针。
 
             transitionTo(AppState.READY);                  // COMMITTING -> READY
             transitionTo(AppState.RUNNING);                // READY -> RUNNING
@@ -204,7 +231,10 @@ public class AppContext implements Lifecycle {
         try {
             routers.unbindAll();
             httpHandlersByPath.clear();
-            wsHandlersByPath.clear();
+            // ServiceWSHandler 的 msgHandlers 表也清空 —— 长连接下次 msg 按老 handler 实例 dispatch
+            // （in-flight 安全）；新 msg 因 msgHandlers 已空会回 404 method not found
+            serviceWSHandler.rebindMsgHandlers(java.util.Collections.<String, WSServiceMsgHandler<?>>emptyMap());
+            wsMsgHandlers.clear();
         }
         catch (Throwable t) { firstErr = t; }
 
@@ -358,7 +388,7 @@ public class AppContext implements Lifecycle {
 
             // 3. ASM 字节码生成（无状态工具 HandlerAsmGenerator.INSTANCE，不持有 app 状态）
             byte[] bytes = HandlerAsmGenerator.INSTANCE.generateHandlerClass(
-                    targetIf, protoIf, method, annoDatas);
+                    targetIf, protoIf, method, annoDatas, appCL);
 
             // 4. defineClass 把字节码实际注册到 genCL（不走双亲委派；不向上找 parent (appCL)）——
             //    用 Class.forName(name, true, genCL) 会先走 genCL → appCL 双亲委派，
@@ -446,6 +476,59 @@ public class AppContext implements Lifecycle {
             Thread.currentThread().setContextClassLoader(prevCL);
         }
 
+        // 全部 Handler 生成 + RouterHub 写完后：构建全量 pathTable（HTTP + WS），推给 Container。
+        // 顺序：先写 RouterHub / serviceWSHandler.msgHandlers（dispatch 路径就绪），
+        // 再 deployAppRoutes → Container 做 WS path 冲突检测 + 整张替换 HttpServer.mapping
+        // （dispatch 热路径无锁读）。失败抛 RouteBindException → start() 转 FAILED → deploy 回滚。
+        Map<FastBufDataRange, PathInfo> pathTable = buildPathTable();
+        container.deployAppRoutes(appId, pathTable);
+    }
+
+    /**
+     * 构建本 AppContext 的全量 pathTable（HTTP + WS），供 {@link #generateAndBindRoutes} 末尾
+     * 一次性推给 {@link Container#deployAppRoutes}。
+     *
+     * <p><b>HTTP 段</b>：每个 {@code @ProtoHttp} 方法 → 一个 PathInfo entry（含 httpHandlers[]）。
+     * path 来自 {@link #deriveHttpPath}。</p>
+     *
+     * <p><b>WS 段</b>：所有 {@code @ProtoWebSocket} 方法共用单一 path {@link #WS_PATH} →
+     * 一个 PathInfo entry（wsHandler = {@link #serviceWSHandler} + wsAuthenticator）。
+     * 多个 {@code @ProtoWebSocket} 方法不产生多个 PathInfo entry——WS 走长连接 + 业务 method
+     * 二次路由，path 仅作连接入口。</p>
+     *
+     * <p><b>WSAuthenticator 取值</b>：{@code beans.beanWrapByType(WSAuthenticator.class)} miss
+     *     → 由 BeanContainer fallback 到 {@code container.containerBeans()} 的
+     *     {@link HeaderTokenAuthenticator} 默认实现（开箱即用）；app 提供自己的 WSAuthenticator
+     *     bean 时自动覆盖。应用 bean miss 且 Container.beans 也没注册（理论上不应发生）→
+     *     该 PathInfo 不设 wsAuthenticator → 握手阶段返回 401。</p>
+     */
+    private Map<FastBufDataRange, PathInfo> buildPathTable() {
+        Map<FastBufDataRange, PathInfo> table = new HashMap<>();
+
+        // 1. HTTP entries
+        for (Map.Entry<String, HttpHandler> e : httpHandlersByPath.entrySet()) {
+            String path = e.getKey();
+            PathInfo pi = new PathInfo();
+            pi.setPath(path);
+            pi.setFound(true);
+            pi.setHttpHandlers(new HttpHandler[]{e.getValue()});
+            table.put(FastBufDataRange.from(path), pi);
+        }
+
+        // 2. WS entry（仅当本 app 有 @ProtoWebSocket 方法时才写）
+        if (!wsMsgHandlers.isEmpty()) {
+            PathInfo pi = new PathInfo();
+            pi.setPath(WS_PATH);
+            pi.setFound(true);
+            pi.setWsHandler(serviceWSHandler);
+            BeanWrap bw = beans.beanWrapByType(WSAuthenticator.class);
+            if (bw != null && bw.instance() instanceof WSAuthenticator) {
+                pi.setWsAuthenticator((WSAuthenticator) bw.instance());
+            }
+            table.put(FastBufDataRange.from(WS_PATH), pi);
+        }
+
+        return table;
     }
 
     private void generateMethodsHandlers(Class<?> protoIf, List<ProtoMethodData> protoMethodDatas)
@@ -490,11 +573,18 @@ public class AppContext implements Lifecycle {
                         WSServiceMsgHandler h = (WSServiceMsgHandler) generateHandler(
                                 (Class) WSServiceMsgHandler.class, protoIf, pmd.getAnnoDatas(), anno, m, shards);
                         wsH.add(h);
-                        wsHandlersByPath.put(deriveHttpPath(protoIf, m, anno), h);
+                        // 按 method 名而非 path 索引：dispatch 由 ServiceWSHandler 按 JSON method 字段查
+                        wsMsgHandlers.put(m.getName(), h);
                     }
                 }
                 // eRPC / gRPC option 解析尚未在 EarScanner 落地——对应 Capability 检查留待后续 PR
             }
+        }
+        // 所有 @ProtoWebSocket 方法遍历完后，一次性把整张 method 表喂给 ServiceWSHandler。
+        // serviceWSHandler.rebindMsgHandlers 是 volatile store（原子发布），reader 要么看到旧版本
+        // 要么看到新版本；in-flight 消息走老 handler 完整返回（老 bean 实例不被 GC）。
+        if (!wsMsgHandlers.isEmpty()) {
+            serviceWSHandler.rebindMsgHandlers(new HashMap<>(wsMsgHandlers));
         }
     }
 
@@ -580,9 +670,13 @@ public class AppContext implements Lifecycle {
     public Map<String, HttpHandler> httpHandlersByPath() {
         return Collections.unmodifiableMap(httpHandlersByPath);
     }
-    /** 同上，WS path → handler。 */
-    public Map<String, WSServiceMsgHandler<?>> wsHandlersByPath() {
-        return Collections.unmodifiableMap(wsHandlersByPath);
+    /** WS method → 业务 {@link WSServiceMsgHandler}。dispatch 阶段不走此字段（走 serviceWSHandler.msgHandlers()）。 */
+    public Map<String, WSServiceMsgHandler<?>> wsMsgHandlers() {
+        return Collections.unmodifiableMap(wsMsgHandlers);
+    }
+    /** 本 app 唯一一个 WS 入口 handler（{@link #WS_PATH} path 专用），持有 method → 业务 handler 的 volatile 表。 */
+    public ServiceWSHandler serviceWSHandler() {
+        return serviceWSHandler;
     }
     public ShardRegistry      shards()    { return shards; }
     public AppResourceLoader resourceLoader() { return resourceLoader; }

@@ -60,6 +60,13 @@ public class BeanContainer {
     private final EventPublisher    events;
     private final AppContext        appContext;
     private final ShardRegistry     shards;
+    /**
+     * 父 Container 引用（仅 AppContext 级 BeanContainer 持有）。
+     * <p>本字段为 {@link #beanWrapByType(Class)} / {@link #findBeanWrapByType(Class)}
+     * 的 fallback 提供跳板：AppContext 级 miss 时查 {@code container.containerBeans()}。
+     * 值为 {@code null} 表示本 BeanContainer 即 Container.beans 自身（无 fallback）。</p>
+     */
+    private final Container         container;
 
     private volatile BeanContainerState state = BeanContainerState.COLLECTING;
 
@@ -69,6 +76,8 @@ public class BeanContainer {
         this.env        = env;
         this.events     = events;
         this.shards     = shards;
+        // AppContext 级 → 拿父 Container 引用用于 fallback；Container.beans 自身 → null
+        this.container  = appContext == null ? null : appContext.container();
     }
 
     /**
@@ -350,12 +359,31 @@ public class BeanContainer {
      *     List 保留所有候选，{@code @Primary} 消歧逻辑一处统一；不是 Map<type, Bean> 单值
      *     "last-write-wins"——那种写法碰到多实现会丢失早期的 bean。</p>
      *
-     * @throws NoSuchBeanException   byType 中无该 type 的注册
+     * <p><b>双层 fallback</b>：AppContext 级 miss 时自动 fallback 到
+     *     {@code container.containerBeans()}（{@code container != null} 时）。
+     *     走 AppContext → Container.beans 单向 fallback（Container.beans 自身不再 fallback）——
+     *     保证 edap 框架默认 bean（如 {@code WSAuthenticator}）开箱即用，应用 bean 自动覆盖。</p>
+     *
+     * @throws NoSuchBeanException   byType 中无该 type 的注册（fallback 后仍无）
      * @throws NoUniqueBeanException 多候选 + 0/多个 @Primary
      */
     public BeanWrap beanWrapByType(Class<?> type) {
+        BeanWrap bw = lookupLocal(type);
+        if (bw != null) return bw;
+        if (container != null) {
+            bw = container.containerBeans().beanWrapByType(type);
+            if (bw != null) return bw;
+        }
+        throw new NoSuchBeanException(type);
+    }
+
+    /**
+     * 查当前 BeanContainer 的 byType（不 fallback）。返回 null = miss，
+     * 由 {@link #beanWrapByType} / {@link #findBeanWrapByType} 决定后续 fallback 或抛错。
+     */
+    private BeanWrap lookupLocal(Class<?> type) {
         List<BeanWrap> list = byType.get(type);
-        if (list == null || list.isEmpty()) throw new NoSuchBeanException(type);
+        if (list == null || list.isEmpty()) return null;
         if (list.size() == 1) return list.get(0);
 
         BeanWrap primary = null;
@@ -491,8 +519,22 @@ public class BeanContainer {
      *
      * <p>无匹配返回 null（不同于 {@link #beanWrapByType} 抛 NoSuchBeanException
      *     ——router 生成阶段对未实现接口选择性跳过，<b>不</b>中断启动）。</p>
+     *
+     * <p>同样支持 fallback 到 {@code container.containerBeans()}：
+     *     AppContext 级 miss 时查 Container.beans，开箱即用框架默认 bean。</p>
      */
     public BeanWrap findBeanWrapByType(Class<?> type) {
+        BeanWrap bw = findLocal(type);
+        if (bw != null) return bw;
+        if (container != null) {
+            bw = container.containerBeans().findBeanWrapByType(type);
+            if (bw != null) return bw;
+        }
+        return null;
+    }
+
+    /** 查当前 BeanContainer byType（不 fallback）。返回 null = miss，无歧义抛错。 */
+    private BeanWrap findLocal(Class<?> type) {
         List<BeanWrap> list = byType.get(type);
         if (list == null || list.isEmpty()) return null;
         if (list.size() == 1) return list.get(0);

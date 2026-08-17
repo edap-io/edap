@@ -203,13 +203,13 @@ public final class HandlerAsmGenerator {
      * @return 字节码；当前阶段返回空数组占位
      */
     public byte[] generateHandlerClass(Class<?> targetIf, Class<?> protoIf, Method method,
-                                       List<AnnoData> annoDatas) {
+                                       List<AnnoData> annoDatas, ClassLoader loader) {
         // 占位：emit 模板尚未实现；返回空数组。
         // AppContext.generateHandler 阶段调 Class.forName(name, true, genCL) 时会抛 CNFE，
         // 被 RouteBindException 包装（cause = ClassNotFoundException）冒泡到 Container.bindAll，
         // 最终导致 deploy 失败（fail(104)）——这是预期行为，明确告知"功能未落地"。
         if (targetIf == HttpHandler.class) {
-            HttpHandlerGenerator generator = new HttpHandlerGenerator(annoDatas, protoIf, method);
+            HttpHandlerGenerator generator = new HttpHandlerGenerator(annoDatas, protoIf, method, loader);
             return generator.generate();
         } else if (targetIf == WSServiceMsgHandler.class) {
             WsHandlerGenerator generator = new WsHandlerGenerator(annoDatas, protoIf, method);

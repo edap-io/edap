@@ -3,15 +3,22 @@ package io.edap.container.app.asm;
 import io.edap.container.AppContext;
 import io.edap.container.mw.AnnoData;
 import io.edap.http.HttpHandler;
+import io.edap.protobuf.annotation.ProtoField;
 import io.edap.protobuf.annotation.ProtoHttp;
+import io.edap.util.ClazzUtil;
 import io.edap.util.CollectionUtils;
+import io.edap.util.StringUtil;
 import org.objectweb.asm.*;
 
+import java.lang.annotation.Annotation;
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.List;
+import java.util.Locale;
 
 import static io.edap.container.app.asm.HandlerAsmGenerator.handlerName;
 import static io.edap.util.AsmUtil.toInternalName;
+import static io.edap.util.ClazzUtil.getDescriptor;
 import static org.objectweb.asm.ClassWriter.COMPUTE_FRAMES;
 import static org.objectweb.asm.ClassWriter.COMPUTE_MAXS;
 import static org.objectweb.asm.Opcodes.*;
@@ -29,17 +36,21 @@ public class HttpHandlerGenerator {
     private Method      method;
     private String      serviceIf;
     private String      reqType;
+    private String      reqLangType;
     private String      respType;
     private boolean     isPost = false;
+    private ClassLoader loader;
 
-    public HttpHandlerGenerator(List<AnnoData> annoDatas, Class<?> protoIf, Method method) {
+    public HttpHandlerGenerator(List<AnnoData> annoDatas, Class<?> protoIf, Method method, ClassLoader loader) {
         this.annoDatas   = annoDatas;
         this.handlerName = toInternalName(handlerName(HttpHandler.class, protoIf, method));
         this.iface       = protoIf;
         this.serviceIf   = toInternalName(protoIf.getName());
         this.method      = method;
+        this.reqLangType = method.getParameterTypes()[0].getTypeName();
         this.reqType     = toInternalName(method.getParameterTypes()[0].getName());
         this.respType    = toInternalName(method.getReturnType().getName());
+        this.loader      = loader;
         if (!CollectionUtils.isEmpty(annoDatas)) {
             for (AnnoData annoData : annoDatas) {
                 if (ProtoHttp.class.getName().equals(annoData.getType())) {
@@ -117,11 +128,12 @@ public class HttpHandlerGenerator {
 
         // 业务的实现Bean不为空
         mv.visitLabel(lbStart);
-        mv.visitVarInsn(ALOAD, 2);
-        mv.visitFieldInsn(GETSTATIC, handlerName, "bean", "L" + serviceIf + ";");
-        mv.visitVarInsn(ALOAD, 1);
 
         if (isPost) {
+            mv.visitVarInsn(ALOAD, 2);
+            mv.visitFieldInsn(GETSTATIC, handlerName, "bean", "L" + serviceIf + ";");
+            mv.visitVarInsn(ALOAD, 1);
+
             mv.visitMethodInsn(INVOKEINTERFACE, "io/edap/http/HttpRequest", "getBody",
                     "()Lio/edap/util/ByteData;", true);
             mv.visitMethodInsn(INVOKEVIRTUAL, "io/edap/util/ByteData", "getBytes", "()[B", false);
@@ -129,15 +141,77 @@ public class HttpHandlerGenerator {
             mv.visitMethodInsn(INVOKESTATIC, "io/edap/json/Eson", "parseObject",
                     "([BLjava/lang/Class;)Ljava/lang/Object;", false);
             mv.visitTypeInsn(CHECKCAST, reqType);
+            mv.visitMethodInsn(INVOKEINTERFACE, serviceIf, method.getName(), "(L" + reqType + ";)L" + respType + ";", true);
+            mv.visitMethodInsn(INVOKESTATIC, "io/edap/json/Eson", "toJsonString",
+                    "(Ljava/lang/Object;)Ljava/lang/String;", false);
+            mv.visitMethodInsn(INVOKEVIRTUAL, "io/edap/http/HttpResponse", "write",
+                    "(Ljava/lang/String;)Lio/edap/http/HttpResponse;", false);
+            mv.visitInsn(POP);
         } else {
+            int varReq = 5;
+            mv.visitTypeInsn(NEW, reqType);
+            mv.visitInsn(DUP);
+            mv.visitMethodInsn(INVOKESPECIAL, reqType, "<init>", "()V", false);
+            mv.visitVarInsn(ASTORE, varReq);
 
+            try {
+                Class reqClass = Class.forName(reqLangType, false, loader);
+                List<Field> fields = ClazzUtil.getClassFields(reqClass);
+                System.out.println("\t######reqLangType=" + reqLangType);
+                for (Field field : fields) {
+                    Annotation[] anns = field.getAnnotations();
+                    String paramName = field.getName();
+                    for (Annotation ann : anns) {
+                        if (ann instanceof ProtoField) {
+                            ProtoField pf = (ProtoField) ann;
+                            if (!StringUtil.isEmpty(pf.name())) {
+                                paramName = pf.name();
+                            }
+                        }
+                    }
+                    System.out.println("\t######field=" + field.getName() + ",paramName=" + paramName);
+                    // 为请求实例赋值
+                    mv.visitVarInsn(ALOAD, varReq);
+                    boolean needConvert = false;
+                    if (field.getType() != String.class) {
+                        // 调用本类的类型转换
+                        mv.visitVarInsn(ALOAD, 0);
+                        needConvert = true;
+                    }
+                    mv.visitVarInsn(ALOAD, 1);
+                    mv.visitLdcInsn(paramName);
+                    String typeDesc = getDescriptor(field.getType());
+                    mv.visitMethodInsn(INVOKEINTERFACE, "io/edap/http/HttpRequest", "getParameter",
+                            "(Ljava/lang/String;)Ljava/lang/String;", true);
+                    if (needConvert) {
+                        String convertMethodName = getConvertMethodName(field.getType());
+                        mv.visitMethodInsn(INVOKEVIRTUAL, handlerName, convertMethodName,
+                                "(Ljava/lang/String;)" + typeDesc, false);
+                    }
+                    String fieldName = field.getName();
+                    mv.visitMethodInsn(INVOKEVIRTUAL, reqType, "set" +
+                                    fieldName.substring(0, 1).toUpperCase(Locale.ENGLISH) +
+                                    fieldName.substring(1),
+                            "(" + typeDesc + ")V", false);
+                }
+            } catch (RuntimeException e) {
+                throw new RuntimeException(e);
+            } catch (ClassNotFoundException e) {
+                throw new RuntimeException(e);
+            }
+
+            mv.visitVarInsn(ALOAD, 2);
+            mv.visitFieldInsn(GETSTATIC, handlerName, "bean",
+                    "L" + serviceIf + ";");
+            mv.visitVarInsn(ALOAD, varReq);
+            mv.visitMethodInsn(INVOKEINTERFACE, serviceIf, method.getName(),
+                    "(L" + reqType + ";)L" + respType + ";", true);
+            mv.visitMethodInsn(INVOKESTATIC, "io/edap/json/Eson", "toJsonString",
+                    "(Ljava/lang/Object;)Ljava/lang/String;", false);
+            mv.visitMethodInsn(INVOKEVIRTUAL, "io/edap/http/HttpResponse", "write",
+                    "(Ljava/lang/String;)Lio/edap/http/HttpResponse;", false);
+            mv.visitInsn(POP);
         }
-        mv.visitMethodInsn(INVOKEINTERFACE, serviceIf, method.getName(), "(L" + reqType + ";)L" + respType + ";", true);
-        mv.visitMethodInsn(INVOKESTATIC, "io/edap/json/Eson", "toJsonString",
-                "(Ljava/lang/Object;)Ljava/lang/String;", false);
-        mv.visitMethodInsn(INVOKEVIRTUAL, "io/edap/http/HttpResponse", "write",
-                "(Ljava/lang/String;)Lio/edap/http/HttpResponse;", false);
-        mv.visitInsn(POP);
 
         mv.visitLabel(lbEnd);
         mv.visitJumpInsn(GOTO, lbFinish);
@@ -146,6 +220,8 @@ public class HttpHandlerGenerator {
         mv.visitLabel(lbHandler);
         int varExc = 3;
         mv.visitVarInsn(ASTORE, varExc);
+        mv.visitVarInsn(ALOAD, varExc);
+        mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/Throwable", "printStackTrace", "()V", false);
         mv.visitVarInsn(ALOAD, 0);
         mv.visitFieldInsn(GETFIELD, handlerName, "log", "Lio/edap/log/Logger;");
         mv.visitLdcInsn("");
@@ -182,6 +258,33 @@ public class HttpHandlerGenerator {
         mv.visitInsn(RETURN);
         mv.visitMaxs(0, 3);
         mv.visitEnd();
+    }
+
+    private String getConvertMethodName(Class type) {
+        String name = "toObject";
+        if (type == int.class) {
+            name = "toInt";
+        } else if (type == Integer.class) {
+            name = "toInteger";
+        } else if (type == long.class) {
+            name = "toLong";
+        } else if (type == Long.class) {
+            name = "toLongObj";
+        } else if (type == boolean.class) {
+            name = "toBoolean";
+        } else if (type == Boolean.class) {
+            name = "toBooleanObj";
+        } else if (type == float.class) {
+            name = "toFloat";
+        } else if (type == Float.class) {
+            name = "toFloatObj";
+        } else if (type == double.class) {
+            name = "toDouble";
+        } else if (type == Double.class) {
+            name = "toDoubleObj";
+        }
+
+        return name;
     }
 
     private void visitInit() {
