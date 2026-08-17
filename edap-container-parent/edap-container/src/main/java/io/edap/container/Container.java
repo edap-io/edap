@@ -2,13 +2,16 @@ package io.edap.container;
 
 import io.edap.Edap;
 import io.edap.ServerGroup;
-import io.edap.Stoppable;
 import io.edap.container.app.RouterHub;
+import io.edap.container.event.EventPublisher;
 import io.edap.container.mw.*;
 import io.edap.container.scan.EarScanner;
 import io.edap.http.server.HttpServer;
 import io.edap.http.HttpHandler;
 import io.edap.http.PathInfo;
+import io.edap.http.ws.HeaderTokenAuthenticator;
+import io.edap.http.ws.WSAuthenticator;
+import io.edap.microservice.Scope;
 import io.edap.nio.codec.FastBufDataRange;
 import io.edap.json.Eson;
 import io.edap.launcher.NestedJarFile;
@@ -28,9 +31,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedHashSet;
-import java.util.Set;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
@@ -77,6 +78,30 @@ public class Container {
      * 同 appId 重部署允许（覆盖语义，version 切换场景）；undeploy 摘除。
      */
     private final ConcurrentHashMap<String, String> registeredIfs = new ConcurrentHashMap<>();
+
+    /**
+     * 框架级 Bean 容器：edap 容器内置功能 bean 集合（如 {@link WSAuthenticator} 默认实现）。
+     * <p>AppContext 级 BeanContainer 在 {@code beanWrapByType} miss 时自动 fallback 查此容器，
+     *     实现"应用零配置即用内置功能，应用 bean 自动覆盖默认实现"的语义。</p>
+     */
+    private BeanContainer containerBeans;
+
+    /**
+     * ⑤ WS path → owner appId。冲突检测表：deploy / version 切换时
+     * 检查 app 全量 pathTable 中所有 WS path，若已被另一个 appId 注册 → 409 拒绝部署。
+     * 同 appId 重部署允许（version 切换场景）；undeploy 摘除。
+     * <p>为什么需要独立的 WS path 冲突检测：HTTP path 冲突由 ProtoService FQCN 唯一性间接挡住，
+     *     不同 appId 不能持有同 FQCN；但 WS path 是字符串粒度，不同 FQCN 的两个 proto service
+     *     完全可能标同一个 {@code @ProtoWebSocket(path="/ws")}——FQCN 检测挡不住 WS path 冲突。</p>
+     */
+    private final ConcurrentHashMap<String, String> wsPathOwners = new ConcurrentHashMap<>();
+
+    /**
+     * ⑥ appId → 该 app 贡献的 path 表。{@link #deployAppRoutes} 每次写入 / 重建 combined map 时按 app 合并。
+     * <p>为什么按 app 存：HTTP 路由分属不同 app，跨 app path 冲突由 FQCN 检测挡；但 WS path 是字符串粒度，
+     *     需要在合并阶段做 wsPathOwners 冲突检测，再整张写入 HttpServer。</p>
+     */
+    private final ConcurrentHashMap<String, Map<FastBufDataRange, PathInfo>> appPathTables = new ConcurrentHashMap<>();
 
     private final File appsDir;
     private static final ReentrantLock lifecycleLock = new ReentrantLock();
@@ -168,6 +193,9 @@ public class Container {
             }
             // TODO: Capability.WS / ERPC / GRPC Server 实例创建
 
+            // 框架级 Bean 容器：注册 edap 内置功能默认实现（开箱即用，应用 bean 可覆盖）
+            initContainerBeans();
+
             edap.addServerGroup(appServerGroup);               // 唯一对外暴露点
             // 进程停止时触发 Container.stop()（在 Edap.doStop() 中位于 ServerGroup.stop() 之前）：
             // 先做内存级清理（unbind routes / @PreDestroy / appCL.close），再关监听 socket。
@@ -181,6 +209,146 @@ public class Container {
 
     public Edap getEdap() {
         return this.edap;
+    }
+
+    /**
+     * 框架级 BeanContainer 访问器（AppContext 级 BeanContainer fallback 目标）。
+     * <p>仅在 {@link #attach} 之后非 null；之前调抛 {@link IllegalStateException}。</p>
+     */
+    public BeanContainer containerBeans() {
+        if (containerBeans == null) {
+            throw new IllegalStateException("containerBeans 未初始化（attach 之前调？）");
+        }
+        return containerBeans;
+    }
+
+    /**
+     * 初始化框架级 Bean 容器并注册 edap 内置功能默认实现。
+     *
+     * <p><b>当前注册</b>：
+     * <ul>
+     *   <li>{@link HeaderTokenAuthenticator}（{@code WSAuthenticator} 默认实现）</li>
+     * </ul>
+     *
+     * <p>注册为 SINGLETON（无依赖），立即 commit。后续 AppContext 级 BeanContainer 的
+     *     {@code beanWrapByType(WSAuthenticator.class)} miss 时自动 fallback 到本容器，
+     *     实现"应用零配置即用内置功能"。</p>
+     *
+     * <p>应用可注册自己的 {@link WSAuthenticator} bean 自动覆盖——AppContext 级 byType 命中时
+     *     直接返回应用 bean，框架默认 bean 不会被查到。</p>
+     */
+    private void initContainerBeans() {
+        if (containerBeans != null) {
+            return;                                                 // 幂等
+        }
+        EventPublisher events = new EventPublisher();
+        ShardRegistry  shards = new ShardRegistry();
+        // Container.beans 没有 AppContext 上级 —— 用 null 替代；
+        // Environment 字段取自 this.env（edap.getProps().child("container")），
+        // BeanContainer 仅读取，不依赖 AppContext 注入
+        this.containerBeans = new BeanContainer(null, null, events, shards);
+
+        // 注册框架默认 WSAuthenticator bean
+        try {
+            BeanDef def = new BeanDef(
+                    "container." + HeaderTokenAuthenticator.class.getSimpleName(),
+                    HeaderTokenAuthenticator.class,
+                    Scope.SINGLETON,
+                    null, null, null, null, 0);
+            containerBeans.register(def);
+        } catch (Exception e) {
+            log.warn("注册框架默认 {} bean 失败", l -> l.arg(HeaderTokenAuthenticator.class.getName()).threw(e));
+            return;
+        }
+        containerBeans.topologicalSort();
+        containerBeans.transitionToCommitting();
+        for (BeanDef def : containerBeans.sorted()) {
+            Object instance = containerBeans.instantiate(def);
+            containerBeans.injectDependencies(def, instance);
+            containerBeans.invokeInit(def, instance);
+            containerBeans.registerInstance(def, instance);
+        }
+        containerBeans.transitionToReady();
+        containerBeans.startLifecycles();
+    }
+
+    /**
+     * 部署 / version 切换：把 app 的全量 path 表挂上 HttpServer。
+     *
+     * <p>流程：
+     * <ol>
+     *   <li>对 {@code newTable} 中所有 PathInfo.wsHandler != null 的 entry 做跨 app WS path 冲突检测
+     *       （同 appId 覆盖放行；不同 appId 抛 IllegalStateException → deploy 失败）</li>
+     *   <li>{@link #wsPathOwners} 写 owner</li>
+     *   <li>{@link #appPathTables} put(appId, newTable)</li>
+     *   <li>合并所有 app 的 table → {@link HttpServer#setHttpMapping} 整张替换</li>
+     * </ol>
+     *
+     * <p><b>设计取舍</b>：HTTP + WS path 一起部署（无单独注册 WS path 的 API）——
+     *     app 的 deploy / version 切换天然走全量 pathTable，整张合并后一次性写入 HttpServer，
+     *     避免单 path 增删 API 引入的并发复杂度。</p>
+     *
+     * @param appId    当前部署的应用 ID
+     * @param newTable app 全量 path 表（含 HTTP entries + WS entries）
+     * @throws IllegalStateException 跨 app WS path 冲突
+     */
+    public void deployAppRoutes(String appId, Map<FastBufDataRange, PathInfo> newTable) {
+        if (newTable == null) {
+            newTable = Collections.emptyMap();
+        }
+        // 1. 冲突检测（同 appId 覆盖放行；不同 appId 抛异常）
+        for (Map.Entry<FastBufDataRange, PathInfo> e : newTable.entrySet()) {
+            PathInfo pi = e.getValue();
+            if (pi != null && pi.getWsHandler() != null) {
+                String pathStr = pi.getPath();
+                if (pathStr == null || pathStr.isEmpty()) {
+                    continue;                                       // 无 path 字段的 PathInfo 跳过
+                }
+                String prevOwner = wsPathOwners.putIfAbsent(pathStr, appId);
+                if (prevOwner != null && !prevOwner.equals(appId)) {
+                    throw new IllegalStateException(
+                            "WS path [" + pathStr + "] already owned by appId=" + prevOwner
+                                    + ", cannot register for appId=" + appId
+                                    + "（同一 Container 内 WS path 需唯一）");
+                }
+                // 同 appId 重 deploy / version 切换：putIfAbsent 不会覆盖，需手动放行
+                if (prevOwner != null && prevOwner.equals(appId)) {
+                    wsPathOwners.put(pathStr, appId);               // 同 owner 强制刷新（顺序无影响）
+                }
+            }
+        }
+        // 2. 存表 + 3. 合并 + 4. 整张替换
+        appPathTables.put(appId, newTable);
+        if (httpServer != null) {
+            httpServer.setHttpMapping(mergeAllAppPathTables());
+        }
+    }
+
+    /**
+     * undeploy：摘除 app 贡献的 path 表。调用方：AppContext.stop 末尾。
+     */
+    public void undeployAppRoutes(String appId) {
+        Map<FastBufDataRange, PathInfo> oldTable = appPathTables.remove(appId);
+        if (oldTable != null) {
+            for (PathInfo pi : oldTable.values()) {
+                if (pi != null && pi.getWsHandler() != null
+                        && pi.getPath() != null && !pi.getPath().isEmpty()) {
+                    wsPathOwners.remove(pi.getPath(), appId);
+                }
+            }
+        }
+        if (httpServer != null) {
+            httpServer.setHttpMapping(mergeAllAppPathTables());
+        }
+    }
+
+    /** 合并所有 app 的 pathTable 为一张 combined map（供 HttpServer.setHttpMapping 整张替换）。 */
+    private Map<FastBufDataRange, PathInfo> mergeAllAppPathTables() {
+        Map<FastBufDataRange, PathInfo> combined = new HashMap<>();
+        for (Map<FastBufDataRange, PathInfo> t : appPathTables.values()) {
+            combined.putAll(t);
+        }
+        return combined;
     }
 
     /**
