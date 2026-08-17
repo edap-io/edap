@@ -11,12 +11,6 @@
 
     <artifactId>edap-auth-jwt</artifactId>
 
-    <properties>
-        <maven.compiler.source>21</maven.compiler.source>
-        <maven.compiler.target>21</maven.compiler.target>
-        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    </properties>
-
     <dependencies>
         <dependency>
             <groupId>org.junit.jupiter</groupId>
@@ -30,6 +24,32 @@
         <dependency>
             <groupId>io.edap</groupId>
             <artifactId>edap-json</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.edap</groupId>
+            <artifactId>edap-auth-jwt-api</artifactId>
+            <version>${edap.version}</version>
+        </dependency>
+        <!--
+            HmacSha256Native 通过反射加载 edap-native；这里加 test scope 是为了本地测试
+            能跑通 native 分支（验证 isAvailable 检测 + 签名正确性）。生产用户若要开启
+            native 加速，需自行引入 edap-native 并设置 -Dedap.jwt.hmac.native=true。
+        -->
+        <dependency>
+            <groupId>io.edap</groupId>
+            <artifactId>edap-native</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!-- JMH：HmacSha256NativeBenchmark（Java vs Native 性能对比） -->
+        <dependency>
+            <groupId>org.openjdk.jmh</groupId>
+            <artifactId>jmh-core</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.openjdk.jmh</groupId>
+            <artifactId>jmh-generator-annprocess</artifactId>
+            <scope>test</scope>
         </dependency>
     </dependencies>
 

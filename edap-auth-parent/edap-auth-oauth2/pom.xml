@@ -5,17 +5,22 @@
     <modelVersion>4.0.0</modelVersion>
     <parent>
         <groupId>io.edap</groupId>
-        <artifactId>edap</artifactId>
+        <artifactId>edap-auth-parent</artifactId>
         <version>${edap.version}</version>
     </parent>
 
-    <artifactId>edap-auth-parent</artifactId>
-    <packaging>pom</packaging>
+    <artifactId>edap-auth-oauth2</artifactId>
 
-    <modules>
-        <module>edap-auth-jwt-api</module>
-        <module>edap-auth-jwt</module>
-        <module>edap-auth-oauth2</module>
-    </modules>
+    <description>
+
+    </description>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
 
 </project>

@@ -1,5 +1,8 @@
 package io.edap.auth.jwt;
 
+/**
+ * JWT header 标准实现（POJO）。
+ */
 public class JwtHeader implements Header {
 
     private String algorithm;

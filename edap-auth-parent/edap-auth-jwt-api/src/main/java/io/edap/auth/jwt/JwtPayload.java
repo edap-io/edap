@@ -2,6 +2,12 @@ package io.edap.auth.jwt;
 
 import java.util.Map;
 
+/**
+ * JWT payload 标准实现（POJO）。
+ *
+ * <p>标准 claims（{@code iss / sub / aud / exp / nbf / iat / jti}）有对应 setter；
+ * 其他都进 {@link #customerClaims}。</p>
+ */
 public class JwtPayload {
 
     private String issuer;
