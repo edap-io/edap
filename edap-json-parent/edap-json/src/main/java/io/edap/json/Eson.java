@@ -136,6 +136,7 @@ public class Eson {
 
     public static void serialize(Object obj, JsonWriter writer) {
         if (obj == null) {
+            writer.writeNull();
             return;
         }
         if (obj instanceof Collection) {
@@ -258,6 +259,14 @@ public class Eson {
         }
         reader.nextPos(1);
         return reader.readObjectValue();
+    }
+
+    public static <T> T toBean(JsonObject jsonObject, Class<T> clazz) {
+        return JsonCodecRegister.instance().getMapBeanDecoder(clazz).decode(jsonObject);
+    }
+
+    public static <T> T toBean(Map<String, Object> map, Class<T> clazz) {
+        return JsonCodecRegister.instance().getMapBeanDecoder(clazz).decode(map);
     }
 
     public static <T> T parseObject(byte[] json, Class<T> clazz) {

@@ -180,7 +180,7 @@ public class StringJsonReader implements JsonReader {
             if (end - _pos > 8) {
                 int ind2 = INT_DIGITS[json.charAt(_pos++)];
                 if (ind2 == endType) {
-                    pos = _pos;
+                    pos = _pos - 1;
                     return ind;
                 }
                 int ind3 = INT_DIGITS[json.charAt(_pos++)];
@@ -195,7 +195,7 @@ public class StringJsonReader implements JsonReader {
                 }
                 int ind5 = INT_DIGITS[json.charAt(_pos++)];
                 if (ind5 == endType) {
-                    pos = _pos;
+                    pos = _pos - 1;
                     return ind * 1000 + ind2*100 + ind3*10 + ind4;
                 }
                 int ind6 = INT_DIGITS[json.charAt(_pos++)];

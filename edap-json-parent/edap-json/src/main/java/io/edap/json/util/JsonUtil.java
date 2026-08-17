@@ -162,6 +162,29 @@ public class JsonUtil {
         return sb.toString();
     }
 
+    /**
+     * 生成 {@code Map<String, Object> → JavaBean} 解码器（{@code MapBeanDecoder}）的 FQCN，
+     * 由 {@code MapBeanDecoderGenerator} 使用。
+     *
+     * <p>命名与 {@link #buildDecoderName} 对齐：前缀包名驼峰 + 点分 + 原 POJO 简单名 +
+     *     后缀。{@code ejmb.<pkg>.<SimpleName>MapBeanDecoder} —— 例如
+     *     {@code ejmb.com.example.UserMapBeanDecoder}。</p>
+     *
+     * <p>与 {@code buildDecoderName} 的关键差异是 <b>无后缀标记格式</b>（{@code DataType} /
+     *     {@code JsonVersion}）—— Map 入参已经 typed Java 对象，无 JSON 格式维度。</p>
+     */
+    public static String buildMapBeanDecoderName(Class pojoCls) {
+        if (pojoCls == null) {
+            return "";
+        }
+        StringBuilder sb = new StringBuilder("ejmb");
+        if (pojoCls.getPackage() != null) {
+            sb.append('.').append(pojoCls.getPackage().getName());
+        }
+        sb.append('.').append(pojoCls.getSimpleName()).append("MapBeanDecoder");
+        return sb.toString();
+    }
+
     public static String buildEncoderName(Class pojoCls) {
         if (pojoCls == null) {
             return "";
@@ -362,6 +385,25 @@ public class JsonUtil {
         for (Field f : needCodecFields) {
             JsonFieldInfo jfi = new JsonFieldInfo();
             jfi.field = f;
+            Annotation[] anns = f.getAnnotations();
+            for (Annotation ann : anns) {
+                if ("io.edap.protobuf.annotation.ProtoField".equals(ann.annotationType().getName())) {
+                    Method[] ms = ann.getClass().getDeclaredMethods();
+                    for (Method m : ms) {
+                        if (m.getName().equals("name")) {
+                            try {
+                                String annFieldName = (String)m.invoke(ann);
+                                if (annFieldName != null && annFieldName.length() > 0) {
+                                    jfi.jsonFieldName = annFieldName;
+                                    System.out.println("pojoCls:" + pojoCls.getName() + ",fieldName=" + f.getName() + ",jsonFieldName=" + annFieldName);
+                                }
+                            } catch (Exception e) {
+                                throw new RuntimeException(e);
+                            }
+                        }
+                    }
+                }
+            }
             Method m = getAccessMethod(f, "get", aMethod);
             if (m != null) {
                 jfi.method = m;
@@ -398,14 +440,29 @@ public class JsonUtil {
      * @return
      */
     private static Method getSetMethod(Field f, Map<String, Method> aMethod) {
-        String methodName = "set" + upperCaseFirst(f.getName());
+        String fieldName = f.getName();
+        String methodName = "set" + upperCaseFirst(fieldName);
         Method m = aMethod.get(methodName);
         if (m != null && m.getParameters().length == 1) {
             if (f.getGenericType().getTypeName().equals(m.getGenericParameterTypes()[0].getTypeName())) {
                 return m;
             }
         }
-        methodName = f.getName();
+        // Java 命名约定：boolean isXxx 字段 → setter setXxx（去掉 is 前缀）
+        // 例：private boolean isTop; public void setTop(boolean top)
+        // 先按 isXxx 试过 setIsXxx 不匹配（第一步），这里再试 setXxx
+        if (fieldName.length() > 2 && fieldName.startsWith("is")
+                && Character.isUpperCase(fieldName.charAt(2))
+                && (f.getType() == boolean.class || f.getType() == Boolean.class)) {
+            methodName = "set" + fieldName.substring(2);
+            m = aMethod.get(methodName);
+            if (m != null && m.getParameters().length == 1) {
+                if (f.getGenericType().getTypeName().equals(m.getGenericParameterTypes()[0].getTypeName())) {
+                    return m;
+                }
+            }
+        }
+        methodName = fieldName;
         m = aMethod.get(methodName);
         if (m != null && m.getParameters().length == 1) {
             if (f.getGenericType().getTypeName().equals(m.getGenericParameterTypes()[0].getTypeName())) {

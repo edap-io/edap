@@ -16,6 +16,7 @@
 
 package io.edap.json;
 
+import io.edap.json.decoders.MapReflectDecoder;
 import io.edap.json.decoders.ReflectDecoder;
 import io.edap.json.encoders.*;
 import io.edap.json.enums.DataType;
@@ -32,6 +33,7 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
 import static io.edap.json.util.JsonUtil.*;
+import static io.edap.json.util.JsonUtil.buildMapBeanDecoderName;
 import static io.edap.json.util.JsonUtil.buildMapDecoderName;
 import static io.edap.util.AsmUtil.saveClassFile;
 import static io.edap.util.AsmUtil.toLangName;
@@ -40,6 +42,8 @@ import static io.edap.util.CollectionUtils.isEmpty;
 public class JsonCodecRegister {
 
     private static final Map<Class<?>, Map<String, JsonDecoder>> DECODER_MAP = new ConcurrentHashMap<>();
+
+    private static final Map<Class<?>, MapBeanDecoder> MAP_BEAN_DECODER_MAP = new ConcurrentHashMap<>();
 
     private static final Map<Class<?>, JsonEncoder> ENCODER_MAP        = new HashMap<>();
     private static final Map<Type, MapEncoder>      MAP_ENCODER_MAP    = new HashMap<>();
@@ -99,6 +103,79 @@ public class JsonCodecRegister {
             decoders.put(key, decoder);
         }
         return decoder;
+    }
+
+    /**
+     * 获取 {@code Map<String,Object> → T} 解码器（{@link MapBeanDecoder}）。
+     *
+     * <p>首查 {@link #MAP_BEAN_DECODER_MAP}；miss 则尝试 ASM 生成（{@code MapBeanDecoderGenerator}），
+     *     失败则 fallback 到 {@link MapReflectDecoder}（与 {@link ReflectDecoder} 对称）。</p>
+     *
+     * <p>缓存键为 {@code Class<?>} —— Map 入参已 typed，无 JSON 格式维度，
+     *     不需要 {@code DataType}/{@code JsonVersion} 复合 key。</p>
+     */
+    public <T> MapBeanDecoder<T> getMapBeanDecoder(Class<T> tClass) {
+        MapBeanDecoder decoder = MAP_BEAN_DECODER_MAP.get(tClass);
+        if (decoder != null) {
+            return decoder;
+        }
+        synchronized (tClass) {
+            decoder = MAP_BEAN_DECODER_MAP.get(tClass);
+            if (decoder != null) {
+                return decoder;
+            }
+            decoder = generateMapBeanDecoder(tClass);
+            MAP_BEAN_DECODER_MAP.put(tClass, decoder);
+            return decoder;
+        }
+    }
+
+    private MapBeanDecoder generateMapBeanDecoder(Class cls) {
+        MapBeanDecoder decoder = null;
+        Class decoderCls = generateMapBeanDecoderClass(cls);
+        if (decoderCls != null) {
+            try {
+                decoder = (MapBeanDecoder) decoderCls.getDeclaredConstructors()[0].newInstance();
+            } catch (InstantiationException | IllegalAccessException | InvocationTargetException ex) {
+                throw new RuntimeException("generateMapBeanDecoder "
+                        + cls.getName() + " error", ex);
+            }
+        }
+        if (decoder == null) {
+            decoder = new MapReflectDecoder(cls);
+        }
+        return decoder;
+    }
+
+    private Class generateMapBeanDecoderClass(Class cls) {
+        Class decoderCls;
+        String decoderName = buildMapBeanDecoderName(cls);
+        try {
+            decoderCls = Class.forName(decoderName);
+            return decoderCls;
+        } catch (ClassNotFoundException e) {
+            // 未找到 → 走 ASM 生成
+        }
+        JsonCodecLoader codecLoader = getEncoderLoader(cls);
+        try {
+            MapBeanDecoderGenerator generator = new MapBeanDecoderGenerator(cls);
+            GeneratorClassInfo gci = generator.getClassInfo();
+            byte[] bs = gci.clazzBytes;
+            saveClassFile("./" + gci.clazzName + ".class", bs);
+            decoderCls = codecLoader.define(decoderName, bs, 0, bs.length);
+        } catch (Throwable e) {
+            // ASM 生成失败 —— 打印原异常用于诊断（业务侧能看到根因），然后尝试 loadClass：
+            //   - 若该类已被其他线程定义（极端 race），返回已定义的类
+            //   - 若仍未定义，返回 null 由调用方 fallback 到 MapReflectDecoder
+            // 不引入日志依赖，与 Eson.java 中已有的 e.printStackTrace() 用法一致
+            e.printStackTrace();
+            try {
+                return codecLoader.loadClass(decoderName);
+            } catch (ClassNotFoundException ex) {
+                return null;
+            }
+        }
+        return decoderCls;
     }
 
     private JsonDecoder generateDecoder(Class cls, DataType dataType, JsonVersion version) {
