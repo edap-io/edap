@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>io.edap</groupId>
+        <artifactId>edap</artifactId>
+        <version>${edap.version}</version>
+    </parent>
+
+    <artifactId>edap-native</artifactId>
+
+    <description>
+        edap 跨模块 JNI 加速库：把 HTTP / RPC / JWT 等热点路径的 native 实现统一收口在一处。
+        任何模块需要高性能 native 实现都依赖本模块，禁止各自维护 JNI。
+
+        &lt;p&gt;Java 包名 {@code io.edap.jni}（不能用 {@code .native} 关键字）；Maven 模块名 {@code edap-native}。&lt;/p&gt;
+
+    &lt;p&gt;加载模型：每个平台预编译为 .o 文件 → 提交到 src/main/resources/ → 运行时按 os.arch 解析加载（参考 edap-nio-native）。
+        C 源码在 src/main/c/，开发时本地编译 .o 后再提交。&lt;/p&gt;
+    </description>
+
+    <dependencies>
+        <dependency>
+            <groupId>io.edap</groupId>
+            <artifactId>edap-common</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.edap</groupId>
+            <artifactId>edap-log-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+</project>

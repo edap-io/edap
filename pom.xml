@@ -66,6 +66,7 @@
         <module>edap-auth-parent</module>
         <module>edap-microservice-parent</module>
         <module>edap-grpc-parent</module>
+        <module>edap-native</module>
 
     </modules>
 
@@ -96,6 +97,11 @@
             <dependency>
                 <groupId>io.edap</groupId>
                 <artifactId>edap-nio-native</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.edap</groupId>
+                <artifactId>edap-native</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
