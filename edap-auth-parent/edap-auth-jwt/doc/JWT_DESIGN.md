@@ -408,6 +408,8 @@ public class HmacSha256 implements Algorithm {
 
 ### 5.6 JNI 加速路径（已落地：edap-native）
 
+> **关联文档**：`edap-native/doc/NATIVE_DESIGN.md` —— edap-native 模块架构、加载机制、JNI 主路径优化 backlog（Tier 1/2/3）、perf 实施指引。
+
 **动机**：JCE 在高并发 JWT verify 场景下仍有 ~5μs/verify 的开销（其中 ~1μs 来自 JNI 边界、~1μs 来自 `Mac.update` 拷贝、~2μs 来自 SHA-256 内部循环）。edap 框架内部有大量 JWT verify（WS 握手 + HTTP 鉴权 + OAuth2 token 验证），单节点 QPS 峰值可达 50w+。**JNI 直调 OpenSSL/boringssl** 在 1-4 线程典型场景下实测 2-4.5x 提升（16+ 线程反退，详见下方收益估算）。
 
 **当前架构**（第一期已落地）：
@@ -488,90 +490,74 @@ static {
 
 不在以上平台 → `Native.ENABLE_NATIVE=false` → 自动 fallback JCE。
 
-**收益估算**（实测，macOS aarch64 + JDK 17 + JMH 1.37，`HmacSha256NativeBenchmark`，`avgt` us/op）：
+**收益估算**（实测，macOS aarch64 + JDK 17 + JMH 1.37，`HmacSha256NativeBenchmark`，`avgt` us/op，**Tier 2 落地后**）：
 
-| 场景 | payload | 线程 | javaMac（Mac+ThreadLocal） | nativeHmac（OpenSSL JNI + MethodHandle） | 倍数 |
+| 场景 | payload | 线程 | javaMac（Mac+ThreadLocal） | nativeHmac（手动 HMAC-SHA256，无 provider dispatch） | 倍数 |
 |---|---|---|---|---|---|
-| 单线程 verify | 100B | 1 | 1.494 | 1.378 | 1.08x |
-| 单线程 verify | 500B | 1 | 3.192 | 1.563 | **2.04x** |
-| 单线程 verify | 2000B | 1 | 10.035 | 2.191 | **4.58x** |
-| 4 线程 verify | 100B | 4 | 1.678 | 2.904 | 0.58x（Java 优） |
-| 4 线程 verify | 500B | 4 | 3.476 | 3.074 | 1.13x |
-| 4 线程 verify | 2000B | 4 | 10.508 | 3.564 | **2.95x** |
-| 16 线程 verify | 100B | 16 | 3.154 | 12.376 | 0.25x（Java 优） |
-| 16 线程 verify | 500B | 16 | 6.527 | 12.709 | 0.51x（Java 优） |
-| 16 线程 verify | 2000B | 16 | 20.439 | 12.738 | 1.60x |
+| 单线程 verify | 100B | 1 | 1.503 | 0.493 | **3.05x** |
+| 单线程 verify | 500B | 1 | 3.216 | 0.653 | **4.92x** |
+| 单线程 verify | 2000B | 1 | 10.074 | 1.289 | **7.81x** |
+| 4 线程 verify | 100B | 4 | 1.678 | 0.511 | **3.28x** |
+| 4 线程 verify | 500B | 4 | 3.451 | 0.669 | **5.16x** |
+| 4 线程 verify | 2000B | 4 | 10.482 | 1.325 | **7.91x** |
+| 16 线程 verify | 100B | 16 | 3.266 | 0.980 | **3.33x** |
+| 16 线程 verify | 500B | 16 | 6.758 | 1.283 | **5.27x** |
+| 16 线程 verify | 2000B | 16 | 20.681 | 2.511 | **8.24x** |
 
 **结论**：
 
-- **1-4 线程（典型 JWT 业务 request handler）**：native 胜，2-4.5x 加速。payload 越大，native 优势越明显（HMAC 计算时间占比拉高，MethodHandle/JNI 边界开销摊薄）。
-- **16+ 线程（高并发 verify 池）**：native 卡在 ~12.4 μs/op 不随 payload 增长 —— 瓶颈在 OpenSSL libcrypto 的 `HMAC()` 一次性调用内部锁 / JNI 跨界开销；Java `ThreadLocal<Mac>` 反而线性扩展，16t 比 native 快 2-4x。
+- **1-4 线程（典型 JWT 业务 request handler）**：native 胜，2-8x 加速。payload 越大，native 优势越明显（HMAC 计算占比拉高，MethodHandle/JNI 边界开销摊薄）。
+- **16+ 线程（高并发 verify 池）**：native 8x 胜。Tier 2 落地后 16t 反退问题已修复（见下文"16t 反退修复"），native 不再卡在固定开销，随线程扩展接近线性（1t→4t 仅 1.03x 退化、4t→16t 仅 1.89x 退化）。
 - **MethodHandle vs 反射**：实测两者在 ±3% 误差棒内打平。JDK 17 JIT 已把 `Method.invoke` 内联到接近 `invokeExact` 性能。保留 MethodHandle 不是为了 perf，是为了代码质量（无 checked exception 拆包、签名直接、未来可挂 `asType`/`filterArguments`）。
 
 **生产建议**：
 
-- 默认保留 native（典型 1-4 线程场景 2-4x 更快）
-- 高并发 verify 池（>8 线程）按业务特征评估：若 verify > 8 线程饱和，可考虑 `-Dedap.jwt.hmac.native=false` 切 Java
+- 默认保留 native（全场景 3-8x 更快，包括高并发 16t）
+- `-Dedap.jwt.hmac.native=false` 保留为 JCE fallback（AArch64 Linux 等无预编译 .o 的平台）
 
-**优化路径（待 PR，存档）**：
+#### 16t 反退修复（Tier 2 落地说明）
 
-> 解决 16t 高并发反退问题。已在 `edap-native/src/main/c/io_edap_jni_crypto_NativeHmacSha256.c` 确认瓶颈。
+**问题**：Tier 1（GetPrimitiveArrayCritical）+ Tier 1.5（cache `EVP_sha256()` + 每线程 `HMAC_CTX`）落地后，16t 仍 ~12.4 μs/op 反而比 Java 慢 0.6x。
 
-**瓶颈定位**（`io_edap_jni_crypto_NativeHmacSha256.c:39-42`）：
+**profile 实证**（macOS `sample` 抓 16t 测量阶段 30s）：
 
-```c
-HMAC(EVP_sha256(),       // ← 每次调用都 fetch
-     keyBytes, keyLen,
-     dataBytes + offset, len,
-     result, &resultLen);
-```
+| 帧 | 占比/线程 |
+|---|---|
+| `Java_..._sign0`（JNI 入口） | 39.5% |
+| `HMAC_Init_ex` | **17.5%** |
+| ↳ `evp_md_init_internal`（provider dispatch） | 16.0% |
+| ↳ ↳ `inner_evp_generic_fetch`（算法注册表 fetch） | 15.1% |
+| ↳ ↳ ↳ `ossl_method_store_cache_get` | 12.1% |
+| ↳ ↳ ↳ ↳ `pthread_rwlock_rdlock` | 4.1% |
+| ↳ ↳ ↳ ↳ `pthread_rwlock_unlock` | 7.9% |
+| GC 线程 | 0.01%（不是 GC 问题） |
 
-OpenSSL 3.x `HMAC()` one-shot 在 16 线程下三处串行化：
+**根因**：`HMAC_Init_ex` 内部调 `evp_md_init_internal(md)`，OpenSSL 3.x 默认 provider 的 SHA-256 实现 `md->prov != NULL && md->prov->dbs != NULL`（dispatch table 存在），所以即便传 cached md 也会走 provider dispatch —— Tier 1.5 的 `EVP_sha256()` cache 完全没用。16 线程并发 `pthread_rwlock_rdlock` + atomic ref-count（`evp_md_up_ref`）共享同一 cache line，进一步放大开销。
 
-1. **`EVP_sha256()` 全局 fetch**：`#define EVP_sha256() EVP_MD_fetch(NULL, "SHA256", NULL)`，走 provider dispatch，每次调用都过 `CRYPTO_THREAD_read_lock` 全局算法注册表
-2. **`EVP_MD_CTX_new()` / `EVP_MD_CTX_free()`** 每次调用 alloc + init + free，堆分配器在 16t 有锁争抢
-3. **`EVP_MD_CTX_new()` 内部还需访问 provider**（context 持有 libctx 引用），与 (1) 锁路径叠加
+**修复**（已合并到 `edap-native/src/main/c/io_edap_jni_crypto_NativeHmacSha256.c`）：
 
-**实测对照**（16t avgt，差值 = 2000B 减 100B）：
+- 删除所有 OpenSSL HMAC API 调用，改用 legacy `SHA256_Init/Update/Final`（OpenSSL 1.1 风格，deprecated in 3.0 但仍是直接 C 函数，无 provider dispatch、无锁、无 atomic、无 hash table）
+- 手工实现 `HMAC(K, m) = H((K xor opad) || H((K xor ipad) || m))`
+- 删除 Tier 1.5 的进程级 `EVP_sha256()` cache 和 `pthread_key_t` `HMAC_CTX` 缓存（不再需要）
+- key 早期 release（已 memcpy 到栈 `k_pad[64]`），data critical 区间只覆盖 HMAC compute
 
-| 实现 | 100B | 2000B | 差值 |
+**profile 验证**：修复后栈帧从 `HMAC_Init_ex → evp_md_init_internal → pthread_rwlock_*` 变成 `SHA256_Update → sha256_block_armv8`（ARM64 SHA-256 硬件指令）。provider dispatch 帧完全消失。
+
+**JMH 实测收益**（2000B payload）：
+
+| | 1t | 4t | 16t |
 |---|---|---|---|
-| native | 12.376 μs | 12.738 μs | **362ns** |
-| java | 3.154 μs | 20.439 μs | 17.3 μs |
+| Tier 1.5 | 2.19 μs | 3.56 μs | **12.74 μs** |
+| **Tier 2** | **1.29 μs** | **1.33 μs** | **2.51 μs** |
+| 相对 Tier 1.5 | 1.70x | 2.69x | **5.07x** |
 
-native 16t 几乎不随 payload 增长（362ns 差 vs Java 17.3μs 差）—— 强证据瓶颈是固定开销（fetch + alloc/free），不是 HMAC 计算本身。
+16t 从反退 Java 0.6x 变成 8.24x 超越 Java，扩展性恢复近线性。
 
-**16t 扩展性对比**（thrpt 16t / 1t 倍数）：
+**正确性**：与 `javax.crypto.Mac` 字节级一致（含 key>64 / 空 key 边界 / partial offset/len）。回归测试见 `edap-auth-jwt/src/test/java/io/edap/auth/jwt/test/HmacSha256NativeTest.java`。
 
-| payload | native | java |
-|---|---|---|
-| 500B | 1.295/0.641 = 2.0x | 1.146/0.313 = 3.7x |
-| 2000B | 1.263/0.452 = 2.8x | 0.785/0.100 = 7.85x |
+详细设计（含代码片段）：`edap-native/doc/NATIVE_DESIGN.md §6.6`。
 
-Java ThreadLocal 远超 native —— 不只是单点锁，是 native 端每次调用都做"不该做的事"。
-
-**拟修方案**（PR 草案，未实施）：
-
-```c
-// 1. 进程级缓存 EVP_sha256() result（避免每次 fetch）
-// 2. pthread_key_t 每线程缓存 EVP_MD_CTX（避免 new/free）
-// 3. 每次调用只走 HMAC_Init_ex/Update/Final（无 alloc、无 fetch）
-// 4. pthread_key destructor 释放 ctx
-```
-
-预期效果：16t ~12.4 μs/op → 期望 ~2-3 μs/op（接近 java 水平），1t 也受益（fetch 缓存 + 省 alloc）。
-
-**为何先不做**：
-
-- 涉及 OpenSSL 3.x `EVP_MD_CTX` 生命周期 + pthread_key 析构，要测 ABI 兼容性
-- 收益是修一个"高并发场景"的小 niche bug（默认 1-4 线程业务已 2-4x 加速），短期 ROI 不高
-- 建议先发到 `edap-native` 独立 PR，用 `HmacSha256NativeBenchmark` 16t 数据作为 before/after 对比基准
-
-**实施时**：
-
-- PR 标题：`[edap-native] cache EVP_sha256() + thread-local EVP_MD_CTX to fix 16t scaling`
-- 关联实测 base：`doc/JWT_DESIGN.md §5.6 收益估算` 中 16t nativeHmac 行
-- 验证：`mvn -pl edap-auth-jwt test HmacSha256NativeTest` + 重跑 benchmark 对比 16t 改进幅度
+---
 
 **测试覆盖**（`HmacSha256NativeTest`）：
 

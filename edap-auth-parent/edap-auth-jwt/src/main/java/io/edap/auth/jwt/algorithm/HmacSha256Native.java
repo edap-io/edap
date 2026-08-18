@@ -77,6 +77,10 @@ public class HmacSha256Native implements Algorithm {
             MethodHandle ctor = lookup.findConstructor(cls,
                     MethodType.methodType(void.class, byte[].class));
             Object nativeInstance = ctor.invoke(key.getBytes(StandardCharsets.UTF_8));
+            // sign(byte[] data, int offset, int len) 内部会调
+            // sign0(key, key.length, data, offset, len) —— 显式传 keyLen
+            // 是为了让 native 端省掉 GetArrayLength 一次 safepoint
+            // （详见 edap-native/doc/NATIVE_DESIGN.md §6.2）
             MethodHandle sign = lookup.findVirtual(cls, "sign",
                     MethodType.methodType(byte[].class, byte[].class, int.class, int.class));
             this.signHandle = sign.bindTo(nativeInstance);
