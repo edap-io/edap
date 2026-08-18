@@ -50,9 +50,9 @@ public class NativeHmacSha256 {
      * 返回 32 字节结果数组。
      */
     public byte[] sign(byte[] data, int offset, int len) {
-        return sign0(key, data, offset, len);
+        return sign0(key, key.length, data, offset, len);
     }
 
     // --- native binding ---
-    private static native byte[] sign0(byte[] key, byte[] data, int offset, int len);
+    private static native byte[] sign0(byte[] key, int keyLen, byte[] data, int offset, int len);
 }

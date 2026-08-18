@@ -10,10 +10,10 @@ extern "C" {
 /*
  * Class:     io_edap_jni_crypto_NativeHmacSha256
  * Method:    sign0
- * Signature: ([B[BII)[B
+ * Signature: ([BI[BII)[B
  */
 JNIEXPORT jbyteArray JNICALL Java_io_edap_jni_crypto_NativeHmacSha256_sign0
-  (JNIEnv *, jclass, jbyteArray, jbyteArray, jint, jint);
+  (JNIEnv *, jclass, jbyteArray, jint, jbyteArray, jint, jint);
 
 #ifdef __cplusplus
 }
