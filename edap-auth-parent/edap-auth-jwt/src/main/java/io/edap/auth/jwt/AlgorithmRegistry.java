@@ -1,7 +1,6 @@
 package io.edap.auth.jwt;
 
 import io.edap.auth.jwt.algorithm.HmacSha256;
-import io.edap.auth.jwt.algorithm.HmacSha256Native;
 
 import java.util.Collections;
 import java.util.Map;
@@ -17,11 +16,10 @@ import java.util.function.Function;
  * <p><b>安全</b>：{@link #getFactory(String)} 显式拒绝 {@code "none"} 算法（无论大小写），
  * 防止 JWT {@code alg=none} 绕过签名验证的经典攻击。</p>
  *
- * <p><b>HS256 native 切换</b>：默认行为 —— edap-native 在 classpath 且
- * {@code io.edap.jni.Native.ENABLE_NATIVE=true} 时，HS256 工厂自动用
- * {@link HmacSha256Native}（OpenSSL JNI）；否则用 {@link HmacSha256}（Java）。
- * 显式 {@code -Dedap.jwt.hmac.native=false} 强制走 Java。检测由
- * {@link HmacSha256Native#isAvailable()} 完成。</p>
+ * <p><b>HS256 实现</b>：默认 {@link HmacSha256} 在构造期检测 edap-native 可用性，
+ * 可用时委托 OpenSSL JNI 路径，否则 fallback JDK ThreadLocal&lt;Mac&gt;。
+ * 显式 {@code -Dedap.jwt.hmac.native=false} 强制 JDK。
+ * 详见 {@link io.edap.auth.jwt.algorithm.HmacSha256}。</p>
  *
  * <p>典型用法：</p>
  * <pre>{@code
@@ -41,10 +39,9 @@ public final class AlgorithmRegistry {
     private static final Map<String, Function<String, Algorithm>> FACTORIES = new ConcurrentHashMap<>();
 
     static {
-        // 默认走 native（edap-native 在 classpath + 平台 .o 就绪）；仅显式禁用或探测失败时 fallback
-        Function<String, Algorithm> hs256Factory =
-                HmacSha256Native.isAvailable() ? HmacSha256Native::new : HmacSha256::new;
-        register("HS256", hs256Factory);
+        // HS256 工厂：HmacSha256 构造期自动探测并委托 HmacSha256Native（edap-native + 平台 .o 就绪）
+        // 或 fallback JDK；无需在 registry 层重复判断。
+        register("HS256", HmacSha256::new);
     }
 
     private AlgorithmRegistry() {

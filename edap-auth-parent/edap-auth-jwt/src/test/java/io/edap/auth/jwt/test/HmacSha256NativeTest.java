@@ -2,7 +2,7 @@ package io.edap.auth.jwt.test;
 
 import io.edap.auth.jwt.Algorithm;
 import io.edap.auth.jwt.algorithm.HmacSha256;
-import io.edap.auth.jwt.algorithm.HmacSha256Native;
+import io.edap.auth.jwt.algorithm.HmacSha256.HmacSha256Native;
 import org.junit.jupiter.api.Test;
 
 import javax.crypto.Mac;
@@ -32,7 +32,7 @@ public class HmacSha256NativeTest {
     private static final String KEY = "this-is-a-test-signing-key-32-bytes!";
 
     private static boolean nativeAvailable() {
-        return HmacSha256Native.isAvailable();
+        return HmacSha256.HmacSha256Native.isAvailable();
     }
 
     @Test
@@ -48,7 +48,7 @@ public class HmacSha256NativeTest {
             System.out.println("SKIP: native explicitly disabled by -D flag");
             return;
         }
-        assertTrue(HmacSha256Native.isAvailable(),
+        assertTrue(HmacSha256.HmacSha256Native.isAvailable(),
                 "isAvailable() should return true by default when native is ready");
     }
 

@@ -1,6 +1,6 @@
 package io.edap.auth.jwt.benchmark;
 
-import io.edap.auth.jwt.algorithm.HmacSha256Native;
+import io.edap.auth.jwt.algorithm.HmacSha256;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -80,7 +80,7 @@ public class HmacSha256NativeBenchmark {
     private ThreadLocal<Mac> javaMacHolder;
 
     /** Native 路径：instance 内部 key 不可变，sign() 无共享状态 */
-    private HmacSha256Native nativeHmac;
+    private HmacSha256.HmacSha256Native nativeHmac;
 
     private boolean nativeEnabled;
 
@@ -103,9 +103,9 @@ public class HmacSha256NativeBenchmark {
             }
         });
 
-        this.nativeEnabled = HmacSha256Native.isAvailable();
+        this.nativeEnabled = HmacSha256.HmacSha256Native.isAvailable();
         if (nativeEnabled) {
-            this.nativeHmac = new HmacSha256Native(KEY_STR);
+            this.nativeHmac = new HmacSha256.HmacSha256Native(KEY_STR);
         }
     }
 
@@ -162,7 +162,7 @@ public class HmacSha256NativeBenchmark {
     }
 
     public static void main(String[] args) throws RunnerException {
-        boolean nativeAvail = HmacSha256Native.isAvailable();
+        boolean nativeAvail = HmacSha256.HmacSha256Native.isAvailable();
         System.out.println("=== HmacSha256 Native vs Java Benchmark ===");
         System.out.println("Payload sizes: 100 / 500 / 2000 bytes");
         System.out.println("Threads:       1 / 4 / 16");

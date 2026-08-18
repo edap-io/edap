@@ -423,18 +423,40 @@ edap-native                          (跨模块 JNI 加速库，OpenSSL libcrypt
 
 edap-auth-jwt
 └─ io.edap.auth.jwt.algorithm
-   ├─ HmacSha256.java                (JCE 实现，默认)
-   └─ HmacSha256Native.java          (MethodHandle 加载 NativeHmacSha256，无编译期依赖)
+   └─ HmacSha256.java                (统一入口，构造期自动委托 native / JCE)
+      ├─ HmacSha256Native            (nested public static class — MethodHandle 加载 NativeHmacSha256，无编译期依赖)
+      └─ HmacSha256Java               (nested private static class — 纯 JDK ThreadLocal<Mac> fallback)
 ```
 
 **触发方式**：
 
 ```bash
-# 默认行为：edap-native 在 classpath + 平台 .o 就绪就直接用 native
+# 默认行为：edap-native 在 classpath + 平台 .o 就绪 → HmacSha256 构造期自动委托 native
 java ...  # 无需任何系统属性
 
 # 显式禁用（强制走 Java / JCE）：
 java -Dedap.jwt.hmac.native=false ...
+```
+
+**`HmacSha256` 统一入口**（构造期自动委托）：
+
+```java
+public class HmacSha256 implements Algorithm {
+    // 进程级缓存：类初始化时检测一次，零后续开销
+    private static final boolean NATIVE_AVAILABLE = HmacSha256Native.isAvailable();
+
+    private final Algorithm delegate;
+
+    public HmacSha256(String key) {
+        this.delegate = NATIVE_AVAILABLE
+                ? new HmacSha256Native(key)   // native 可用 → 委托 HmacSha256Native
+                : new HmacSha256Java(key);    // 否则 fallback JDK ThreadLocal<Mac>
+    }
+
+    public byte[] sign(byte[] data, int offset, int len) {
+        return delegate.sign(data, offset, len);
+    }
+}
 ```
 
 **检测逻辑**（`HmacSha256Native.isAvailable()`）：
@@ -444,22 +466,30 @@ java -Dedap.jwt.hmac.native=false ...
 2. Class.forName("io.edap.jni.crypto.NativeHmacSha256") 触发其 static init
    → 内部调用 Native.loadLibrary()（幂等，双检锁）→ 加载成功后 ENABLE_NATIVE 翻成 true
 3. Native.ENABLE_NATIVE == true ?  (即当前平台有预编译 .o 且 .o 加载成功)
-   → 1 通过 + 2/3 全 true 才注册 native 工厂；任一失败静默 fallback 到 HmacSha256
+   → 1 通过 + 2/3 全 true 才注册 native 工厂；任一失败静默 fallback 到 HmacSha256Java
 
 ⚠️ 顺序关键：必须先 Class.forName(NATIVE_CLASS) 触发其 static init，
 否则直接读 ENABLE_NATIVE 会拿到初始 false（未 loadLibrary），永远走 Java 路径。
 （旧实现 `isAvailable()` 先读字段再触发类初始化，导致 native 永不生效 —— 上述代码已修正）
 ```
 
-**AlgorithmRegistry 派发**：
+**AlgorithmRegistry 派发**（HmacSha256 接管 native / JCE 选择）：
 
 ```java
 static {
-    Function<String, Algorithm> hs256Factory =
-            HmacSha256Native.isAvailable() ? HmacSha256Native::new : HmacSha256::new;
-    register("HS256", hs256Factory);
+    // HmacSha256 构造期自动探测并委托 HmacSha256Native（edap-native + 平台 .o 就绪）
+    // 或 fallback JDK；无需在 registry 层重复判断。
+    register("HS256", HmacSha256::new);
 }
 ```
+
+**显式强制某条路径**（不通过自动委托）：
+
+| 场景 | 方法 |
+|---|---|
+| JVM 启动参数强制 JDK | `-Dedap.jwt.hmac.native=false` |
+| 调用方直接强制 native | `new HmacSha256.HmacSha256Native(key)` |
+| 替换默认工厂 | `AlgorithmRegistry.register("HS256", HmacSha256.HmacSha256Native::new)` |
 
 **为什么默认开启**：
 
@@ -473,7 +503,7 @@ static {
 | 点 | 设计 |
 |---|---|
 | Native lib 加载 | `Native.loadLibrary()`：运行时按 `os.arch` 从 `src/main/resources/edap-native-{os}_{arch}.o` 解析，写到 temp 后 `System.load` |
-| MethodHandle vs 编译依赖 | HmacSha256Native 用 MethodHandle（findConstructor + findVirtual + bindTo + invokeExact）调 NativeHmacSha256 —— edap-auth-jwt 不硬依赖 edap-native；用户引入 edap-native 即自动启用 native |
+| MethodHandle vs 编译依赖 | `HmacSha256.HmacSha256Native` 用 MethodHandle（findConstructor + findVirtual + bindTo + invokeExact）调 NativeHmacSha256 —— edap-auth-jwt 不硬依赖 edap-native；用户引入 edap-native 即自动启用 native |
 | 默认行为 | **默认启用** —— edap-native 在 classpath + ENABLE_NATIVE=true 时直接走 native；显式 `-Dedap.jwt.hmac.native=false` 强制 Java |
 | Fallback | `isAvailable()` 任一检查不过 → 静默 fallback 到 JCE；启动期日志由 `Native` 记录 `native crypto enabled: true/false` |
 | 线程安全 | NativeHmacSha256 key 不可变 + sign0 一次性传 key+data，per-call stateless；多线程并发安全（已 16 线程 × 5000 次回归） |
@@ -608,7 +638,9 @@ java -Dedap.jwt.hmac.native=false -cp ... \
 
 - **JCE ThreadLocal 是当前默认解**（零依赖，纯 JDK）
 - **JNI 是性能可选解**（默认开启，需 -Dedap.jwt.hmac.native=false 关闭 + edap-native 在 classpath）
-- 两者互斥：AlgorithmRegistry 二选一；用户按需切换
+- 两者互斥：HmacSha256 构造期二选一，运行期不变；用户按需切换
+
+**统一入口重构**：原 `AlgorithmRegistry` 静态块做 `isAvailable() ? native : jce` 三元判断，现已下放到 `HmacSha256` 构造期（详见上面 "`HmacSha256` 统一入口"）。`HmacSha256Native` 从独立文件收纳进 `HmacSha256` 作 nested `public static class`；JCE fallback 收纳作 `private static class HmacSha256Java`。外部 API 不变（`new HmacSha256(key)` 仍是最简入口），`AlgorithmRegistry` 只 `register("HS256", HmacSha256::new)` 一行。
 
 ---
 
@@ -900,7 +932,7 @@ public static Algorithm get(String name, String key) {
 | 新增 `JwtWSAuthenticator` | `edap-container/src/main/java/io/edap/container/ws/JwtWSAuthenticator.java` (新) |
 | `Container.initContainerBeans` 按 signKey 配置切换默认 bean | `edap-container/.../Container.java` |
 | `HeaderTokenAuthenticator` 加 `@Deprecated` | `edap-http-core/.../HeaderTokenAuthenticator.java` |
-| **JNI 加速路径已落地（详见 §5.6）**：新增 `edap-native` 模块 + `HmacSha256Native` MethodHandle 桥 + `AlgorithmRegistry` 派发 native / JCE 工厂 | `edap-native/...` + `edap-auth-jwt/.../algorithm/HmacSha256Native.java` |
+| **JNI 加速路径已落地（详见 §5.6）**：新增 `edap-native` 模块 + `HmacSha256.HmacSha256Native` MethodHandle 桥（nested class）+ `HmacSha256` 统一入口自动委托 native / JCE | `edap-native/...` + `edap-auth-jwt/.../algorithm/HmacSha256.java` |
 
 ### 11.2 第二期
 
@@ -911,7 +943,7 @@ public static Algorithm get(String name, String key) {
 
 ### 11.3 第三期
 
-- NativeRsaSha256（RS256 JNI 加速，与 HmacSha256Native 同样的 MethodHandle 桥模式）
+- NativeRsaSha256（RS256 JNI 加速，与 `HmacSha256.HmacSha256Native` 同样的 MethodHandle 桥模式）
 - 补齐剩余平台 .o（macOS x86_64 / Linux x86_64 / Linux aarch64）
 - EdDSA（Ed25519）
 - JWE（加密 JWT）
