@@ -16,6 +16,7 @@
 
 package io.edap.protobuf.wire.parser;
 
+import io.edap.protobuf.codegen.CodeCreatePrint;
 import io.edap.protobuf.wire.*;
 import io.edap.protobuf.wire.Comment.CommentType;
 import io.edap.protobuf.wire.ProtoEnum.EnumEntry;
@@ -46,6 +47,7 @@ public class ProtoParser {
     private static final String START_MSG = " start...";
 
     private boolean printParseInfo;
+    private CodeCreatePrint codeCreatePrint;
 
 
     public ProtoParser(String data) {
@@ -61,6 +63,7 @@ public class ProtoParser {
         fieldCardinalities.add("required");
 
         this.data = data.toCharArray();
+        //this.codeCreatePrint = msg -> System.out.println(msg);
     }
 
     public void setPrintParseInfo(boolean printParseInfo) {
@@ -258,7 +261,7 @@ public class ProtoParser {
         }
         ext.setName(name);
         if (printParseInfo) {
-            System.out.println("extend " + name + START_MSG);
+            codeCreatePrint.print("parse extend " + name + START_MSG);
         }
         blockStarted("extend");
         String token = readToken();
@@ -459,7 +462,7 @@ public class ProtoParser {
             comments.clear();
         }
         if (printParseInfo) {
-            System.out.println("Enum " + name + START_MSG);
+            codeCreatePrint.print("parse Enum " + name + START_MSG);
         }
         blockStarted("enum");
         nextLine();
@@ -494,7 +497,7 @@ public class ProtoParser {
             if (isEnd) {
                 fieldEnd();
                 if (printParseInfo) {
-                    System.out.println("Enum " + name + " end");
+                    codeCreatePrint.print("parse Enum " + name + " end");
                 }
                 protoEnum.setEntries(entries);
                 return protoEnum;
@@ -551,7 +554,7 @@ public class ProtoParser {
             comments.clear();
         }
         if (printParseInfo) {
-            System.out.println("message " + name + START_MSG);
+            codeCreatePrint.print("parse message " + name + START_MSG);
         }
         blockStarted("message");
         String token = readToken();
@@ -585,7 +588,7 @@ public class ProtoParser {
             boolean isEnd = blockEnd();
             if (isEnd) {
                 if (printParseInfo) {
-                    System.out.println("message " + name + " end");
+                    codeCreatePrint.print("parse message " + name + " end");
                 }
                 fieldEnd();
                 return msg;
@@ -618,7 +621,7 @@ public class ProtoParser {
             comments.clear();
         }
         if (printParseInfo) {
-            System.out.println("service " + name + START_MSG);
+            codeCreatePrint.print("parse service " + name + START_MSG);
         }
         blockStarted("service");
         String token = readToken();
@@ -872,7 +875,7 @@ public class ProtoParser {
         }
         oneof.setName(name);
         if (printParseInfo) {
-            System.out.println(ONEOF_MSG + name + START_MSG);
+            codeCreatePrint.print("parse " + ONEOF_MSG + name + START_MSG);
         }
         blockStarted("oneof");
         String token = readToken();
@@ -893,7 +896,7 @@ public class ProtoParser {
             boolean isEnd = blockEnd();
             if (isEnd) {
                 if (printParseInfo) {
-                    System.out.println(ONEOF_MSG + name + " end");
+                    codeCreatePrint.print("parse " + ONEOF_MSG + name + " end");
                 }
                 fieldEnd();
                 return oneof;
@@ -1195,6 +1198,14 @@ public class ProtoParser {
             }
         }
         return false;
+    }
+
+    public CodeCreatePrint getCodeCreatePrint() {
+        return codeCreatePrint;
+    }
+
+    public void setCodeCreatePrint(CodeCreatePrint codeCreatePrint) {
+        this.codeCreatePrint = codeCreatePrint;
     }
 
     class ProtoValue {

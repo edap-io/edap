@@ -17,6 +17,7 @@
 package io.edap.protobuf.builder;
 
 import io.edap.protobuf.annotation.*;
+import io.edap.protobuf.codegen.CodeCreatePrint;
 import io.edap.protobuf.internal.CodeBuilder;
 import io.edap.protobuf.wire.*;
 import io.edap.protobuf.wire.Field.Type;
@@ -51,11 +52,35 @@ public class JavaBuilder {
 
     public static void saveJavaFile(String javaFilePath, String code)
             throws IOException {
+        saveJavaFile(javaFilePath, code, false);
+    }
+
+    public static void saveJavaFile(String javaFilePath, String code, boolean needDelete)
+            throws IOException {
         File f = new File(javaFilePath);
         if (f.exists()) {
-            Files.delete(f.toPath());
+            if (needDelete) {
+                Files.delete(f.toPath());
+            } else {
+                return;
+            }
         }
         try (RandomAccessFile java = new RandomAccessFile(javaFilePath, "rw")) {
+            byte[] bs = code.getBytes("utf-8");
+            java.write(bs);
+        }
+    }
+
+    public static void saveJavaFile(File javaFile, String code, boolean needDelete)
+            throws IOException {
+        if (javaFile.exists()) {
+            if (needDelete) {
+                Files.delete(javaFile.toPath());
+            } else {
+                return;
+            }
+        }
+        try (RandomAccessFile java = new RandomAccessFile(javaFile, "rw")) {
             byte[] bs = code.getBytes("utf-8");
             java.write(bs);
         }
@@ -630,7 +655,7 @@ public class JavaBuilder {
         return allEnums;
     }
 
-    private String getJavaPackage(Proto proto) {
+    public static String getJavaPackage(Proto proto) {
         if (proto.getOptions() == null || proto.getOptions().isEmpty()) {
             return EMPTY_STRING;
         }
@@ -1086,4 +1111,5 @@ public class JavaBuilder {
                 .append(underScore.substring(start+1));
         return name.toString();
     }
+
 }

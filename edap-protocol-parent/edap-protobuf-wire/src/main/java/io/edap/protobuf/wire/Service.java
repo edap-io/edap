@@ -28,11 +28,10 @@ public class Service {
      * 服务类型
      */
     public enum ServiceType {
-        UNARY("unary"),
+        UNARY        ("unary"),
         SERVER_STREAM("server_stream"),
         CLIENT_STREAM("client_stream"),
-        BIDIRECTIONAL("Bidirectional")
-        ;
+        BIDIRECTIONAL("Bidirectional");
 
         private final String value;
 

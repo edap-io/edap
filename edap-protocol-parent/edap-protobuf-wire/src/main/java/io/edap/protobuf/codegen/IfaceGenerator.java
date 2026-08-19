@@ -32,6 +32,7 @@ public class IfaceGenerator {
     private final File srcPath;
     private final List<Proto> files;
     private JavaBuildOption buildOption;
+    private CodeCreatePrint codeCreatePrint;
 
     public IfaceGenerator(File srcPath, List<Proto> files) {
         this.srcPath = srcPath;
@@ -70,6 +71,7 @@ public class IfaceGenerator {
                 }
                 ProtoParser parser = new ProtoParser(builder.toString());
                 parser.setPrintParseInfo(true);
+                parser.setCodeCreatePrint((codeCreatePrint==null)?msg -> System.out.println(msg):codeCreatePrint);
                 Proto proto = parser.parse();
                 proto.setName(name);
                 allProtos.put(name, proto);
@@ -155,6 +157,7 @@ public class IfaceGenerator {
 
     public void generateDtoMessage(Proto proto, JavaBuildOption buildOps, Map<String, Proto> protos) {
         JavaBuilder builder = new JavaBuilder();
+
         buildOps.setDtoPrefix(buildOption.getDtoPrefix());
 
         if (buildOps.getDtoPrefix() != null && !buildOps.getDtoPrefix().isEmpty()) {
@@ -269,5 +272,13 @@ public class IfaceGenerator {
                 }
             }
         }
+    }
+
+    public CodeCreatePrint getCodeCreatePrint() {
+        return codeCreatePrint;
+    }
+
+    public void setCodeCreatePrint(CodeCreatePrint codeCreatePrint) {
+        this.codeCreatePrint = codeCreatePrint;
     }
 }

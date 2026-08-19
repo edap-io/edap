@@ -33,7 +33,8 @@ public class CodeGenertor {
             }
         }
 
-        generate(protoPath, javaOut);
+        List<Proto> protos = parseProtos(protoPath, msg -> System.out.println(msg));
+        generate(protos, javaOut, System.out::println);
 
     }
 
@@ -41,22 +42,20 @@ public class CodeGenertor {
         return str == null || str.isEmpty();
     }
 
-    public static void generate(String protoPath, String javaOut) throws IOException {
-        long startTime = System.currentTimeMillis();
+    public static List<Proto> parseProtos(String protoPath, CodeCreatePrint codeCreatePrint) throws IOException {
         List<Path> protoPaths = findByExtension(Paths.get(protoPath), "proto");
         if (protoPaths == null || protoPaths.isEmpty()) {
             System.out.println(new File(protoPath).getAbsolutePath() + " 目录没有.proto的文件");
-            return;
+            return Collections.EMPTY_LIST;
         }
         Collections.sort(protoPaths, Comparator.comparing(o -> o.getFileName().toString()));
         StringBuilder builder = new StringBuilder();
 
         List<Proto> protos = new ArrayList<>();
-        String protoPathAbs = new File(protoPath).getAbsolutePath();
         for (Path path : protoPaths) {
             //System.out.println("path=" + path.toString());
             try {
-                Proto proto = parseProto(path, builder);
+                Proto proto = parseProto(path, builder, codeCreatePrint);
                 String absPath = path.toString();
                 String name = path.toString();
                 if (absPath.startsWith(protoPath)) {
@@ -72,16 +71,31 @@ public class CodeGenertor {
             }
         }
 
+        return protos;
+    }
+
+    public static void generate(List<Proto> protos, String javaOut, CodeCreatePrint codeCreatePrint) throws IOException {
+        long startTime = System.currentTimeMillis();
+
         IfaceGenerator ifaceGenerator = new IfaceGenerator(new File(javaOut), protos);
         JavaBuildOption javaBuildOption = new JavaBuildOption();
         ifaceGenerator.setBuildOption(javaBuildOption);
+        ifaceGenerator.setCodeCreatePrint(codeCreatePrint);
         ifaceGenerator.generate();
-        System.out.println("time=" + (System.currentTimeMillis() - startTime));
+        codeCreatePrint.print("time=" + (System.currentTimeMillis() - startTime));
     }
 
-    private static Proto parseProto(Path path, StringBuilder build) throws ProtoParseException {
+    public static void generateImpl(List<Proto> protos, File javaOut, CodeCreatePrint codeCreatePrint) {
+        EmptyImplGenerator generator = new EmptyImplGenerator(javaOut, protos);
+        generator.setCodeCreatePrint(codeCreatePrint);
+        generator.generate();
+    }
+
+    private static Proto parseProto(Path path, StringBuilder build, CodeCreatePrint codeCreatePrint)
+            throws ProtoParseException {
         readToStringBuilder(path, build);
         ProtoParser protoParser = new ProtoParser(build.toString());
+        protoParser.setCodeCreatePrint(codeCreatePrint);
         //protoParser.setPrintParseInfo(true);
         return protoParser.parse();
     }
