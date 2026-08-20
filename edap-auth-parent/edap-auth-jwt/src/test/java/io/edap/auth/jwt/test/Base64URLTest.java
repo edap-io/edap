@@ -30,7 +30,7 @@ public class Base64URLTest {
                     if (lastDeng != -1) {
                         base64 = base64.substring(0, lastDeng);
                     }
-                    assertEquals(base64, Base64URL.encode(bytes));
+                    assertEquals(base64, Base64URL.encodeToString(bytes));
                     //System.out.println(base64);
                 }
             }
@@ -52,7 +52,7 @@ public class Base64URLTest {
                     if (lastDeng != -1) {
                         base64 = base64.substring(0, lastDeng);
                     }
-                    assertEquals(base64, Base64URL.encode(bytes));
+                    assertEquals(base64, Base64URL.encodeToString(bytes));
                     //System.out.println(base64);
                 }
             }
@@ -72,7 +72,7 @@ public class Base64URLTest {
                 bytes[1] = (byte)j;
                 for (int k=0;k<256;k++) {
                     bytes[2] = (byte)k;
-                    Base64URL.encode(bytes);
+                    Base64URL.encodeToString(bytes);
                 }
             }
         }
@@ -101,7 +101,7 @@ public class Base64URLTest {
                 bytes[1] = (byte)j;
                 for (int k=0;k<256;k++) {
                     bytes[2] = (byte)k;
-                    Base64URL.encode(bytes);
+                    Base64URL.encodeToString(bytes);
                 }
             }
         }

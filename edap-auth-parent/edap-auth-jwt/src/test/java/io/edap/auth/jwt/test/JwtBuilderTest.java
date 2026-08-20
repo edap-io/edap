@@ -42,7 +42,7 @@ public class JwtBuilderTest {
         header = jwt.substring(0, jwt.indexOf( "."));
         assertEquals("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9", header);
         payload = jwt.substring(jwt.indexOf( ".") + 1, jwt.lastIndexOf("."));
-        jsonPayload = Eson.parseJsonObject(Base64URL.decode(payload));
+        jsonPayload = Eson.parseJsonObject(Base64URL.decode(payload.getBytes()));
         assertEquals("edap", jsonPayload.getString("sub"));
 
         VerifyResult result = JWT.verify(jwt, "edap-secret");

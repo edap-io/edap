@@ -8,7 +8,7 @@ public class T {
 
     public static void main(String[] args) {
         String s = "{\"alg\":\"HS256\",\"typ\":\"JWT\"}";
-        System.out.println(Base64URL.encode(s.getBytes()));
+        System.out.println(Base64URL.encodeToString(s.getBytes()));
         System.out.println(UUID.randomUUID().toString());
     }
 }

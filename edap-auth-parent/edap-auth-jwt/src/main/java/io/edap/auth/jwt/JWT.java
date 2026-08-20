@@ -109,7 +109,7 @@ public class JWT {
 
         // 6. 验签
         byte[] signBytes = alg.sign(token.substring(0, index2).getBytes(StandardCharsets.UTF_8), 0, index2);
-        String calSign = Base64URL.encode(signBytes);
+        String calSign = Base64URL.encodeToString(signBytes);
         if (!calSign.equals(sign)) {
             result.setCode(2);
             result.setMessage("签名错误");
@@ -140,9 +140,9 @@ public class JWT {
             result.setMessage("header base64url 解码失败");
             return null;
         }
-        String headerJson;
+        byte[] headerJson;
         try {
-            headerJson = Base64URL.decode(headerB64);
+            headerJson = Base64URL.decode(headerB64.getBytes());
         } catch (RuntimeException e) {
             result.setCode(1);
             result.setMessage("header base64url 解码失败");
@@ -182,7 +182,7 @@ public class JWT {
      * <p>调用前提：签名已验证通过；这里不再做格式校验（payload 内容由 issuer 负责）。</p>
      */
     private static void parsePayload(String payloadB64, VerifyResult result) {
-        JsonObject jsonObject = Eson.parseJsonObject(Base64URL.decode(payloadB64));
+        JsonObject jsonObject = Eson.parseJsonObject(Base64URL.decode(payloadB64.getBytes()));
         JwtPayload pl = new JwtPayload();
         Map<String, Object> customerClaims = new HashMap<>();
         for (Map.Entry<String, Object> entry : jsonObject.entrySet()) {
