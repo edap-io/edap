@@ -18,6 +18,7 @@ package io.edap.plugin.mvn;
 
 import io.edap.protobuf.codegen.CodeGenertor;
 
+import io.edap.protobuf.wire.Proto;
 import org.apache.maven.model.Resource;
 import org.apache.maven.plugin.AbstractMojo;
 import org.apache.maven.plugin.MojoExecutionException;
@@ -40,15 +41,32 @@ public class ProtocMojo extends AbstractMojo {
     @Parameter(defaultValue = "${project}", readonly = true, required = true)
     private MavenProject project;
 
+    @Parameter(property = "generate.createImpl", defaultValue = "false")
+    private boolean createImpl;
+
+    @Parameter(property = "generate.implModulePath", defaultValue = "")
+    private String implModulePath;
+
     @Override
     public void execute() throws MojoExecutionException, MojoFailureException {
         File baseDir = project.getBasedir();
         List<String> sources = project.getCompileSourceRoots();
         String srcDir;
         if (sources == null || sources.size() > 1) {
-            getLog().error("请指定java源代码的目录");
-            return;
+            throw new MojoFailureException("请指定java源代码的目录");
         }
+        if (createImpl) {
+            if (implModulePath == null || implModulePath.trim().length() == 0) {
+                getLog().error("请配置接口实现模块的路径");
+                throw new MojoFailureException("请配置接口实现模块的路径");
+            }
+        }
+        File implBaseDir = new File(baseDir.getAbsolutePath() + File.separator + implModulePath);
+        File implSrcDir = new File(implBaseDir + File.separator + "src/main/java/");
+        if (!implSrcDir.exists()) {
+            throw new MojoFailureException("接口实现模块源代码目录" + implSrcDir + "不存在");
+        }
+
         srcDir = sources.get(0);
         List<Resource> resources = project.getResources();
         List<String> protoPaths = new ArrayList<>();
@@ -63,7 +81,11 @@ public class ProtocMojo extends AbstractMojo {
         }
         for (String protoPath : protoPaths) {
             try {
-                CodeGenertor.generate(protoPath, srcDir);
+                List<Proto> protos = CodeGenertor.parseProtos(protoPath, msg -> getLog().info(msg));
+                CodeGenertor.generate(protos, srcDir,msg -> getLog().info(msg));
+                if (createImpl) {
+                    CodeGenertor.generateImpl(protos, implSrcDir, msg -> getLog().info(msg));
+                }
             } catch (IOException e) {
                 getLog().error(e);
             }
