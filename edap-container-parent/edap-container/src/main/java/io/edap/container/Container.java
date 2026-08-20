@@ -273,7 +273,7 @@ public class Container {
     }
 
     /**
-     * 部署 / version 切换：把 app 的全量 path 表挂上 HttpServer。
+     * 部署 / version 切换：把 app 的全量 path 表登记到 {@link #appPathTables}。
      *
      * <p>流程：
      * <ol>
@@ -281,8 +281,13 @@ public class Container {
      *       （同 appId 覆盖放行；不同 appId 抛 IllegalStateException → deploy 失败）</li>
      *   <li>{@link #wsPathOwners} 写 owner</li>
      *   <li>{@link #appPathTables} put(appId, newTable)</li>
-     *   <li>合并所有 app 的 table → {@link HttpServer#setHttpMapping} 整张替换</li>
      * </ol>
+     *
+     * <p><b>本方法不再触发 setHttpMapping</b> —— 发布的责任统一交给 {@link #rebuildHttpMapping}。
+     * 起初 deployAppRoutes 内部会自己 publish 一次（{@code setHttpMapping(mergeAllAppPathTables)}），
+     * 但 Container.deploy / restoreToSlot / switchVersion 末尾会再调一次 rebuildHttpMapping，
+     * 导致同一 deploy 流程里 setHttpMapping 被调两次（且第二次才包含 WS path，第一次漏掉），
+     * 既冗余又漏 WS。现在两条路径只剩 rebuildHttpMapping 一次 publish，dispatch 表始终一致。</p>
      *
      * <p><b>设计取舍</b>：HTTP + WS path 一起部署（无单独注册 WS path 的 API）——
      *     app 的 deploy / version 切换天然走全量 pathTable，整张合并后一次性写入 HttpServer，
@@ -317,15 +322,16 @@ public class Container {
                 }
             }
         }
-        // 2. 存表 + 3. 合并 + 4. 整张替换
+        // 2. 存表（不 publish，等调用方 rebuildHttpMapping 一次性写）
         appPathTables.put(appId, newTable);
-        if (httpServer != null) {
-            httpServer.setHttpMapping(mergeAllAppPathTables());
-        }
     }
 
     /**
      * undeploy：摘除 app 贡献的 path 表。调用方：AppContext.stop 末尾。
+     *
+     * <p><b>本方法不再触发 setHttpMapping</b> —— 发布的责任统一交给 {@link #rebuildHttpMapping}，
+     * 由 undeploy() 末位调用一次。保持 deploy / undeploy / switchVersion 三条路径都走同一发布入口，
+     * dispatch 表永远一致（HTTP + WS 都在）。</p>
      */
     public void undeployAppRoutes(String appId) {
         Map<FastBufDataRange, PathInfo> oldTable = appPathTables.remove(appId);
@@ -337,18 +343,6 @@ public class Container {
                 }
             }
         }
-        if (httpServer != null) {
-            httpServer.setHttpMapping(mergeAllAppPathTables());
-        }
-    }
-
-    /** 合并所有 app 的 pathTable 为一张 combined map（供 HttpServer.setHttpMapping 整张替换）。 */
-    private Map<FastBufDataRange, PathInfo> mergeAllAppPathTables() {
-        Map<FastBufDataRange, PathInfo> combined = new HashMap<>();
-        for (Map<FastBufDataRange, PathInfo> t : appPathTables.values()) {
-            combined.putAll(t);
-        }
-        return combined;
     }
 
     /**
@@ -1155,8 +1149,7 @@ public class Container {
     }
 
     /**
-     * 从所有 currentRouters 的 AppContext 收集 HTTP path → handler 映射，
-     * 整张替换 {@link HttpServer#setHttpMapping}。
+     * 从所有 currentRouters 的 app 收集 path 映射，整张替换 {@link HttpServer#setHttpMapping}。
      *
      * <p>调用时机（都在 appLock 持有内）：
      * <ul>
@@ -1167,7 +1160,15 @@ public class Container {
      *   <li>start() 启动恢复 currentRouters 拨完之后</li>
      * </ul>
      *
-     * <p>WS/eRPC/gRPC Server impl 暂缺，对应 mapping 留 TODO；当前只处理 HTTP。</p>
+     * <p>数据来源：{@link #appPathTables}（由 {@link #deployAppRoutes} 写入）—— 单 app 完整
+     * path 表（含 HTTP entries + WS entries，已在 AppContext.buildPathTable() 阶段组装好）。
+     * 这里只挑 currentRouters 里的 appId（slot = CURRENT），即"当前接流量的 app 集合"；
+     * STAGING / PREVIOUS 槽的 app 已部署但暂不接流量，不参与 dispatch。</p>
+     *
+     * <p>为什么从 {@link #appPathTables} 读而非 per-AppContext 字段（httpHandlersByPath /
+     * serviceWSHandler）：appPathTables 由 {@link #deployAppRoutes} 写入完整 pathTable
+     * （HTTP + WS），直接 putAll 同时拿到两份协议，且保留 currentRouters 槽位过滤语义。
+     * 原写法只读 httpHandlersByPath 会漏掉 WS PathInfo（{@code /ws} 路径）。</p>
      *
      * <p>空 mapping（无任何 app 部署）：传空 Map 而非 null，HttpServer 内部兜底。</p>
      */
@@ -1176,38 +1177,12 @@ public class Container {
             return;                                        // HTTP capability 未启用
         }
         Map<FastBufDataRange, PathInfo> combined = new HashMap<>();
-        for (Map.Entry<String, RouterHub> e : currentRouters.entrySet()) {
-            AppContext ctx = appContextForRouter(e.getValue());
-            if (ctx == null) continue;
-            Map<String, HttpHandler> httpByPath = ctx.httpHandlersByPath();
-            if (httpByPath == null) continue;
-            for (Map.Entry<String, HttpHandler> pe : httpByPath.entrySet()) {
-                String path = pe.getKey();
-                HttpHandler handler = pe.getValue();
-                FastBufDataRange key = FastBufDataRange.from(path);
-                PathInfo pi = new PathInfo();
-                pi.setPath(path);
-                pi.setFound(true);
-                pi.setHttpHandlers(new HttpHandler[]{handler});
-                PathInfo prev = combined.put(key, pi);
-                if (prev != null) {
-                    // 这种情况理论上不该发生——FQCN 冲突检测已拦了同 path；但同 FQCN 不同 method
-                    // 共享 path（@ProtoHttp 显式 path 重名）就要靠 deploy 时的检测挡住
-                    log.warn("HTTP path {} 在合并时覆盖（owner 已变更）", l -> l.arg(path));
-                }
+        for (String appId : currentRouters.keySet()) {
+            Map<FastBufDataRange, PathInfo> t = appPathTables.get(appId);
+            if (t != null) {
+                combined.putAll(t);
             }
         }
         httpServer.setHttpMapping(combined);
-    }
-
-    /** 通过 RouterHub 反查所属 AppContext（currentRouters 持有的是 RouterHub 引用，不是 AppContext）。 */
-    private AppContext appContextForRouter(RouterHub hub) {
-        if (hub == null) return null;
-        for (SlotEntry entry : registry.values()) {
-            if (entry.previous() != null && entry.previous().routers() == hub) return entry.previous();
-            if (entry.current()  != null && entry.current().routers()  == hub) return entry.current();
-            if (entry.staging()  != null && entry.staging().routers()  == hub) return entry.staging();
-        }
-        return null;
     }
 }

@@ -476,10 +476,21 @@ public class AppContext implements Lifecycle {
             Thread.currentThread().setContextClassLoader(prevCL);
         }
 
+        // 所有 ProtoService 遍历完后，一次性把整张 wsMsgHandlers 喂给 ServiceWSHandler。
+        // 这里必须在每个 ProtoService 各自 add 进 wsMsgHandlers 之后、外层 buildPathTable 之前调：
+        // 否则 dispatch 路径（serviceWSHandler.msgHandlers）看到的可能是空表，导致首批 WS 消息 404。
+        // serviceWSHandler.rebindMsgHandlers 是 volatile store（原子发布），reader 要么看到旧版本
+        // 要么看到新版本；in-flight 消息走老 handler 完整返回（老 bean 实例不被 GC）。
+        if (!wsMsgHandlers.isEmpty()) {
+            serviceWSHandler.rebindMsgHandlers(new HashMap<>(wsMsgHandlers));
+        }
+
         // 全部 Handler 生成 + RouterHub 写完后：构建全量 pathTable（HTTP + WS），推给 Container。
         // 顺序：先写 RouterHub / serviceWSHandler.msgHandlers（dispatch 路径就绪），
-        // 再 deployAppRoutes → Container 做 WS path 冲突检测 + 整张替换 HttpServer.mapping
-        // （dispatch 热路径无锁读）。失败抛 RouteBindException → start() 转 FAILED → deploy 回滚。
+        // 再 deployAppRoutes → Container 做 WS path 冲突检测 + 写 appPathTables。
+        // HttpServer.mapping 的发布由 Container.deploy 末位的 rebuildHttpMapping() 一次性完成
+        // （dispatch 热路径无锁读）；本 AppContext 不直接触发 setHttpMapping。
+        // 失败抛 RouteBindException → start() 转 FAILED → deploy 回滚。
         Map<FastBufDataRange, PathInfo> pathTable = buildPathTable();
         container.deployAppRoutes(appId, pathTable);
     }
@@ -580,12 +591,9 @@ public class AppContext implements Lifecycle {
                 // eRPC / gRPC option 解析尚未在 EarScanner 落地——对应 Capability 检查留待后续 PR
             }
         }
-        // 所有 @ProtoWebSocket 方法遍历完后，一次性把整张 method 表喂给 ServiceWSHandler。
-        // serviceWSHandler.rebindMsgHandlers 是 volatile store（原子发布），reader 要么看到旧版本
-        // 要么看到新版本；in-flight 消息走老 handler 完整返回（老 bean 实例不被 GC）。
-        if (!wsMsgHandlers.isEmpty()) {
-            serviceWSHandler.rebindMsgHandlers(new HashMap<>(wsMsgHandlers));
-        }
+        // 注意：serviceWSHandler.rebindMsgHandlers 的调用从本方法移到了 generateAndBindRoutes 末尾
+        // （所有 ProtoService 处理完毕后一次性 rebind）。原写法每个 ProtoService 都会触发一次
+        // 全量 HashMap 拷贝 + volatile store，N 个 ProtoService 就是 O(N²) 冗余。
     }
 
     /**
