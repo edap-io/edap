@@ -52,7 +52,7 @@ public class JavaBuilder {
 
     public static void saveJavaFile(String javaFilePath, String code)
             throws IOException {
-        saveJavaFile(javaFilePath, code, false);
+        saveJavaFile(javaFilePath, code, true);
     }
 
     public static void saveJavaFile(String javaFilePath, String code, boolean needDelete)
