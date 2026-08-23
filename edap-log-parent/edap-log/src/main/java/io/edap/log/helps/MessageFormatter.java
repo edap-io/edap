@@ -63,6 +63,9 @@ public class MessageFormatter {
                     // the result.
                     bytesBuilder.append(messagePattern, i, messagePattern.length() - i);
                 }
+                if (L < args.length && args[args.length-1] instanceof Throwable) {
+                    printToBuilder((Throwable) args[args.length-1], bytesBuilder);
+                }
                 return;
             } else {
                 if (isEscapedDelimeter(messagePattern, j)) {
