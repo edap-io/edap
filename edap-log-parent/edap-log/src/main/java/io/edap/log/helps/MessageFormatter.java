@@ -115,10 +115,21 @@ public class MessageFormatter {
     }
 
     private static void printToBuilder(Throwable throwable, ByteArrayBuilder builder) {
+        builder.append(throwable.getClass().getName());
+        String msg = throwable.getMessage();
+        if (msg != null) {
+            builder.append(": ").append(msg);
+        }
+        builder.append((byte)'\n');
         for (StackTraceElement element : throwable.getStackTrace()) {
             builder.append((byte)'\t', (byte)'\t');
             builder.append(element.toString());
             builder.append((byte)'\n');
+        }
+        Throwable cause = throwable.getCause();
+        if (cause != null && cause != throwable) {
+            builder.append((byte)'\t', (byte)'\t').append("Caused by: ");
+            printToBuilder(cause, builder);
         }
     }
 }
