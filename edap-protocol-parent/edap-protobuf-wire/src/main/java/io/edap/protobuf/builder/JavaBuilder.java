@@ -347,6 +347,14 @@ public class JavaBuilder {
         if (!impMsgs.contains(pserviceName)) {
             impMsgs.add(pserviceName);
         }
+        String pubAccessName = PublicAccess.class.getName();
+        if (!impMsgs.contains(pubAccessName)) {
+            impMsgs.add(pubAccessName);
+        }
+        String requireAuthName = RequireAuth.class.getName();
+        if (!impMsgs.contains(requireAuthName)) {
+            impMsgs.add(requireAuthName);
+        }
         impMsgs.stream()
                 .sorted(String::compareTo)
                 .forEach(e -> cb.e("import $msg$;").arg(e).ln());
@@ -449,6 +457,8 @@ public class JavaBuilder {
                         String protoWs = null;
                         Map<String, String> protoHttp = null;
                         Map<String, String> sharded = null;
+                        boolean pubAccess = false;
+                        String requireAuthVal = "";
                         for (Option option : options) {
                             switch (option.getName()) {
                                 case "edap.rpc.api.ws_method":
@@ -480,11 +490,25 @@ public class JavaBuilder {
                                     }
                                     sharded.put("shardKey", option.getValue());
                                     break;
-
+                                case "edap.rpc.api.public_access":
+                                    pubAccess = true;
+                                    break;
+                                case "edap.rpc.api.require_auth":
+                                    requireAuthVal = option.getValue();
+                                    break;
                             }
                         }
                         if (protoWs != null) {
                             cb.t(level).c(protoWs).ln();
+                        }
+                        if (pubAccess) {
+                            cb.t(level).c("@PublicAccess").ln();
+                        } else {
+                            cb.t(level).c("@RequireAuth");
+                            if (requireAuthVal != null && requireAuthVal.trim().length() > 0) {
+                                cb.c("(").c("resolver = \"").c(requireAuthVal).c("\"").c(")");
+                            }
+                            cb.ln();
                         }
                         if (protoHttp != null) {
                             boolean needDou = false;
