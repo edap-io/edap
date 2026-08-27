@@ -63,8 +63,8 @@ public class ConvertorGenerator {
         gci.clazzName = toInternalName(convertorName);
 
         String parentName = toInternalName(PARENT_ANME);
-        String convertorDescriptor = "L" + parentName + "<L" + toInternalName(orignalCls.getName())
-                + ";L" + toInternalName(destCls.getName()) + ";>;";
+        String convertorDescriptor = "L" + parentName + "<" + getDescriptor(orignalCls)
+                + getDescriptor(destCls) + ">;";
 
         String[] ifaceName = null;
 
@@ -145,8 +145,8 @@ public class ConvertorGenerator {
             return 0;
         });
         MethodVisitor mv;
-        mv = cw.visitMethod(ACC_PUBLIC, "convert", "(L" + toInternalName(orignalCls.getName())
-                + ";)L" + toInternalName(destCls.getName()) + ";", null, null);
+        mv = cw.visitMethod(ACC_PUBLIC, "convert", "(" + getDescriptor(orignalCls)
+                + ")" + getDescriptor(destCls), null, null);
         mv.visitCode();
         mv.visitVarInsn(ALOAD, 1);
         mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/Object", "getClass", "()Ljava/lang/Class;", false);
@@ -332,9 +332,14 @@ public class ConvertorGenerator {
                         break;
                     case "long":
                         mv.visitTypeInsn(CHECKCAST, toInternalName(Long.class.getName()));
+                        mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/Long", "longValue", "()J", false);
                         break;
                     case "boolean":
                         mv.visitTypeInsn(CHECKCAST, toInternalName(Boolean.class.getName()));
+                        break;
+                    case "double":
+                        mv.visitTypeInsn(CHECKCAST, toInternalName(Double.class.getName()));
+                        mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/Double", "doubleValue", "()D", false);
                         break;
                     default:
                         mv.visitTypeInsn(CHECKCAST, toInternalName(destInfo.field.getType().getName()));
@@ -740,14 +745,25 @@ public class ConvertorGenerator {
                         break;
                 }
             }
-            String ifaceDesc = "L" + IFACE_NAME + "<L" + orignalType + ";L"
-                    + destType + ";>;";
+            String orignalName;
+            if (orignalType.startsWith("[")) {
+                orignalName = orignalType;
+            } else {
+                orignalName = "L" + orignalType + ";";
+            }
+            String destName;
+            if (destType.startsWith("[")) {
+                destName = destType;
+            } else {
+                destName = "L" + destType + ";";
+            }
+            String ifaceDesc = "L" + IFACE_NAME + "<" + orignalName + destName + ">;";
             fv = cw.visitField(ACC_PRIVATE + ACC_FINAL + ACC_STATIC, fieldConvertorName, "L" + IFACE_NAME + ";", ifaceDesc, null);
             fv.visitEnd();
             if (mc == null || mc.getConvertor() == null) {
                 mv.visitMethodInsn(INVOKESTATIC, CONVERTOR_REGISTER_NAME, "instance", "()L" + CONVERTOR_REGISTER_NAME + ";", false);
-                mv.visitLdcInsn(Type.getType("L" + orignalType + ";"));
-                mv.visitLdcInsn(Type.getType("L" + toInternalName(cinfo.destInfo.field.getType().getName()) + ";"));
+                mv.visitLdcInsn(Type.getType(orignalName));
+                mv.visitLdcInsn(Type.getType(destName));
                 mv.visitMethodInsn(INVOKEVIRTUAL, CONVERTOR_REGISTER_NAME, "getConvertor", "(Ljava/lang/Class;Ljava/lang/Class;)L" + toInternalName(PARENT_ANME) + ";", false);
             } else {
                 mv.visitMethodInsn(INVOKESTATIC, MAPPER_NAME, "instance", "()L" + MAPPER_NAME + ";", false);

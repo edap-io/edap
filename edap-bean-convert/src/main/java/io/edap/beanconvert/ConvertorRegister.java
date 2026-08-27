@@ -56,12 +56,21 @@ public class ConvertorRegister {
     }
 
     public static String getConvertorName(Class orignalCls, Class destCls) {
-        return "ebc." + orignalCls.getPackage().getName() + ".Convertor" +
+        String packName;
+        if (orignalCls.getPackage() != null) {
+            packName = orignalCls.getPackage().getName();
+        } else {
+            packName = "java";
+        }
+        return "ebc." + packName + ".Convertor" +
                 CryptUtil.md5(orignalCls.getName() + "->" + destCls.getName());
     }
 
     private synchronized ConvertorLoader getConvertorLoader(Class orignalCls, Class destCls) {
         ClassLoader classLoader = orignalCls.getClassLoader();
+        if (classLoader == null) {
+            classLoader = Thread.currentThread().getContextClassLoader();
+        }
         ConvertorLoader loader = null;
         try {
             classLoader.loadClass(destCls.getName());
@@ -73,6 +82,9 @@ public class ConvertorRegister {
         if (loader == null) {
             try {
                 classLoader = destCls.getClassLoader();
+                if (classLoader == null) {
+                    classLoader = Thread.currentThread().getContextClassLoader();
+                }
                 classLoader.loadClass(orignalCls.getName());
                 loader = convertorLoaders.get(classLoader);
             } catch (ClassNotFoundException e) {
