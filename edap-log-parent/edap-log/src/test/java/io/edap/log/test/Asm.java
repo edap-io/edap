@@ -10,6 +10,8 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 
 /**
  * @date : 2019/12/25
@@ -21,6 +23,7 @@ public class Asm {
         MethodVisitor mv;
 
         System.out.println("short Max=" + Short.MAX_VALUE);
+        System.out.println("@=" + URLEncoder.encode("@", StandardCharsets.UTF_8));
 
         String clsPath = DemoEncoder.class.getName();
         ClassReader cr;

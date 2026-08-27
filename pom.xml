@@ -37,13 +37,15 @@
         <qdox.verqdoxsion>2.0.3</qdox.verqdoxsion>
         <system.lambda.version>1.2.1</system.lambda.version>
         <jmh.version>1.37</jmh.version>
-        <HikariCP.version>6.2.1</HikariCP.version>
+        <HikariCP.version>7.1.0</HikariCP.version>
         <spring.version>5.3.20</spring.version>
         <disruptor.version>3.4.4</disruptor.version>
         <h2.version>2.3.232</h2.version>
         <maven.core.version>3.9.16</maven.core.version>
         <maven-plugin-tools.version>3.15.2</maven-plugin-tools.version>
         <classgraph.version>4.8.186</classgraph.version>
+        <postgresql.driver.version>42.7.10</postgresql.driver.version>
+        <okhttp.version>4.12.0</okhttp.version>
     </properties>
 
     <modules>
@@ -127,6 +129,11 @@
             <dependency>
                 <groupId>io.edap</groupId>
                 <artifactId>edap-data-api</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.edap</groupId>
+                <artifactId>edap-datasource</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
@@ -256,6 +263,11 @@
                 <version>${HikariCP.version}</version>
             </dependency>
             <dependency>
+                <groupId>org.postgresql</groupId>
+                <artifactId>postgresql</artifactId>
+                <version>${postgresql.driver.version}</version>
+            </dependency>
+            <dependency>
                 <groupId>io.edap</groupId>
                 <artifactId>edap-data-jdbc-dao</artifactId>
                 <version>${project.version}</version>
@@ -285,6 +297,23 @@
                 <groupId>io.github.classgraph</groupId>
                 <artifactId>classgraph</artifactId>
                 <version>${classgraph.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.squareup.okhttp3</groupId>
+                <artifactId>okhttp</artifactId>
+                <version>${okhttp.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>io.edap</groupId>
+                <artifactId>edap-auth-jwt-api</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.edap</groupId>
+                <artifactId>edap-auth-jwt</artifactId>
+                <version>${project.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>
