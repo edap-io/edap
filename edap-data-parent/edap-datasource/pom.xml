@@ -5,17 +5,16 @@
     <modelVersion>4.0.0</modelVersion>
     <parent>
         <groupId>io.edap</groupId>
-        <artifactId>edap</artifactId>
-        <version>${edap.version}</version>
+        <artifactId>edap-data-parent</artifactId>
+        <version>0.1.3-SNAPSHOT</version>
     </parent>
 
-    <artifactId>edap-data-parent</artifactId>
-    <packaging>pom</packaging>
-    <modules>
-        <module>edap-data-api</module>
-        <module>edap-data-jdbc-dao</module>
-        <module>edap-data-jdbc-dao-spring</module>
-        <module>edap-datasource</module>
-    </modules>
+    <artifactId>edap-datasource</artifactId>
 
+    <dependencies>
+        <dependency>
+            <groupId>com.zaxxer</groupId>
+            <artifactId>HikariCP</artifactId>
+        </dependency>
+    </dependencies>
 </project>
