@@ -113,14 +113,21 @@ public class EdapContainerPackageMojo extends AbstractMojo {
                     addNestedJar(jos, artifact.getFile().toPath(),
                             "BOOT-INF/lib/" + artifact.getFile().getName());
                     String lib = artifact.getGroupId() + ":" + artifact.getArtifactId();
-                    libs.add(lib);
+                    if (!libs.contains(lib)) {
+                        libs.add(lib);
+                        getLog().info("lib=" + lib);
+                    }
                 }
+            }
+            String containerLib = project.getGroupId() + ":" + project.getArtifactId();
+            if (!libs.contains(containerLib)) {
+                libs.add(containerLib);
             }
             Collections.sort(libs);
             for (String lib : libs) {
                 libsStr.append(lib).append('\n');
             }
-
+            getLog().info("libsStr=" + libsStr);
             String appPluginPath = project.getBasedir().getParent() + File.separator + "edap-app-plugin";
             File resourcesDir = new File(appPluginPath + "/src/main/resources");
             if (resourcesDir.exists()) {

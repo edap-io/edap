@@ -27,6 +27,7 @@
 
     <artifactId>edap-container-parent</artifactId>
     <packaging>pom</packaging>
+
     <modules>
         <module>edap-container</module>
         <module>edap-manager-common</module>
