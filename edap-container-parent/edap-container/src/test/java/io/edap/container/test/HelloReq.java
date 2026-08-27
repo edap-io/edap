@@ -1,5 +1,7 @@
 package io.edap.container.test;
 
+import com.estylr.api.v1.common.StylistsSortBy;
+
 public class HelloReq {
 
     private long id;
@@ -7,6 +9,8 @@ public class HelloReq {
     private String name;
 
     private boolean isTop;
+
+    private StylistsSortBy sortBy;
 
 
     public long getId() {
@@ -31,5 +35,13 @@ public class HelloReq {
 
     public void setTop(boolean top) {
         isTop = top;
+    }
+
+    public StylistsSortBy getSortBy() {
+        return sortBy;
+    }
+
+    public void setSortBy(StylistsSortBy sortBy) {
+        this.sortBy = sortBy;
     }
 }

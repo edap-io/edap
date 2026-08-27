@@ -14,6 +14,14 @@ public class BeanDef {
     private final Method               initMethod;  // @PostConstruct / @Init
     private final Method               destroyMethod; // @PreDestroy / @Destroy
     private final int                  order;       // @Order（同层拓扑序二级排序）
+    /**
+     * 工厂方法（{@code @Configuration} 类的 {@code @Bean} 方法）。{@code null} 表示普通 Bean，
+     * 由构造器注入路径实例化；非 {@code null} 时 {@link BeanContainer#instantiate(BeanDef)} 改走
+     * {@code configInstance.factoryMethod(args)} 路径。
+     */
+    private final Method               factoryMethod;
+    /** 工厂方法所属 {@code @Configuration} Bean 的 name——instantiate 时按它查 singletons。 */
+    private final String               factoryBeanName;
 
     public BeanDef(String name,
                    Class<?> beanClass,
@@ -24,6 +32,21 @@ public class BeanDef {
                    Method destroyMethod,
                    int order) {
 
+        this(name, beanClass, scope, injectionNames, injections,
+             initMethod, destroyMethod, order, null, null);
+    }
+
+    public BeanDef(String name,
+                   Class<?> beanClass,
+                   Scope scope,
+                   List<String> injectionNames,
+                   List<InjectionPoint> injections,
+                   Method initMethod,
+                   Method destroyMethod,
+                   int order,
+                   Method factoryMethod,
+                   String factoryBeanName) {
+
         this.name = name;
         this.beanClass = beanClass;
         this.scope = scope;
@@ -32,6 +55,8 @@ public class BeanDef {
         this.initMethod = initMethod;
         this.destroyMethod = destroyMethod;
         this.order = order;
+        this.factoryMethod = factoryMethod;
+        this.factoryBeanName = factoryBeanName;
     }
 
 
@@ -44,6 +69,8 @@ public class BeanDef {
     public Method initMethod()        { return initMethod; }
     public Method destroyMethod()     { return destroyMethod; }
     public int order()                { return order; }
+    public Method factoryMethod()     { return factoryMethod; }
+    public String factoryBeanName()   { return factoryBeanName; }
 }
 
 

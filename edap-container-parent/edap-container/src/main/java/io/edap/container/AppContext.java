@@ -36,6 +36,7 @@ import io.edap.log.Logger;
 import io.edap.log.LoggerManager;
 import io.edap.microservice.Scope;
 import io.edap.microservice.annotation.Bean;
+import io.edap.microservice.annotation.Configuration;
 import io.edap.microservice.annotation.MicroServiceBean;
 import io.edap.nio.codec.FastBufDataRange;
 import io.edap.props.Props;
@@ -46,9 +47,14 @@ import io.edap.rpc.ErpcHandler;
 import io.edap.util.CollectionUtils;
 
 import java.io.IOException;
+import java.lang.reflect.AnnotatedElement;
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
+import javax.inject.Inject;
+import javax.inject.Named;
 
 import static io.edap.util.AsmUtil.saveClassFile;
 import static io.edap.util.AsmUtil.toInternalName;
@@ -275,9 +281,76 @@ public class AppContext implements Lifecycle {
     private List<BeanDef> scanBeanDefs() throws Exception {
         List<BeanDef> beanDefs = new ArrayList<>();
         for (Map.Entry<String, DeployComponent> entry : dmd.getComponentMap().entrySet()) {
-            buildBeanDef(entry.getValue().getServiceMetaMap(), beanDefs);
+            DeployComponent comp = entry.getValue();
+            buildBeanDef(comp.getServiceMetaMap(), beanDefs);
+            buildConfigurationBeanDefs(comp.getConfigurationMetaMap(), beanDefs);
         }
         return beanDefs;
+    }
+
+    /**
+     * 把 {@code ConfigurationMetaMap} 转成 BeanDef 列表：
+     * <ol>
+     *   <li>每个 {@code @Configuration} 类自身 → 一个普通 BeanDef（构造器注入）</li>
+     *   <li>每个 {@code @Configuration} 类内 {@code @Bean} 方法 → 一个 factoryMethod BeanDef，
+     *       拓扑依赖该 {@code @Configuration} bean（保证 config 先 instantiate）</li>
+     * </ol>
+     *
+     * <p>方法枚举走反射（{@code configCls.getDeclaredMethods()}），不复用
+     * {@code ConfigurationMetaData.methodInfos}——后者由 ASM 在 {@code parseWithMethods} 里
+     * 把多参方法的描述符裁成了单类型字符串，反向定位 Method 不可靠。</p>
+     */
+    private void buildConfigurationBeanDefs(Map<String, ConfigurationMetaData> confMetaMap,
+                                            List<BeanDef> beanDefs) {
+        if (CollectionUtils.isEmpty(confMetaMap)) {
+            return;
+        }
+        String confAnnName = Configuration.class.getName();
+
+        for (Map.Entry<String, ConfigurationMetaData> e : confMetaMap.entrySet()) {
+            ConfigurationMetaData cmd = e.getValue();
+            String configName = deriveConfigBeanName(cmd, confAnnName);
+
+            Class<?> configCls;
+            try {
+                configCls = Class.forName(cmd.getTypeName(), false, appCL);
+            } catch (ClassNotFoundException ex) {
+                throw new RuntimeException(ex);
+            }
+
+            // (1) @Configuration 类自身：普通 BeanDef，走构造器注入路径
+            beanDefs.add(new BeanDef(configName, configCls, Scope.SINGLETON,
+                    null, null, null, null, 0));
+
+            // (2) @Bean 工厂方法：每个方法 → factoryMethod BeanDef，依赖 configName
+            for (Method m : configCls.getDeclaredMethods()) {
+                Bean beanAnn = m.getAnnotation(Bean.class);
+                if (beanAnn == null) {
+                    continue;
+                }
+                String beanName = beanAnn.name().trim().length() > 0 ? beanAnn.name() : m.getName();
+                Scope beanScope = beanAnn.scope();
+                List<String> deps = List.of(configName);
+                beanDefs.add(new BeanDef(beanName, m.getReturnType(), beanScope,
+                        deps, null, null, null, 0, m, configName));
+            }
+        }
+    }
+
+    /**
+     * 解析 {@code @Configuration(name="...")} 的 {@code name} 属性；缺省或为空时按类名首字母小写
+     * （与 {@link #beanSimpleName} 规则对齐）。
+     */
+    private String deriveConfigBeanName(ConfigurationMetaData cmd, String confAnnName) {
+        for (AnnoData ad : cmd.getAnnoDatas()) {
+            if (confAnnName.equals(ad.getType())) {
+                Object n = ad.getValues().get("name");
+                if (n instanceof String && ((String) n).trim().length() > 0) {
+                    return (String) n;
+                }
+            }
+        }
+        return beanSimpleName(cmd.getTypeName());
     }
 
     private void buildBeanDef(Map<String, ServiceMeta> serviceMetaMap, List<BeanDef> beanDefs) {
@@ -328,11 +401,63 @@ public class AppContext implements Lifecycle {
             }
             try {
                 Class<?> beanCls = Class.forName(meta.getClassName(), false, appCL);
-                beanDefs.add(new BeanDef(name, beanCls, scope, null, null, null, null, 0));
+                List<InjectionPoint> injections = scanInjectionPoints(beanCls);
+                // 把字段级 @Named 名直接写进 injectionNames，拓扑排序优先 initialize 被按名依赖的 bean；
+                // 没有 @Named 的字段依赖由 BeanContainer.enrichInjectionNames 反射构造器参数时补齐。
+                List<String> injectionNames = injections.stream()
+                        .map(InjectionPoint::beanName)
+                        .filter(Objects::nonNull)
+                        .collect(Collectors.toList());
+                beanDefs.add(new BeanDef(name, beanCls, scope,
+                        injectionNames.isEmpty() ? null : injectionNames,
+                        injections.isEmpty() ? null : injections,
+                        null, null, 0));
             } catch (ClassNotFoundException e) {
                 throw new RuntimeException(e);
             }
         }
+    }
+
+    /**
+     * 扫描 bean 类的字段/方法注入点,产出 {@link InjectionPoint} 列表。
+     *
+     * <ul>
+     *   <li>{@code @Inject} 字段 → {@link InjectionPoint#field},beanName 取字段上的
+     *       {@code @Named("xxx")}(无则 null,运行时由 BeanContainer 按类型兜底)</li>
+     *   <li>{@code @Inject} 方法 → {@link InjectionPoint#method},beanName 永远 null
+     *       —— {@code @Named} 是参数级别而非方法级别,具体名查在
+     *       {@link BeanContainer#resolveMethodArgs} 的参数循环里</li>
+     * </ul>
+     *
+     * <p>构造器注入 <b>不走这里</b>,仍走 {@link BeanContainer#ctorArgs}——保持
+     * topology/injectionNames 的现有分工。
+     */
+    private List<InjectionPoint> scanInjectionPoints(Class<?> beanCls) {
+        List<InjectionPoint> out = new ArrayList<>();
+
+        for (Field f : beanCls.getDeclaredFields()) {
+            if (f.getAnnotation(Inject.class) == null) continue;
+            String n = extractBeanName(f);
+            out.add(InjectionPoint.field(f, n, f.getType()));
+        }
+
+        for (Method m : beanCls.getDeclaredMethods()) {
+            if (m.getAnnotation(Inject.class) == null) continue;
+            // 方法级 beanName 不通用,留给 BeanContainer.resolveMethodArgs 按参数解析
+            out.add(InjectionPoint.method(m, null, null));
+        }
+
+        return out;
+    }
+
+    /**
+     * 从 {@link AnnotatedElement}(Field / Method / Parameter)抽 {@code @Named("xxx")}。
+     * 空值/无注解都返回 null,由调用方走类型兜底。
+     */
+    private static String extractBeanName(AnnotatedElement e) {
+        Named n = e.getAnnotation(Named.class);
+        if (n == null || n.value().isEmpty()) return null;
+        return n.value();
     }
 
     private String beanSimpleName(String name) {

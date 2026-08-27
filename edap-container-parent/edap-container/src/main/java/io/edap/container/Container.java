@@ -2,6 +2,9 @@ package io.edap.container;
 
 import io.edap.Edap;
 import io.edap.ServerGroup;
+import io.edap.auth.jwt.DefaultJwtService;
+import io.edap.auth.jwt.JwtService;
+import io.edap.container.context.JwtUserResolver;
 import io.edap.container.app.RouterHub;
 import io.edap.container.event.EventPublisher;
 import io.edap.container.mw.*;
@@ -260,10 +263,77 @@ public class Container {
             log.warn("注册框架默认 {} bean 失败", l -> l.arg(HeaderTokenAuthenticator.class.getName()).threw(e));
             return;
         }
+        // 注册框架默认 JwtService bean (DefaultJwtService 实现)。signKey 从
+        // edap.getProps().child("jwt").getString("signKey") 读,缺失则跳过注册
+        // (应用若 @Inject JwtService,容器查不到 → NoSuchBeanException,业务自己 register)。
+        BeanDef jwtDef = null;
+        String jwtSignKey = edap.getProps().child("jwt").getString("signKey");
+        if (jwtSignKey == null || jwtSignKey.trim().length() == 0) {
+            log.warn("未配置 jwt.signKey,使用默认的key");
+            jwtSignKey = "20a4d5e1-3c3d-4259-962f-78b2c07b2b06";
+        }
+        try {
+            jwtDef = new BeanDef(
+                    "container." + DefaultJwtService.class.getSimpleName(),
+                    DefaultJwtService.class,
+                    Scope.SINGLETON,
+                    null, null, null, null, 0);
+            containerBeans.register(jwtDef);
+        } catch (Exception e) {
+            log.warn("注册框架默认 {} bean 失败",
+                    l -> l.arg(DefaultJwtService.class.getName()).threw(e));
+        }
+        // 注册框架默认 UserResolver bean ("jwtUserResolver")。ctor 依赖 JwtService 接口,
+        // 跨 CL 安全:appCL.loadClass("io.edap.auth.jwt.JwtService") 通过双亲委派拿到 containerCL
+        // 加载的同一份接口 Class,instance 注入时 isAssignableFrom 永远 true。
+        try {
+            BeanDef resolverDef = new BeanDef(
+                    "jwtUserResolver",
+                    JwtUserResolver.class,
+                    Scope.SINGLETON,
+                    null, null, null, null, 0);
+            containerBeans.register(resolverDef);
+        } catch (Exception e) {
+            log.warn("注册框架默认 {} bean 失败",
+                    l -> l.arg(JwtUserResolver.class.getName()).threw(e));
+        }
         containerBeans.topologicalSort();
         containerBeans.transitionToCommitting();
         for (BeanDef def : containerBeans.sorted()) {
-            Object instance = containerBeans.instantiate(def);
+            Object instance;
+            // DefaultJwtService 构造器需要 String signKey,BeanContainer.ctorArgs 按类型查不到 String,
+            // 必须反射手工调 ctor(String) 跳过 ctorArgs 路径。其它 bean 走正常 instantiate()
+            if (def.beanClass() == DefaultJwtService.class) {
+                try {
+                    java.lang.reflect.Constructor<?> ctor =
+                            DefaultJwtService.class.getDeclaredConstructor(String.class);
+                    ctor.setAccessible(true);
+                    instance = ctor.newInstance(jwtSignKey);
+                } catch (Exception e) {
+                    log.warn("实例化框架默认 {} 失败",
+                            l -> l.arg(DefaultJwtService.class.getName()).threw(e));
+                    continue;
+                }
+            } else if (def.beanClass() == JwtUserResolver.class) {
+                // JwtUserResolver ctor(JwtService) 走类型解析会经由 beanWrapByType → fallback 到
+                // container.beans 拿 DefaultJwtService 实例,但 instantiate() 时该实例可能尚未
+                // registerInstance(拓扑序只保证依赖先 instantiate,不保证先 register)。改成直接反射
+                // 拿 JwtService 实例,绕过 ctorArgs 的 byType 查找。
+                try {
+                    Object jwtSvc = containerBeans.getBean(
+                            "container." + DefaultJwtService.class.getSimpleName());
+                    java.lang.reflect.Constructor<?> ctor =
+                            JwtUserResolver.class.getDeclaredConstructor(JwtService.class);
+                    ctor.setAccessible(true);
+                    instance = ctor.newInstance(jwtSvc);
+                } catch (Exception e) {
+                    log.warn("实例化框架默认 {} 失败",
+                            l -> l.arg(JwtUserResolver.class.getName()).threw(e));
+                    continue;
+                }
+            } else {
+                instance = containerBeans.instantiate(def);
+            }
             containerBeans.injectDependencies(def, instance);
             containerBeans.invokeInit(def, instance);
             containerBeans.registerInstance(def, instance);
@@ -593,10 +663,16 @@ public class Container {
             try {
                 ctx.start();                                   // 详见 §4
             } catch (Throwable t) {
+                // 必须先打 ERROR 日志(含完整堆栈),再清理资源、返回前端。
+                // 顺序:日志优先 —— 一旦 destroyPartial/appCL.close 抛异常覆盖原 throwable,
+                // 原始故障就丢了。
+                log.error("AppContext 启动失败 [" + appId + ":" + version + "]", t);
                 ctx.destroyPartial();                          // 回滚已注册的 Bean / 路由
                 unregisterIfs(appId, dmd);                     // 回滚 FQCN 注册
                 appCL.close();                                // 释放 ClassLoader
-                return BaseResult.fail(104, "AppContext 启动失败: " + t.getMessage());
+                return BaseResult.fail(104, "AppContext 启动失败: "
+                        + t.getClass().getName()
+                        + (t.getMessage() != null ? ": " + t.getMessage() : ""));
             }
 
             // 7. 写 registry（整 SlotEntry 替换，原子发布）
@@ -681,10 +757,18 @@ public class Container {
             try {
                 ctx.start();
             } catch (Throwable t) {
+                // 必须先打 ERROR 日志(含完整堆栈),再清理资源、返回前端。
+                // 顺序:日志优先 —— 一旦 destroyPartial/appCL.close 抛异常覆盖原 throwable,
+                // 原始故障就丢了。
+                // 用 error(String, Throwable) 重载,走 LogArgs.threw → MessageFormatter.printToBuilder
+                // 完整路径(类名+message+at+Caused by 都已修通),堆栈不会再丢。
+                log.error("AppContext 启动失败 [" + appId + ":" + version + "]", t);
                 ctx.destroyPartial();
                 unregisterIfs(appId, dmd);
                 appCL.close();
-                return BaseResult.fail(104, "AppContext 启动失败: " + t.getMessage());
+                return BaseResult.fail(104, "AppContext 启动失败: "
+                        + t.getClass().getName()
+                        + (t.getMessage() != null ? ": " + t.getMessage() : ""));
             }
 
             // 7. 写 registry（按 role 指定的 slot 直接写，不调 firstEmptySlot()）

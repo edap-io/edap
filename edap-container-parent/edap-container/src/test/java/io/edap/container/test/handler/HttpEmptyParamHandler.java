@@ -1,5 +1,6 @@
 package io.edap.container.test.handler;
 
+import com.estylr.api.v1.common.StylistsSortBy;
 import io.edap.container.AppContext;
 import io.edap.container.BeanWrap;
 import io.edap.container.app.asm.AbstractHandler;
@@ -12,6 +13,7 @@ import io.edap.http.header.ContentTypeHeader;
 import io.edap.json.Eson;
 import io.edap.log.Logger;
 import io.edap.log.LoggerManager;
+import io.edap.util.StringUtil;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -48,6 +50,8 @@ public class HttpEmptyParamHandler extends AbstractHandler implements HttpHandle
                 helloReq.setId(toLong(req.getParameter("id")));
                 helloReq.setName(req.getParameter("name"));
                 helloReq.setTop(toBoolean(req.getParameter("is_top")));
+                helloReq.setSortBy(parseStylistsSortBy(req));
+
                 resp.write(Eson.toJsonString(bean.hello(helloReq)));
             } catch (Throwable e) {
                 e.printStackTrace();
@@ -58,5 +62,22 @@ public class HttpEmptyParamHandler extends AbstractHandler implements HttpHandle
                 resp.write(Eson.toJsonString(respData));
             }
         }
+    }
+
+    private StylistsSortBy parseStylistsSortBy(HttpRequest req) {
+        String sortBy = req.getParameter("StylistsSortBy");
+        StylistsSortBy stb;
+        if (!StringUtil.isEmpty(sortBy)) {
+            try {
+                stb = StylistsSortBy.valueOf(sortBy);
+            } catch (IllegalArgumentException e) {
+                log.warn("StylistsSortBy valueOf error", e);
+                stb = null;
+            }
+        } else {
+            stb = null;
+        }
+
+        return stb;
     }
 }

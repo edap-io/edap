@@ -26,11 +26,19 @@
         </dependency>
         <dependency>
             <groupId>io.edap</groupId>
+            <artifactId>edap-auth-jwt</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.edap</groupId>
             <artifactId>edap-log</artifactId>
         </dependency>
         <dependency>
             <groupId>io.edap</groupId>
             <artifactId>edap-microservice-annotation</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.edap</groupId>
+            <artifactId>edap-datasource</artifactId>
         </dependency>
         <!--
             直接依赖 edap-nio-server：使用 io.edap.props.Props（Edap.getProps() 返回类型）。
@@ -45,6 +53,10 @@
             <groupId>javax.inject</groupId>
             <artifactId>javax.inject</artifactId>
             <version>1</version>
+        </dependency>
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
         </dependency>
 
         <dependency>

@@ -231,7 +231,12 @@ public class ProtoServiceUtils {
                 String respType;
                 int index = desc.indexOf(')');
                 if (index != -1) {
-                    paramType = Type.getType(desc.substring(1, index)).getClassName();
+                    String ptStr = desc.substring(1, index);
+                    if (ptStr.trim().length() > 0) {
+                        paramType = Type.getType(ptStr).getClassName();
+                    } else {
+                        paramType = "";
+                    }
                     respType  = Type.getType(desc.substring(index + 1)).getClassName();
                 } else {
                     paramType = "";

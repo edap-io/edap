@@ -11,6 +11,7 @@ import io.edap.microservice.annotation.Primary;
 import io.edap.microservice.Scope;
 
 import javax.inject.Inject;
+import javax.inject.Named;
 
 import java.lang.reflect.*;
 import java.util.*;
@@ -110,18 +111,133 @@ public class BeanContainer {
      * 拓扑排序：被依赖的先初始化。循环依赖立刻抛 CyclicDependencyException（§4.5.7）。
      */
     public List<BeanDef> topologicalSort() {
+        // ★ 懒填 injectionNames：所有 BeanDef 都 register 完后,反射分析无 injectionNames 的
+        //   BeanDef(典型是 @MicroServiceBean 扫出来的 BeanDef,AppContext.buildBeanDef
+        //   不解析构造函数,直接传 null 进来)的构造函数参数,按类型在 definitions 里找
+        //   匹配 bean,填进 injectionNames——这样拓扑排序才知道"被依赖的先 initialize",
+        //   后续 instantiate → registerInstance → byType 填充的链路才能保证 ctorArgs
+        //   resolveDependencyByType 拿到正确实例(否则会 NoSuchBeanException,或更糟
+        //   单 ctor 无 @Inject 时 ctorArgs 给 null 然后 bean 默默"成功")。
+        //   必须在所有 register 完后做,否则类型→bean 映射不全。
+        enrichInjectionNames();
+
         List<BeanDef> result = new ArrayList<>(definitions.size());
         Set<String> visited = new HashSet<>();
         Set<String> inStack = new HashSet<>();
         for (BeanDef def : definitions.values()) {
             dfs(def, visited, inStack, result);
         }
-        // 同层（依赖集相同）按 @Order 升序，再按 name 字典序
-        result.sort(Comparator
-                .comparingInt((BeanDef d) -> d.order())
-                .thenComparing(BeanDef::name));
+        // 同层（依赖集相同）按 @Order 升序；同 order 内保留 DFS 拓扑序（List.sort 稳定排序）
+        // ——之前 .thenComparing(name) 会跨层按 name 重排，破坏 @Configuration 必须在 @Bean 之前的契约。
+        result.sort(Comparator.comparingInt((BeanDef d) -> d.order()));
         this.sorted = List.copyOf(result);
         return this.sorted;
+    }
+
+    /**
+     * 懒填 injectionNames：扫描所有 BeanDef,反射分析:
+     * <ul>
+     *   <li>非 factoryMethod BeanDef(典型是 @MicroServiceBean 扫出来的,AppContext.buildBeanDef
+     *       不解析构造函数,直接传 null 进来)→ 反射构造函数参数</li>
+     *   <li>factoryMethod BeanDef(@Configuration.@Bean 产生)→ 反射方法参数。
+     *       AppContext.buildConfigurationBeanDefs 显式设了 [configName],但只够保证 config
+     *       先 instantiate;方法形参依赖(如 @Bean serviceCategoryViewDao(DataSource ds) 依赖
+     *       @Bean createMainDataSource() 返回的 DataSource)没算进 injectionNames,导致拓扑
+     *       顺序不可控 —— getDeclaredMethods() 顺序 JVM 不保证,若 serviceCategoryViewDao 偶然
+     *       排在 createMainDataSource 之前,Phase 2 instantiate 时 byType[DataSource] 还是空的,
+     *       instantiateViaFactory 内 resolveFactoryMethodArgs 抛 NoSuchBeanException("javax.sql.DataSource")。</li>
+     * </ul>
+     * 必须在所有 register 完后做,否则类型→bean 映射不全。
+     */
+    private void enrichInjectionNames() {
+        // 存 (beanName, enrichedBeanDef) 对,不是 entry 本身 —— entry.getValue() 取的是原 def,
+        // 写回等于啥都没改。Bug 修:用新的 SimpleEntry 包 (key, enriched) 才能把新 def 写进 definitions。
+        List<Map.Entry<String, BeanDef>> replacements = new ArrayList<>();
+        for (Map.Entry<String, BeanDef> e : definitions.entrySet()) {
+            BeanDef def = e.getValue();
+            BeanDef enriched = computeInjectionNames(def);
+            if (enriched != def) {
+                replacements.add(new java.util.AbstractMap.SimpleEntry<>(e.getKey(), enriched));
+            }
+        }
+        for (Map.Entry<String, BeanDef> e : replacements) {
+            definitions.put(e.getKey(), e.getValue());
+        }
+    }
+
+    /**
+     * 反射构造函数或工厂方法参数,按类型在已注册的 BeanDefs 里找匹配,产出含 injectionNames 的新 BeanDef。
+     * 现有 injectionNames(如 factoryMethod BeanDef 已设的 [configName])作为基础,方法形参依赖追加。
+     * 找不到任何新依赖或不可解析时返回原 def。
+     */
+    private BeanDef computeInjectionNames(BeanDef def) {
+        List<String> existingDeps = def.injectionNames() == null ? List.of() : def.injectionNames();
+        List<String> deps = new ArrayList<>(existingDeps);
+
+        Parameter[] params;
+        if (def.factoryMethod() != null) {
+            // @Bean 工厂方法:反射方法参数
+            params = def.factoryMethod().getParameters();
+        } else {
+            // 普通类:反射构造函数
+            Constructor<?> ctor;
+            try {
+                ctor = selectConstructor(def.beanClass());
+            } catch (Exception e) {
+                // 多构造器无 @Inject 等异常场景,留原 def,instantiate 时会按 ctorArgs 规则处理
+                return def;
+            }
+            params = ctor.getParameters();
+        }
+
+        for (Parameter p : params) {
+            // 优先 @Named("xxx"):直接用名,跳过类型查找
+            // —— 否则同类型多 bean 场景(如 3 个 JdbcViewDao)会被类型查找误指到首个
+            // 遍历命中的 bean,导致拓扑顺序错位,@Named 运行时查不到目标
+            Named named = p.getAnnotation(Named.class);
+            if (named != null && !named.value().isEmpty()) {
+                if (!deps.contains(named.value())) {
+                    deps.add(named.value());
+                }
+                continue;
+            }
+            Class<?> type = p.getType();
+            // java.util.Optional<T> 取 inner type 后再找依赖
+            if (type == java.util.Optional.class) {
+                try {
+                    ParameterizedType pt = (ParameterizedType) p.getParameterizedType();
+                    type = (Class<?>) pt.getActualTypeArguments()[0];
+                } catch (Exception ignore) {
+                    continue;
+                }
+            }
+            String depName = findRegisteredBeanByType(type);
+            if (depName != null && !deps.contains(depName)) {
+                deps.add(depName);
+            }
+        }
+        // deps 与 existingDeps 一致 → 无需重建 BeanDef
+        if (deps.equals(existingDeps)) return def;
+
+        return new BeanDef(def.name(), def.beanClass(), def.scope(),
+                deps, def.injections(), def.initMethod(), def.destroyMethod(),
+                def.order(), def.factoryMethod(), def.factoryBeanName());
+    }
+
+    /**
+     * 在已注册 BeanDefs 里按类型查找首个 isAssignableFrom 匹配的 bean 名。
+     * 跳过 Object/primitive 包装类的"匹配所有"陷阱;多候选无 @Primary 时取首个
+     * (与运行时 beanWrapByType 的 NoUniqueBeanException 行为不一致,但拓扑序阶段
+     * 只关心"依赖必须先初始化",具体解析在 instantiate 时再处理 @Primary 消歧)。
+     */
+    private String findRegisteredBeanByType(Class<?> type) {
+        if (type == null || type == Object.class) return null;
+        for (BeanDef other : definitions.values()) {
+            if (other.beanClass() != null && type.isAssignableFrom(other.beanClass())) {
+                return other.name();
+            }
+        }
+        return null;
     }
 
     private void dfs(BeanDef def, Set<String> visited, Set<String> inStack,
@@ -162,7 +278,8 @@ public class BeanContainer {
 
     // —— Phase 2 COMMITTING ——
 
-    /** 实例化（不注入、不调 init）。selectConstructor 按 §4.5.4.10.1 规则选构造器；ctorArgs 按 §4.5.4.10.2 解析参数。 */
+    /** 实例化（不注入、不调 init）。{@code @Configuration} 类的 {@code @Bean} 工厂方法走
+     *  {@link #instantiateViaFactory(BeanDef)}；其余按 §4.5.4.10.1 选构造器、§4.5.4.10.2 解析参数。 */
     public Object instantiate(BeanDef def) throws BeanInstantiationException, CyclicDependencyException {
         state.checkTransitionGuard(BeanContainerState.INSTANTIATING);
         if (creating.contains(def.name())) {
@@ -170,6 +287,10 @@ public class BeanContainer {
         }
         creating.add(def.name());
         try {
+            // @Bean 工厂方法路径：@Configuration BeanDef 必先实例化（拓扑序保证）
+            if (def.factoryMethod() != null) {
+                return instantiateViaFactory(def);
+            }
             Constructor<?> ctor = selectConstructor(def.beanClass());
             ctor.setAccessible(true);
             return ctor.newInstance(ctorArgs(ctor, def));
@@ -180,6 +301,61 @@ public class BeanContainer {
         } finally {
             creating.remove(def.name());
         }
+    }
+
+    /**
+     * {@code @Bean} 工厂方法实例化：从 singletons 取所属 {@code @Configuration} 实例，
+     * 反射调 {@code configInstance.factoryMethod(args)}，参数按 {@code @Inject} 规则解析
+     * （{@code @Inject} 必填；{@code @Optional} 缺失时返回 null——与 ctorArgs 一致）。
+     *
+     * <p>前置：拓扑序保证 {@code def.factoryBeanName()} 对应 BeanDef 已 instantiate 并
+     * registerInstance 过；否则此处 {@code singletons.get(...)} 返回 null 抛错。</p>
+     */
+    private Object instantiateViaFactory(BeanDef def) {
+        Method m = def.factoryMethod();
+        m.setAccessible(true);
+        BeanWrap configWrap = singletons.get(def.factoryBeanName());
+        if (configWrap == null) {
+            throw new BeanInstantiationException(def.name(),
+                    new IllegalStateException("@Configuration bean '" + def.factoryBeanName()
+                            + "' not instantiated — topological order broken"));
+        }
+        Object[] args = resolveFactoryMethodArgs(m);
+        try {
+            return m.invoke(configWrap.instance(), args);
+        } catch (InvocationTargetException e) {
+            throw new BeanInstantiationException(def.name(), e.getTargetException());
+        } catch (IllegalAccessException e) {
+            throw new BeanInstantiationException(def.name(), e);
+        }
+    }
+
+    /**
+     * @Bean 工厂方法参数解析：每个参数按类型解析（Spring 风格）。
+     *
+     * <p><b>为什么不像 {@link #resolveMethodArgs} 那样要求 {@code @Inject}</b>：
+     * {@code javax.inject.Inject} 的 {@code @Target} 是 {@code METHOD/CONSTRUCTOR/FIELD}，
+     * 不含 {@code PARAMETER}——JSR-330 不允许把 {@code @Inject} 写在方法参数上。所以
+     * {@code param.getAnnotation(Inject.class)} 永远返回 null，原本的 setter 注入参数
+     * 解析路径实际上从不解析参数（latent bug）。@Bean 工厂方法走"按类型自动装配"——
+     * 每个参数都尝试 {@link #resolveDependencyByType}，无 {@code @Optional} 缺失则抛
+     * {@code NoSuchBeanException}，有则返回 null。</p>
+     */
+    private Object[] resolveFactoryMethodArgs(Method m) {
+        Parameter[] params = m.getParameters();
+        Object[] args = new Object[params.length];
+        for (int i = 0; i < params.length; i++) {
+            Class<?> type = params[i].getType();
+            io.edap.microservice.annotation.Optional opt =
+                    params[i].getAnnotation(Optional.class);
+            try {
+                args[i] = resolveDependencyByType(type);
+            } catch (NoSuchBeanException e) {
+                if (opt == null) throw e; // 必需 → 冒泡
+                args[i] = null;           // 可选 → null
+            }
+        }
+        return args;
     }
 
     /**
@@ -216,12 +392,14 @@ public class BeanContainer {
      *   <li>参数类型是 {@code java.util.Optional<T>} → resolveOptional(内层类型)</li>
      *   <li>{@code @io.edap.container.Optional} → 缺失 → null；找到 → bean</li>
      *   <li>{@code @Inject}（默认必需）→ 缺失 → 抛 NoSuchBeanException；找到 → bean</li>
-     *   <li>无 @Inject 注解 → null（保留原行为，业务代码自主处理）</li>
+     *   <li>单构造器 + 无任何注解 → 按类型自动注入（Spring 风格：单 ctor 无需显式 @Inject）</li>
+     *   <li>多构造器 + 无 @Inject → null（多 ctor 必须显式标 @Inject 才能确定选哪个）</li>
      * </ol>
      */
     private Object[] ctorArgs(Constructor<?> ctor, BeanDef def) {
         Parameter[] params = ctor.getParameters();
         Object[] args = new Object[params.length];
+        boolean singleCtor = def.beanClass().getDeclaredConstructors().length == 1;
         for (int i = 0; i < params.length; i++) {
             Class<?> type = params[i].getType();
             Inject ann = params[i].getAnnotation(Inject.class);
@@ -235,9 +413,38 @@ public class BeanContainer {
                 continue;
             }
 
-            // 规则 d：无 @Inject → null
+            // 规则 e：@Named("xxx") → 按名解析（DAO 同类型多 bean 场景必须）。
+            //         与 @Optional 同时存在时，缺失由 @Optional 控制是否降级为 null。
+            //         优先级高于规则 d/b/c —— 只要显式标了名就不再走类型。
+            Named namedAnn = params[i].getAnnotation(Named.class);
+            if (namedAnn != null && !namedAnn.value().isEmpty()) {
+                io.edap.microservice.annotation.Optional opt =
+                        params[i].getAnnotation(io.edap.microservice.annotation.Optional.class);
+                try {
+                    args[i] = resolveDependencyByName(namedAnn.value(), type);
+                } catch (NoSuchBeanException e) {
+                    if (opt == null) throw e;
+                    args[i] = null;
+                }
+                continue;
+            }
+
+            // 规则 d：无 @Inject → 单 ctor 按类型自动注入(Spring 风格),多 ctor 才给 null
+            //         之前的实现无论单/多 ctor 都给 null,导致 @MicroServiceBean 单 ctor
+            //         + 依赖 @Configuration.@Bean 的 bean 全部拿到 null 还"成功"实例化。
             if (ann == null) {
-                args[i] = null;
+                if (!singleCtor) {
+                    args[i] = null;
+                    continue;
+                }
+                io.edap.microservice.annotation.Optional opt =
+                        params[i].getAnnotation(io.edap.microservice.annotation.Optional.class);
+                try {
+                    args[i] = resolveDependencyByType(type);
+                } catch (NoSuchBeanException e) {
+                    if (opt == null) throw e;
+                    args[i] = null;
+                }
                 continue;
             }
 
@@ -317,21 +524,49 @@ public class BeanContainer {
     }
 
     /**
-     * 单 InjectionPoint 解析：直接按 ip 所指示的 bean 名（构建期已绑定）取。
+     * 单 InjectionPoint 解析：beanName 非空 → 按名;空/null → 按类型兜底
+     * （覆盖 @Inject 字段未带 @Named 的情况,保持类型注入的零回归）。
      */
     private Object resolveDependency(InjectionPoint ip) {
-        return resolveDependencyByName(ip.beanName(), ip.requiredType());
+        String bn = ip.beanName();
+        if (bn != null && !bn.isEmpty()) {
+            return resolveDependencyByName(bn, ip.requiredType());
+        }
+        return resolveDependencyByType(ip.requiredType());
     }
 
-    /** 方法注入参数解析：按参数类型递归 getBean（仅 @Inject 标注参数）。 */
+    /**
+     * 方法注入参数解析：{@code @Named("xxx")} 按名，否则按类型；
+     * {@code @Optional} 标记的参数缺失时降级为 null，未标记则抛。
+     *
+     * <p><b>为什么不按参数上的 {@code @Inject} 过滤</b>：{@code javax.inject.Inject} 的
+     * {@code @Target} 只有 METHOD / CONSTRUCTOR / FIELD，参数上永远拿不到它——按它过滤
+     * 等于所有参数恒为 null。{@code @Inject} 标在方法上，能进 {@code def.injections()}
+     * 的 method IP 本身就是扫描期认定的注入点，参数全部注入即可（JSR-330 语义）。</p>
+     */
     private Object[] resolveMethodArgs(Method m, BeanDef def) {
         Parameter[] params = m.getParameters();
         Object[] args = new Object[params.length];
         for (int i = 0; i < params.length; i++) {
-            if (params[i].getAnnotation(Inject.class) == null) {
+            Class<?> type = params[i].getType();
+
+            if (type == java.util.Optional.class) {
+                Class<?> inner = (Class<?>) ((ParameterizedType) params[i].getParameterizedType())
+                                  .getActualTypeArguments()[0];
+                args[i] = resolveOptional(inner);
+                continue;
+            }
+
+            io.edap.microservice.annotation.Optional opt =
+                    params[i].getAnnotation(io.edap.microservice.annotation.Optional.class);
+            Named named = params[i].getAnnotation(Named.class);
+            try {
+                args[i] = (named != null && !named.value().isEmpty())
+                        ? resolveDependencyByName(named.value(), type)
+                        : resolveDependencyByType(type);
+            } catch (NoSuchBeanException e) {
+                if (opt == null) throw e;
                 args[i] = null;
-            } else {
-                args[i] = resolveDependencyByType(params[i].getType());
             }
         }
         return args;
@@ -383,18 +618,23 @@ public class BeanContainer {
      */
     private BeanWrap lookupLocal(Class<?> type) {
         List<BeanWrap> list = byType.get(type);
-        if (list == null || list.isEmpty()) return null;
-        if (list.size() == 1) return list.get(0);
+        if (list != null && !list.isEmpty()) {
+            return disambiguateByType(type, list);
+        }
+        return null;
+    }
 
+    /** Class identity 命中后的多候选 @Primary 消歧。 */
+    private BeanWrap disambiguateByType(Class<?> type, List<BeanWrap> list) {
+        if (list.size() == 1) return list.get(0);
         BeanWrap primary = null;
-        List<BeanWrap> all = list;
-        for (BeanWrap bw : all) {
+        for (BeanWrap bw : list) {
             if (bw.def().beanClass().isAnnotationPresent(Primary.class)) {
-                if (primary != null) throw new NoUniqueBeanException(type, all);
+                if (primary != null) throw new NoUniqueBeanException(type, list);
                 primary = bw;
             }
         }
-        if (primary == null) throw new NoUniqueBeanException(type, all);
+        if (primary == null) throw new NoUniqueBeanException(type, list);
         return primary;
     }
 
@@ -493,12 +733,20 @@ public class BeanContainer {
 
     public Object getBean(String name) throws NoSuchBeanException {
         BeanWrap bw = singletons.get(name);
+        if (bw == null && container != null) {
+            bw = container.containerBeans().singletonsByName().get(name);
+        }
         if (bw == null) throw new NoSuchBeanException(name);
         return bw.instance();
     }
 
     public <T> T getBean(String name, Class<T> type) throws NoSuchBeanException {
         return type.cast(getBean(name));
+    }
+
+    /** 暴露 singletons 供同包/同模块其它 BeanContainer 做按名 fallback；不做任何拷贝。 */
+    Map<String, BeanWrap> singletonsByName() {
+        return singletons;
     }
 
     /**

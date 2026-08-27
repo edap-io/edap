@@ -44,6 +44,32 @@ public abstract class AbstractHandler {
         return bean;
     }
 
+    public int toInt(String param) {
+        if (StringUtil.isEmpty(param)) {
+            return 0;
+        }
+        try {
+            return Integer.parseInt(param);
+        } catch (NumberFormatException e) {
+            log.warn("parse {} to long error", l -> l.arg(param).threw(e));
+        }
+
+        return 0;
+    }
+
+    public Integer toInteger(String param) {
+        if (StringUtil.isEmpty(param)) {
+            return 0;
+        }
+        try {
+            return Integer.parseInt(param);
+        } catch (NumberFormatException e) {
+            log.warn("parse {} to long error", l -> l.arg(param).threw(e));
+        }
+
+        return 0;
+    }
+
     public long toLong(String param) {
         if (StringUtil.isEmpty(param)) {
             return 0;

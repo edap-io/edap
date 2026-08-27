@@ -82,6 +82,17 @@ public class JarLauncher {
                 "BOOT-INF/classes/", jarFile.getAbsolutePath(), parent);
         log("[JarLauncher] LaunchedURLClassLoader constructed (parent=" + parent.getClass().getName() + ")");
 
+        // ★ 全局 TCCL —— Spring Boot JarLauncher.launch() 的标准做法。
+        // 反射调用 Start-Class.main 之前把当前线程 TCCL 设为 appCL,后续:
+        //   - DriverManager.ensureDriversInitialized() → ServiceLoader.load(Driver.class)
+        //     用 TCCL 找 META-INF/services/java.sql.Driver,只有 TCCL = appCL 才能
+        //     透过 EdapContainerClassLoader.findResources 拿到嵌套 jar 里的 SPI 文件
+        //   - HikariCP pool 线程继承 TCCL = appCL,isDriverAllowed(driver, callerCL=TCCL)
+        //     能 Class.forName 到 driver 类,driver 通过校验
+        //   - 业务代码 ServiceLoader.load(Foo.class) 同理直接生效
+        Thread.currentThread().setContextClassLoader(cl);
+        log("[JarLauncher] ✓ set TCCL = " + cl.getClass().getSimpleName());
+
         // 5. 反射调用 Start-Class.main
         Class<?> appClass = Class.forName(startClass, false, cl);
         log("[JarLauncher] Resolved Start-Class: " + appClass.getName());

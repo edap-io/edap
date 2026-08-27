@@ -209,12 +209,31 @@ public final class HandlerAsmGenerator {
         // 被 RouteBindException 包装（cause = ClassNotFoundException）冒泡到 Container.bindAll，
         // 最终导致 deploy 失败（fail(104)）——这是预期行为，明确告知"功能未落地"。
         if (targetIf == HttpHandler.class) {
-            HttpHandlerGenerator generator = new HttpHandlerGenerator(annoDatas, protoIf, method, loader);
+            String resolverBeanName = requireAuthResolver(annoDatas);
+            HttpHandlerGenerator generator = new HttpHandlerGenerator(annoDatas, protoIf, method, loader,
+                    resolverBeanName);
             return generator.generate();
         } else if (targetIf == WSServiceMsgHandler.class) {
             WsHandlerGenerator generator = new WsHandlerGenerator(annoDatas, protoIf, method);
             return generator.generate();
         }
         return new byte[0];
+    }
+
+    /**
+     * 从 annoDatas 过滤 {@code @RequireAuth},抽出 resolver bean 名称;无注解 → null。
+     * 业务方在 AppContext.generateHandler 也用同一过滤逻辑,避免在 HttpHandlerGenerator
+     * 重复实现。
+     */
+    public static String requireAuthResolver(List<AnnoData> annoDatas) {
+        if (annoDatas == null) return null;
+        for (AnnoData ad : annoDatas) {
+            if ("io.edap.protobuf.annotation.RequireAuth".equals(ad.getType())) {
+                Object r = ad.getValues().get("resolver");
+                if (r instanceof String && !((String) r).isEmpty()) return (String) r;
+                return "jwtUserResolver";   // 默认值:与 @RequireAuth.resolver() default "" 配对
+            }
+        }
+        return null;
     }
 }
