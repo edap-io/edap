@@ -1,7 +1,7 @@
 package io.edap.data.jdbc.util;
 
-import java.time.LocalDate;
-import java.util.Date;
+import java.sql.Array;
+import java.sql.SQLException;
 import java.util.Locale;
 
 public class Convertor {
@@ -22,7 +22,14 @@ public class Convertor {
         }
         name.append(destClassName.substring(start, start+1).toUpperCase(Locale.ENGLISH));
         name.append(destClassName.substring(start+1));
-        return name.toString();
+        String methodName = name.toString();
+        if (methodName.startsWith("to[")) {
+            methodName = "toArray" + methodName.substring(3);
+        }
+        if (methodName.endsWith(";")) {
+            methodName = methodName.substring(0, methodName.length() - 1);
+        }
+        return methodName;
     }
 
     public static java.time.LocalDate toJavaTimeLocalDate(java.sql.Date sqlDate) {
@@ -91,6 +98,30 @@ public class Convertor {
 
     public static java.lang.Character toJavaLangCharacter(String str) {
         return str.charAt(0);
+    }
+
+    public static long[] toArrayJ(Object obj) {
+        try {
+            Long[] vals = ((Long[]) ((Array) (obj)).getArray());
+            long[] arrays = new long[vals.length];
+            for (int i=0;i<vals.length;i++) {
+                arrays[i] = vals[i];
+            }
+            return arrays;
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public static String[] toArrayLjavaLangString(Object obj) {
+        try {
+            if (obj == null) {
+                return new String[0];
+            }
+            return ((String[]) ((Array) (obj)).getArray());
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     public static char toC(String s) {
