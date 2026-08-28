@@ -198,6 +198,16 @@
                 <artifactId>edap-microservice-annotation</artifactId>
                 <version>${project.version}</version>
             </dependency>
+            <dependency>
+                <groupId>io.edap</groupId>
+                <artifactId>edap-microservice-context</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.edap</groupId>
+                <artifactId>edap-microservice-httpcontext</artifactId>
+                <version>${project.version}</version>
+            </dependency>
 
             <!-- 三方包版本管理 -->
             <dependency>

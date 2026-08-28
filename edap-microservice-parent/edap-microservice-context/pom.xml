@@ -5,17 +5,10 @@
     <modelVersion>4.0.0</modelVersion>
     <parent>
         <groupId>io.edap</groupId>
-        <artifactId>edap</artifactId>
+        <artifactId>edap-microservice-parent</artifactId>
         <version>${edap.version}</version>
     </parent>
 
-    <artifactId>edap-microservice-parent</artifactId>
-    <packaging>pom</packaging>
-
-    <modules>
-        <module>edap-microservice-annotation</module>
-        <module>edap-microservice-context</module>
-        <module>edap-microservice-httpcontext</module>
-    </modules>
+    <artifactId>edap-microservice-context</artifactId>
 
 </project>
