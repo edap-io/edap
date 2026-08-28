@@ -337,8 +337,6 @@ public class HttpHandlerGenerator {
         mv.visitLabel(lbHandler);
         int varExc = 3;
         mv.visitVarInsn(ASTORE, varExc);
-        mv.visitVarInsn(ALOAD, varExc);
-        mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/Throwable", "printStackTrace", "()V", false);
         mv.visitVarInsn(ALOAD, 0);
         mv.visitFieldInsn(GETFIELD, handlerName, "log", "Lio/edap/log/Logger;");
         mv.visitLdcInsn("");
@@ -510,7 +508,14 @@ public class HttpHandlerGenerator {
         mv.visitTypeInsn(CHECKCAST, serviceIf);
         mv.visitFieldInsn(PUTSTATIC, handlerName, "bean", "L" + serviceIf + ";");
 
-        // @RequireAuth 路径:按 resolverBeanName 从 AppContext 查 UserResolver bean,存静态字段
+        mv.visitLabel(lbFinish);
+
+        // @RequireAuth 路径:在 bean null-check 之后无条件查 UserResolver bean,存静态字段。
+        // 不能嵌套在 lbNotNull 里 —— 否则 bean == null 时 userResolver 永远不被赋值,
+        // 下一次同 class 实例化（不同 AppContext / bean 重新加载）会读到陈旧静态值。
+        // 无 bean 时 resolve 在 handle() 不会被调到（早 return 写 NOT_IMPL）,但
+        // resolver 缺失应在 <init> 期 fail-fast (NoSuchBeanException → RouteBindException),
+        // 而不是沉默通过 → 上线后某个 bean 出现时才发现鉴权缺失。
         if (resolverBeanName != null) {
             mv.visitVarInsn(ALOAD, 0);
             mv.visitMethodInsn(INVOKEVIRTUAL, handlerName, "getAppContext",
@@ -525,7 +530,6 @@ public class HttpHandlerGenerator {
                     "Lio/edap/container/context/UserResolver;");
         }
 
-        mv.visitLabel(lbFinish);
         mv.visitInsn(RETURN);
         mv.visitMaxs(1, 1);
         mv.visitEnd();
