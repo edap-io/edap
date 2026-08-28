@@ -2,9 +2,13 @@ package io.edap.container.app.asm;
 
 import io.edap.container.AppContext;
 import io.edap.container.BeanWrap;
+import io.edap.json.Eson;
 import io.edap.log.Logger;
 import io.edap.log.LoggerManager;
 import io.edap.util.StringUtil;
+
+import java.util.HashMap;
+import java.util.Map;
 
 public abstract class AbstractHandler {
 
@@ -14,6 +18,21 @@ public abstract class AbstractHandler {
 
     protected static String NOT_IMPL_MSG = "的接口还没有实现";
     protected static String BIZ_EXCEPTION_MSG = "业务处理异常";
+
+    protected static int NO_LOGIN_CODE = 1001;
+
+    protected static int BIZ_EXCEPTION_CODE = 10001;
+    protected static int NO_IMPL_BEAN_CODE  = 10002;
+
+
+    protected static byte[] NO_LOGIN_ERROR_DATA;
+
+    static {
+        Map<String, Object> data = new HashMap<>();
+        data.put("code", NO_LOGIN_CODE);
+        data.put("message", "用户未登录");
+        NO_LOGIN_ERROR_DATA = Eson.toJsonBytes(data);
+    }
 
     public AbstractHandler(AppContext appContext) {
         this.appContext = appContext;
