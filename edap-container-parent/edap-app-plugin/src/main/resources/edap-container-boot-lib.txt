@@ -14,6 +14,8 @@ io.edap:edap-json
 io.edap:edap-log
 io.edap:edap-log-api
 io.edap:edap-microservice-annotation
+io.edap:edap-microservice-context
+io.edap:edap-microservice-httpcontext
 io.edap:edap-nio-common
 io.edap:edap-nio-native
 io.edap:edap-nio-server
