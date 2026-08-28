@@ -1,4 +1,4 @@
-package io.edap.container.context;
+package io.edap.mw.context;
 
 import io.edap.auth.jwt.JwtPayload;
 import io.edap.auth.jwt.JwtService;
@@ -6,13 +6,7 @@ import io.edap.auth.jwt.VerifyResult;
 import io.edap.http.HeaderValue;
 import io.edap.http.HttpRequest;
 
-import java.io.IOException;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.LinkedHashSet;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 
 /**
  * 框架默认 {@link UserResolver}:从 {@link HttpRequest} 的 {@code Authorization} 头
@@ -47,27 +41,27 @@ public class JwtUserResolver implements UserResolver {
     }
 
     @Override
-    public RequestContext resolve(HttpRequest req) throws IOException {
+    public ResolverResult resolve(HttpRequest req) {
         String token = headerValue(req, "Authorization");
         if (token == null || token.isEmpty()) {
-            throw new IOException("missing Authorization header");
+            return new ResolverResult(false,"missing Authorization header");
         }
         // 部分客户端传 "Bearer <token>" 格式,兼容剥离前缀
         if (token.regionMatches(true, 0, "Bearer ", 0, 7)) {
             token = token.substring(7).trim();
             if (token.isEmpty()) {
-                throw new IOException("empty bearer token");
+                return new ResolverResult(false,"empty bearer token");
             }
         }
 
         VerifyResult vr = jwtService.verify(token);
         if (vr.getCode() != 0) {
-            throw new IOException("invalid jwt: code=" + vr.getCode()
+            return new ResolverResult(false, "invalid jwt: code=" + vr.getCode()
                     + " message=" + vr.getMessage());
         }
         JwtPayload payload = vr.getPayload();
         if (payload == null) {
-            throw new IOException("verify success but payload is null");
+            return new ResolverResult(false, "verify success but payload is null");
         }
 
         Map<String, Object> custom = payload.getCustomerClaims();
@@ -78,7 +72,7 @@ public class JwtUserResolver implements UserResolver {
             traceId = UUID.randomUUID().toString();
         }
 
-        return new RequestContext(payload.getSubject(), userName, roles, traceId);
+        return new ResolverResult(new RequestContext(payload.getSubject(), userName, roles, traceId));
     }
 
     private static String headerValue(HttpRequest req, String name) {

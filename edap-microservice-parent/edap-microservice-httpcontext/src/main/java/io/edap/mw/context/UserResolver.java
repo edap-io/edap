@@ -1,4 +1,4 @@
-package io.edap.container.context;
+package io.edap.mw.context;
 
 import io.edap.http.HttpRequest;
 
@@ -25,7 +25,47 @@ public interface UserResolver {
      *
      * @param req 当前 HTTP 请求
      * @return 解析出的 {@link RequestContext},Handler 会 set 到 {@link RequestContextHolder}
-     * @throws IOException 缺鉴权信息 / 凭据无效 / 业务校验失败
      */
-    RequestContext resolve(HttpRequest req) throws IOException;
+    ResolverResult resolve(HttpRequest req);
+
+
+    class ResolverResult {
+        private boolean success;
+        private String errorMsg;
+        private RequestContext requestContext;
+
+        public ResolverResult(boolean success, String errorMsg) {
+            this.success = success;
+            this.errorMsg = errorMsg;
+        }
+
+        public ResolverResult(RequestContext requestContext) {
+            this.success = true;
+            this.requestContext = requestContext;
+        }
+
+        public boolean isSuccess() {
+            return success;
+        }
+
+        public void setSuccess(boolean success) {
+            this.success = success;
+        }
+
+        public RequestContext getRequestContext() {
+            return requestContext;
+        }
+
+        public void setRequestContext(RequestContext requestContext) {
+            this.requestContext = requestContext;
+        }
+
+        public String getErrorMsg() {
+            return errorMsg;
+        }
+
+        public void setErrorMsg(String errorMsg) {
+            this.errorMsg = errorMsg;
+        }
+    }
 }

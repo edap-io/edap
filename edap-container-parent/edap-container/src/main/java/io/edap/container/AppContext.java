@@ -18,7 +18,6 @@ package io.edap.container;
 
 import io.edap.container.app.RouterHub;
 import io.edap.container.app.asm.HandlerAsmGenerator;
-import io.edap.container.BeanWrap;
 import io.edap.container.event.ApplicationEvent;
 import io.edap.container.event.ContextClosedEvent;
 import io.edap.container.event.ContextRefreshedEvent;
