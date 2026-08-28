@@ -105,6 +105,47 @@ public class Eson {
         return "";
     }
 
+    public static byte[] toJsonBytes(Object obj) {
+        return toJsonBytes(obj, EMPTY_FEATURES);
+    }
+
+    public static byte[] toJsonBytes(Object obj, boolean pretty) {
+        return toJsonBytes(obj, pretty, EMPTY_FEATURES);
+    }
+
+    public static byte[] toJsonBytes(Object obj, SerializerFeature... features) {
+        JsonWriter writer = THREAD_WRITER.get();
+        int featureValue = 0;
+        for (SerializerFeature feature : features) {
+            featureValue |= feature.getMask();
+        }
+        if (featureValue != writer.getFeatureValue()) {
+            writer.setFeatureValue(featureValue);
+        }
+        writer.reset();
+        serialize(obj, writer);
+        return writer.toByteArray();
+    }
+
+    public static byte[] toJsonBytes(Object obj, boolean pretty, SerializerFeature... features) {
+        JsonWriter writer;
+        if (pretty) {
+            writer = THREAD_PRETTY_WRITER.get();
+        } else {
+            writer = THREAD_WRITER.get();
+        }
+        int featureValue = 0;
+        for (SerializerFeature feature : features) {
+            featureValue |= feature.getMask();
+        }
+        if (featureValue != writer.getFeatureValue()) {
+            writer.setFeatureValue(featureValue);
+        }
+        writer.reset();
+        serialize(obj, writer);
+        return writer.toByteArray();
+    }
+
     public static String toJsonString(Object obj, boolean pretty, SerializerFeature... features) {
         JsonWriter writer;
         if (pretty) {
