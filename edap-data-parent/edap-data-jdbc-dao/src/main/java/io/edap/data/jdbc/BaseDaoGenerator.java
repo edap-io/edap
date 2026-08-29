@@ -685,7 +685,7 @@ public class BaseDaoGenerator {
         mv.visitFieldInsn(GETSTATIC, daoName, "FIELD_SET_FUNCS", "Ljava/util/Map;");
         mv.visitVarInsn(ALOAD, varFieldKey);
         mv.visitMethodInsn(INVOKEINTERFACE, "java/util/Map", "get",
-                "(Ljava/lang/String;)Ljava/lang/Object;", true);
+                "(Ljava/lang/Object;)Ljava/lang/Object;", true);
         mv.visitTypeInsn(CHECKCAST, FIELD_SET_FUNC_NAME);
         mv.visitVarInsn(ASTORE, varFunc);
 
