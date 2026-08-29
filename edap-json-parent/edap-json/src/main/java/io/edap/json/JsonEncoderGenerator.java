@@ -149,7 +149,7 @@ public class JsonEncoderGenerator {
             mv.visitFieldInsn(GETSTATIC, encoderName, "KBS_" + jfi.field.getName().toUpperCase(Locale.ENGLISH), "[B");
             //mv.visitLdcInsn(",\"" + jfi.field.getName() + "\":");
             mv.visitVarInsn(ILOAD, 3);
-            mv.visitIntInsn(BIPUSH, jfi.field.getName().length() + 4);
+            mv.visitIntInsn(BIPUSH, jfi.jsonFieldName.length() + 4);
             mv.visitMethodInsn(INVOKEINTERFACE, WRITER_NAME, "writeField", "([BII)V", true);
 
             if (jfi.isMap) {
@@ -579,7 +579,7 @@ public class JsonEncoderGenerator {
 
         //为Field的名称char[]数组赋值赋值
         fields.forEach(e -> {
-            assignKeyCharsVal(mv, e.field);
+            assignKeyCharsVal(mv, e);
 
         });
 
@@ -632,9 +632,9 @@ public class JsonEncoderGenerator {
      * @param mv clinit的MethodVisitor对象
      * @param field 反射的Field对象
      */
-    private void assignKeyCharsVal(MethodVisitor mv, Field field) {
-        String fieldName = getFieldBytesVarName(field);
-        mv.visitLdcInsn(",\"" + field.getName() + "\":null");
+    private void assignKeyCharsVal(MethodVisitor mv, JsonFieldInfo jfi) {
+        String fieldName = getFieldBytesVarName(jfi.field);
+        mv.visitLdcInsn(",\"" + jfi.jsonFieldName + "\":null");
         visitMethod(mv, INVOKEVIRTUAL, "java/lang/String", "getBytes",
                 "()[B", false);
         mv.visitFieldInsn(PUTSTATIC, encoderName, fieldName, "[B");

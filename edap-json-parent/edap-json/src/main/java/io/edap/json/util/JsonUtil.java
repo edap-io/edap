@@ -385,6 +385,7 @@ public class JsonUtil {
         for (Field f : needCodecFields) {
             JsonFieldInfo jfi = new JsonFieldInfo();
             jfi.field = f;
+            jfi.jsonFieldName = f.getName();
             Annotation[] anns = f.getAnnotations();
             for (Annotation ann : anns) {
                 if ("io.edap.protobuf.annotation.ProtoField".equals(ann.annotationType().getName())) {
