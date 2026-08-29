@@ -93,7 +93,8 @@ public class HttpHandlerGenerator {
     }
 
     private void visitNoLoginLogLambda() {
-        MethodVisitor mv = cw.visitMethod(ACC_PRIVATE | ACC_STATIC | ACC_SYNTHETIC, "lambda$handle$1",
+        MethodVisitor mv = cw.visitMethod(ACC_PRIVATE | ACC_STATIC | ACC_SYNTHETIC,
+                "lambda$handle$1",
                 "(L" + resolverIf + "$ResolverResult;Lio/edap/log/LogArgs;)V", null, null);
         mv.visitCode();
         mv.visitVarInsn(ALOAD, 1);
@@ -109,9 +110,11 @@ public class HttpHandlerGenerator {
     }
 
     private void visitBizLogLambda() {
-        MethodVisitor mv = cw.visitMethod(ACC_PRIVATE | ACC_STATIC | ACC_SYNTHETIC, "lambda$handle$0", "(Lio/edap/log/LogArgs;)V", null, null);
+        MethodVisitor mv = cw.visitMethod(ACC_PRIVATE | ACC_STATIC | ACC_SYNTHETIC,
+                "lambda$handle$0", "(Ljava/lang/Throwable;Lio/edap/log/LogArgs;)V",
+                null, null);
         mv.visitCode();
-        mv.visitVarInsn(ALOAD, 0);
+        mv.visitVarInsn(ALOAD, 1);
         mv.visitFieldInsn(GETSTATIC, handlerName, "bean", "L" + serviceIf + ";");
         mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/Object", "getClass",
                 "()Ljava/lang/Class;", false);
@@ -122,6 +125,9 @@ public class HttpHandlerGenerator {
         mv.visitLdcInsn(method.getName());
         mv.visitMethodInsn(INVOKEINTERFACE, "io/edap/log/LogArgs", "arg",
                 "(Ljava/lang/String;)Lio/edap/log/LogArgs;", true);
+        mv.visitVarInsn(ALOAD, 0);
+        mv.visitMethodInsn(INVOKEINTERFACE, "io/edap/log/LogArgs", "threw",
+                "(Ljava/lang/Throwable;)Lio/edap/log/LogArgs;", true);
         mv.visitInsn(POP);
         mv.visitInsn(RETURN);
         mv.visitMaxs(2, 1);
@@ -362,14 +368,17 @@ public class HttpHandlerGenerator {
             mv.visitFieldInsn(GETFIELD, handlerName, "log", "Lio/edap/log/Logger;");
             mv.visitLdcInsn("{}.{} invoke error");
             visitBizLogLambda();
-            mv.visitInvokeDynamicInsn("accept", "()Ljava/util/function/Consumer;",
-                    new Handle(Opcodes.H_INVOKESTATIC, "java/lang/invoke/LambdaMetafactory", "metafactory",
-                            "(Ljava/lang/invoke/MethodHandles$Lookup;Ljava/lang/String;Ljava/lang/invoke/MethodType;" +
-                                    "Ljava/lang/invoke/MethodType;Ljava/lang/invoke/MethodHandle;Ljava/lang/invoke/MethodType;)" +
-                                    "Ljava/lang/invoke/CallSite;", false),
+            mv.visitVarInsn(ALOAD, varBizEx);
+            mv.visitInvokeDynamicInsn("accept", "(Ljava/lang/Throwable;)" +
+                    "Ljava/util/function/Consumer;",
+                    new Handle(Opcodes.H_INVOKESTATIC, "java/lang/invoke/LambdaMetafactory",
+                            "metafactory", "(Ljava/lang/invoke/MethodHandles$Lookup;" +
+                            "Ljava/lang/String;Ljava/lang/invoke/MethodType;Ljava/lang/invoke/MethodType;" +
+                            "Ljava/lang/invoke/MethodHandle;Ljava/lang/invoke/MethodType;)" +
+                            "Ljava/lang/invoke/CallSite;", false),
                     new Object[]{Type.getType("(Ljava/lang/Object;)V"),
                             new Handle(Opcodes.H_INVOKESTATIC, handlerName, "lambda$handle$0",
-                                    "(Lio/edap/log/LogArgs;)V", false),
+                                    "(Ljava/lang/Throwable;Lio/edap/log/LogArgs;)V", false),
                             Type.getType("(Lio/edap/log/LogArgs;)V")});
             mv.visitMethodInsn(INVOKEINTERFACE, "io/edap/log/Logger", "warn",
                     "(Ljava/lang/String;Ljava/util/function/Consumer;)V", true);
