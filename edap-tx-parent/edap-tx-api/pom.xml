@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>io.edap</groupId>
+        <artifactId>edap-tx-parent</artifactId>
+        <version>${edap.version}</version>
+    </parent>
+
+    <artifactId>edap-tx-api</artifactId>
+
+    <description>
+        edap 事务抽象层：仅定义接口、异常、注解、传播模型与隔离级别枚举。
+        业务方只依赖本模块即可拿到 EdapTransactionManager / TransactionDefinition /
+        TransactionStatus / TransactionResource / Synchronization 等类型。
+        具体实现（默认传播决策矩阵 + 同步点回调）落在 edap-tx 模块。
+    </description>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+</project>

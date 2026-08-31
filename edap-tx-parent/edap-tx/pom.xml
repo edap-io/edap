@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>io.edap</groupId>
+        <artifactId>edap-tx-parent</artifactId>
+        <version>${edap.version}</version>
+    </parent>
+
+    <artifactId>edap-tx</artifactId>
+
+    <description>
+        edap 事务默认实现：DefaultEdapTransactionManager 实现 7×3 传播决策矩阵、
+        同步点回调（beforeCommit / afterCommit / afterCompletion）、挂起-恢复
+        （REQUIRES_NEW / NOT_SUPPORTED）、嵌套 savepoint（NESTED）。
+    </description>
+
+    <dependencies>
+        <dependency>
+            <groupId>io.edap</groupId>
+            <artifactId>edap-tx-api</artifactId>
+            <version>${edap.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+</project>
