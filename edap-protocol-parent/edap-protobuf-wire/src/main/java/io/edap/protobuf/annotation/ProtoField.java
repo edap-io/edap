@@ -61,4 +61,10 @@ public @interface ProtoField {
      * @return
      */
     String name() default "";
+
+    /**
+     * 序列化成json时的数据类型
+     * @return
+     */
+    String jsonType() default "";
 }

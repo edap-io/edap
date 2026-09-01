@@ -782,6 +782,14 @@ public class JavaBuilder {
             } else {
                 javaFieldName = name;
             }
+            List<Option> options = f.getOptions();
+            if (options != null) {
+                for (Option option : options) {
+                    if ("edap.rpc.api.json_format".equals(option.getName())) {
+                        cb.c(", jsonType=\"").c(option.getValue()).c("\"");
+                    }
+                }
+            }
             cb.c(")").ln();
             String type = getJavaType(f, imps, buildOps, proto);
 
