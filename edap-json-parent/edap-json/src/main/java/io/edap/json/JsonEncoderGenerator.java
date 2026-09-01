@@ -6,6 +6,7 @@ import io.edap.util.CollectionUtils;
 import io.edap.util.internal.GeneratorClassInfo;
 import org.objectweb.asm.*;
 
+import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
@@ -192,8 +193,25 @@ public class JsonEncoderGenerator {
                 } else {
                     mv.visitFieldInsn(GETFIELD, pojoName, jfi.field.getName(), typeString);
                 }
-                mv.visitMethodInsn(INVOKEVIRTUAL, typeString.substring(1, typeString.length()-1), "toString", "()Ljava/lang/String;", false);
-                visitMethod(mv, INVOKEINTERFACE, WRITER_NAME, "write", "(Ljava/lang/String;)V", true);
+                Class enumClass = jfi.field.getType();
+                Annotation[] eanns = enumClass.getAnnotations();
+                boolean isProtoEnum = false;
+                for (Annotation ann : eanns) {
+                    if (ann.annotationType().getName().equals("io.edap.protobuf.annotation.ProtoEnum")) {
+                        isProtoEnum = true;
+                        break;
+                    }
+                }
+                if (isProtoEnum) {
+                    mv.visitMethodInsn(INVOKEVIRTUAL, typeString.substring(1, typeString.length() - 1),
+                            "getValue", "()I", false);
+                    visitMethod(mv, INVOKEINTERFACE, WRITER_NAME, "write", "(I)V", true);
+                } else {
+                    mv.visitMethodInsn(INVOKEVIRTUAL, typeString.substring(1, typeString.length() - 1),
+                            "toString", "()Ljava/lang/String;", false);
+                    visitMethod(mv, INVOKEINTERFACE, WRITER_NAME, "write", "(Ljava/lang/String;)V", true);
+                }
+
             } else {
                 mv.visitVarInsn(ALOAD, 1);
                 mv.visitVarInsn(ALOAD, 2);
@@ -205,6 +223,10 @@ public class JsonEncoderGenerator {
                 String writeMethod = getWriteMethod(jfi.field);
                 if (writeMethod.equals("writeObject")) {
                     typeString = "Ljava/lang/Object;";
+                }
+                if (("J".equals(typeString) || "Ljava/lang/Long;".equals(typeString))
+                        && "JSON_FORMAT_ID".equals(jfi.jsonType)) {
+                    writeMethod += "AsString";
                 }
                 visitMethod(mv, INVOKEINTERFACE, WRITER_NAME, writeMethod, "(" + typeString + ")V", true);
             }

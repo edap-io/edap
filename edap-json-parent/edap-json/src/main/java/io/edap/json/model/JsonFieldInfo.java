@@ -55,6 +55,10 @@ public class JsonFieldInfo {
      * 属性是否是Map
      */
     public boolean isMap;
+    /**
+     * 序列化为json时的类型，主要处理long在前端无法正确读取，序列化为string
+     */
+    public String jsonType;
 
 
     public JsonFieldInfo() {
