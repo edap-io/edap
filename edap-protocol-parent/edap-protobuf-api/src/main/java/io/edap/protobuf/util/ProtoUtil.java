@@ -447,6 +447,11 @@ public class ProtoUtil {
             }
 
             @Override
+            public String jsonType() {
+                return "";
+            }
+
+            @Override
             public Class<? extends Annotation> annotationType() {
                 return null;
             }
@@ -874,6 +879,11 @@ public class ProtoUtil {
 
             @Override
             public String name() {
+                return "";
+            }
+
+            @Override
+            public String jsonType() {
                 return "";
             }
 
