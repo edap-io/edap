@@ -24,17 +24,22 @@ import io.edap.tx.exception.TransactionException;
  * <p>由 edap 容器实现此接口的 bean 注入到拦截链,负责:</p>
  * <ol>
  *   <li>根据 {@link TransactionDefinition} 的传播模型做决策矩阵</li>
- *   <li>开新 / 复用 / 挂起 / 抛异常(决策见 TX_DESIGN.md §3.1)</li>
+ *   <li>开新 / 复用 / 挂起 / 抛异常</li>
  *   <li>commit / rollback 时调用同步点回调</li>
  * </ol>
  *
  * <p>实现层:</p>
  * <ul>
- *   <li>Phase 1: {@code DefaultEdapTransactionManager}(edap-tx 模块提供)</li>
- *   <li>Phase 2: {@code DataSourceTransactionManager} — JDBC 单连接事务</li>
- *   <li>Phase 4a: XA-aware 版本(扩展 {@code allocateXid})</li>
+ *   <li>{@code DefaultEdapTransactionManager}(edap-tx 模块提供)—— 默认实现,基于 {@link TxScope} 单 ThreadLocal</li>
+ *   <li>{@code DataSourceTransactionManager}(edap-tx-jdbc 提供)—— JDBC 单连接事务</li>
  *   <li>未来: Seata / XA / TCC 等分布式事务管理器</li>
  * </ul>
+ *
+ * <p><b>wrapper 集成契约</b>:由 ASM 生成的 proxy 字节码调用本接口方法,
+ * 完整生命周期为 {@code getTransaction(def)} → 业务方法体 → {@code commit(status)} /
+ * {@code rollback(status)}。wrapper 在 finally 块守卫重复 commit/rollback:
+ * 业务方 {@code ctx.commit()} 后 status 已 {@link TransactionStatus#markCompleted()},
+ * wrapper 跳过第二次 commit。</p>
  */
 public interface EdapTransactionManager {
 
@@ -64,7 +69,8 @@ public interface EdapTransactionManager {
      * 内层只 decrement 计数并跳过实际 commit。</p>
      *
      * <p>已 {@link TransactionStatus#markCompleted()} 的事务再次调用抛
-     * {@code IllegalTransactionStateException}。</p>
+     * {@code IllegalTransactionStateException}。wrapper 在 finally 块用
+     * {@link TransactionStatus#isCompleted()} 守卫避免重复 commit。</p>
      */
     void commit(TransactionStatus status) throws TransactionException;
 

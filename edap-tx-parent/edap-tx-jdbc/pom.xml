@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>io.edap</groupId>
+        <artifactId>edap-tx-parent</artifactId>
+        <version>${edap.version}</version>
+    </parent>
+
+    <artifactId>edap-tx-jdbc</artifactId>
+
+    <description>
+        edap 事务 JDBC 实现：DataSourceTransactionManager 通过 javax.sql.DataSource
+        驱动真实 JDBC Connection，JdbcTransactionResource 包装 Connection 实现
+        TransactionResource 接口（commit / rollback / savepoint / 连接归还）。
+        隔离级别透传（Isolation.jdbcLevel() → Connection.setTransactionIsolation()），
+        timeout 在 JDBC 协议层不支持，本模块静默忽略。
+    </description>
+
+    <dependencies>
+        <dependency>
+            <groupId>io.edap</groupId>
+            <artifactId>edap-tx-api</artifactId>
+            <version>${edap.version}</version>
+        </dependency>
+        <!--
+            edap-datasource 包装 HikariCP（项目自有 DataSource 工厂）。
+            DataSourceTransactionManager 构造器仍接受任意 javax.sql.DataSource，
+            业务方可用 HikariCP / Druid / DBCP 等任意实现。
+        -->
+        <dependency>
+            <groupId>io.edap</groupId>
+            <artifactId>edap-datasource</artifactId>
+        </dependency>
+        <!-- Phase 2 默认 manager（doBegin 钩子 + commit/rollback 决策矩阵） -->
+        <dependency>
+            <groupId>io.edap</groupId>
+            <artifactId>edap-tx</artifactId>
+            <version>${edap.version}</version>
+        </dependency>
+        <!--
+            TxConnectionHolder SPI 实现 — implements io.edap.data.jdbc.ConnectionHolder。
+            dao 通过 ServiceLoader 加载本类,实现"dao 自动从当前事务拿共享连接"。
+            edap-data-jdbc-dao 提供 ConnectionHolder 接口与 SimpleConnectionHolder fallback。
+        -->
+        <dependency>
+            <groupId>io.edap</groupId>
+            <artifactId>edap-data-jdbc-dao</artifactId>
+            <version>${edap.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+</project>

@@ -83,10 +83,10 @@ public class MockTransactionResource implements TransactionResource {
 
     @Override
     public void registerSynchronization(Synchronization sync) throws TransactionException {
-        // resource 级 sync 委托给 ThreadLocal manager,与 Spring 行为一致:
-        // manager 在 commit/rollback 时从 ThreadLocal 取同步点列表统一触发
+        // resource 级 sync 委托给 TxScope 单 ThreadLocal,与 Spring 行为一致:
+        // manager 在 commit/rollback 时从 TxScope 取同步点列表统一触发
         synchronizations.add(sync);
-        TransactionSynchronizationManager.addSynchronization(sync);
+        TxScope.addSynchronization(sync);
     }
 
     @Override

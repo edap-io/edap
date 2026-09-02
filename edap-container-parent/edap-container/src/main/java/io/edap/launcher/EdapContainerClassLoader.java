@@ -258,10 +258,13 @@ public class EdapContainerClassLoader extends URLClassLoader {
     /** 资源加载:聚合根 + 所有 lib jars,支持 ServiceLoader / getResource。 */
     @Override
     public URL findResource(String name) {
-        // 1. 根(业务 class 路径在 classesPrefix 下)——rootAbsPath 后直接接 classesPrefix + name
+        // 1. 根(业务 class 路径在 classesPrefix 下)——rootAbsPath 与 classesPrefix+name 之间用 !/ 分隔
+        //    NestedUrlConnection 解析 URL 时按 !/ 拆:第一段是外层 jar 绝对路径,后续段是嵌套 jar/entry。
+        //    若错用 /,NestedUrlConnection 找不到 "!/",会把整段当成 outerJarPath、entrySegments 为空,
+        //    connect() 抛 "Empty entry path" → ServiceLoader 包成 ServiceConfigurationError。
         try {
             if (root.hasEntry(classesPrefix + name)) {
-                return new URL("nested:" + rootAbsPath + "/" + classesPrefix + name);
+                return new URL("nested:" + rootAbsPath + "!/" + classesPrefix + name);
             }
         } catch (Exception ignored) {}
 
@@ -286,10 +289,10 @@ public class EdapContainerClassLoader extends URLClassLoader {
     public Enumeration<URL> findResources(String name) throws IOException {
         Vector<URL> v = new Vector<>();
 
-        // 1. 根(业务 class 路径在 classesPrefix 下)——rootAbsPath 后直接接 classesPrefix + name
+        // 1. 根(业务 class 路径在 classesPrefix 下)——见 findResource 同款 !/ 分隔符要求
         try {
             if (root.hasEntry(classesPrefix + name)) {
-                v.add(new URL("nested:" + rootAbsPath + "/" + classesPrefix + name));
+                v.add(new URL("nested:" + rootAbsPath + "!/" + classesPrefix + name));
             }
         } catch (Exception ignored) {}
 

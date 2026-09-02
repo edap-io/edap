@@ -37,14 +37,18 @@ import io.edap.microservice.Scope;
 import io.edap.microservice.annotation.Bean;
 import io.edap.microservice.annotation.Configuration;
 import io.edap.microservice.annotation.MicroServiceBean;
+import io.edap.microservice.annotation.Primary;
 import io.edap.nio.codec.FastBufDataRange;
 import io.edap.props.Props;
 import io.edap.protobuf.annotation.ProtoHttp;
 import io.edap.protobuf.annotation.ProtoWebSocket;
 import io.edap.protobuf.annotation.Sharded;
 import io.edap.rpc.ErpcHandler;
+import io.edap.tx.EdapTransactionManager;
+import io.edap.tx.jdbc.DataSourceTransactionManager;
 import io.edap.util.CollectionUtils;
 
+import javax.sql.DataSource;
 import java.io.IOException;
 import java.lang.reflect.AnnotatedElement;
 import java.lang.reflect.Field;
@@ -156,7 +160,33 @@ public class AppContext implements Lifecycle {
         this.routers        = new RouterHub();
         this.resourceLoader = new AppResourceLoader(appCL);
         this.serviceWSHandler = new ServiceWSHandler(this);
+        // SPI:从 appCL 加载 BeanPostProcessor 实现(per-app 隔离,避免跨 app 的 BPP 状态污染)。
+        // TransactionalBeanPostProcessor 通过此机制零配置接入,业务方无需在 deploy 阶段手动 register。
+        loadBeanPostProcessorsFromSPI();
         // 构造函数到此为止——不做扫描、不做实例化、不调 Lifecycle.start
+    }
+
+    /**
+     * SPI 加载 BeanPostProcessor —— 读 {@code META-INF/services/io.edap.container.BeanPostProcessor},
+     * 每个实现 addBeanPostProcessor 一次。
+     *
+     * <p><b>顺序</b>:用 {@link ClassLoader#getResources} 而不是 {@link ServiceLoader#load(Class)} 的
+     * 默认 ClassLoader —— 因为 BPP 实现可能在 edap-container-boot 之外的 nested jar 里,
+     * 必须走 appCL 才能看见。</p>
+     */
+    private void loadBeanPostProcessorsFromSPI() {
+        try {
+            java.util.ServiceLoader<BeanPostProcessor> loader =
+                    java.util.ServiceLoader.load(BeanPostProcessor.class, appCL);
+            for (BeanPostProcessor bpp : loader) {
+                postProcessors.add(bpp);
+                log.info("[" + appId + "] BeanPostProcessor registered via SPI: "
+                        + bpp.getClass().getName());
+            }
+        } catch (Throwable t) {
+            // SPI 加载失败不能让整个 AppContext 启不来 —— 业务方可能没装带 BPP 的 jar
+            log.warn("[" + appId + "] BeanPostProcessor SPI load failed (continuing without BPP)", t);
+        }
     }
 
     /**
@@ -202,6 +232,19 @@ public class AppContext implements Lifecycle {
             }
             beans.transitionToReady();                          // INSTANTIATING -> READY
 
+            // Phase 2.5:自动配置事务基础设施 —— 扫已 register 的 DataSource bean,
+            // 为每个创建一个 DataSourceTransactionManager,register 到 TransactionManagers 静态表。
+            // 必须在 Phase 2 之后(wrapper <clinit> 要能在 BPP 阶段命中已注册的 TM),
+            // 也必须在 Phase 2.6 之前(BPP 生成的 wrapper 在 BPP.afterInit 时访问静态表)。
+            configureTransactionalInfrastructure();
+
+            // Phase 2.6:接通 BeanPostProcessor 调用链 —— 对每个已 register 的 bean 跑
+            // postProcessAfterInit。BPP 可返回新实例替换原实例(典型:@Transactional
+            // bean 被替换为 ASM 生成的 wrapper)。
+            // 之所以放在 Phase 2 之后而非之中:TransactionalBeanPostProcessor 生成的 wrapper
+            // 需要 TransactionManagers 静态表里有对应 TM,见上 Phase 2.5。
+            applyBeanPostProcessors();
+
             transitionTo(AppState.COMMITTING);             // GATHERING -> COMMITTING
 
             // Phase 3 READY：Lifecycle.start() + 路由 bind
@@ -218,6 +261,121 @@ public class AppContext implements Lifecycle {
         } catch (Throwable t) {
             transitionTo(AppState.FAILED);
             throw t;
+        }
+    }
+
+    /**
+     * 自动配置事务基础设施(Phase 4 钩子 —— pom.xml 注释里已声明此能力)。
+     *
+     * <p>扫描所有已 register 的 SINGLETON bean,挑出 {@link DataSource} 实例,
+     * 为每个创建一个 {@link DataSourceTransactionManager},register 到全局静态表
+     * {@link io.edap.tx.TransactionManagers},key 为 bean name。wrapper 字节码
+     * <clinit> 期通过 {@code TransactionManagers.get(name)} 取 TM,不依赖任何注入路径。</p>
+     *
+     * <p>无 DataSource 时 no-op(纯无事务应用不需要 tx 基础设施)。</p>
+     *
+     * <p><b>默认 tm 解析规则</b>(唯一满足即用):</p>
+     * <ol>
+     *   <li>恰好一个 DataSource bean 标了 {@link Primary} → 用它,同时 register 到
+     *       空串 key 和它自己的 bean name(write {@code @Transactional(transactionManager="")}
+     *       和 {@code transactionManager="<beanName>"} 都能命中)</li>
+     *   <li>只有一个 DataSource(无论是否 {@code @Primary})→ 用它,同上 register 到
+     *       空串 key + 自己的 bean name</li>
+     *   <li>多个 DataSource 且无 {@code @Primary},或多个 {@code @Primary} → 不
+     *       register 空串 key,wrapper 调 {@code TransactionManagers.get("")} 时抛
+     *       {@link IllegalStateException}(启动期 fail-fast,避免运行时 silent fallback
+     *       到错误 ds —— 那种 bug 极难定位)</li>
+     * </ol>
+     */
+    private void configureTransactionalInfrastructure() {
+        Map<String, EdapTransactionManager> tmByName = new LinkedHashMap<>();
+        Map<String, Class<?>> dsBeanClassByName = new LinkedHashMap<>();
+        for (BeanDef def : beans.sorted()) {
+            if (!DataSource.class.isAssignableFrom(def.beanClass())) continue;
+            BeanWrap bw = beans.beanWrapByName(def.name());
+            if (bw == null || !(bw.instance() instanceof DataSource)) continue;
+            DataSource ds = (DataSource) bw.instance();
+            tmByName.put(def.name(), new DataSourceTransactionManager(ds));
+            dsBeanClassByName.put(def.name(), def.beanClass());
+        }
+        if (tmByName.isEmpty()) return;
+
+        // 把 TM 注册到全局静态注册表,wrapper 类 <clinit> 期直接 TransactionManagers.get(...) 取。
+        // 默认 tm 语义由 TransactionManagers.get("") 内部统一处理。
+        // 解析"哪个 DataSource 作默认":1) 标了 @Primary 的(且只有一个);2) 单 DataSource 直接用;
+        // 3) 多个且无 @Primary → 启动期 fail-fast。
+        String defaultBeanName = resolveDefaultDataSourceBeanName(tmByName, dsBeanClassByName);
+
+        for (Map.Entry<String, EdapTransactionManager> e : tmByName.entrySet()) {
+            io.edap.tx.TransactionManagers.register(e.getKey(), e.getValue());
+        }
+        if (defaultBeanName != null) {
+            // 默认 ds 同时绑到空串 key 和它本身的 bean name —— 无论 @Transactional 写
+            // transactionManager="" 还是 transactionManager="<beanName>",都能拿到同一个 TM。
+            EdapTransactionManager defaultTm = tmByName.get(defaultBeanName);
+            io.edap.tx.TransactionManagers.register("", defaultTm);
+        } else {
+            // 多 DataSource + 无唯一 @Primary —— fail-fast,避免运行时 silent fallback
+            // 到错误 ds(那种 bug 极难定位)。先把"空串 → 默认"故意不注册,
+            // TransactionManagers.get("") 在 wrapper 里被调时会抛 IllegalStateException。
+            log.warn("[" + appId + "] Multiple DataSources " + tmByName.keySet()
+                    + " with no unique @Primary — @Transactional methods must specify transactionManager=\"...\"");
+        }
+
+        log.info("[" + appId + "] Registered " + tmByName.size() + " EdapTransactionManager(s) with TransactionManagers: "
+                + tmByName.keySet()
+                + (defaultBeanName != null ? " (default='" + defaultBeanName + "')" : ""));
+    }
+
+    /**
+     * 在已收集的 DataSource 集合里挑一个作默认 tm:
+     * <ul>
+     *   <li>恰好一个标了 {@link Primary} → 用它</li>
+     *   <li>只有一个 DataSource(无论是否 @Primary)→ 用它</li>
+     *   <li>多个且无 @Primary → 返回 null(调用方走 fail-fast 路径)</li>
+     *   <li>多个 @Primary → 返回 null(无唯一默认,业务方必须显式 transactionManager="...")</li>
+     * </ul>
+     */
+    private String resolveDefaultDataSourceBeanName(Map<String, EdapTransactionManager> tmByName,
+                                                     Map<String, Class<?>> dsBeanClassByName) {
+        if (tmByName.isEmpty()) return null;
+        String primary = null;
+        for (Map.Entry<String, Class<?>> e : dsBeanClassByName.entrySet()) {
+            if (e.getValue().getAnnotation(Primary.class) != null) {
+                if (primary != null) {
+                    // 多个 @Primary → 无唯一默认
+                    return null;
+                }
+                primary = e.getKey();
+            }
+        }
+        if (primary != null) return primary;
+        if (tmByName.size() == 1) return tmByName.keySet().iterator().next();
+        return null;
+    }
+
+    /**
+     * 对所有已 register 的 SINGLETON bean 跑 {@link BeanPostProcessor#postProcessAfterInit}。
+     * BPP 可返回新实例替换原实例(典型 AOP wrapper 织入)—— 此时调
+     * {@link BeanContainer#replaceInstance} 保证 byType 索引同步更新,
+     * 避免运行时 {@code getBean(Interface.class)} 抛 NoUniqueBeanException。
+     */
+    private void applyBeanPostProcessors() {
+        if (postProcessors.isEmpty()) return;
+        for (BeanDef def : beans.sorted()) {
+            BeanWrap bw = beans.beanWrapByName(def.name());
+            if (bw == null) continue;
+            Object current = bw.instance();
+            Object replaced = current;
+            for (BeanPostProcessor bpp : postProcessors) {
+                Object after = bpp.postProcessAfterInit(replaced, def.name());
+                if (after != replaced) {
+                    replaced = after;
+                }
+            }
+            if (replaced != current) {
+                beans.replaceInstance(def, current, replaced);
+            }
         }
     }
 

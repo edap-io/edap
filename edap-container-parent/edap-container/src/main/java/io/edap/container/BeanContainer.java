@@ -705,6 +705,38 @@ public class BeanContainer {
         // PROTOTYPE 不缓存
     }
 
+    /**
+     * 用新实例替换 BeanDef 对应的 SINGLETON —— 专为 {@link io.edap.container.BeanPostProcessor}
+     * 织入 wrapper 设计:原实例已 register 过(byType 含其类型 token),若直接再
+     * {@link #registerInstance} 会导致 byType 出现两个 BeanWrap,运行时
+     * {@code getBean(Interface.class)} 抛 {@code NoUniqueBeanException}。
+     *
+     * <p>语义:
+     * <ul>
+     *   <li>从 byType 移除 oldInstance 的所有类型 token;</li>
+     *   <li>用 newInstance 创建新 BeanWrap,按 name 覆盖 singletons,按 type token 注册到 byType;</li>
+     *   <li>若 oldInstance 已经在 singletonsByName 里但 byType 没记录(理论上不应发生),
+     *       直接按 name put 一次覆盖;</li>
+     *   <li>PROTOTYPE scope 不处理(prototype 不缓存,无 wrapper 替换需求)。</li>
+     * </ul>
+     */
+    public void replaceInstance(BeanDef def, Object oldInstance, Object newInstance) {
+        if (def.scope() != Scope.SINGLETON) return;
+        // 1. 移除 old 的 byType 索引
+        BeanWrap oldWrap = singletons.get(def.name());
+        if (oldWrap != null && oldWrap.instance() == oldInstance) {
+            for (Class<?> t : collectTypeTokens(oldInstance.getClass())) {
+                List<BeanWrap> list = byType.get(t);
+                if (list != null) {
+                    list.remove(oldWrap);
+                    if (list.isEmpty()) byType.remove(t);
+                }
+            }
+        }
+        // 2. 注册 new —— 走 registerInstance 走全路径(name put + byType add)
+        registerInstance(def, newInstance);
+    }
+
     /** Phase 2 → Phase 3 状态迁移。 */
     public void transitionToReady() {
         transitionTo(BeanContainerState.READY);
@@ -730,6 +762,11 @@ public class BeanContainer {
     }
 
     // —— 运行时查询（多线程读）——
+
+    /** 按 BeanDef.name() 查 BeanWrap(返回 null = miss,不抛)。仅查本容器,不做 fallback。 */
+    public BeanWrap beanWrapByName(String name) {
+        return singletons.get(name);
+    }
 
     public Object getBean(String name) throws NoSuchBeanException {
         BeanWrap bw = singletons.get(name);

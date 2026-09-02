@@ -47,7 +47,7 @@ class PropagationDecisionTest {
     @AfterEach
     void cleanup() {
         // 拦截器 finally 块调用的清理 —— 测试间隔离避免 ThreadLocal 串
-        TransactionSynchronizationManager.clear();
+        TxScope.clear();
     }
 
     // ============ 行 1: 无现有事务 ============
@@ -61,7 +61,7 @@ class PropagationDecisionTest {
         assertNotNull(s, "REQUIRED no-tx 应返回 status");
         assertTrue(s.hasResource(), "REQUIRED no-tx 应有 resource");
         assertTrue(s.isNewTransaction(), "REQUIRED no-tx 应标记 newTransaction");
-        assertSame(s, TransactionSynchronizationManager.getCurrentStatus(),
+        assertSame(s, TxScope.currentStatus(),
                 "新事务应绑到 ThreadLocal");
         assertEquals(1, tm.beginDefinitions.size(), "doBegin 应被调用 1 次");
     }
@@ -74,7 +74,7 @@ class PropagationDecisionTest {
 
         assertTrue(s.hasResource());
         assertTrue(s.isNewTransaction());
-        assertNull(s.getSuspendedResources(), "无外层事务时,挂起快照应为 null");
+        assertNull(s.getSuspendedSnapshot(), "无外层事务时,挂起快照应为 null");
     }
 
     @Test
@@ -161,9 +161,9 @@ class PropagationDecisionTest {
 
         assertNotSame(outer, inner, "REQUIRES_NEW 应返回新 status");
         assertTrue(inner.isNewTransaction());
-        assertNotNull(inner.getSuspendedResources(), "应记录挂起快照");
+        assertNotNull(inner.getSuspendedSnapshot(), "应记录挂起快照");
         // 当前 ThreadLocal 应是新事务(外层已被 suspend)
-        assertSame(inner, TransactionSynchronizationManager.getCurrentStatus());
+        assertSame(inner, TxScope.currentStatus());
     }
 
     @Test
@@ -204,9 +204,9 @@ class PropagationDecisionTest {
                 .propagation(Propagation.NOT_SUPPORTED).build());
 
         assertFalse(inner.hasResource(), "NOT_SUPPORTED 应返回非事务 status");
-        assertNotNull(inner.getSuspendedResources());
+        assertNotNull(inner.getSuspendedSnapshot());
         // 当前 ThreadLocal 应无 status(not_supported 是非事务)
-        assertNull(TransactionSynchronizationManager.getCurrentStatus(),
+        assertNull(TxScope.currentStatus(),
                 "NOT_SUPPORTED 应清除 ThreadLocal 中的 status");
     }
 
@@ -292,7 +292,7 @@ class PropagationDecisionTest {
         assertEquals(0, innerRes.getRollbackCount());
 
         // 提交内层后,外层 resume 回来(rollbackOnly 状态被带回来)
-        assertSame(outer, TransactionSynchronizationManager.getCurrentStatus());
+        assertSame(outer, TxScope.currentStatus());
         // 外层 commit 也走 rollback
         MockTransactionResource outerRes = (MockTransactionResource) outer.resource();
         tm.commit(outer);
@@ -387,7 +387,7 @@ class PropagationDecisionTest {
     void suspendResume_stateFullyRestored() throws Exception {
         TransactionStatus outer = tm.getTransaction(TransactionDefinition.builder()
                 .propagation(Propagation.REQUIRED).build());
-        TransactionSynchronizationManager.addSynchronization(new Synchronization() {});
+        TxScope.addSynchronization(new Synchronization() {});
 
         TransactionStatus inner = tm.getTransaction(TransactionDefinition.builder()
                 .propagation(Propagation.REQUIRES_NEW).build());
@@ -395,11 +395,11 @@ class PropagationDecisionTest {
         // 内层结束,resume 外层
         tm.commit(inner);
         // 恢复后 ThreadLocal 应是 outer
-        assertSame(outer, TransactionSynchronizationManager.getCurrentStatus(),
+        assertSame(outer, TxScope.currentStatus(),
                 "内层 commit 后应 resume 外层 status");
         // suspend 前注册的 sync 应仍在
-        assertNotNull(TransactionSynchronizationManager.getSynchronizations(),
+        assertNotNull(TxScope.currentSynchronizations(),
                 "resume 后 synchronizations 列表应恢复");
-        assertEquals(1, TransactionSynchronizationManager.getSynchronizations().size());
+        assertEquals(1, TxScope.currentSynchronizations().size());
     }
 }

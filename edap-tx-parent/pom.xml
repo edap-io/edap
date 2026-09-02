@@ -15,6 +15,7 @@
     <modules>
         <module>edap-tx-api</module>
         <module>edap-tx</module>
+        <module>edap-tx-jdbc</module>
     </modules>
 
 </project>

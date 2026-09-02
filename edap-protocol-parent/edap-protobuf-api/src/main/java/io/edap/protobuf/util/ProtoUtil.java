@@ -442,6 +442,11 @@ public class ProtoUtil {
             }
 
             @Override
+            public String name() {
+                return "";
+            }
+
+            @Override
             public Class<? extends Annotation> annotationType() {
                 return null;
             }
@@ -864,6 +869,11 @@ public class ProtoUtil {
 
             @Override
             public String comment() {
+                return "";
+            }
+
+            @Override
+            public String name() {
                 return "";
             }
 

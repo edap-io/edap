@@ -88,4 +88,13 @@ public @interface Transactional {
      * 不触发回滚的异常类集合(即便默认规则会触发)。默认空。
      */
     Class<? extends Throwable>[] noRollbackFor() default {};
+
+    /**
+     * 目标 {@link io.edap.tx.EdapTransactionManager} 在容器中的 bean 名称。
+     *
+     * <p>默认 {@code ""} —— 由容器选择"默认 tm"(通常是唯一 DataSource 对应的 tm,
+     * 或多 ds 时由 {@code @Primary} DataSource 决定)。语义与
+     * {@code @ManualTransaction(transactionManager=...)} 完全相同;详见该注解字段文档。</p>
+     */
+    String transactionManager() default "";
 }

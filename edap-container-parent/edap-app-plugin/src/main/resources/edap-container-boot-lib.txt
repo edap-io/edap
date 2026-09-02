@@ -5,6 +5,8 @@ io.edap:edap-auth-jwt
 io.edap:edap-auth-jwt-api
 io.edap:edap-common
 io.edap:edap-container
+io.edap:edap-data-api
+io.edap:edap-data-jdbc-dao
 io.edap:edap-datasource
 io.edap:edap-erpc-api
 io.edap:edap-grpc-api
@@ -22,6 +24,9 @@ io.edap:edap-nio-server
 io.edap:edap-protobuf
 io.edap:edap-protobuf-api
 io.edap:edap-protobuf-wire
+io.edap:edap-tx
+io.edap:edap-tx-api
+io.edap:edap-tx-jdbc
 javax.inject:javax.inject
 org.ow2.asm:asm
 org.postgresql:postgresql

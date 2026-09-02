@@ -24,13 +24,14 @@ import io.edap.tx.propagation.Propagation;
 import java.util.List;
 
 /**
- * Phase 1 默认事务管理器——仅本地事务,无 JDBC 依赖。
+ * edap 事务管理器默认实现——基于 {@link TxScope} 单 ThreadLocal,
+  替代原 Spring 风格 6 ThreadLocal + callerDepth 防御层设计。
  *
  * <p><b>职责</b>:</p>
  * <ol>
  *   <li>实现 7×3=21 个传播决策矩阵场景(见 {@link #getTransaction})</li>
  *   <li>commit / rollback 嵌套计数管理 + 同步点回调触发</li>
- *   <li>REQUIRES_NEW / NOT_SUPPORTED 路径的挂起-恢复</li>
+ *   <li>REQUIRES_NEW / NOT_SUPPORTED 路径的挂起-恢复(通过 {@link TxScope#swap})</li>
  * </ol>
  *
  * <p><b>Phase 1 边界</b>:本实现不绑定具体资源,资源由子类提供 {@link #doBegin} 实现;
@@ -47,6 +48,11 @@ import java.util.List;
  *
  * <p><b>rollback 路径</b>:跳过 beforeCommit / afterCommit,只调用
  * {@code afterCompletion(STATUS_ROLLED_BACK)}。</p>
+ *
+ * <p><b>stale state 检测</b>:本实现不再依赖 callerDepth 参数,而是检测
+ * {@link TransactionStatus#isCompleted()} 状态——若 ThreadLocal 上的 status
+ * 已被 {@link TransactionStatus#markCompleted()} 但未 unbind(框架 bug 路径),
+ * 视为残留,清空后按"无事务"处理,避免 REQUIRED 嵌套计数错误膨胀。</p>
  */
 public class DefaultEdapTransactionManager implements EdapTransactionManager {
 
@@ -72,7 +78,20 @@ public class DefaultEdapTransactionManager implements EdapTransactionManager {
             // 没传定义视为 REQUIRED + 默认隔离 —— 与 Spring 行为一致
             definition = TransactionDefinition.defaultDefinition();
         }
-        TransactionStatus current = TransactionSynchronizationManager.getCurrentStatus();
+        TxSnapshot snap = TxScope.current();
+        TransactionStatus current = snap.status();
+
+        // 防 stale ThreadLocal。两种残留场景都视为无事务,清掉:
+        // 1. current 已被 markCompleted 但 ThreadLocal 未 unbind(框架 bug 路径)
+        // 2. "半完成" 残留:wrapper 接到了 status(isNewTransaction=true)但 commit/rollback
+        //    没真正跑到 cleanup 阶段 —— completed=false 且无挂起 / savepoint。
+        //    不清掉的话,本次 getTransaction 会命中 REQUIRED 嵌套路径 +1,
+        //    commit 时 count > 0 → 只 decrement 不真正 commit → 数据丢失。
+        if (current != null && isStaleStatus(current)) {
+            TxScope.setCurrent(snap.withStatus(null));
+            current = null;
+        }
+
         Propagation prop = definition.propagation();
 
         if (current == null) {
@@ -105,6 +124,37 @@ public class DefaultEdapTransactionManager implements EdapTransactionManager {
             default:
                 throw new IllegalTransactionStateException("Unknown propagation: " + prop);
         }
+    }
+
+    /**
+     * 判断 ThreadLocal 上的 status 是否是上次请求留下的残留。两种形态视为残留:
+     *
+     * <ol>
+     *   <li>{@link TransactionStatus#isCompleted()} 为 true —— markCompleted 跑了但
+     *       cleanup 漏了(框架 bug 路径,如 commit 提前 return 后未触发 finally)
+     *   <li>"半完成":{@link TransactionStatus#isNewTransaction()} 为 true 且未 completed,
+     *       且无挂起 snapshot / savepoint。说明 wrapper 接到了 status(创建事务成功),
+     *       但 commit/rollback 都没真正跑到 cleanup 阶段 —— 这种 status 一定是残留,
+     *       因为正常完成的事务要么被 markCompleted(走完 processCommit/Rollback),要么
+     *       不可能还在 ThreadLocal 上(beginNewTransaction 后立即接 wrapper commit)。
+     *       </li>
+     * </ol>
+     *
+     * <p>不清掉的代价:本次 getTransaction 会命中 REQUIRED 嵌套路径 incrementNesting +1,
+     * wrapper commit 时 count > 0 → 只 decrement 不真正 commit → 数据丢失。</p>
+     */
+    private static boolean isStaleStatus(TransactionStatus status) {
+        if (status.isCompleted()) {
+            return true;
+        }
+        if (status.isNewTransaction()
+                && status.getSuspendedSnapshot() == null
+                && status.getSavepoint() == null) {
+            // 半完成:isNewTransaction=true + 未 completed + 无挂起/savepoint
+            // —— 正常 beginNewTransaction 后 wrapper 立即 commit,不会跨请求停在 ThreadLocal
+            return true;
+        }
+        return false;
     }
 
     private TransactionStatus handleExistingTransaction(
@@ -141,10 +191,11 @@ public class DefaultEdapTransactionManager implements EdapTransactionManager {
         TransactionResource resource = doBegin(definition, null);
         TransactionStatus status = new TransactionStatus(
                 definition, resource, true, true, definition.readOnly());
-        TransactionSynchronizationManager.bindStatus(status);
+        // 写回 snapshot;若此前 snapshot 有其他字段(resources / xid 等),保留。
+        TxScope.setCurrent(TxScope.current().withStatus(status));
         // 新事务开启时初始化同步点列表,这样 beforeCommit / afterCommit 等回调能正确触发
-        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
-            TransactionSynchronizationManager.initSynchronization();
+        if (!TxScope.isSynchronizationActive()) {
+            TxScope.initSynchronization();
         }
         return status;
     }
@@ -152,10 +203,10 @@ public class DefaultEdapTransactionManager implements EdapTransactionManager {
     private TransactionStatus handleRequiresNew(TransactionDefinition definition,
                                                  TransactionStatus current)
             throws TransactionException {
-        TransactionSynchronizationManager.SuspendedResources suspended =
-                TransactionSynchronizationManager.suspend();
+        // 挂起外层:把当前 snapshot 原子交换成 empty,旧 snapshot 保存到新 status
+        TxSnapshot suspended = TxScope.swap(TxSnapshot.empty());
         TransactionStatus newStatus = beginNewTransaction(definition);
-        newStatus.setSuspendedResources(suspended);
+        newStatus.setSuspendedSnapshot(suspended);
         return newStatus;
     }
 
@@ -178,11 +229,11 @@ public class DefaultEdapTransactionManager implements EdapTransactionManager {
     private TransactionStatus handleNotSupported(TransactionDefinition definition,
                                                  TransactionStatus current)
             throws TransactionException {
-        TransactionSynchronizationManager.SuspendedResources suspended =
-                TransactionSynchronizationManager.suspend();
+        // 挂起外层:原子交换成 empty,旧 snapshot 保存到非事务 status
+        TxSnapshot suspended = TxScope.swap(TxSnapshot.empty());
         TransactionStatus nonTx = new TransactionStatus(
                 definition, null, false, false, definition.readOnly());
-        nonTx.setSuspendedResources(suspended);
+        nonTx.setSuspendedSnapshot(suspended);
         return nonTx;
     }
 
@@ -207,7 +258,8 @@ public class DefaultEdapTransactionManager implements EdapTransactionManager {
         }
 
         // rollbackOnly 标记 → 改走 rollback 路径
-        if (status.isRollbackOnly() || status.resource() != null && status.resource().isRollbackOnly()) {
+        if (status.isRollbackOnly()
+                || (status.resource() != null && status.resource().isRollbackOnly())) {
             processRollback(status, true);
             return;
         }
@@ -296,7 +348,7 @@ public class DefaultEdapTransactionManager implements EdapTransactionManager {
     // ============ 同步点回调 ============
 
     private void triggerBeforeCommit(TransactionStatus status) throws TransactionException {
-        List<Synchronization> syncs = TransactionSynchronizationManager.getSynchronizations();
+        List<Synchronization> syncs = TxScope.currentSynchronizations();
         if (syncs == null) return;
         for (Synchronization sync : syncs) {
             sync.beforeCommit();
@@ -304,7 +356,7 @@ public class DefaultEdapTransactionManager implements EdapTransactionManager {
     }
 
     private void triggerAfterCommit(TransactionStatus status) {
-        List<Synchronization> syncs = TransactionSynchronizationManager.getSynchronizations();
+        List<Synchronization> syncs = TxScope.currentSynchronizations();
         if (syncs == null) return;
         for (Synchronization sync : syncs) {
             sync.afterCommit();
@@ -312,7 +364,7 @@ public class DefaultEdapTransactionManager implements EdapTransactionManager {
     }
 
     private void triggerAfterCompletion(TransactionStatus status, int completionStatus) {
-        List<Synchronization> syncs = TransactionSynchronizationManager.getSynchronizations();
+        List<Synchronization> syncs = TxScope.currentSynchronizations();
         if (syncs == null) return;
         for (Synchronization sync : syncs) {
             try {
@@ -326,27 +378,37 @@ public class DefaultEdapTransactionManager implements EdapTransactionManager {
 
     /**
      * commit / rollback 完成后清理:
-     * 1. markCompleted
-     * 2. 清空同步点列表(因为新事务可能复用 ThreadLocal)
-     * 3. 解绑 status(只有"newTransaction=true"的 status 才会绑到 ThreadLocal)
-     * 4. 如果有挂起的外层事务,resume —— 必须最后做,因为 resume 会重新 bind 外层 status,
-     *    顺序错会先 bind 再 unbind,导致 ThreadLocal 被错误清空
+     * <ol>
+     *   <li>markCompleted</li>
+     *   <li>清空同步点列表(因为新事务可能复用 ThreadLocal)</li>
+     *   <li>解绑 status(只有"newTransaction=true"的 status 才会绑到 ThreadLocal)</li>
+     *   <li>如果有挂起的外层事务,resume —— 必须最后做,因为 resume 会重新 bind 外层 status,
+     *       顺序错会先 bind 再 unbind,导致 ThreadLocal 被错误清空</li>
+     * </ol>
+     *
+     * <p><b>幂等性</b>:本方法可能被调用两次 —— commit 失败时 processCommit 的 catch 会调
+     * processRollback,processRollback 的 finally 调一次 cleanup,processCommit 自己的 finally
+     * 又调一次。第二次调用会把刚 resume 回 ThreadLocal 的外层 status 又清空,造成外层
+     * commit 路径找不到 status。{@code isCompleted()} 一旦置位就不再清,所以用其作为幂等 guard。</p>
      */
     private void cleanupAfterCompletion(TransactionStatus status) {
+        if (status.isCompleted()) {
+            return;
+        }
         status.markCompleted();
 
         if (status.isNewSynchronization()) {
-            TransactionSynchronizationManager.clearSynchronization();
+            TxScope.clearSynchronization();
         }
 
         if (status.isNewTransaction()) {
-            TransactionSynchronizationManager.unbindStatus();
+            TxScope.setCurrent(TxScope.current().withStatus(null));
         }
 
         // 恢复挂起的外层事务(REQUIRES_NEW / NOT_SUPPORTED)
-        if (status.getSuspendedResources() != null) {
-            TransactionSynchronizationManager.resumeSuspended(
-                    status.getSuspendedResources());
+        if (status.getSuspendedSnapshot() != null) {
+            TxScope.swap(status.getSuspendedSnapshot());
+            status.setSuspendedSnapshot(null);
         }
     }
 
@@ -354,7 +416,6 @@ public class DefaultEdapTransactionManager implements EdapTransactionManager {
 
     @Override
     public boolean hasResource() {
-        TransactionStatus s = TransactionSynchronizationManager.getCurrentStatus();
-        return s != null && s.hasResource();
+        return TxScope.isTransactionActive();
     }
 }

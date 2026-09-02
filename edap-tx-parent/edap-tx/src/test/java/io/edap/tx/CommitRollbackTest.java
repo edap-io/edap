@@ -46,7 +46,7 @@ class CommitRollbackTest {
 
     @AfterEach
     void cleanup() {
-        TransactionSynchronizationManager.clear();
+        TxScope.clear();
     }
 
     @Test
@@ -56,7 +56,7 @@ class CommitRollbackTest {
                 .propagation(Propagation.REQUIRED).build());
         List<String> order = new ArrayList<>();
 
-        TransactionSynchronizationManager.addSynchronization(new Synchronization() {
+        TxScope.addSynchronization(new Synchronization() {
             @Override public void beforeCommit()    { order.add("beforeCommit"); }
             @Override public void afterCommit()     { order.add("afterCommit"); }
             @Override public void afterCompletion(int status) { order.add("afterCompletion:" + status); }
@@ -85,7 +85,7 @@ class CommitRollbackTest {
                 .propagation(Propagation.REQUIRED).build());
         List<String> order = new ArrayList<>();
 
-        TransactionSynchronizationManager.addSynchronization(new Synchronization() {
+        TxScope.addSynchronization(new Synchronization() {
             @Override public void beforeCommit()    { order.add("beforeCommit"); }
             @Override public void afterCommit()     { order.add("afterCommit"); }
             @Override public void afterCompletion(int status) { order.add("afterCompletion:" + status); }
@@ -134,7 +134,7 @@ class CommitRollbackTest {
                 .propagation(Propagation.REQUIRED).build());
         MockTransactionResource res = (MockTransactionResource) s.resource();
 
-        TransactionSynchronizationManager.addSynchronization(new Synchronization() {
+        TxScope.addSynchronization(new Synchronization() {
             @Override public void beforeCommit() {
                 throw new RuntimeException("simulated beforeCommit failure");
             }
@@ -159,7 +159,7 @@ class CommitRollbackTest {
 
         tm.commit(s);
 
-        assertFalse(TransactionSynchronizationManager.isTransactionActive(),
+        assertFalse(TxScope.isTransactionActive(),
                 "commit 后 ThreadLocal status 应清空");
     }
 
@@ -171,7 +171,7 @@ class CommitRollbackTest {
 
         tm.rollback(s);
 
-        assertFalse(TransactionSynchronizationManager.isTransactionActive());
+        assertFalse(TxScope.isTransactionActive());
     }
 
     @Test
@@ -242,7 +242,7 @@ class CommitRollbackTest {
         assertEquals(0, outerRes.getCommitCount(), "外层不应被内层 commit 影响");
 
         // 当前 ThreadLocal 应是 outer
-        assertTrue(TransactionSynchronizationManager.isTransactionActive());
+        assertTrue(TxScope.isTransactionActive());
 
         tm.commit(outer);
         assertEquals(1, outerRes.getCommitCount());
@@ -254,7 +254,7 @@ class CommitRollbackTest {
         TransactionStatus s = tm.getTransaction(TransactionDefinition.builder()
                 .propagation(Propagation.REQUIRED).build());
 
-        TransactionSynchronizationManager.addSynchronization(new Synchronization() {
+        TxScope.addSynchronization(new Synchronization() {
             @Override public void afterCommit() {
                 throw new RuntimeException("after-commit failure");
             }
@@ -271,7 +271,7 @@ class CommitRollbackTest {
         TransactionStatus s = tm.getTransaction(TransactionDefinition.builder()
                 .propagation(Propagation.REQUIRED).build());
 
-        TransactionSynchronizationManager.addSynchronization(new Synchronization() {
+        TxScope.addSynchronization(new Synchronization() {
             @Override public void afterCompletion(int status) {
                 throw new RuntimeException("after-completion should be swallowed on rollback");
             }

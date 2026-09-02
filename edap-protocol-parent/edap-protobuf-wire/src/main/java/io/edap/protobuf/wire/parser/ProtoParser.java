@@ -1493,6 +1493,12 @@ public class ProtoParser {
             readValueSeparator('=');
             String value = readOptionValue();
             Option option = new Option();
+            if (name.startsWith("(")) {
+                name = name.substring(1);
+            }
+            if (name.endsWith(")")) {
+                name = name.substring(0, name.length()-1);
+            }
             option.setName(name).setValue(value);
             options.add(option);
             trim();

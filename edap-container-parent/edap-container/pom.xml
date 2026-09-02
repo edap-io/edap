@@ -30,6 +30,20 @@
         </dependency>
         <dependency>
             <groupId>io.edap</groupId>
+            <artifactId>edap-tx-api</artifactId>
+        </dependency>
+        <!--
+            Phase 4:AppContext.start() 自动为每个 DataSource bean 创建一个
+            DataSourceTransactionManager,运行时按方法注解的 transactionManager() 名字路由。
+            容器原生支持"@ManualTransaction(transactionManager='...')"多数据源事务分发。
+        -->
+        <dependency>
+            <groupId>io.edap</groupId>
+            <artifactId>edap-tx-jdbc</artifactId>
+            <version>${edap.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.edap</groupId>
             <artifactId>edap-log</artifactId>
         </dependency>
         <dependency>
@@ -81,6 +95,15 @@
         <dependency>
             <groupId>io.github.classgraph</groupId>
             <artifactId>classgraph</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!--
+            edap-tx-jdbc 在 compile 阶段已声明(Phase 4:AppContext 自动为每个 DataSource 创建
+            DataSourceTransactionManager)。H2 仍在 test scope 用于端到端集成测试。
+        -->
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
             <scope>test</scope>
         </dependency>
         <dependency>

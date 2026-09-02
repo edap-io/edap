@@ -24,17 +24,27 @@ package io.edap.tx;
  * <ul>
  *   <li>{@link #definition} — 事务定义(不可变)</li>
  *   <li>{@link #resource} — 关联的事务资源(本地事务时为 {@code JdbcConnectionResource};
- *       XA 时为 {@code XaTransactionResource} 等)</li>
+ *       XA 时为 {@code XaTransactionResource} 等);null 表示"非事务帧"</li>
  *   <li>{@link #newTransaction} — 本次调用是否新建事务(区别于复用外层)</li>
  *   <li>{@link #newSynchronization} — 是否本次新建同步点列表</li>
  *   <li>{@link #readOnly} — 只读标记</li>
  *   <li>{@link #completed} — 已 commit/rollback 后置 true,防止双重提交</li>
  *   <li>{@link #rollbackOnly} — 强制标记回滚(可由业务代码主动调用)</li>
  *   <li>{@link #nestingCount} — REQUIRED 嵌套层数,commit 只在最外层(==1)真正提交</li>
+ *   <li>{@link #suspendedSnapshot} — REQUIRES_NEW / NOT_SUPPORTED 场景下挂起的外层事务
+ *       快照;本事务结束时由 manager 恢复</li>
+ *   <li>{@link #savepoint} — NESTED 场景下挂的 savepoint 引用,rollback 时回滚到该 savepoint</li>
  * </ul>
  *
  * <p><b>线程安全</b>:本类的可变字段并非线程安全——每个事务状态只属于一个线程,
- * 由 {@link TransactionSynchronizationManager} 通过 ThreadLocal 保证不跨线程共享。</p>
+ * 由 {@link TxScope} 通过单 ThreadLocal 保证不跨线程共享。</p>
+ *
+ * <p><b>suspendedSnapshot vs 旧 SuspendedResources</b>:新设计改用 {@link TxSnapshot}
+ * 替代原 {@code TransactionSynchronizationManager.SuspendedResources},把
+ * status + synchronizations + resources + xid 一次性快照;manager 在
+ * {@code getTransaction} 的 REQUIRES_NEW / NOT_SUPPORTED 路径用
+ * {@link TxScope#swap(TxSnapshot)} 原子交换后,把旧 snapshot 存到新 status 的
+ * {@code suspendedSnapshot} 字段;commit/rollback 完成后 swap 回去。</p>
  */
 public final class TransactionStatus {
 
@@ -51,7 +61,7 @@ public final class TransactionStatus {
     private boolean completed;
 
     // REQUIRES_NEW / NOT_SUPPORTED 场景下挂起的外层事务快照,本事务结束时由 manager 恢复
-    private TransactionSynchronizationManager.SuspendedResources suspendedResources;
+    private TxSnapshot suspendedSnapshot;
 
     // NESTED 场景下挂的 savepoint 引用,rollback 时回滚到该 savepoint
     private Object savepoint;
@@ -107,7 +117,7 @@ public final class TransactionStatus {
      * 强制标记回滚——业务代码可主动调用,事务提交时即便无异常也 rollback。
      */
     public void setRollbackOnly() {
-                    rollbackOnly = true;
+        rollbackOnly = true;
     }
 
     public boolean isCompleted()                     { return completed; }
@@ -118,22 +128,21 @@ public final class TransactionStatus {
      * {@link io.edap.tx.exception.IllegalTransactionStateException}。
      */
     public void markCompleted() {
-                    completed = true;
+        completed = true;
     }
 
     /**
      * 本事务挂起的外层事务快照(REQUIRES_NEW / NOT_SUPPORTED 时挂起,本事务结束时恢复)。
      */
-    public TransactionSynchronizationManager.SuspendedResources getSuspendedResources() {
-        return suspendedResources;
+    public TxSnapshot getSuspendedSnapshot() {
+        return suspendedSnapshot;
     }
 
     /**
      * 由 manager 在 REQUIRES_NEW / NOT_SUPPORTED 路径上设置挂起快照。
      */
-    public void setSuspendedResources(
-            TransactionSynchronizationManager.SuspendedResources suspendedResources) {
-        this.suspendedResources = suspendedResources;
+    public void setSuspendedSnapshot(TxSnapshot suspendedSnapshot) {
+        this.suspendedSnapshot = suspendedSnapshot;
     }
 
     /**
@@ -157,7 +166,7 @@ public final class TransactionStatus {
                 + ", nesting=" + nestingCount
                 + ", rollbackOnly=" + rollbackOnly
                 + ", completed=" + completed
-                + (suspendedResources != null ? ", hasSuspended=true" : "")
+                + (suspendedSnapshot != null ? ", hasSuspended=true" : "")
                 + (savepoint != null ? ", savepoint=" + savepoint : "")
                 + '}';
     }
