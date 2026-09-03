@@ -795,12 +795,18 @@ public class JavaBuilder {
 
             if (f.getCardinality() == Field.Cardinality.REPEATED) {
                 String boxedTypeName = getBoxedTypeName(f, buildOps, proto);
+                int lastIndex = boxedTypeName.lastIndexOf('.');
+                if (lastIndex != -1) {
+                    boxedTypeName = boxedTypeName.substring(lastIndex + 1);
+                }
                 type = "List<" + boxedTypeName + ">";
+            } else {
+                int lastIndex = type.lastIndexOf('.');
+                if (lastIndex != -1) {
+                    type = type.substring(lastIndex + 1);
+                }
             }
-            int lastIndex = type.lastIndexOf('.');
-            if (lastIndex != -1) {
-                type = type.substring(lastIndex + 1);
-            }
+
 
             cb.t(level).e("private $type$ $name$;")
                     .arg(type, javaFieldName).ln();
@@ -890,13 +896,26 @@ public class JavaBuilder {
             String itemType = type;
             if (f.getCardinality() == Cardinality.REPEATED) {
                 String boxedType = getBoxedTypeName(f, buildOps, proto);
+                int index = boxedType.lastIndexOf(".");
+                if (index != -1) {
+                    boxedType = boxedType.substring(index + 1);
+                }
                 type = "List<" + boxedType + ">";
+            } else {
+                int index = type.lastIndexOf('.');
+                if (index != -1) {
+                    type = type.substring(index + 1);
+                }
             }
 
             if (f.getCardinality() == Cardinality.REPEATED) {
                 String methodName = setMethod.substring(3);
                 String itemName = "itemVar";
                 itemType = getBoxedTypeName(f, buildOps, proto);
+                int index = itemType.lastIndexOf('.');
+                if (index != -1) {
+                    itemType = itemType.substring(index + 1);
+                }
                 listCode.t(level).e("public void add$itemName$($itemType$ $itemTypeName$) {")
                         .arg(methodName, itemType, itemName).ln();
                 listCode.t(level + 1).e(LIST_IS_NULL_STR).arg(javaFieldName).ln();
