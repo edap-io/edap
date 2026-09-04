@@ -13,6 +13,7 @@ io.edap:edap-grpc-api
 io.edap:edap-http-core
 io.edap:edap-http-server
 io.edap:edap-json
+io.edap:edap-json-annotation
 io.edap:edap-log
 io.edap:edap-log-api
 io.edap:edap-microservice-annotation
