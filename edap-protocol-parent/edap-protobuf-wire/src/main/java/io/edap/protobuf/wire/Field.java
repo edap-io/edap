@@ -25,6 +25,17 @@ import java.util.Locale;
  */
 public class Field {
     /**
+     * 属性所属的oneOf的名称，如果不在oneOf内则为空
+     */
+    public String getOneOfName() {
+        return oneOfName;
+    }
+
+    public void setOneOfName(String oneOfName) {
+        this.oneOfName = oneOfName;
+    }
+
+    /**
      * 属性是否赋值类型
      */
     public enum Cardinality {
@@ -161,6 +172,10 @@ public class Field {
      * 消息属性的注释信息
      */
     private Comment comment;
+    /**
+     * 属性所属的oneOf的名称，如果不在oneOf内则为空
+     */
+    private String oneOfName;
 
     public String getTypeString() {
         return this.getType();

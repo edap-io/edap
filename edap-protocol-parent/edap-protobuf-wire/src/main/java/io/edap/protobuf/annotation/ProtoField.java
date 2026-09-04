@@ -67,4 +67,10 @@ public @interface ProtoField {
      * @return
      */
     String jsonType() default "";
+
+    /**
+     * 属性所属oneOf的名称
+     * @return
+     */
+    String oneOf() default "";
 }

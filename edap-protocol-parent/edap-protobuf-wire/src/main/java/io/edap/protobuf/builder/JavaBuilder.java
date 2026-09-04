@@ -614,7 +614,12 @@ public class JavaBuilder {
         if (oneofs != null) {
             oneofs.forEach(o -> {
                 if (o.getFields() != null) {
-                    o.getFields().forEach(tmp::add);
+                    o.getFields().forEach(f -> {
+                        if (f.getOneOfName() == null || !f.getOneOfName().equals(o.getName())) {
+                            f.setOneOfName(o.getName());
+                        }
+                        tmp.add(f);
+                    });
                 }
             });
         }
@@ -698,7 +703,7 @@ public class JavaBuilder {
         int level = (indent < 1) ? 1 : indent;
         final CodeBuilder cb = new CodeBuilder();
         String javaPackage = buildOps.getJavaPackage();
-        List<Field> tmp = new ArrayList<>();
+        List<Field> fields = new ArrayList<>();
         List<String> imps = new ArrayList<>();
         Map<String, Proto> messageProtos = new HashMap<>();
         for (Map.Entry<String, Proto> entry : protos.entrySet()) {
@@ -719,14 +724,12 @@ public class JavaBuilder {
             }
 
         }
-        buildMsgImps(msg, tmp, imps, buildOps, proto, messageProtos);
+        buildMsgImps(msg, fields, imps, buildOps, proto, messageProtos);
         addImport(imps, Proto.class.getPackage().getName() + ".Field.Type");
         addImport(imps, "java.io.Serializable");
         addImport(imps, ProtoMessage.class.getName());
 
-        List<Field> fields = new ArrayList<>();
-        tmp.stream().sorted(Comparator.comparingInt(Field::getTag))
-                .forEach(fields::add);
+        Collections.sort(fields, Comparator.comparingInt(Field::getTag));
         cb.c(CREATE_FILE_TIPS).ln();
         if (!buildOps.isIsNested() && javaPackage != null && !javaPackage.isEmpty()) {
             cb.e(PACKNAME_STR).arg(proto.getOptionValue("java_package")).ln(2);
@@ -750,6 +753,62 @@ public class JavaBuilder {
         buildDocComment(cb, msg.getComment(), level-1);
         cb.t(level-1).c("@ProtoMessage(protoFile = \"").c(proto.getName()).c("\")").ln();
         cb.t(level-1).e("public class $name$ implements Serializable {").arg(msg.getName()).ln(2);
+
+        List<Oneof> oneOfs = msg.getOneofs();
+        CodeBuilder oocMethod = new CodeBuilder();
+        CodeBuilder wooMethod = new CodeBuilder();
+        if (oneOfs != null && !oneOfs.isEmpty()) {
+
+            wooMethod.t(level).c("public String whichOneof(String oneOfName) {").ln();
+
+            int seq = 0;
+            for (Oneof oneof : oneOfs) {
+                String oneOfVarName;
+                String oneOfName = toCamelCase(oneof.getName());
+                oneOfVarName = oneOfName.substring(0, 1).toUpperCase(Locale.ENGLISH);
+                if (oneOfName.length() > 1) {
+                    oneOfVarName += oneOfName.substring(1);
+                }
+                String appendElse;
+                if (seq > 0) {
+                    appendElse = " else ";
+                } else {
+                    appendElse = "";
+                    wooMethod.t(level + 1);
+                }
+                seq++;
+                wooMethod.c(appendElse).c("if (\"").c(oneof.getName()).c("\".equals(oneOfName)) {").ln();
+                wooMethod.t(level + 2).c("return _oneOf").c(oneOfVarName).c(";").ln();
+                List<Field> oneOfFields = oneof.getFields();
+                if (oneOfFields != null && !oneOfFields.isEmpty()) {
+                    cb.t(level).c("private transient String _oneOf").c(oneOfVarName).c(" = null;").ln();
+
+                    oocMethod.t(level).c("private void __clear").c(oneOfVarName).c("(String fieldName) {").ln();
+                    oocMethod.t(level + 1).c("switch (fieldName) {").ln();
+
+                    for (Field of : oneOfFields) {
+                        String clearMethod = "_clear";
+                        String fieldName = toCamelCase(of.getName());
+                        clearMethod += fieldName.substring(0, 1).toUpperCase(Locale.ENGLISH);
+                        if (fieldName.length() > 1) {
+                            clearMethod += fieldName.substring(1);
+                        }
+                        oocMethod.t(level + 2).e("case \"$fieldName$\":").arg(fieldName).ln();
+                        oocMethod.t(level + 3).c(clearMethod).c("();").ln();
+                        oocMethod.t(level + 3).e("break;").ln();
+                    }
+                    oocMethod.t(level + 2).c("default:").ln();
+                    oocMethod.t(level + 1).c("}").ln();
+                    oocMethod.t(level).c("}").ln().ln();
+                }
+                wooMethod.t(level + 1).c("}");
+            }
+            wooMethod.ln();
+            wooMethod.t(level + 1).c("return \"\";").ln();
+            wooMethod.t(level).c("}").ln();
+            cb.ln();
+        }
+
 
         CodeBuilder getCode;
         CodeBuilder setCode;
@@ -789,6 +848,9 @@ public class JavaBuilder {
                         cb.c(", jsonType=\"").c(option.getValue()).c("\"");
                     }
                 }
+            }
+            if (f.getOneOfName() != null && f.getOneOfName().trim().length() > 0) {
+                cb.c(", oneOf=\"").c(f.getOneOfName().trim()).c("\"");
             }
             cb.c(")").ln();
             String type = getJavaType(f, imps, buildOps, proto);
@@ -838,16 +900,73 @@ public class JavaBuilder {
                     javaFieldName.substring(1);
             setCode.t(level).e("public $retType$ $setMethod$($type$ $name$) {")
                     .arg(retType, setMethod, type, javaFieldName).ln();
+            String oneOfVarName = null;
+            if (f.getOneOfName() != null && f.getOneOfName().length() > 0) {
+                String oneOfName = toCamelCase(f.getOneOfName());
+                oneOfVarName = oneOfName.substring(0, 1).toUpperCase(Locale.ENGLISH);
+                if (oneOfName.length() > 1) {
+                    oneOfVarName += oneOfName.substring(1);
+                }
+                setCode.t(level + 1).e("if (_oneOf$oneofName$")
+                        .arg(oneOfVarName).c(" != null) {").ln();
+                setCode.t(level + 2).c("__clear").c(oneOfVarName)
+                        .e("(_oneOf$oneofName$").arg(oneOfVarName).c(");").ln();
+                setCode.t(level + 1).c("}").ln();
+            }
+
             setCode.t(level + 1).e("this.$name$ = $name$;")
                     .arg(javaFieldName, javaFieldName).ln();
+            if (f.getOneOfName() != null && f.getOneOfName().length() > 0) {
+                setCode.t(level + 1).e("_oneOf$oneofName$")
+                        .arg(oneOfVarName).e(" = \"$name$\";").arg(javaFieldName).ln();
+            }
             if (buildOps.isChainOper()) {
                 setCode.t(level + 1).c("return this;").ln();
             }
             setCode.t(level).c("}").ln();
+            if (f.getOneOfName() != null && f.getOneOfName().length() > 0) {
+
+                setCode.ln();
+                setCode.t(level).c("private void _clear").c(setMethod.substring(3)).c("() {").ln();
+                if (f.getCardinality() == Cardinality.REPEATED) {
+                    setCode.t(level + 1).e("this.$name$ = null;")
+                            .arg(javaFieldName).ln();
+                } else {
+                    switch (f.getType()) {
+                        case "boolean":
+                            setCode.t(level + 1).e("this.$name$ = false;")
+                                    .arg(javaFieldName).ln();
+                            break;
+                        case "double":
+                        case "float":
+                        case "int32":
+                        case "int64":
+                        case "uint32":
+                        case "uint64":
+                        case "sint32":
+                        case "sint64":
+                        case "fixed32":
+                        case "fixed64":
+                        case "sfixed32":
+                        case "sfixed64":
+                            setCode.t(level + 1).e("this.$name$ = 0;")
+                                    .arg(javaFieldName).ln();
+                            break;
+                        default:
+                            setCode.t(level + 1).e("this.$name$ = null;")
+                                    .arg(javaFieldName).ln();
+                            break;
+                    }
+                }
+                setCode.t(level).c("}").ln();
+            }
             setCodes.add(setCode.toString());
         }
 
         cb.ln().c(cons.toString());
+
+        cb.c(oocMethod.toString());
+        cb.c(wooMethod.toString());
 
         for (int i=0;i<size;i++) {
             cb.ln().c(getCodes.get(i));

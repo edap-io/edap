@@ -580,6 +580,7 @@ public class ProtoParser {
                 String reserved = parseReserved();
                 msg.addReserved(Reserved.parseReserved(reserved, comments));
             } else if ("oneof".equals(token)) {
+                System.out.println("#### oneof");
                 msg.addOneof(parseOneof());
             } else {
                 Field field = parseField(Cardinality.OPTIONAL, token);
@@ -888,9 +889,11 @@ public class ProtoParser {
                 Field field = parseField(
                         Cardinality.valueOf(token.toUpperCase(Locale.ENGLISH)),
                         null);
+                field.setOneOfName(name);
                 oneof.addField(field);
             } else {
                 Field field = parseField(Cardinality.OPTIONAL, token);
+                field.setOneOfName(name);
                 oneof.addField(field);
             }
             boolean isEnd = blockEnd();
