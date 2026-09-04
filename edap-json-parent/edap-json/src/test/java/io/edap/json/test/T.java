@@ -34,7 +34,10 @@ import java.nio.charset.StandardCharsets;
 public class T {
 
     public static void main(String[] args) throws IOException {
-        SerializerFeature feature = SerializerFeature.LONG_TO_STRING;
-        System.out.println(feature.getMask());
+        Class cls = Gender.class;
+        System.out.println(cls);
+
+        Gender female = Gender.GENDER_FEMALE;
+        System.out.println(female);
     }
 }

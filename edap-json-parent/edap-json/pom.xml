@@ -30,6 +30,11 @@
     <dependencies>
         <dependency>
             <groupId>io.edap</groupId>
+            <artifactId>edap-json-annotation</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.edap</groupId>
             <artifactId>edap-common</artifactId>
         </dependency>
         <dependency>

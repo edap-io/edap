@@ -16,6 +16,7 @@
 
 package io.edap.json.util;
 
+import io.edap.json.annotation.JsonProperty;
 import io.edap.json.enums.DataType;
 import io.edap.json.enums.JsonVersion;
 import io.edap.json.model.JsonFieldInfo;
@@ -388,7 +389,12 @@ public class JsonUtil {
             jfi.jsonFieldName = f.getName();
             Annotation[] anns = f.getAnnotations();
             for (Annotation ann : anns) {
-                if ("io.edap.protobuf.annotation.ProtoField".equals(ann.annotationType().getName())) {
+                if (ann instanceof JsonProperty) {
+                    JsonProperty jp = (JsonProperty) ann;
+                    if (!StringUtil.isEmpty(jp.value())) {
+                        jfi.jsonFieldName = jp.value();
+                    }
+                } else if ("io.edap.protobuf.annotation.ProtoField".equals(ann.annotationType().getName())) {
                     Method[] ms = ann.getClass().getDeclaredMethods();
                     for (Method m : ms) {
                         if (m.getName().equals("name")) {

@@ -472,18 +472,27 @@ public class ByteArrayJsonWriter extends AbstractJsonWriter implements JsonWrite
     }
 
     @Override
+    public void write(byte[] bs) {
+        write(bs, 0, bs.length);
+    }
+
+    @Override
     public void write(byte[] bs, int offset, int length) {
         expand(length);
+        if (length > 5) {
+            System.arraycopy(bs, offset, buf, pos, length);
+            pos += length;
+        } else {
+            int j = pos;
+            int n = offset + length;
+            int i = offset;
+            byte[] val = buf;   /* avoid getfield opcode */
 
-        int j = pos;
-        int n = offset + length;
-        int i = offset;
-        byte[] val = buf;   /* avoid getfield opcode */
-
-        while (i < n) {
-            val[j++] = bs[i++];
+            while (i < n) {
+                val[j++] = bs[i++];
+            }
+            pos = j;
         }
-        pos = j;
     }
 
     @Override
