@@ -191,9 +191,21 @@ public class ProtoBufEncoderGenerator {
             mv.visitTryCatchBlock(l000, l100, l200, "java/lang/Exception");
             mv.visitLabel(l000);
 
+            Map<String, Label> oneOfLables = new HashMap<>();
             for (ProtoFieldInfo pfi : fields) {
                 String rType = getDescriptor(pfi.field.getType());
-
+                String fieldName = pfi.field.getName();
+                if (pfi.protoField.oneOf() != null && pfi.protoField.oneOf().length() > 0) {
+                    mv.visitLdcInsn(fieldName);
+                    mv.visitVarInsn(ALOAD, 2);
+                    mv.visitLdcInsn(pfi.protoField.oneOf());
+                    mv.visitMethodInsn(INVOKEVIRTUAL, pojoName, "whichOneof",
+                            "(Ljava/lang/String;)Ljava/lang/String;", false);
+                    mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/String", "equals",
+                             "(Ljava/lang/Object;)Z", false);
+                    oneOfLables.put(fieldName, new Label());
+                    mv.visitJumpInsn(IFEQ, oneOfLables.get(fieldName));
+                }
                 if (isPojo(pfi.field.getGenericType())) {
                     mv.visitVarInsn(ALOAD, 1);
                     mv.visitFieldInsn(GETSTATIC, pojoCodecName, "tag" + pfi.protoField.tag(), "[B");
@@ -262,6 +274,9 @@ public class ProtoBufEncoderGenerator {
                                     "([B" + rType + ")V", true);
                         }
                     }
+                }
+                if (pfi.protoField.oneOf() != null && pfi.protoField.oneOf().length() > 0) {
+                    mv.visitLabel(oneOfLables.get(fieldName));
                 }
             }
             if (parentMapType != null) {
