@@ -320,7 +320,7 @@ public class TestAllType {
             mapKeys.addAll(keys);
             Collections.sort(mapKeys);
             for (String key : mapKeys) {
-                JsonObject jp = jvalue.getJsonObject("field10");
+                JsonObject jp = jvalue.getJsonObject("field10").getJsonObject("edap");
                 OneMapOuterClass.Project.Builder pbuider = OneMapOuterClass.Project.newBuilder();
                 pbuider.setId(jp.getLongValue("id"));
                 pbuider.setName(jp.getString("name"));
@@ -366,7 +366,7 @@ public class TestAllType {
             allType.field9 = jvalue.getLongValue("field9");
             Map<String, Project> projects = new LinkedHashMap<>();
             for (String key : mapKeys) {
-                JsonObject jp = jvalue.getJsonObject("field10");
+                JsonObject jp = jvalue.getJsonObject("field10").getJsonObject("edap");
                 Project project = new Project();
                 project.setId(jp.getLongValue("id"));
                 project.setName(jp.getString("name"));

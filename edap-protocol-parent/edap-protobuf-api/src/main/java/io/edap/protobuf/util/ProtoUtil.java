@@ -124,6 +124,9 @@ public class ProtoUtil {
         }
         List<Field> fields = new ArrayList<>(allfields.size());
         for (Field f : allfields) {
+            if (Modifier.isTransient(f.getModifiers())) {
+                continue;
+            }
             if (!f.getDeclaringClass().getName().startsWith("java.")) {
                 fields.add(f);
             }
@@ -448,6 +451,11 @@ public class ProtoUtil {
 
             @Override
             public String jsonType() {
+                return "";
+            }
+
+            @Override
+            public String oneOf() {
                 return "";
             }
 
@@ -884,6 +892,11 @@ public class ProtoUtil {
 
             @Override
             public String jsonType() {
+                return "";
+            }
+
+            @Override
+            public String oneOf() {
                 return "";
             }
 
