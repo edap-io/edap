@@ -930,6 +930,19 @@ public class AppContext implements Lifecycle {
         return beans.getBean(name, type);
     }
 
+    /**
+     * 按类型查 bean（多实现场景走 @Primary 消歧逻辑，与 BeanContainer.getBean(Class) 一致）。
+     * 委托给 BeanContainer.getBean(Class),这里只做 type.cast() 类型断言。
+     *
+     * <p>比 {@link #getBean(String, Class)} 更常用 —— 业务方拿到 ctx 后通常已知目标类型,
+     * 名字(@MicroServiceBean(name="...") 派生)反倒记不住。多候选 + 0/多个 @Primary 时抛
+     * {@link io.edap.container.exc.NoUniqueBeanException};byType miss 时抛
+     * {@link io.edap.container.exc.NoSuchBeanException}。</p>
+     */
+    public <T> T getBean(Class<T> type) {
+        return type.cast(beans.getBean(type));
+    }
+
     /** 事件发布快捷入口（state == GATHERING 之后可调；NEW 不允许）。 */
     public void publishEvent(ApplicationEvent e) {
         events.publish(e);
