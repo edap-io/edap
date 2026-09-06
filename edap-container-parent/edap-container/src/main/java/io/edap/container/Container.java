@@ -613,6 +613,57 @@ public class Container {
         log.info("Container stopped.");
     }
 
+    /**
+     * 查询 {@code appId} 当前在 3 个槽里的部署状态。供 {@code undeploy(appId, version)} /
+     * {@code switchVersion(appId, version)} 调用方先查 compositeVersion（这两个方法都要求
+     * compositeVersion 作参数,直接传 mavenVersion 在 SNAPSHOT 多 build 时会撞到 101 "已部署同版本")。
+     *
+     * <p><b>读语义,无锁</b>:从 {@link #registry} 直接读 —— SlotEntry 不可变,registry 是
+     * ConcurrentHashMap,get 无锁,无需进入 {@code appLocks}。{@code deploy / undeploy /
+     * switchVersion} 在替换 SlotEntry 那一刻 listSlots 看到的可能是"半旧半新",但每个
+     * SlotEntry 快照自身是原子的;返回的 List 也是单次快照,在调用方拿到 List 那一刻 3 个槽
+     * 之间不会撕裂(但和后续 deploy/undeploy 操作可能冲突)。</p>
+     *
+     * <p><b>返回</b>:
+     * <ul>
+     *   <li>appId 未部署 → {@code BaseResult.fail(404, "未部署: " + appId)}</li>
+     *   <li>已部署 → {@code BaseResult.success(data=List<SlotInfo>)},按 PREVIOUS → CURRENT → STAGING
+     *       顺序排;空槽不返回(避免 noise);每个 SlotInfo 含 slot / compositeVersion /
+     *       mavenVersion / buildTime / earName,详见 {@link SlotInfo}</li>
+     * </ul>
+     */
+    public BaseResult<List<SlotInfo>> listSlots(String appId) {
+        SlotEntry entry = registry.get(appId);
+        if (entry == null || entry.isEmpty()) {
+            return BaseResult.fail(404, "未部署: " + appId);
+        }
+        List<SlotInfo> slots = new ArrayList<>(3);
+        addSlotInfo(slots, Slot.PREVIOUS, entry.previous());
+        addSlotInfo(slots, Slot.CURRENT,  entry.current());
+        addSlotInfo(slots, Slot.STAGING,  entry.staging());
+        BaseResult<List<SlotInfo>> r = new BaseResult<>();
+        r.setCode(BaseResult.SUCCESS);
+        r.setData(slots);
+        return r;
+    }
+
+    private void addSlotInfo(List<SlotInfo> slots, Slot slot, AppContext ctx) {
+        if (ctx == null) return;                       // 空槽不返回
+        DeployMetaData dmd = ctx.dmd();
+        SlotInfo info = new SlotInfo();
+        info.setSlot(slot.name());
+        info.setCompositeVersion(ctx.version());
+        if (dmd != null && dmd.getMavenInfo() != null) {
+            info.setMavenVersion(dmd.getMavenInfo().getVersion());
+            info.setEarName(dmd.getOrignalFile() != null
+                    ? dmd.getOrignalFile().getName() : null);
+        }
+        if (dmd != null && dmd.getBuildInfo() != null) {
+            info.setBuildTime(dmd.getBuildInfo().getBuildTime());
+        }
+        slots.add(info);
+    }
+
     // 部署入口
     public BaseResult<String> deploy(File ear) {
         // 1. 解析 EAR
@@ -641,10 +692,28 @@ public class Container {
             if (findSlotByCompositeVersion(empty, version) != null) {
                 return BaseResult.fail(101, "已部署同版本: " + appId + ":" + version);
             }
-            // 4. 槽位满检查
-            if (empty.previous() != null && empty.current() != null && empty.staging() != null) {
-                return BaseResult.fail(105, "已存在3个版本，请先 undeploy");
+            // 4. STAGING 替换：STAGING 槽位已被占 → 卸掉旧版本后再写入新版本。
+            //    STAGING 不接流量,语义上"未上线版本被新版本覆盖"是合理的(常见的"改 bug 重新打
+            //    包"场景,不必每次先 undeploy staging 再 deploy);PREVIOUS / CURRENT 不在此
+            //    替换范围 —— 那是已上线 / 回滚备份,不能默默丢掉。
+            //    第 3 步已排除"新版本 = 旧 staging 版本" → 这里替换时新版本必然 ≠ 旧 staging。
+            AppContext oldStaging = empty.staging();
+            if (oldStaging != null) {
+                String oldStagingVersion = compositeOf(oldStaging);
+                log.info("STAGING 槽被占,卸掉旧版本 [{}:{}] 后写入新版本 [{}:{}]",
+                        l -> l.arg(appId).arg(oldStagingVersion).arg(appId).arg(version));
+                try {
+                    oldStaging.stop();
+                } catch (Throwable t) {
+                    log.warn("旧 STAGING AppContext.stop() 异常", t);
+                }
+                unregisterIfs(appId, oldStaging.dmd());
+                // 重建 empty:staging 槽位腾空。注意:此处不动 appPathTables —— ctx.stop()
+                // 已通过 RouterHub.unbindAll() 摘路由;新 STAGING 的 ctx.start() 会重新调
+                // deployAppRoutes() 覆盖同名 appId 条目。
+                empty = new SlotEntry(empty.previous(), empty.current(), null);
             }
+            // (原"3 槽全满"检查已删除 —— STAGING 总是可替换,本路径下不会撞到该条件)
 
             // 5. 建 ClassLoader + AppContext
             EdapAppClassLoader appCL = new EdapAppClassLoader(ear, containerCL);
@@ -860,7 +929,7 @@ public class Container {
      * 选 deploy 目标槽（按 §3.6.2 语义）：
      * <ul>
      *   <li>STAGING 空闲 → 写 STAGING（新版本默认进灰度槽，需 switchVersion 才接流量）</li>
-     *   <li>STAGING 占用 → null（返回 105：先 undeploy staging 或 switchVersion 把它挪走）</li>
+     *   <li>STAGING 占用 → 不会走到这里（{@link #deploy} 在前面已经把旧 STAGING 卸掉再调本方法）</li>
      * </ul>
      * <b>PREVIOUS 不在选择范围内</b> —— PREVIOUS 是"上一个 current 的快速回滚备份"，
      * 只由 {@link #switchVersion} 退位时填入（deploy() 永不主动写 PREVIOUS）。
