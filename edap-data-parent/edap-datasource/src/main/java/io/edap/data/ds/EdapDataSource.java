@@ -1,11 +1,13 @@
 package io.edap.data.ds;
 
 import javax.sql.DataSource;
+import java.io.Closeable;
+import java.io.IOException;
 import java.io.PrintWriter;
 import java.sql.*;
 import java.util.logging.Logger;
 
-public class EdapDataSource implements DataSource {
+public class EdapDataSource implements DataSource, Closeable {
 
     private DataSource delegate;
 
@@ -70,5 +72,12 @@ public class EdapDataSource implements DataSource {
     @Override
     public boolean isWrapperFor(Class<?> iface) throws SQLException {
         return delegate.isWrapperFor(iface);
+    }
+
+    @Override
+    public void close() throws IOException {
+        if (delegate instanceof Closeable) {
+            ((Closeable)delegate).close();
+        }
     }
 }
