@@ -23,6 +23,10 @@ public abstract class AbtractMethod implements HttpReq {
         return this;
     }
 
+    public Map<String, String> getHeaders() {
+        return headers;
+    }
+
     public String getUrl() {
         return url;
     }

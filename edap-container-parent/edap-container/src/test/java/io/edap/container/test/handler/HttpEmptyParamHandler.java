@@ -69,7 +69,7 @@ public class HttpEmptyParamHandler extends AbstractHandler implements HttpHandle
         StylistsSortBy stb;
         if (!StringUtil.isEmpty(sortBy)) {
             try {
-                stb = StylistsSortBy.valueOf(sortBy);
+                stb = StylistsSortBy.valueOf(Integer.parseInt(sortBy));
             } catch (IllegalArgumentException e) {
                 log.warn("StylistsSortBy valueOf error", e);
                 stb = null;

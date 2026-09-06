@@ -1,19 +1,21 @@
 package io.edap.http.server.client;
 
 import io.edap.http.server.client.method.Get;
-import okhttp3.OkHttpClient;
-import okhttp3.Request;
-import okhttp3.Response;
+import io.edap.http.server.client.method.Post;
+import okhttp3.*;
 
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.HashMap;
+import java.util.Map;
 
 public class HttpClient {
 
     HashMap<AsyncGroupConfig, AsyncGroup> asyncGroups = new HashMap<>();
 
     OkHttpClient client = new OkHttpClient();
+
+    static MediaType JSON = MediaType.parse("application/json;charset=utf-8");
 
     public HttpClient() {
 
@@ -29,6 +31,44 @@ public class HttpClient {
 
         asyncGroups.put(config, asyncGroup);
         return asyncGroup;
+    }
+
+    public HttpResp post(Post method) throws IOException {
+        try {
+
+            Request.Builder postBuilder = new Request.Builder().url(method.getUrl());
+
+            for (Map.Entry<String, String> entry : method.getHeaders().entrySet()) {
+                postBuilder.addHeader(entry.getKey(), entry.getValue());
+            }
+            if (method.getBody() != null) {
+                postBuilder.post(RequestBody.create(method.getBody().bytes(), JSON));
+            }
+            Response resp = client.newCall(postBuilder.build()).execute();
+            return new HttpResp() {
+                @Override
+                public int code() {
+                    return resp.code();
+                }
+
+                @Override
+                public HttpBody body() {
+                    return new HttpBody() {
+                        @Override
+                        public void writeTo(OutputStream out) {
+
+                        }
+
+                        @Override
+                        public byte[] bytes() throws IOException {
+                            return resp.body().bytes();
+                        }
+                    };
+                }
+            };
+        } catch (IOException e) {
+            throw e;
+        }
     }
 
     public HttpResp get(Get method) throws IOException {
