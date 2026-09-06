@@ -11,6 +11,7 @@ import io.edap.util.internal.GeneratorClassInfo;
 import org.objectweb.asm.*;
 
 import java.io.IOException;
+import java.lang.annotation.Annotation;
 import java.lang.reflect.ParameterizedType;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -33,6 +34,8 @@ public class JsonDecoderGenerator {
     static final String DATARANGE_NAME = toInternalName(DataRange.class.getName());
 
     static final String PARENT_NAME = toInternalName(AbstractDecoder.class.getName());
+
+    static final String DATATYPE_NAME = toInternalName(DataType.class.getName());
 
     private List<GeneratorClassInfo> inners;
 
@@ -218,8 +221,9 @@ public class JsonDecoderGenerator {
                 mv.visitVarInsn(ALOAD, 0);
                 mv.visitVarInsn(ALOAD, 1);
                 mv.visitLdcInsn(Type.getType(getDescriptor(itemType)));
+                mv.visitFieldInsn(GETSTATIC, DATATYPE_NAME, dataType.name(), "L" + DATATYPE_NAME +";");
                 mv.visitMethodInsn(INVOKEVIRTUAL, pojoDecoderName, "readList",
-                        "(L" + READER_NAME + ";Ljava/lang/Class;)Ljava/util/List;", false);
+                        "(L" + READER_NAME + ";Ljava/lang/Class;L" + DATATYPE_NAME + ";)Ljava/util/List;", false);
                 visitSetValueOpcode(mv, jfi);
             } else if (isMap(jfi.field.getGenericType())) {
                 mv.visitVarInsn(ALOAD, 3);
@@ -231,6 +235,29 @@ public class JsonDecoderGenerator {
 //            mv.visitMethodInsn(INVOKEVIRTUAL, pojoName, "setField1",
 //                    "(Ljava/lang/String;)V", false);
                 mv.visitTypeInsn(CHECKCAST, "java/util/Map");
+                visitSetValueOpcode(mv, jfi);
+            } else if (jfi.field.getType().isEnum()) {
+                boolean isProtoEnum = false;
+                Annotation[] anns = jfi.field.getType().getDeclaredAnnotations();
+                for (Annotation ann : anns) {
+                    if ("io.edap.protobuf.annotation.ProtoEnum".equals(ann.annotationType().getName())) {
+                        isProtoEnum = true;
+                    }
+                }
+                String enumName = toInternalName(jfi.field.getType().getName());
+                mv.visitVarInsn(ALOAD, 3);
+                mv.visitVarInsn(ALOAD, 1);
+                if (isProtoEnum) {
+                    mv.visitMethodInsn(INVOKEINTERFACE, READER_NAME, "readInt",
+                            "()I", true);
+                    mv.visitMethodInsn(INVOKESTATIC, enumName, "valueOf",
+                            "(I)L" + enumName + ";", false);
+                } else {
+                    mv.visitMethodInsn(INVOKEINTERFACE, READER_NAME, "readString",
+                            "()Ljava/lang/String;", true);
+                    mv.visitMethodInsn(INVOKESTATIC, enumName, "valueOf",
+                            "(Ljava/lang/String;)L" + enumName + ";", false);
+                }
                 visitSetValueOpcode(mv, jfi);
             } else {
                 mv.visitVarInsn(ALOAD, 3);
@@ -298,8 +325,9 @@ public class JsonDecoderGenerator {
                 mv.visitVarInsn(ALOAD, 0);
                 mv.visitVarInsn(ALOAD, 1);
                 mv.visitLdcInsn(Type.getType(getDescriptor(itemType)));
+                mv.visitFieldInsn(GETSTATIC, DATATYPE_NAME, dataType.name(), "L" + DATATYPE_NAME +";");
                 mv.visitMethodInsn(INVOKEVIRTUAL, pojoDecoderName, "readList",
-                        "(L" + READER_NAME + ";Ljava/lang/Class;)Ljava/util/List;", false);
+                        "(L" + READER_NAME + ";Ljava/lang/Class;L" + DATATYPE_NAME + ";)Ljava/util/List;", false);
                 visitSetValueOpcode(mv, jfi);
             } else if (isMap(jfi.field.getGenericType())) {
                 mv.visitVarInsn(ALOAD, 3);
@@ -311,6 +339,29 @@ public class JsonDecoderGenerator {
 //            mv.visitMethodInsn(INVOKEVIRTUAL, pojoName, "setField1",
 //                    "(Ljava/lang/String;)V", false);
                 mv.visitTypeInsn(CHECKCAST, "java/util/Map");
+                visitSetValueOpcode(mv, jfi);
+            } else if (jfi.field.getType().isEnum()) {
+                boolean isProtoEnum = false;
+                Annotation[] anns = jfi.field.getType().getDeclaredAnnotations();
+                for (Annotation ann : anns) {
+                    if ("io.edap.protobuf.annotation.ProtoEnum".equals(ann.annotationType().getName())) {
+                        isProtoEnum = true;
+                    }
+                }
+                String enumName = toInternalName(jfi.field.getType().getName());
+                mv.visitVarInsn(ALOAD, 3);
+                mv.visitVarInsn(ALOAD, 1);
+                if (isProtoEnum) {
+                    mv.visitMethodInsn(INVOKEINTERFACE, READER_NAME, "readInt",
+                            "()I", true);
+                    mv.visitMethodInsn(INVOKESTATIC, enumName, "valueOf",
+                            "(I)L" + enumName + ";", false);
+                } else {
+                    mv.visitMethodInsn(INVOKEINTERFACE, READER_NAME, "readString",
+                            "()Ljava/lang/String;", true);
+                    mv.visitMethodInsn(INVOKESTATIC, enumName, "valueOf",
+                            "(Ljava/lang/String;)L" + enumName + ";", false);
+                }
                 visitSetValueOpcode(mv, jfi);
             } else {
                 mv.visitFrame(Opcodes.F_SAME, 0, null, 0, null);

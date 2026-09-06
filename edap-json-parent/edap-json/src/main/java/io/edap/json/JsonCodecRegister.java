@@ -16,6 +16,7 @@
 
 package io.edap.json;
 
+import io.edap.json.decoders.LongDecoder;
 import io.edap.json.decoders.MapReflectDecoder;
 import io.edap.json.decoders.ReflectDecoder;
 import io.edap.json.encoders.*;
@@ -350,6 +351,9 @@ public class JsonCodecRegister {
 
     private Class generateDecoderClass(Class cls, DataType dataType, JsonVersion version) {
         Class decoderCls;
+        if (cls == Long.class) {
+            return LongDecoder.class;
+        }
         String decoderName = buildDecoderName(cls, dataType, version);
         try {
             decoderCls = Class.forName(decoderName);

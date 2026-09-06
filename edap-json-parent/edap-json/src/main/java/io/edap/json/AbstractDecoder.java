@@ -24,9 +24,9 @@ import java.util.List;
 
 public class AbstractDecoder {
 
-    public <T> List<T> readList(JsonReader reader, Class<T> pojo)
+    public <T> List<T> readList(JsonReader reader, Class<T> pojo, DataType dataType)
             throws InvocationTargetException, InstantiationException, IllegalAccessException {
-        JsonDecoder<T> decoder = JsonCodecRegister.instance().getDecoder(pojo, DataType.STRING);
+        JsonDecoder<T> decoder = JsonCodecRegister.instance().getDecoder(pojo, dataType);
         char c = reader.firstNotSpaceChar();
         if (c != '[') {
             throw new JsonParseException("不是数组类型数据");
