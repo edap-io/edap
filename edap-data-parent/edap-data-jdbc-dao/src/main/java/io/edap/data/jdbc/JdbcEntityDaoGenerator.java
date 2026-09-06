@@ -509,8 +509,7 @@ public class JdbcEntityDaoGenerator extends BaseDaoGenerator {
         int varResult     = varSession + 1;
         int varPstmt      = varResult + 1;
         int varHasIdVal   = varPstmt + 1;
-        int varAutoCommit = varHasIdVal + 1;
-        int varListSize   = varAutoCommit + 1;
+        int varListSize   = varHasIdVal + 1;
         int varForIndex   = varListSize + 1;
         int varEntity     = varForIndex + 1;
         int varEntitySeq  = varEntity  + 1;
@@ -583,20 +582,10 @@ public class JdbcEntityDaoGenerator extends BaseDaoGenerator {
                 "(Ljava/lang/String;I)Ljava/sql/PreparedStatement;", true);
         mv.visitVarInsn(ASTORE, varPstmt);
 
-        // 判断Connection的autoCommit
+        // 两个分支汇合点 —— 删除 setAutoCommit 检查后的批处理入口
         mv.visitLabel(varlbAutoCommit);
-        mv.visitVarInsn(ALOAD, varSession);
-        mv.visitMethodInsn(INVOKEINTERFACE, STMT_SESSION_NAME, "getAutoCommit", "()Z", true);
-        mv.visitVarInsn(ISTORE, varAutoCommit);
-        mv.visitVarInsn(ILOAD, varAutoCommit);
-        Label l5 = new Label();
-        mv.visitJumpInsn(IFEQ, l5);
-        mv.visitVarInsn(ALOAD, varSession);
-        mv.visitInsn(ICONST_0);
-        mv.visitMethodInsn(INVOKEINTERFACE, STMT_SESSION_NAME, "setAutoCommit", "(Z)V", true);
 
         // 清理批处理的上下文开始执行批处理
-        mv.visitLabel(l5);
         mv.visitVarInsn(ALOAD, varPstmt);
         mv.visitMethodInsn(INVOKEINTERFACE, "java/sql/PreparedStatement", "clearBatch", "()V", true);
 
@@ -718,16 +707,7 @@ public class JdbcEntityDaoGenerator extends BaseDaoGenerator {
             mv.visitLabel(lbAutoCommit);
         }
 
-        mv.visitVarInsn(ILOAD, varAutoCommit);
-        Label l11 = new Label();
-        mv.visitJumpInsn(IFEQ, l11);
-        mv.visitVarInsn(ALOAD, varSession);
-        mv.visitMethodInsn(INVOKEINTERFACE, STMT_SESSION_NAME, "commit", "()V", true);
-        mv.visitVarInsn(ALOAD, varSession);
-        mv.visitInsn(ICONST_1);
-        mv.visitMethodInsn(INVOKEINTERFACE, STMT_SESSION_NAME, "setAutoCommit", "(Z)V", true);
-        mv.visitLabel(l11);
-        mv.visitFrame(Opcodes.F_SAME, 0, null, 0, null);
+        // 直接将 varRows 赋给 varEntitySeq,跳过原 commit+setAutoCommit(true) 还原逻辑
         mv.visitVarInsn(ALOAD, varRows);
         mv.visitVarInsn(ASTORE, varEntitySeq);
         mv.visitLabel(lbInnerFinally2);

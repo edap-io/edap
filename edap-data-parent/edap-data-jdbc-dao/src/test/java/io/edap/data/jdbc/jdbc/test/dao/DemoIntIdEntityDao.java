@@ -94,10 +94,6 @@ public class DemoIntIdEntityDao extends JdbcBaseEntityDao implements JdbcEntityD
                 return null;
             }
             PreparedStatement ps = session.prepareStatement("insert into demo (id,username,create_time) values (?,?,?,?)");
-            boolean initAuto = session.getAutoCommit();
-            if (initAuto) {
-                session.setAutoCommit(false);
-            }
             ps.clearBatch();
             int size = demos.size();
             for (int i=0;i<size;i++) {
@@ -116,10 +112,6 @@ public class DemoIntIdEntityDao extends JdbcBaseEntityDao implements JdbcEntityD
                     i++;
                 }
                 rs.close();
-            }
-            if (initAuto) {
-                session.commit();
-                session.setAutoCommit(true);
             }
             return rows;
         } finally {

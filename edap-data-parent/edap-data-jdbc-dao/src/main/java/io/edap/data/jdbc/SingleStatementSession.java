@@ -33,6 +33,19 @@ public class SingleStatementSession implements StatementSession {
 
     private Connection con;
 
+    /**
+     * 当前 {@link #con} 是否是 tx 共享 con。
+     * 在 {@link #getConnection()} 返回的瞬间由 {@link ConnectionHolder#isInTransaction()}
+     * 记录,用于 {@link #close(boolean)} 判断 session 自己是否可以 close con:
+     * <ul>
+     *   <li>true —— con 是 tx 共享 con,生命周期由 tx manager 负责,session 不能 close</li>
+     *   <li>false —— con 是 session 独占 con,session 需要自己 close 归还 ds</li>
+     * </ul>
+     * 在 getConnection 时刻记录(不在 close 时判定),防止 session 跨 tx 边界
+     * 持有导致误关共享 con。
+     */
+    private boolean conIsShared;
+
     private ConnectionHolder conHolder;
 
     //private Map<String, PreparedStatement> preparedStmts = new HashMap<>();
@@ -51,6 +64,11 @@ public class SingleStatementSession implements StatementSession {
     private Connection getConnection() throws SQLException {
         if (con == null || con.isClosed()) {
             con = conHolder.getConnection();
+            // 在拿到 con 的同一调用栈里记录"是否 tx 共享 con" —— 后续 close 时用来
+            // 判断 session 自己是否可以关 con。TxConnectionHolder 会在 TxScope.currentStatus()
+            // 不为 null 时返回 true(共享 con,生命周期归 tx manager);非 tx 路径返回 false
+            // (con 是 session 独占,需要 session 自己 close 归还 ds,否则 con 泄漏)。
+            conIsShared = conHolder.isInTransaction();
         }
         return con;
     }
@@ -65,12 +83,6 @@ public class SingleStatementSession implements StatementSession {
     public boolean getAutoCommit() throws SQLException {
         Connection con = getConnection();
         return con.getAutoCommit();
-    }
-
-    @Override
-    public void setAutoCommit(boolean autoCommit) throws SQLException {
-        Connection con = getConnection();
-        con.setAutoCommit(autoCommit);
     }
 
     @Override
@@ -120,29 +132,25 @@ public class SingleStatementSession implements StatementSession {
         try {
             if (closeConnection) {
                 conHolder.releaseConnection();
+                // 兜底:非 tx 路径(独占 con)下 conHolder 是 TxConnectionHolder 时
+                // releaseConnection() no-op,con 不会被归还 HikariCP。需要 session
+                // 自己 close 归还 ds —— 否则 con 泄漏 → 池涨 → PG "too many clients"
+                // (ESTYLR 2026-09-06 反馈:"没有事务的时候,没有机会关闭连接了")
+                // tx 路径(共享 con)下 conIsShared=true,跳过本分支,避免误关共享 con
+                // (ESTYLR 2026-09-05 事故根因)。
+                if (con != null && !conIsShared && !con.isClosed()) {
+                    try {
+                        con.close();
+                    } catch (SQLException e) {
+                        LOG.warn("SingleStatementSession close con error", e);
+                    }
+                }
             }
         } catch (Throwable e) {
             LOG.warn("SingleStatementSession close error", e);
         } finally {
-            // 关闭本 session 持有的 con —— {@code TxConnectionHolder} 已不再缓存 con,
-            // releaseConnection() 是 no-op,所以这里必须自己关,否则连接泄漏到池外。
-            // 与 {@code SimpleConnectionHolder} 共存时,会出现"先 close con 再 close conHolder 的缓存"
-            // —— driver 的 close() 普遍幂等(HikariCP / PG 均用 closed 标志做幂等),
-            // setAutoCommit(true) 对已关闭 con 会抛 SQLException,这里吞掉即可。
-            Connection localCon = this.con;
-            if (localCon != null) {
-                try {
-                    localCon.setAutoCommit(true);
-                } catch (SQLException ignore) {
-                    // 还原失败不影响 close —— 模式参照 JdbcTransactionResource#releaseConnection
-                }
-                try {
-                    localCon.close();
-                } catch (SQLException ignore) {
-                    // 同上
-                }
-                this.con = null;
-            }
+            this.con = null;
+            this.conIsShared = false;
         }
     }
 

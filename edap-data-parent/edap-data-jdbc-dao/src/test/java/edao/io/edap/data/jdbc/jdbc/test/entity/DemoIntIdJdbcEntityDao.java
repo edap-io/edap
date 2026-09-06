@@ -69,11 +69,6 @@ public class DemoIntIdJdbcEntityDao extends JdbcBaseEntityDao implements JdbcEnt
                     var4 = var2.prepareStatement("INSERT INTO demo_int_id (create_time,local_date_time) VALUES (?,?)", 1);
                 }
 
-                boolean var6 = var2.getAutoCommit();
-                if (var6) {
-                    var2.setAutoCommit(false);
-                }
-
                 var4.clearBatch();
                 int var7 = var1.size();
 
@@ -100,11 +95,6 @@ public class DemoIntIdJdbcEntityDao extends JdbcBaseEntityDao implements JdbcEnt
 
                         var12.close();
                     }
-                }
-
-                if (var6) {
-                    var2.commit();
-                    var2.setAutoCommit(true);
                 }
 
                 int[] var10 = var11;

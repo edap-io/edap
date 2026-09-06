@@ -39,12 +39,6 @@ public interface StatementSession {
     boolean getAutoCommit() throws SQLException;
 
     /**
-     * 设置当前自动提交的状态
-     * @param autoCommit
-     */
-    void setAutoCommit(boolean autoCommit) throws SQLException;
-
-    /**
      * 根据SQL语句返回一个PreparedStatement对象
      * @param sql
      * @return

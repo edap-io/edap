@@ -112,7 +112,8 @@ public class TxConnectionHolder implements ConnectionHolder {
      *
      * <p><b>非事务 fallback</b>:直连 ds.getConnection() 拿一条新连接返回 —
      * <b>不缓存</b>。连接生命周期由调用方(典型为 {@code SingleStatementSession}
-     * 在 {@code close(boolean)} 里)负责 setAutoCommit(true) + close()。
+     * 在 {@code close(boolean)} 里)负责 close() 归还 ds(HikariCP 的
+     * {@code resetConnection} 负责 reset autoCommit / isolation / catalog 等)。
      * 这样每个 dao 方法结束都关闭自己的 con,避免跨线程共享导致"一线程 close
      * 另一线程还在用的 con → 下一次操作报 PG 这个 statement 已经被关闭"。</p>
      */
@@ -147,7 +148,9 @@ public class TxConnectionHolder implements ConnectionHolder {
 
     /**
      * 释放连接 —— 本 holder 不缓存 con,无法 release。{@code SingleStatementSession}
-     * 在 {@code close(boolean)} 里直接关闭它持有的 con,不依赖本方法。
+     * 在 {@code close(boolean)} 里根据 {@link #isInTransaction()} 判断是否需要
+     * 自己 close con —— 非 tx 路径下 session 自己关归还 ds;tx 路径下 con 由
+     * tx manager 在 commit/rollback 时归还。
      *
      * <p>保留为 no-op 是为了不破坏 {@link ConnectionHolder} 接口契约;若业务方
      * 走非 SPI 路径使用 {@code SimpleConnectionHolder},本方法仍是其正常的
@@ -155,6 +158,22 @@ public class TxConnectionHolder implements ConnectionHolder {
      */
     @Override
     public void releaseConnection() throws SQLException {
-        // no-op:本 holder 不持有任何 con
+        // no-op:本 holder 不持有任何 con,con 生命周期由 session / tx manager 负责
+    }
+
+    /**
+     * 当前线程是否处于本 holder 关联的事务中。由 {@link io.edap.data.jdbc.SingleStatementSession}
+     * 在 {@code getConnection()} 返回的瞬间读取,用于决定 session 是否可以 close
+     * 拿到的 con:
+     *
+     * <ul>
+     *   <li>true —— con 是 tx 共享 con,生命周期由 tx manager 管理,session 不能 close</li>
+     *   <li>false —— con 是 ds.getConnection() 拿到的 session 独占 con,session 需要自己 close</li>
+     * </ul>
+     */
+    @Override
+    public boolean isInTransaction() {
+        TransactionStatus status = TxScope.currentStatus();
+        return status != null && status.resource() instanceof JdbcTransactionResource;
     }
 }

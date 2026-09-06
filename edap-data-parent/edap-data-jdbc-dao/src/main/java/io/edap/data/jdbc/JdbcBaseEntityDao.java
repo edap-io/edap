@@ -49,18 +49,11 @@ public abstract class JdbcBaseEntityDao extends JdbcBaseDao {
     public int update(final String sql, QueryParam... params) throws SQLException {
         StatementSession session = getStatementSession();
         try {
-            boolean initAuto = session.getAutoCommit();
-            if (initAuto) {
-                session.setAutoCommit(false);
-            }
             PreparedStatement pstmt = session.prepareStatement(sql);
             setPreparedParams(pstmt, params);
             int row = pstmt.executeUpdate();
             if (pstmt != null) {
                 pstmt.close();
-            }
-            if (initAuto) {
-                session.setAutoCommit(true);
             }
             return row;
         } finally {
@@ -71,18 +64,11 @@ public abstract class JdbcBaseEntityDao extends JdbcBaseDao {
     public int update(final String sql, Object... params) throws SQLException {
         StatementSession session = getStatementSession();
         try {
-            boolean initAuto = session.getAutoCommit();
-            if (initAuto) {
-                session.setAutoCommit(false);
-            }
             PreparedStatement pstmt = session.prepareStatement(sql);
             setPreparedParams(pstmt, params);
             int row = pstmt.executeUpdate();
             if (pstmt != null) {
                 pstmt.close();
-            }
-            if (initAuto) {
-                session.setAutoCommit(true);
             }
             return row;
         } finally {
@@ -105,18 +91,11 @@ public abstract class JdbcBaseEntityDao extends JdbcBaseDao {
     public int delete(final String sql, QueryParam... params) throws Exception {
         StatementSession session = getStatementSession();
         try {
-            boolean initAuto = session.getAutoCommit();
-            if (initAuto) {
-                session.setAutoCommit(false);
-            }
             PreparedStatement pstmt = session.prepareStatement(sql);
             setPreparedParams(pstmt, params);
             int row = pstmt.executeUpdate();
             if (pstmt != null) {
                 pstmt.close();
-            }
-            if (initAuto) {
-                session.setAutoCommit(true);
             }
             return row;
         } finally {
@@ -127,18 +106,11 @@ public abstract class JdbcBaseEntityDao extends JdbcBaseDao {
     public int delete(final String sql, Object... params) throws Exception {
         StatementSession session = getStatementSession();
         try {
-            boolean initAuto = session.getAutoCommit();
-            if (initAuto) {
-                session.setAutoCommit(false);
-            }
             PreparedStatement pstmt = session.prepareStatement(sql);
             setPreparedParams(pstmt, params);
             int row = pstmt.executeUpdate();
             if (pstmt != null) {
                 pstmt.close();
-            }
-            if (initAuto) {
-                session.setAutoCommit(true);
             }
             return row;
         } finally {

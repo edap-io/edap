@@ -79,6 +79,20 @@ public final class TransactionManagers {
     }
 
     /**
+     * 取消注册一个具名 TM。容器 {@code AppContext.stop()} 阶段调 —— 释放 TM → DataSource
+     * 引用链,让旧 ctx 的连接池等资源能 GC,避免新 ctx 启动时 Hikari 等池报
+     * "max pool size reached" / "port in use"。
+     *
+     * <p><b>幂等</b>:未注册的 name 不抛错,直接 no-op。</p>
+     *
+     * @param name 之前 {@link #register(String, EdapTransactionManager)} 用的 key;
+     *             空串 {@code ""} 取消注册默认 TM
+     */
+    public static void unregister(String name) {
+        REGISTRY.remove(name == null ? "" : name);
+    }
+
+    /**
      * 测试用 —— 清空注册表。生产代码不应该调这个。
      */
     static void clearForTests() {
