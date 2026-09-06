@@ -6,6 +6,7 @@ import io.edap.http.HttpHandler;
 import io.edap.mw.context.RequestContext;
 import io.edap.mw.context.RequestContextHolder;
 import io.edap.mw.context.UserResolver;
+import io.edap.protobuf.annotation.ProtoEnum;
 import io.edap.protobuf.annotation.ProtoField;
 import io.edap.protobuf.annotation.ProtoHttp;
 import io.edap.util.ClazzUtil;
@@ -455,6 +456,13 @@ public class HttpHandlerGenerator {
     private void visitParseEnumMethod(Class enumClass, String paramName) {
         MethodVisitor mv = cw.visitMethod(ACC_PRIVATE, "parse" + enumClass.getSimpleName(),
                 "(Lio/edap/http/HttpRequest;)" + getDescriptor(enumClass), null, null);
+        boolean isProtoEnum = false;
+        Annotation[] anns = enumClass.getDeclaredAnnotations();
+        for (Annotation ann : anns) {
+            if (ann instanceof ProtoEnum) {
+                isProtoEnum = true;
+            }
+        }
         mv.visitCode();
         Label label0 = new Label();
         Label label1 = new Label();
@@ -473,8 +481,15 @@ public class HttpHandlerGenerator {
         mv.visitLabel(label0);
         mv.visitVarInsn(ALOAD, 2);
         String enumName = toInternalName(enumClass.getName());
-        mv.visitMethodInsn(INVOKESTATIC, enumName, "valueOf",
-                "(Ljava/lang/String;)L" + enumName + ";", false);
+        if (isProtoEnum) {
+            mv.visitMethodInsn(INVOKESTATIC, "java/lang/Integer", "parseInt",
+                    "(Ljava/lang/String;)I", false);
+            mv.visitMethodInsn(INVOKESTATIC, enumName, "valueOf",
+                    "(I)L" + enumName + ";", false);
+        } else {
+            mv.visitMethodInsn(INVOKESTATIC, enumName, "valueOf",
+                    "(Ljava/lang/String;)L" + enumName + ";", false);
+        }
         mv.visitVarInsn(ASTORE, 3);
         mv.visitLabel(label1);
         Label label4 = new Label();
