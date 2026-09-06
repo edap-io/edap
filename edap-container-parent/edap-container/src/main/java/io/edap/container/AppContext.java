@@ -108,6 +108,15 @@ public class AppContext implements Lifecycle {
     private final AppResourceLoader  resourceLoader;// 通过 appCL 读 jar 内资源
     private final List<BeanPostProcessor> postProcessors = new ArrayList<>(); // Bean 初始化前后钩子
 
+    /**
+     * 本 ctx 在 {@link #configureTransactionalInfrastructure} 阶段向
+     * {@link io.edap.tx.TransactionManagers} 静态表 register 的 TM 名称集合。
+     * {@link #stop()} 末尾按此集合 unregister —— 释放 TM → DataSource 引用链,
+     * 让旧 ctx 的 Hikari 等连接池能 GC,避免重新部署时新池报 "max pool size reached"
+     * / "port in use"。
+     */
+    private final Set<String> registeredTxManagerNames = new HashSet<>();
+
     // ─── per-app path → handler 索引 ───
     // Container.rebuildHttpMapping() 在 deploy / undeploy / switchVersion 末尾聚合各 app 的
     // httpHandlersByPath + wsHandlersByPath，整张替换 HttpServer 的 httpMapping（volatile 写，
@@ -308,12 +317,14 @@ public class AppContext implements Lifecycle {
 
         for (Map.Entry<String, EdapTransactionManager> e : tmByName.entrySet()) {
             io.edap.tx.TransactionManagers.register(e.getKey(), e.getValue());
+            registeredTxManagerNames.add(e.getKey());
         }
         if (defaultBeanName != null) {
             // 默认 ds 同时绑到空串 key 和它本身的 bean name —— 无论 @Transactional 写
             // transactionManager="" 还是 transactionManager="<beanName>",都能拿到同一个 TM。
             EdapTransactionManager defaultTm = tmByName.get(defaultBeanName);
             io.edap.tx.TransactionManagers.register("", defaultTm);
+            registeredTxManagerNames.add("");
         } else {
             // 多 DataSource + 无唯一 @Primary —— fail-fast,避免运行时 silent fallback
             // 到错误 ds(那种 bug 极难定位)。先把"空串 → 默认"故意不注册,
@@ -401,9 +412,19 @@ public class AppContext implements Lifecycle {
         }
         catch (Throwable t) { firstErr = t; }
 
-        // 2. 逆序：Lifecycle.stop / @PreDestroy / 清空 singletons（含 ShardRegistry 分片）
+        // 2. 逆序：Lifecycle.stop / @PreDestroy / AutoCloseable.close / 清空 singletons（含 ShardRegistry 分片）
         try { beans.destroyAllSingletons(); }
         catch (Throwable t) { if (firstErr == null) firstErr = t; }
+
+        // 2.5 释放本 ctx 在 TransactionManagers 静态表里 register 的 TM 引用 —— 必须放在
+        // destroyAllSingletons 之后(此时 DataSource bean 已被 close),TM → DataSource 引用链
+        // 完整断掉,旧 ctx 的 Hikari 等连接池才能 GC,重新部署新 ctx 时池才能正常起来
+        try {
+            for (String name : registeredTxManagerNames) {
+                io.edap.tx.TransactionManagers.unregister(name);
+            }
+            registeredTxManagerNames.clear();
+        } catch (Throwable t) { if (firstErr == null) firstErr = t; }
 
         // 3. 事件总线清空（释放 listener 引用链）
         try { events.clear(); }

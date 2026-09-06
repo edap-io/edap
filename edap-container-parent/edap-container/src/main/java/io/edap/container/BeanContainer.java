@@ -849,7 +849,7 @@ public class BeanContainer {
 
     // —— 销毁（AppContext.stop 单线程）——
 
-    /** 逆序：Lifecycle.stop() → @PreDestroy → 清空 singletons。
+    /** 逆序：Lifecycle.stop() → @PreDestroy → AutoCloseable.close() → 清空 singletons。
      *  异常一律记 WARN 继续——已 unbind 路由，业务不会再到这。 */
     public void destroyAllSingletons() {
         transitionTo(BeanContainerState.DESTROYING);
@@ -879,7 +879,21 @@ public class BeanContainer {
             }
         }
 
-        // 3. 清空 singletons + byType（@Sharded 方法的分片实例也由 ShardRegistry 释放）
+        // 3. 逆序 AutoCloseable.close() —— JDK 标准资源关闭接口;DataSource(HikariDataSource)、
+        // 自定义连接池、流/通道/线程池等所有实现 AutoCloseable 的 bean 在此阶段被关闭。
+        // 跟 Lifecycle.stop() 独立成阶段:close() throws Exception 而非 Throwable,
+        // 业务方实现 AutoCloseable 时不感知容器生命周期(更标准),跟 Lifecycle 接口解耦。
+        // 实现两者的 bean 会两阶段都跑——Lifecycle.stop() 是显式生命周期钩子,
+        // AutoCloseable.close() 是资源释放,语义不同,业务方按需选其一即可,不需要二选一。
+        for (BeanWrap bw : ordered) {
+            if (!(bw.instance() instanceof AutoCloseable)) continue;
+            try { ((AutoCloseable) bw.instance()).close(); }
+            catch (Exception e) {
+                log.warn("AutoCloseable.close failed for {}", l-> l.arg(bw.def().name()).threw(e));
+            }
+        }
+
+        // 4. 清空 singletons + byType（@Sharded 方法的分片实例也由 ShardRegistry 释放）
         singletons.clear();
         byType.clear();
         shards.clear();
