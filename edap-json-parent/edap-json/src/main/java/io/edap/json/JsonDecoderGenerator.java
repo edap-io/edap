@@ -214,7 +214,16 @@ public class JsonDecoderGenerator {
         for (int i=0;i<fields.size();i++) {
             JsonFieldInfo jfi = fields.get(i);
             mv.visitLabel(lbFieldCases[i]);
-            if (isList(jfi.field.getGenericType())) {
+            if (isPojo(jfi.field.getType())) {
+                mv.visitVarInsn(ALOAD, 3);
+                mv.visitVarInsn(ALOAD, 1);
+                String pojoName = toInternalName(jfi.field.getType().getName());
+                mv.visitLdcInsn(Type.getType("L" + pojoName + ";"));
+                mv.visitMethodInsn(INVOKEINTERFACE, READER_NAME, "readObject",
+                        "(Ljava/lang/Class;)Ljava/lang/Object;", true);
+                mv.visitTypeInsn(CHECKCAST, pojoName);
+                visitSetValueOpcode(mv, jfi);
+            } else if (isList(jfi.field.getGenericType())) {
                 ParameterizedType ptype = (ParameterizedType)jfi.field.getGenericType();
                 java.lang.reflect.Type itemType = ptype.getActualTypeArguments()[0];
                 mv.visitVarInsn(ALOAD, 3);
@@ -318,7 +327,16 @@ public class JsonDecoderGenerator {
         for (int i=0;i<fields.size();i++) {
             JsonFieldInfo jfi = fields.get(i);
             mv.visitLabel(lbWhileCases[i]);
-            if (isList(jfi.field.getGenericType())) {
+            if (isPojo(jfi.field.getType())) {
+                mv.visitVarInsn(ALOAD, 3);
+                mv.visitVarInsn(ALOAD, 1);
+                String pojoName = toInternalName(jfi.field.getType().getName());
+                mv.visitLdcInsn(Type.getType("L" + pojoName + ";"));
+                mv.visitMethodInsn(INVOKEINTERFACE, READER_NAME, "readObject",
+                        "(Ljava/lang/Class;)Ljava/lang/Object;", true);
+                mv.visitTypeInsn(CHECKCAST, pojoName);
+                visitSetValueOpcode(mv, jfi);
+            } else if (isList(jfi.field.getGenericType())) {
                 ParameterizedType ptype = (ParameterizedType)jfi.field.getGenericType();
                 java.lang.reflect.Type itemType = ptype.getActualTypeArguments()[0];
                 mv.visitVarInsn(ALOAD, 3);
