@@ -70,6 +70,7 @@
         <module>edap-grpc-parent</module>
         <module>edap-native</module>
         <module>edap-tx-parent</module>
+        <module>edap-s3-parent</module>
 
     </modules>
 
@@ -176,6 +177,22 @@
             <dependency>
                 <groupId>io.edap</groupId>
                 <artifactId>edap-http-client</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>io.edap</groupId>
+                <artifactId>edap-s3-core</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.edap</groupId>
+                <artifactId>edap-s3-server</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.edap</groupId>
+                <artifactId>edap-s3-disk</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
