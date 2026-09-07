@@ -30,9 +30,13 @@ public enum S3Operation {
     PUT_OBJECT,            // PUT /{bucket}/{key...}
     GET_OBJECT,            // GET /{bucket}/{key...}
     HEAD_OBJECT,           // HEAD /{bucket}/{key...}
-    DELETE_OBJECT          // DELETE /{bucket}/{key...}
+    DELETE_OBJECT,         // DELETE /{bucket}/{key...}
 
-    // ===== Phase 2 占位 =====
-    // INIT_MULTIPART, UPLOAD_PART, COMPLETE_MULTIPART, ABORT_MULTIPART,
-    // LIST_MULTIPART_UPLOADS, LIST_PARTS
+    // ===== Multipart =====
+    INIT_MULTIPART,         // POST   /{bucket}/{key...}?uploads
+    UPLOAD_PART,            // PUT    /{bucket}/{key...}?partNumber=N&uploadId=ID
+    COMPLETE_MULTIPART,     // POST   /{bucket}/{key...}?uploadId=ID
+    ABORT_MULTIPART,        // DELETE /{bucket}/{key...}?uploadId=ID
+    LIST_MULTIPART_UPLOADS, // GET    /{bucket}?uploads
+    LIST_PARTS              // GET    /{bucket}/{key...}?uploadId=ID
 }

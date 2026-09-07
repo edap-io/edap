@@ -19,6 +19,7 @@ public enum S3ErrorCode {
 
     NO_SUCH_BUCKET(404, "NoSuchBucket"),
     NO_SUCH_KEY(404, "NoSuchKey"),
+    NO_SUCH_UPLOAD(404, "NoSuchUpload"),
 
     BUCKET_ALREADY_EXISTS(409, "BucketAlreadyExists"),
     BUCKET_ALREADY_OWNED_BY_YOU(409, "BucketAlreadyOwnedByYou"),
@@ -27,6 +28,7 @@ public enum S3ErrorCode {
     INVALID_BUCKET_NAME(400, "InvalidBucketName"),
     INVALID_ARGUMENT(400, "InvalidArgument"),
     INVALID_REQUEST(400, "InvalidRequest"),
+    MALFORMED_XML(400, "MalformedXML"),
 
     INVALID_ACCESS_KEY_ID(403, "InvalidAccessKeyId"),
     SIGNATURE_DOES_NOT_MATCH(403, "SignatureDoesNotMatch"),

@@ -199,6 +199,83 @@ public class S3RequestParserTest {
         assertEquals(0, q.size());
     }
 
+    // ===================== Multipart 推断 =====================
+
+    @Test
+    void initMultipartFromPostUploads() throws Exception {
+        HttpRequest req = makeRequest("POST", "/b/k", "uploads", null);
+        S3Request s3 = parser.parse(req);
+        assertEquals(S3Operation.INIT_MULTIPART, s3.operation());
+        assertEquals("b", s3.bucket());
+        assertEquals("k", s3.key());
+        assertNotNull(s3.queryParam("uploads"));
+    }
+
+    @Test
+    void completeMultipartFromPostUploadId() throws Exception {
+        HttpRequest req = makeRequest("POST", "/b/k", "uploadId=ABC-123", null);
+        S3Request s3 = parser.parse(req);
+        assertEquals(S3Operation.COMPLETE_MULTIPART, s3.operation());
+        assertEquals("ABC-123", s3.queryParam("uploadId"));
+        assertEquals("b", s3.bucket());
+        assertEquals("k", s3.key());
+    }
+
+    @Test
+    void uploadPartFromPut() throws Exception {
+        HttpRequest req = makeRequest("PUT", "/b/k",
+                "partNumber=3&uploadId=ABC-123", null);
+        S3Request s3 = parser.parse(req);
+        assertEquals(S3Operation.UPLOAD_PART, s3.operation());
+        assertEquals("3", s3.queryParam("partNumber"));
+        assertEquals("ABC-123", s3.queryParam("uploadId"));
+    }
+
+    @Test
+    void uploadPartRequiresPartNumber() throws Exception {
+        // PUT + uploadId 但没 partNumber → INVALID_ARGUMENT
+        HttpRequest req = makeRequest("PUT", "/b/k", "uploadId=ABC", null);
+        try {
+            parser.parse(req);
+            org.junit.jupiter.api.Assertions.fail("should have thrown");
+        } catch (io.edap.s3.error.S3Exception e) {
+            assertEquals("InvalidArgument", e.s3Code());
+        }
+    }
+
+    @Test
+    void abortMultipartFromDelete() throws Exception {
+        HttpRequest req = makeRequest("DELETE", "/b/k", "uploadId=ABC", null);
+        S3Request s3 = parser.parse(req);
+        assertEquals(S3Operation.ABORT_MULTIPART, s3.operation());
+    }
+
+    @Test
+    void listMultipartUploadsFromGet() throws Exception {
+        HttpRequest req = makeRequest("GET", "/b", "uploads", null);
+        S3Request s3 = parser.parse(req);
+        assertEquals(S3Operation.LIST_MULTIPART_UPLOADS, s3.operation());
+        assertEquals("b", s3.bucket());
+        assertNull(s3.key());
+    }
+
+    @Test
+    void listPartsFromGet() throws Exception {
+        HttpRequest req = makeRequest("GET", "/b/k", "uploadId=ABC", null);
+        S3Request s3 = parser.parse(req);
+        assertEquals(S3Operation.LIST_PARTS, s3.operation());
+        assertEquals("ABC", s3.queryParam("uploadId"));
+        assertEquals("k", s3.key());
+    }
+
+    @Test
+    void putObjectWithoutMultipartQueryStillWorks() throws Exception {
+        // 回归 —— PUT_OBJECT 不带 query 仍然走 PUT_OBJECT,不被 multipart 分支误吞
+        HttpRequest req = makeRequest("PUT", "/b/k", null, null);
+        S3Request s3 = parser.parse(req);
+        assertEquals(S3Operation.PUT_OBJECT, s3.operation());
+    }
+
     // ===================== minimal stub for unsupported-method test =====================
 
     private HttpRequest stubRequest(String method, String path, String query) {

@@ -26,7 +26,8 @@ import java.util.Map;
  *   <li>{@code PUT/GET/HEAD/DELETE_OBJECT}:两者都非空(key 可能含 "/" 路径段)</li>
  * </ul>
  *
- * <p>{@link #putBody} 仅 {@code PUT_OBJECT} 有值;
+ * <p>{@link #putBody} 仅 {@code PUT_OBJECT} 和 {@code UPLOAD_PART} 有值;
+ * {@link #xmlBody} 仅 {@code COMPLETE_MULTIPART} 有值;
  * {@link #queryParams} 保留所有 query 参数供 ListObjectsV2 等分页用。
  */
 public final class S3Request {
@@ -37,6 +38,7 @@ public final class S3Request {
     private final Map<String, String> queryParams;
     private final Map<String, String> headers;
     private final PutStream putBody;
+    private final byte[] xmlBody;
     private final String rawHttpRequest;        // SigV4 验签时重建 canonical request 用
 
     public S3Request(S3Operation operation,
@@ -45,6 +47,7 @@ public final class S3Request {
                      Map<String, String> queryParams,
                      Map<String, String> headers,
                      PutStream putBody,
+                     byte[] xmlBody,
                      String rawHttpRequest) {
         this.operation = operation;
         this.bucket = bucket;
@@ -52,6 +55,7 @@ public final class S3Request {
         this.queryParams = queryParams == null ? Collections.emptyMap() : queryParams;
         this.headers = headers == null ? Collections.emptyMap() : headers;
         this.putBody = putBody;
+        this.xmlBody = xmlBody;
         this.rawHttpRequest = rawHttpRequest;
     }
 
@@ -77,6 +81,14 @@ public final class S3Request {
 
     public PutStream putBody() {
         return putBody;
+    }
+
+    /**
+     * COMPLETE_MULTIPART 请求的 XML body(其他 op 一律 null)。
+     * handler 不需要 close —— 内部是 byte[] 不持有外部资源。
+     */
+    public byte[] xmlBody() {
+        return xmlBody;
     }
 
     public String rawHttpRequest() {

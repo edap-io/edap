@@ -23,8 +23,10 @@ import io.edap.s3.op.handler.ListBucketsHandler;
 import io.edap.s3.op.handler.ListObjectsV2Handler;
 import io.edap.s3.op.handler.PutObjectHandler;
 import io.edap.s3.store.BucketStore;
+import io.edap.s3.store.MultipartStore;
 import io.edap.s3.store.ObjectStore;
 import io.edap.s3.store.mem.InMemoryBucketStore;
+import io.edap.s3.store.mem.InMemoryMultipartStore;
 import io.edap.s3.store.mem.InMemoryObjectStore;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -74,6 +76,7 @@ public class S3HttpHandlerIT {
     private Edap edap;
     private BucketStore bucketStore;
     private ObjectStore objectStore;
+    private MultipartStore multipartStore;
 
     @BeforeEach
     void setUp() throws Exception {
@@ -83,6 +86,7 @@ public class S3HttpHandlerIT {
         }
         bucketStore = new InMemoryBucketStore();
         objectStore = new InMemoryObjectStore(bucketStore);
+        multipartStore = new InMemoryMultipartStore(bucketStore, objectStore);
 
         Properties p = new Properties();
         p.setProperty("s3.accessKey." + AKID + ".secret", SECRET);
@@ -92,6 +96,7 @@ public class S3HttpHandlerIT {
         server = new S3ServerBuilder()
                 .bucketStore(bucketStore)
                 .objectStore(objectStore)
+                .multipartStore(multipartStore)
                 .accessKeyResolver(resolver)
                 .register(new ListBucketsHandler(bucketStore))
                 .register(new CreateBucketHandler(bucketStore))
@@ -102,6 +107,7 @@ public class S3HttpHandlerIT {
                 .register(new GetObjectHandler(bucketStore, objectStore))
                 .register(new HeadObjectHandler(bucketStore, objectStore))
                 .register(new DeleteObjectHandler(bucketStore, objectStore))
+                .registerMultipartHandlers()
                 .listen(port)
                 .build();
 
@@ -181,6 +187,181 @@ public class S3HttpHandlerIT {
         assertEquals(403, code);
     }
 
+    // ===================== Multipart Upload IT =====================
+
+    @Test
+    void multipartRoundtripOutOfOrder() throws Exception {
+        String bucket = "mp-bucket";
+        String key = "big.bin";
+        // 先建桶
+        Response rb = signedRequest("PUT", "/" + bucket, null, null, null);
+        assertEquals(200, rb.status, "create bucket status");
+
+        // 1. InitiateMultipartUpload
+        Map<String, String> initQuery = new HashMap<>();
+        initQuery.put("uploads", "");
+        Response ri = signedRequest("POST", "/" + bucket + "/" + key, initQuery,
+                null, null);
+        assertEquals(200, ri.status, "init multipart status");
+        assertTrue(ri.bodyText.contains("<UploadId>"));
+        String uploadId = extractTag(ri.bodyText, "UploadId");
+        assertNotNull(uploadId);
+
+        // 2. UploadPart × 3,故意乱序(2, 1, 3)
+        String part1 = "AA".repeat(1024); // 2KB
+        String part2 = "BB".repeat(2048); // 4KB
+        String part3 = "CC".repeat(1024); // 2KB
+        String etag1 = uploadOnePart(bucket, key, uploadId, 1, part1);
+        String etag2 = uploadOnePart(bucket, key, uploadId, 2, part2);
+        String etag3 = uploadOnePart(bucket, key, uploadId, 3, part3);
+
+        // 3. CompleteMultipartUpload —— 故意乱序声明 partNumber
+        String completeBody = "<CompleteMultipartUpload>"
+                + "<Part><PartNumber>3</PartNumber><ETag>\"" + etag3 + "\"</ETag></Part>"
+                + "<Part><PartNumber>1</PartNumber><ETag>\"" + etag1 + "\"</ETag></Part>"
+                + "<Part><PartNumber>2</PartNumber><ETag>\"" + etag2 + "\"</ETag></Part>"
+                + "</CompleteMultipartUpload>";
+        Map<String, String> completeQuery = new HashMap<>();
+        completeQuery.put("uploadId", uploadId);
+        Map<String, String> xmlHeaders = new HashMap<>();
+        xmlHeaders.put("Content-Type", "application/xml");
+        Response rc = signedRequest("POST", "/" + bucket + "/" + key,
+                completeQuery, completeBody.getBytes(StandardCharsets.UTF_8), xmlHeaders);
+        assertEquals(200, rc.status, "complete multipart status, body=" + rc.bodyText);
+        assertTrue(rc.bodyText.contains("<CompleteMultipartUploadResult"));
+        assertTrue(rc.bodyText.contains("<Key>" + key + "</Key>"));
+
+        // 4. GET → 拼接后的 bytes 应该等于 part1+part2+part3
+        Response rg = signedRequest("GET", "/" + bucket + "/" + key, null, null, null);
+        assertEquals(200, rg.status);
+        String expected = part1 + part2 + part3;
+        assertEquals(expected, rg.bodyText, "concatenated body matches");
+        assertEquals(expected.length(), rg.bodyText.length());
+    }
+
+    @Test
+    void multipartAbortRemovesUpload() throws Exception {
+        String bucket = "abort-bucket";
+        signedRequest("PUT", "/" + bucket, null, null, null);
+
+        Map<String, String> initQuery = new HashMap<>();
+        initQuery.put("uploads", "");
+        Response ri = signedRequest("POST", "/" + bucket + "/k", initQuery, null, null);
+        String uploadId = extractTag(ri.bodyText, "UploadId");
+
+        // 上传 2 个 part
+        uploadOnePart(bucket, "k", uploadId, 1, "X");
+        uploadOnePart(bucket, "k", uploadId, 2, "YY");
+
+        // abort
+        Map<String, String> abortQuery = new HashMap<>();
+        abortQuery.put("uploadId", uploadId);
+        Response ra = signedRequest("DELETE", "/" + bucket + "/k", abortQuery, null, null);
+        assertEquals(204, ra.status);
+
+        // listParts 应该 404
+        Map<String, String> listQuery = new HashMap<>();
+        listQuery.put("uploadId", uploadId);
+        Response rl = signedRequest("GET", "/" + bucket + "/k", listQuery, null, null);
+        assertEquals(404, rl.status);
+    }
+
+    @Test
+    void listMultipartUploadsInBucket() throws Exception {
+        String bucket = "list-mp-bucket";
+        signedRequest("PUT", "/" + bucket, null, null, null);
+
+        Map<String, String> q = new HashMap<>();
+        q.put("uploads", "");
+        signedRequest("POST", "/" + bucket + "/k1", q, null, null);
+        signedRequest("POST", "/" + bucket + "/k2", q, null, null);
+        // 另一个桶的 upload 不应出现
+        signedRequest("PUT", "/other-bucket", null, null, null);
+        signedRequest("POST", "/other-bucket/k3", q, null, null);
+
+        Response r = signedRequest("GET", "/" + bucket, q, null, null);
+        assertEquals(200, r.status);
+        assertTrue(r.bodyText.contains("k1"), "should include k1");
+        assertTrue(r.bodyText.contains("k2"), "should include k2");
+        assertTrue(!r.bodyText.contains("k3"), "should NOT include k3 from other bucket");
+    }
+
+    @Test
+    void listPartsReturnsUploadedParts() throws Exception {
+        String bucket = "list-parts-bucket";
+        signedRequest("PUT", "/" + bucket, null, null, null);
+
+        Map<String, String> q = new HashMap<>();
+        q.put("uploads", "");
+        Response ri = signedRequest("POST", "/" + bucket + "/k", q, null, null);
+        String uploadId = extractTag(ri.bodyText, "UploadId");
+
+        uploadOnePart(bucket, "k", uploadId, 1, "AAA");
+        uploadOnePart(bucket, "k", uploadId, 2, "BBBB");
+
+        Map<String, String> listQuery = new HashMap<>();
+        listQuery.put("uploadId", uploadId);
+        Response rl = signedRequest("GET", "/" + bucket + "/k", listQuery, null, null);
+        assertEquals(200, rl.status);
+        assertTrue(rl.bodyText.contains("<PartNumber>1</PartNumber>"));
+        assertTrue(rl.bodyText.contains("<PartNumber>2</PartNumber>"));
+    }
+
+    @Test
+    void completeWithEmptyBodyReturns400() throws Exception {
+        String bucket = "empty-complete-bucket";
+        signedRequest("PUT", "/" + bucket, null, null, null);
+
+        Map<String, String> q = new HashMap<>();
+        q.put("uploads", "");
+        Response ri = signedRequest("POST", "/" + bucket + "/k", q, null, null);
+        String uploadId = extractTag(ri.bodyText, "UploadId");
+
+        // 立即 complete,body 是空 XML(<CompleteMultipartUpload></CompleteMultipartUpload>)
+        Map<String, String> cq = new HashMap<>();
+        cq.put("uploadId", uploadId);
+        Map<String, String> xmlHeaders = new HashMap<>();
+        xmlHeaders.put("Content-Type", "application/xml");
+        String emptyXml = "<CompleteMultipartUpload></CompleteMultipartUpload>";
+        Response r = signedRequest("POST", "/" + bucket + "/k", cq,
+                emptyXml.getBytes(StandardCharsets.UTF_8), xmlHeaders);
+        assertEquals(400, r.status);
+        assertTrue(r.bodyText.contains("MalformedXML"));
+    }
+
+    // ===================== Multipart IT helpers =====================
+
+    private String uploadOnePart(String bucket,
+                                 String key,
+                                 String uploadId,
+                                 int partNumber,
+                                 String body) throws IOException {
+        Map<String, String> q = new HashMap<>();
+        q.put("partNumber", String.valueOf(partNumber));
+        q.put("uploadId", uploadId);
+        Response r = signedRequest("PUT", "/" + bucket + "/" + key, q,
+                body.getBytes(StandardCharsets.UTF_8), null);
+        assertEquals(200, r.status, "upload part " + partNumber + " failed: " + r.bodyText);
+        String etag = r.headers.get("ETag");
+        assertNotNull(etag, "ETag header missing on part " + partNumber);
+        // ETag header 值带双引号,剥掉
+        return etag.replace("\"", "");
+    }
+
+    /**
+     * 从 XML body 里抽出 {@code <TAG>VALUE</TAG>} 的 VALUE(取第一个匹配)。
+     * Phase 2 简单 string scan,够测试用。
+     */
+    private static String extractTag(String xml, String tag) {
+        String open = "<" + tag + ">";
+        String close = "</" + tag + ">";
+        int openIdx = xml.indexOf(open);
+        if (openIdx < 0) return null;
+        int closeIdx = xml.indexOf(close, openIdx);
+        if (closeIdx < 0) return null;
+        return xml.substring(openIdx + open.length(), closeIdx).trim();
+    }
+
     // ===================== SigV4 request signing =====================
 
     private static final DateTimeFormatter AMZDATE_FMT =
@@ -238,7 +419,13 @@ public class S3HttpHandlerIT {
                 + ", SignedHeaders=" + signedHeadersList
                 + ", Signature=" + signature;
 
-        URL url = URI.create("http://" + host + path).toURL();
+        // 拼 query string —— 必须真的写到 URL 上,服务器才看得到(否则
+        // canonical request 跟服务端收到的请求不一致,SigV4 验签会拒)
+        String fullPath = path;
+        String qs = canonicalQueryString(queryParams);
+        if (!qs.isEmpty()) fullPath = path + "?" + qs;
+
+        URL url = URI.create("http://" + host + fullPath).toURL();
         HttpURLConnection conn = (HttpURLConnection) url.openConnection();
         conn.setRequestMethod(method);
         conn.setRequestProperty("Authorization", authorization);

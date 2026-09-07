@@ -10,6 +10,8 @@
 package io.edap.s3.xml;
 
 import io.edap.s3.error.S3Exception;
+import io.edap.s3.model.MultipartPart;
+import io.edap.s3.model.MultipartUpload;
 import io.edap.s3.model.ObjectMeta;
 
 import java.nio.charset.StandardCharsets;
@@ -94,6 +96,87 @@ public final class XmlResponseBuilder {
             appendEscaped(sb, "<NextContinuationToken>", nextContinuationToken, "</NextContinuationToken>");
         }
         sb.append("</ListBucketResult>");
+        return sb.toString().getBytes(StandardCharsets.UTF_8);
+    }
+
+    // ===================== Multipart =====================
+
+    public static byte[] initiateMultipartResult(String bucket, String key, String uploadId) {
+        StringBuilder sb = new StringBuilder(256);
+        sb.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
+        sb.append("<InitiateMultipartUploadResult xmlns=\"http://s3.amazonaws.com/doc/2006-03-01/\">");
+        appendEscaped(sb, "<Bucket>", bucket, "</Bucket>");
+        appendEscaped(sb, "<Key>", key, "</Key>");
+        appendEscaped(sb, "<UploadId>", uploadId, "</UploadId>");
+        sb.append("</InitiateMultipartUploadResult>");
+        return sb.toString().getBytes(StandardCharsets.UTF_8);
+    }
+
+    public static byte[] completeMultipartResult(String bucket,
+                                                 String key,
+                                                 String etag,
+                                                 String location) {
+        StringBuilder sb = new StringBuilder(256);
+        sb.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
+        sb.append("<CompleteMultipartUploadResult xmlns=\"http://s3.amazonaws.com/doc/2006-03-01/\">");
+        if (location != null) appendEscaped(sb, "<Location>", location, "</Location>");
+        appendEscaped(sb, "<Bucket>", bucket, "</Bucket>");
+        appendEscaped(sb, "<Key>", key, "</Key>");
+        // 复合 ETag 必须 quoted("md5-N"),跟 Phase 1 ListBucket 一致
+        sb.append("<ETag>\"").append(escape(etag)).append("\"</ETag>");
+        sb.append("</CompleteMultipartUploadResult>");
+        return sb.toString().getBytes(StandardCharsets.UTF_8);
+    }
+
+    public static byte[] listMultipartUploadsResult(String bucket, List<MultipartUpload> uploads) {
+        StringBuilder sb = new StringBuilder(256 + uploads.size() * 200);
+        sb.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
+        sb.append("<ListMultipartUploadsResult xmlns=\"http://s3.amazonaws.com/doc/2006-03-01/\">");
+        appendEscaped(sb, "<Bucket>", bucket, "</Bucket>");
+        // Phase 2 简化:Initiator / Owner 占位为 anonymous(没引入 IAM/user model)
+        sb.append("<KeyMarker></KeyMarker>");
+        sb.append("<UploadIdMarker></UploadIdMarker>");
+        sb.append("<NextKeyMarker></NextKeyMarker>");
+        sb.append("<NextUploadIdMarker></NextUploadIdMarker>");
+        sb.append("<MaxUploads>").append(uploads.size()).append("</MaxUploads>");
+        sb.append("<IsTruncated>false</IsTruncated>");
+        for (MultipartUpload u : uploads) {
+            sb.append("<Upload>");
+            appendEscaped(sb, "<Key>", u.key(), "</Key>");
+            appendEscaped(sb, "<UploadId>", u.uploadId(), "</UploadId>");
+            sb.append("<Initiator><ID>anonymous</ID><DisplayName>anonymous</DisplayName></Initiator>");
+            sb.append("<Owner><ID>anonymous</ID><DisplayName>anonymous</DisplayName></Owner>");
+            sb.append("<StorageClass>STANDARD</StorageClass>");
+            sb.append("<Initiated>").append(formatInstant(u.initiated())).append("</Initiated>");
+            sb.append("</Upload>");
+        }
+        sb.append("</ListMultipartUploadsResult>");
+        return sb.toString().getBytes(StandardCharsets.UTF_8);
+    }
+
+    public static byte[] listPartsResult(String bucket,
+                                         String key,
+                                         String uploadId,
+                                         List<MultipartPart> parts) {
+        StringBuilder sb = new StringBuilder(256 + parts.size() * 200);
+        sb.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
+        sb.append("<ListPartsResult xmlns=\"http://s3.amazonaws.com/doc/2006-03-01/\">");
+        appendEscaped(sb, "<Bucket>", bucket, "</Bucket>");
+        appendEscaped(sb, "<Key>", key, "</Key>");
+        appendEscaped(sb, "<UploadId>", uploadId, "</UploadId>");
+        sb.append("<PartNumberMarker>0</PartNumberMarker>");
+        sb.append("<NextPartNumberMarker>0</NextPartNumberMarker>");
+        sb.append("<MaxParts>").append(parts.size()).append("</MaxParts>");
+        sb.append("<IsTruncated>false</IsTruncated>");
+        for (MultipartPart p : parts) {
+            sb.append("<Part>");
+            sb.append("<PartNumber>").append(p.partNumber()).append("</PartNumber>");
+            sb.append("<LastModified>").append(formatInstant(p.lastModified())).append("</LastModified>");
+            sb.append("<ETag>\"").append(escape(p.etag())).append("\"</ETag>");
+            sb.append("<Size>").append(p.size()).append("</Size>");
+            sb.append("</Part>");
+        }
+        sb.append("</ListPartsResult>");
         return sb.toString().getBytes(StandardCharsets.UTF_8);
     }
 

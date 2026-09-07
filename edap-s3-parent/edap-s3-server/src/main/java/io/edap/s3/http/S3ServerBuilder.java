@@ -16,7 +16,14 @@ import io.edap.s3.auth.AccessKeyResolver;
 import io.edap.s3.auth.S3AuthVerifier;
 import io.edap.s3.auth.SigV4Verifier;
 import io.edap.s3.op.S3OperationHandler;
+import io.edap.s3.op.handler.AbortMultipartHandler;
+import io.edap.s3.op.handler.CompleteMultipartHandler;
+import io.edap.s3.op.handler.InitiateMultipartHandler;
+import io.edap.s3.op.handler.ListMultipartUploadsHandler;
+import io.edap.s3.op.handler.ListPartsHandler;
+import io.edap.s3.op.handler.UploadPartHandler;
 import io.edap.s3.store.BucketStore;
+import io.edap.s3.store.MultipartStore;
 import io.edap.s3.store.ObjectStore;
 
 /**
@@ -48,6 +55,7 @@ public final class S3ServerBuilder {
 
     private BucketStore bucketStore;
     private ObjectStore objectStore;
+    private MultipartStore multipartStore;
     private AccessKeyResolver accessKeyResolver;
     private S3AuthVerifier authVerifier;
 
@@ -63,6 +71,11 @@ public final class S3ServerBuilder {
         return this;
     }
 
+    public S3ServerBuilder multipartStore(MultipartStore multipartStore) {
+        this.multipartStore = multipartStore;
+        return this;
+    }
+
     public S3ServerBuilder accessKeyResolver(AccessKeyResolver resolver) {
         this.accessKeyResolver = resolver;
         return this;
@@ -75,6 +88,24 @@ public final class S3ServerBuilder {
 
     public S3ServerBuilder register(S3OperationHandler<?> handler) {
         dispatcher.register(handler);
+        return this;
+    }
+
+    /**
+     * 一次挂 6 个 multipart handler —— 调用方就不用一个一个 .register(...)。
+     * 必须先 {@link #multipartStore(MultipartStore)} 设好 store。
+     */
+    public S3ServerBuilder registerMultipartHandlers() {
+        if (multipartStore == null) {
+            throw new IllegalStateException(
+                    "multipartStore must be set before registerMultipartHandlers()");
+        }
+        register(new InitiateMultipartHandler(multipartStore));
+        register(new UploadPartHandler(multipartStore));
+        register(new CompleteMultipartHandler(multipartStore));
+        register(new AbortMultipartHandler(multipartStore));
+        register(new ListMultipartUploadsHandler(multipartStore));
+        register(new ListPartsHandler(multipartStore));
         return this;
     }
 

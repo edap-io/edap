@@ -95,7 +95,7 @@ public class SigV4VerifierTest {
         lowerHeaders.put("x-amz-date", amzDate);
         lowerHeaders.put("x-amz-content-sha256", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
         S3Request req = new S3Request(S3Operation.LIST_BUCKETS, null, null,
-                Collections.emptyMap(), lowerHeaders, null, "/");
+                Collections.emptyMap(), lowerHeaders, null, null, "/");
         S3Exception ex = assertThrows(S3Exception.class, () ->
                 verifier.verify("GET", "/", Collections.emptyMap(), lowerHeaders, req));
         assertEquals("SignatureDoesNotMatch", ex.s3Code());
@@ -184,7 +184,7 @@ public class SigV4VerifierTest {
         lowerHeaders.put("x-amz-content-sha256", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
 
         S3Request req = new S3Request(S3Operation.LIST_BUCKETS, null, null,
-                Collections.emptyMap(), lowerHeaders, null, "/");
+                Collections.emptyMap(), lowerHeaders, null, null, "/");
 
         S3Exception ex = assertThrows(S3Exception.class, () ->
                 verifier.verify("GET", "/", Collections.emptyMap(), lowerHeaders, req));
@@ -205,7 +205,7 @@ public class SigV4VerifierTest {
         lowerHeaders.put("x-amz-date", "20120227T155427Z");
         lowerHeaders.put("x-amz-content-sha256", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
         S3Request req = new S3Request(S3Operation.LIST_BUCKETS, null, null,
-                Collections.emptyMap(), lowerHeaders, null, "/");
+                Collections.emptyMap(), lowerHeaders, null, null, "/");
         S3Exception ex = assertThrows(S3Exception.class, () ->
                 verifier.verify("GET", "/", Collections.emptyMap(), lowerHeaders, req));
         assertEquals("InvalidAccessKeyId", ex.s3Code());
@@ -225,7 +225,7 @@ public class SigV4VerifierTest {
         lowerHeaders.put("x-amz-date", "20120227T155427Z");
         lowerHeaders.put("x-amz-content-sha256", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
         S3Request req = new S3Request(S3Operation.LIST_BUCKETS, null, null,
-                Collections.emptyMap(), lowerHeaders, null, "/");
+                Collections.emptyMap(), lowerHeaders, null, null, "/");
         S3Exception ex = assertThrows(S3Exception.class, () ->
                 verifier.verify("GET", "/", Collections.emptyMap(), lowerHeaders, req));
         assertEquals("AccessDenied", ex.s3Code());
@@ -247,7 +247,7 @@ public class SigV4VerifierTest {
         lowerHeaders.put("x-amz-date", "20100227T155427Z");
         lowerHeaders.put("x-amz-content-sha256", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
         S3Request req = new S3Request(S3Operation.LIST_BUCKETS, null, null,
-                Collections.emptyMap(), lowerHeaders, null, "/");
+                Collections.emptyMap(), lowerHeaders, null, null, "/");
         S3Exception ex = assertThrows(S3Exception.class, () ->
                 verifier.verify("GET", "/", Collections.emptyMap(), lowerHeaders, req));
         assertEquals("AccessDenied", ex.s3Code());
@@ -278,7 +278,7 @@ public class SigV4VerifierTest {
         lowerHeaders.put("x-amz-content-sha256", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
         // 模拟"解析出来的桶是 forbidden-bucket"
         S3Request req = new S3Request(S3Operation.HEAD_BUCKET, "forbidden-bucket", null,
-                Collections.emptyMap(), lowerHeaders, null, "/forbidden-bucket");
+                Collections.emptyMap(), lowerHeaders, null, null, "/forbidden-bucket");
         S3Exception ex = assertThrows(S3Exception.class, () ->
                 v.verify("HEAD", "/forbidden-bucket", Collections.emptyMap(), lowerHeaders, req));
         assertEquals("AccessDenied", ex.s3Code());
