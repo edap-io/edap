@@ -23,6 +23,7 @@ import io.edap.util.UnsafeUtil;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
+import java.nio.channels.WritableByteChannel;
 import java.nio.file.Paths;
 
 import static java.nio.channels.FileChannel.MapMode.READ_WRITE;
@@ -286,5 +287,83 @@ public class FastBuf extends BasePoolEntry {
 //        if (isSyncByteBuffer) {
 //            buf.clear();
 //        }
+    }
+
+    /**
+     * @return FastBuf 底层类型（堆外直接 buffer 或文件映射 buffer）。
+     */
+    public BufType getType() {
+        return type;
+    }
+
+    /**
+     * 在 FastBuf 底层 ByteBuffer 上切一个 positioned、limited、只读切片视图。
+     * 调用方必须在 FastBuf 池化回收前用完该视图。
+     *
+     * @param startAddress 起始绝对地址（必须落在 [address, endAddress) 区间内）
+     * @param length 切片长度
+     * @return 只读 ByteBuffer 切片
+     */
+    public ByteBuffer byteBufferSlice(long startAddress, int length) {
+        int pos = (int) (startAddress - address);
+        if (pos < 0 || length < 0 || (long) pos + length > buf.capacity()) {
+            throw new IndexOutOfBoundsException(
+                    "startAddress=" + startAddress + ", length=" + length
+                            + ", buf.capacity()=" + buf.capacity());
+        }
+        return ((ByteBuffer) buf.duplicate().position(pos).limit(pos + length)).slice();
+    }
+
+    /**
+     * 从 FastBuf 的指定地址区间零拷贝（堆外实现）写出到 {@link WritableByteChannel}。
+     *
+     * <p>对 MEMORY 类型（{@link ByteBuffer#allocateDirect}）的 FastBuf，调用
+     * {@code ch.write(byteBuffer)} 走 NIO 直接通道传输；对 MAPPED_FILE 类型
+     * 同样零拷贝（page cache 直接写出）。
+     *
+     * @param ch 目标通道
+     * @param startAddress 起始绝对地址（必须落在 [address, writePos) 区间内）
+     * @param length 写出长度
+     * @return 实际写入字节数
+     */
+    public long transferTo(WritableByteChannel ch, long startAddress, int length) throws IOException {
+        ByteBuffer slice = byteBufferSlice(startAddress, length);
+        long written = 0;
+        while (slice.hasRemaining()) {
+            int n = ch.write(slice);
+            if (n <= 0) {
+                break;
+            }
+            written += n;
+        }
+        return written;
+    }
+
+    /**
+     * 把 FastBuf 当前 readPos 起的字节读入 ByteBuffer 的剩余空间，返回实际读取字节数。
+     * 同时推进 readPos。ByteBuffer 必须有足够的 remaining 空间。
+     *
+     * @param dst 目标 ByteBuffer（direct 或 heap 均可）
+     * @return 实际读取字节数（0 表示 FastBuf 无剩余）
+     */
+    public int get(ByteBuffer dst) {
+        int remaining = (int) (writePos - readPos);
+        int want = dst.remaining();
+        if (remaining <= 0 || want <= 0) {
+            return 0;
+        }
+        int n = Math.min(remaining, want);
+        if (dst.isDirect()) {
+            long dstAddr = UnsafeUtil.address(dst) + dst.position();
+            UnsafeUtil.copyMemory(readPos, dstAddr, n);
+        } else {
+            // heap ByteBuffer: 临时 byte[] 中转
+            byte[] tmp = new byte[n];
+            UnsafeUtil.copyMemory(readPos, tmp, 0, n);
+            dst.put(tmp);
+        }
+        dst.position(dst.position() + n);
+        readPos += n;
+        return n;
     }
 }

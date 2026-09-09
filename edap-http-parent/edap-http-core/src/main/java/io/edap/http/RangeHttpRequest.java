@@ -69,7 +69,7 @@ public class RangeHttpRequest implements HttpRequest {
     }
 
     @Override
-    public ByteData getBody() {
+    public HttpBody getBody() {
         return null;
     }
 
@@ -97,7 +97,7 @@ public class RangeHttpRequest implements HttpRequest {
     }
 
     @Override
-    public void setBody(ByteData data) {
+    public void setBody(HttpBody body) {
 
     }
 

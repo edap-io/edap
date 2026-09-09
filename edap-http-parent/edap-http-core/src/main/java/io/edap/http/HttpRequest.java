@@ -28,7 +28,7 @@ public interface HttpRequest {
 
     HeaderValue getHeaderValue(String name);
 
-    ByteData getBody();
+    HttpBody getBody();
 
 	ByteData getHeaderData();
 
@@ -38,7 +38,7 @@ public interface HttpRequest {
 
     int getContentLength();
 
-    void setBody(ByteData data);
+    void setBody(HttpBody body);
 
     void reset();
 

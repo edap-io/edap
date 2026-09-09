@@ -2,6 +2,7 @@ package io.edap.container.app.asm;
 
 import io.edap.container.AppContext;
 import io.edap.container.mw.AnnoData;
+import io.edap.http.HttpBody;
 import io.edap.http.HttpHandler;
 import io.edap.mw.context.RequestContext;
 import io.edap.mw.context.RequestContextHolder;
@@ -161,13 +162,14 @@ public class HttpHandlerGenerator {
 
     private void visitInvokeBean(MethodVisitor mv, int varHttReq, int varHttpResp, int varReq) {
         if (isPost) {
+            String bodyName = toInternalName(HttpBody.class.getName());
             mv.visitVarInsn(ALOAD, varHttpResp);
             mv.visitFieldInsn(GETSTATIC, handlerName, "bean", "L" + serviceIf + ";");
             mv.visitVarInsn(ALOAD, varHttReq);
 
             mv.visitMethodInsn(INVOKEINTERFACE, "io/edap/http/HttpRequest", "getBody",
-                    "()Lio/edap/util/ByteData;", true);
-            mv.visitMethodInsn(INVOKEVIRTUAL, "io/edap/util/ByteData", "getBytes", "()[B", false);
+                    "()Lio/edap/http/HttpBody;", true);
+            mv.visitMethodInsn(INVOKEINTERFACE, bodyName, "toByteArray", "()[B", true);
             mv.visitLdcInsn(Type.getType("L" + reqType + ";"));
             mv.visitMethodInsn(INVOKESTATIC, "io/edap/json/Eson", "parseObject",
                     "([BLjava/lang/Class;)Ljava/lang/Object;", false);

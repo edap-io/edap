@@ -13,6 +13,10 @@
 
     <dependencies>
         <dependency>
+            <groupId>io.edap</groupId>
+            <artifactId>edap-log-api</artifactId>
+        </dependency>
+        <dependency>
             <groupId>com.zaxxer</groupId>
             <artifactId>HikariCP</artifactId>
         </dependency>

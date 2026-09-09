@@ -86,6 +86,13 @@ public class UnsafeUtil {
         copyMemory0(bs, UNSAFE.ARRAY_BYTE_BASE_OFFSET + offset, null, address, length);
     }
 
+    /**
+     * 纯地址到地址的内存拷贝。两端都是绝对地址，可用于 direct buffer ↔ 任意内存块。
+     */
+    public static void copyMemory(long fromAddress, long toAddress, long length) {
+        copyMemory0(null, fromAddress, null, toAddress, length);
+    }
+
     public static void copyUtf16le(char[] cs, int offset, byte[] dest, int destOffset, int len) {
         copyMemory0(cs, ARRAY_CHAR_BASE_OFFSET + offset * 2, dest, ARRAY_BYTE_BASE_OFFSET + destOffset, len * 2);
     }

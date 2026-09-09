@@ -38,7 +38,7 @@ public class ValueHttpRequest implements HttpRequest {
      */
     private String host;
 
-    private ByteData body;
+    private HttpBody body;
 
     private int headerSize;
 
@@ -182,12 +182,12 @@ public class ValueHttpRequest implements HttpRequest {
         return contentLength;
     }
 
-    public ByteData getBody() {
+    public HttpBody getBody() {
         return body;
     }
 
     @Override
-    public void setBody(ByteData body) {
+    public void setBody(HttpBody body) {
         this.body = body;
     }
 

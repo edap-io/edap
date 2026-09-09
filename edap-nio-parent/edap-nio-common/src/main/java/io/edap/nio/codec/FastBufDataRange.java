@@ -65,7 +65,7 @@ public class FastBufDataRange implements DataRange<Long, FastBuf> {
         byte[]           bytes    = v.getBytes(DEFAULT_CHARSET);
         long             hashCode = FNV_1a_INIT_VAL;
         FastBuf buf = new FastBuf(bytes.length);
-        buf.write(bytes,0, bytes.length);
+        buf.byteBuffer().put(bytes,0, bytes.length);
         dr.start = buf.address();
         dr.first = bytes[0];
         dr.last  = bytes[bytes.length-1];

@@ -2,6 +2,8 @@ package io.edap.data.ds;
 
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
+import io.edap.log.Logger;
+import io.edap.log.LoggerManager;
 
 /**
  * edap 数据源工厂。
@@ -13,8 +15,11 @@ import com.zaxxer.hikari.HikariDataSource;
  */
 public class EdapDataSourceFactory {
 
+    static Logger log = LoggerManager.getLogger(EdapDataSourceFactory.class);
+
     public EdapDataSource createDataSource(String dataSourceId) {
-        String jdbcUrl = "jdbc:postgresql://192.168.64.3:5432/estylr";
+        String jdbcUrl = "jdbc:postgresql://192.168.64.2:5432/estylr?sslmode=disable";
+        log.info("datasource jdbcurl:{}", l -> l.arg(jdbcUrl));
         String username = "estylr";
         String password = "estylr@Pass";
         int maxPoolSize = 100;
