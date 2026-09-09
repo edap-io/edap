@@ -100,10 +100,15 @@ public class RawHttpTest {
             @Override
             public void handle(HttpRequest req, HttpResponse resp) throws IOException {
                 System.out.println(">>> HANDLER CALLED for " + req.getMethod() + " " + req.getPath());
-                resp.setSimpleResponse(200, java.util.Map.of("Content-Type", "text/plain"));
+                byte[] body = "hello".getBytes();
+                // 必须显式写 Content-Length:edap setSimpleResponse 不写 Content-Length,
+                // HTTP/1.1 客户端默认 read-until-close 模式;edap keep-alive 不关连接,
+                // 客户端会一直等 body 终止,3s request timeout 也不触发(实测)。
+                resp.setSimpleResponse(200, java.util.Map.of(
+                        "Content-Type", "text/plain",
+                        "Content-Length", String.valueOf(body.length)));
                 FastBuf buf = resp.getBuf();
                 if (buf != null) {
-                    byte[] body = "hello".getBytes();
                     buf.write(body, 0, body.length);
                 }
                 req.getHttpNioSession().writeToChannel(resp.getBuf());
@@ -121,8 +126,12 @@ public class RawHttpTest {
         edap.run();
         Thread.sleep(100);
 
+        // 强制 HTTP_1_1:默认 HTTP_2 会先发 Upgrade: h2c,edap 的 setSimpleResponse 只写
+        // HTTP/1.1 200 OK 不回 101,JDK HttpClient 在 h2c preface 等死、request timeout 不触发,
+        // 见 RawHttpTest.httpClientRequest 卡住的复现 / 根因。
         java.net.http.HttpClient client = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(2))
+                .version(java.net.http.HttpClient.Version.HTTP_1_1)
                 .build();
         try {
             java.net.http.HttpResponse<String> resp = client.send(

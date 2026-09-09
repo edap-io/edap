@@ -53,6 +53,16 @@ public class UnsafeUtil {
                         return null;
                     });
             BUFFER_ADDRESS_OFFSET = fieldOffset(field(Buffer.class, "address"));
+            if (BUFFER_ADDRESS_OFFSET < 0) {
+                // fail-fast:反射拿不到 offset 后,UNSAFE.getLong(buf, -1) 会读 Buffer 对象 header 的某个
+                // 字段当 address,返回看似合理但完全错的值(实测 256)。后续 native write 会把数据写到
+                // 错位置 → SIGSEGV 或数据错位(JDK 17 + mac aarch64 上是 ~15KB body 限制的真凶)。
+                // 这里硬抛,让上游显式处理。
+                throw new AssertionError(
+                        "UnsafeUtil: BUFFER_ADDRESS_OFFSET unresolved; "
+                        + "ensure JVM is started with --add-opens java.base/java.nio=ALL-UNNAMED "
+                        + "(direct reflection on java.nio.Buffer.address was blocked by the module system)");
+            }
         } catch (Throwable e) {
             throw new AssertionError(e);
         }
@@ -61,11 +71,47 @@ public class UnsafeUtil {
     private UnsafeUtil() {}
 
     /**
+     * 获取DirectByteBuffer的内存开始地址。
+     *
+     * <p>优先走 {@code sun.nio.ch.DirectBuffer#address()} —— 这是 JDK 暴露给 NIO 用户的官方 API,
+     * 不走反射,不受 module 系统 gating 影响(JDK 9+ 反射 {@code java.nio.Buffer.address} 需要
+     * {@code --add-opens java.base/java.nio=ALL-UNNAMED},否则 {@link #BUFFER_ADDRESS_OFFSET}
+     * 会静默变成 -1,所有 native 写出都写到错位置)。
+     *
+     * <p>DirectBuffer 路径需要 {@code --add-exports java.base/sun.nio.ch=ALL-UNNAMED},否则
+     * ClassNotFoundException;这时 fallback 到反射路径(已经在 static init 验证过 offset ≥ 0)。
+     */
+    private static final Class<?> DIRECT_BUFFER_CLASS;
+    private static final java.lang.reflect.Method DIRECT_BUFFER_ADDRESS_METHOD;
+
+    static {
+        Class<?> dc = null;
+        java.lang.reflect.Method m = null;
+        try {
+            dc = Class.forName("sun.nio.ch.DirectBuffer");
+            m = dc.getMethod("address");
+        } catch (Throwable ignored) {
+            // 模块未导出 sun.nio.ch → fallback 到反射路径
+        }
+        DIRECT_BUFFER_CLASS = dc;
+        DIRECT_BUFFER_ADDRESS_METHOD = m;
+    }
+
+    /**
      * 获取DirectByteBuffer的内存开始地址
-     * @param buffer ByteBuffer对象
-     * @return
+     * @param buffer ByteBuffer对象(必须是 direct ByteBuffer)
+     * @return native memory 起始地址
+     * @throws IllegalArgumentException 如果 buffer 不是 direct ByteBuffer
      */
     public static long address(ByteBuffer buffer) {
+        if (DIRECT_BUFFER_ADDRESS_METHOD != null && DIRECT_BUFFER_CLASS.isInstance(buffer)) {
+            try {
+                return (long) DIRECT_BUFFER_ADDRESS_METHOD.invoke(buffer);
+            } catch (java.lang.reflect.InvocationTargetException | IllegalAccessException e) {
+                throw new IllegalStateException("DirectBuffer.address() invocation failed", e);
+            }
+        }
+        // 反射路径(static init 已保证 BUFFER_ADDRESS_OFFSET ≥ 0)
         return UNSAFE.getLong(buffer, BUFFER_ADDRESS_OFFSET);
     }
 

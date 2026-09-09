@@ -153,7 +153,24 @@ public final class S3HttpHandler implements HttpHandler {
         }
         while (wlen < len || buf.rpos() < buf.wpos()) {
             if (nio != null) {
-                nio.writeToChannel(buf);
+                long oldRpos = buf.rpos();
+                boolean complete = nio.writeToChannel(buf);
+                if (!complete && buf.rpos() == oldRpos) {
+                    // writeToChannel 返回 false 且 rpos 没前进 = EAGAIN(socket send buffer 满)。
+                    // 这里不能 break —— handler 局部变量 body[wlen..] 的字节还没进过 buf,
+                    // break 后就丢了,客户端收不到完整响应(Content-Length 写的是完整长度)。
+                    // 短暂 sleep 给 socket drain 机会,然后重试。worker thread 会阻塞 ~1ms,
+                    // 但这是当前 flushWithBody 没接入异步 OP_WRITE 队列下的最简方案。
+                    // 真正的修法是 task #20/#21/#22 的 OP_WRITE 异步重调度。
+                    try {
+                        Thread.sleep(1);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        throw new IOException("interrupted while flushing body", ie);
+                    }
+                    continue;
+                }
+                // complete 或 partial:继续
             }
             // 部分写?把 [rpos, wpos) 的待发内容紧凑到 buf 头部,
             // 避免下次 write 把待发字节覆盖掉。

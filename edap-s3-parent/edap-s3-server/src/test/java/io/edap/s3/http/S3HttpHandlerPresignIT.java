@@ -48,6 +48,7 @@ import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Random;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -174,12 +175,14 @@ public class S3HttpHandlerPresignIT {
         // 8KB 随机 payload(避开 edap ~15KB body 限制,见 project_edap_http_body_limit.md)。
         // 仍覆盖"非平凡 body 走 presign 通路"这条路径(单元对齐 1MB PUT 路径之外
         // 还要保证 PUT 端 body 接收正确、GET 端能完整回收)。
-        byte[] payload = new byte[8 * 1024];
+        int kCount = 1024;
+        int randomCount = new Random().nextInt(1024);
+        byte[] payload = new byte[kCount * 1024 + randomCount];
         for (int i = 0; i < payload.length; i++) {
             payload[i] = (byte) ((i * 31 + 7) & 0xff);
         }
 
-        String key = "8kb.bin";
+        String key = kCount + "kb.bin";
         SigV4Presigner.PresignedUrl u = presigner.presignPutObject(
                 AKID, SECRET, REGION, bucket, key,
                 "localhost", port, Duration.ofMinutes(5));

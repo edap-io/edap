@@ -249,9 +249,17 @@ public class HttpResponse {
         if (wlen >= len) {
             return true;
         }
-        // 如果buf剩余容量不足则先把buf的数据写出后再填充新的数据
+        // 如果buf剩余容量不足则先把buf的数据写出后再填充新的数据。
+        // 必须看 writeToChannel 的返回值 —— 否则 socket 满时会死循环:
+        // writeToChannel false → rpos 不动 → 下次 buf.write 在 rpos=address 处覆盖同样字节
+        // → writeToChannel 还是 false → CPU 死转。MethodHandleNetIO.write 现在
+        // 把 -2/EAGAIN 当 transient 返回 0,writeToChannel 因此返回 false。
+        // 真正的修法是 task #20/#21/#22 的 OP_WRITE 异步重调度。
         while (wlen < len) {
-            writeToChannel(buf);
+            if (!nioSession.writeToChannel(buf)) {
+                LOG.warn("HttpResponse.write0(byte[]): writeToChannel 返回 false (socket 满 / EAGAIN),data truncated at wlen=" + wlen + "/" + len);
+                return false;
+            }
             buf.wpos(buf.address());
             wlen += buf.write(data, wlen, len - wlen);
         }
@@ -264,9 +272,11 @@ public class HttpResponse {
         if (wlen >= len) {
             return true;
         }
-        // 如果buf剩余容量不足则先把buf的数据写出后再填充新的数据
         while (wlen < len) {
-            writeToChannel(buf);
+            if (!nioSession.writeToChannel(buf)) {
+                LOG.warn("HttpResponse.write0(BufWriter): writeToChannel 返回 false (socket 满 / EAGAIN),data truncated at wlen=" + wlen + "/" + len);
+                return false;
+            }
             buf.wpos(buf.address());
             wlen += writer.toFastBuf(buf);
         }
@@ -279,9 +289,11 @@ public class HttpResponse {
         if (wlen >= len) {
             return true;
         }
-        // 如果buf剩余容量不足则先把buf的数据写出后再填充新的数据
         while (wlen < len) {
-            writeToChannel(buf);
+            if (!nioSession.writeToChannel(buf)) {
+                LOG.warn("HttpResponse.write0(ByteData): writeToChannel 返回 false (socket 满 / EAGAIN),data truncated at wlen=" + wlen + "/" + len);
+                return false;
+            }
             buf.wpos(buf.address());
             wlen += buf.write(byteData);
         }
