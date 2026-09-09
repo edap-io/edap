@@ -285,7 +285,7 @@ public class S3RequestParserTest {
             @Override public void setPath(String string) { }
             @Override public io.edap.http.PathInfo getPathInfo() { return null; }
             @Override public HeaderValue getHeaderValue(String name) { return null; }
-            @Override public io.edap.util.ByteData getBody() { return null; }
+            @Override public io.edap.http.HttpBody getBody() { return null; }
             @Override public io.edap.util.ByteData getHeaderData() { return null; }
             @Override public String getParameter(String name) { return null; }
             @Override public int getContentLength() { return -1; }
@@ -294,7 +294,7 @@ public class S3RequestParserTest {
             @Override public HttpVersion getVersion() { return null; }
             @Override public io.edap.http.HttpNioSession getHttpNioSession() { return null; }
             @Override public String getClientAddr() { return null; }
-            @Override public void setBody(io.edap.util.ByteData body) {}
+            @Override public void setBody(io.edap.http.HttpBody body) {}
             @Override public void reset() {}
         };
     }

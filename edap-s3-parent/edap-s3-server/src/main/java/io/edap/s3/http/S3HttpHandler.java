@@ -62,10 +62,12 @@ public final class S3HttpHandler implements HttpHandler {
         try {
             S3Request s3Req = parser.parse(req);
             String auth = s3Req.header("authorization");
-            if (auth == null && !authVerifier.allowAnonymous()) {
+            boolean querySigned = s3Req.queryParams() != null
+                    && s3Req.queryParams().containsKey("X-Amz-Signature");
+            if (auth == null && !querySigned && !authVerifier.allowAnonymous()) {
                 throw new S3Exception(S3ErrorCode.ACCESS_DENIED, "Missing Authorization header");
             }
-            if (auth != null) {
+            if (auth != null || querySigned) {
                 authVerifier.verify(req.getMethod(),
                         s3Req.rawHttpRequest(),
                         s3Req.queryParams(),
@@ -131,21 +133,47 @@ public final class S3HttpHandler implements HttpHandler {
      * setSimpleResponse 已经把 status + headers + 结束 CRLF 写进 buf;
      * 现在把 body 直接 append 到 buf,然后调 nioSession.writeToChannel(buf)
      * 强制 flush 到 socket。
+     *
+     * <p>修复:原循环在 nio.writeToChannel 部分写返回 false 时,
+     * {@code buf.wpos(buf.address())} 会把 wpos 重置到 address,但此时 rpos
+     * 还在中间位置 —— 紧接着的 {@code buf.write(...)} 用新 body 数据覆盖掉
+     * [address, rpos) 的已发字节和 [rpos, wpos) 的待发字节,包括头部和小 body
+     * 首段。客户端在 parseHTTPHeader 处永久阻塞。修复:循环内不再盲目重置 wpos,
+     * 而是把待发字节紧凑到 buf 头部,保证下次 writeToChannel 把完整内容送出。
      */
     private void flushWithBody(HttpRequest req, HttpResponse resp, byte[] body) throws IOException {
         FastBuf buf = resp.getBuf();
         if (buf == null) return;
         HttpNioSession nio = req.getHttpNioSession();
-        if (body != null && body.length > 0) {
-            int len = body.length;
-            int wlen = buf.write(body, 0, len);
-            while (wlen < len) {
-                if (nio != null) nio.writeToChannel(buf);
+        int len = body == null ? 0 : body.length;
+        int wlen = 0;
+        if (len > 0) {
+            int first = Math.min(len, buf.writeRemain());
+            wlen = buf.write(body, 0, first);
+        }
+        while (wlen < len || buf.rpos() < buf.wpos()) {
+            if (nio != null) {
+                nio.writeToChannel(buf);
+            }
+            // 部分写?把 [rpos, wpos) 的待发内容紧凑到 buf 头部,
+            // 避免下次 write 把待发字节覆盖掉。
+            if (buf.rpos() > buf.address()) {
+                long pending = buf.wpos() - buf.rpos();
+                if (pending > 0) {
+                    io.edap.util.UnsafeUtil.copyMemory(buf.rpos(), buf.address(), pending);
+                }
+                buf.wpos(buf.address() + pending);
+                buf.rpos(buf.address());
+            }
+            // 填新 body 到 buf(只在 buf 空时才写)
+            if (buf.rpos() == buf.wpos() && wlen < len) {
                 buf.wpos(buf.address());
-                wlen += buf.write(body, wlen, len - wlen);
+                buf.rpos(buf.address());
+                int chunk = Math.min(len - wlen, buf.writeRemain());
+                wlen += buf.write(body, wlen, chunk);
             }
         }
-        // 收尾 flush
+        // 收尾 flush(可能还有零碎字节)
         if (nio != null) nio.writeToChannel(buf);
     }
 }

@@ -11,6 +11,7 @@ package io.edap.s3.http;
 
 import io.edap.http.HttpRequest;
 import io.edap.http.HeaderValue;
+import io.edap.http.HttpBody;
 import io.edap.http.ValueHttpRequest;
 import io.edap.http.model.QueryInfo;
 import io.edap.s3.error.S3ErrorCode;
@@ -18,9 +19,10 @@ import io.edap.s3.error.S3Exception;
 import io.edap.s3.model.PutStream;
 import io.edap.s3.model.S3Request;
 import io.edap.s3.op.S3Operation;
-import io.edap.util.ByteData;
 
 import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.lang.reflect.Field;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
@@ -297,22 +299,23 @@ public final class S3RequestParser {
     // ===================== PutBody =====================
 
     private static PutStream buildPutBody(HttpRequest req, Map<String, String> headers) throws S3Exception {
-        ByteData bd = null;
-        if (req instanceof ValueHttpRequest) {
-            bd = ((ValueHttpRequest) req).getBody();
-        }
-        if (bd == null || bd.getLength() == 0) {
+        HttpBody body = req.getBody();
+        if (body == null || body.length() == 0) {
             return new PutStream(new ByteArrayInputStream(new byte[0]),
                     headers.getOrDefault("content-type", "application/octet-stream"),
                     extractUserMeta(headers), 0, headers.get("content-md5"));
         }
-        byte[] payload = bd.getBytes();
-        int off = bd.getOffset();
-        int len = bd.getLength();
-        ByteArrayInputStream stream = new ByteArrayInputStream(payload, off, len);
+        long len = body.length();
         long contentLength = headers.containsKey("content-length")
                 ? Long.parseLong(headers.get("content-length"))
                 : len;
+        // 直接拿 body 的流式视图，下游 DiskObjectStore 边读边落盘
+        InputStream stream;
+        try {
+            stream = body.openStream();
+        } catch (IOException e) {
+            throw new S3Exception(S3ErrorCode.INTERNAL_ERROR, "failed to open body stream", null, e);
+        }
         return new PutStream(stream,
                 headers.getOrDefault("content-type", "application/octet-stream"),
                 extractUserMeta(headers),
@@ -335,18 +338,10 @@ public final class S3RequestParser {
      * body 通常很小(列出 part references,几十行 XML),直接缓冲即可。
      */
     private static byte[] buildXmlBody(HttpRequest req) {
-        if (!(req instanceof ValueHttpRequest)) {
+        HttpBody body = req.getBody();
+        if (body == null || body.length() == 0) {
             return new byte[0];
         }
-        ByteData bd = ((ValueHttpRequest) req).getBody();
-        if (bd == null || bd.getLength() == 0) {
-            return new byte[0];
-        }
-        byte[] payload = bd.getBytes();
-        int off = bd.getOffset();
-        int len = bd.getLength();
-        byte[] out = new byte[len];
-        System.arraycopy(payload, off, out, 0, len);
-        return out;
+        return body.toByteArray();
     }
 }

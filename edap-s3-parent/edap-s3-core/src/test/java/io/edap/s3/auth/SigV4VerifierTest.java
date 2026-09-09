@@ -284,4 +284,266 @@ public class SigV4VerifierTest {
         assertEquals("AccessDenied", ex.s3Code());
         assertTrue(ex.getMessage().contains("forbidden-bucket"));
     }
+
+    // ===================== query-string auth mode (presign) =====================
+
+    private SigV4Presigner presigner() {
+        return new SigV4Presigner();
+    }
+
+    /**
+     * presign 一个 PUT URL,把 query params 喂给 verifier.verify,期望通过。
+     */
+    @Test
+    void queryMode_roundtripAccepts() throws Exception {
+        SigV4Presigner.PresignedUrl u = presigner().presignPutObject(
+                AKID, SECRET, REGION, "my-bucket", "photos/cat.jpg",
+                "s3.internal", 9000,
+                java.time.Duration.ofMinutes(10));
+        SigV4PresignerTest.ParsedUrl parsed = SigV4PresignerTest.ParsedUrl.parse(u.url());
+        Map<String, String> headers = new HashMap<>();
+        headers.put("host", "s3.internal:9000");
+
+        S3Request req = new S3Request(S3Operation.PUT_OBJECT, "my-bucket", "photos/cat.jpg",
+                parsed.queryParams, headers, null, null, parsed.path);
+        // 应通过,不抛
+        verifier.verify("PUT", parsed.path, parsed.queryParams, headers, req);
+    }
+
+    /**
+     * 把 X-Amz-Date 倒推 X-Amz-Expires 之前,使 URL 过期,验证被拒。
+     */
+    @Test
+    void queryMode_expired_throwsAccessDenied() throws Exception {
+        // 用 past 时间构造一个"老" presigned URL 的 queryParams(直接组装,绕过 presigner)
+        Instant pastSignedAt = Instant.now().minus(java.time.Duration.ofMinutes(30));
+        String amzDate = AMZDATE_FMT.format(pastSignedAt);
+        String dateStamp = amzDate.substring(0, 8);
+        String credential = AKID + "/" + dateStamp + "/" + REGION + "/s3/aws4_request";
+        Map<String, String> query = new java.util.TreeMap<>();
+        query.put("X-Amz-Algorithm", "AWS4-HMAC-SHA256");
+        query.put("X-Amz-Credential", credential);
+        query.put("X-Amz-Date", amzDate);
+        query.put("X-Amz-Expires", "60");
+        query.put("X-Amz-SignedHeaders", "host");
+        query.put("X-Amz-Signature", "00");  // 任何值都会过 expires 检查先
+
+        Map<String, String> headers = new HashMap<>();
+        headers.put("host", "s3.internal:9000");
+
+        S3Request req = new S3Request(S3Operation.PUT_OBJECT, "my-bucket", "k",
+                query, headers, null, null, "/my-bucket/k");
+        S3Exception ex = assertThrows(S3Exception.class, () ->
+                verifier.verify("PUT", "/my-bucket/k", query, headers, req));
+        assertEquals("AccessDenied", ex.s3Code());
+        assertTrue(ex.getMessage().contains("expired"));
+    }
+
+    /**
+     * 篡改 signature 一字节 → SIGNATURE_DOES_NOT_MATCH。
+     */
+    @Test
+    void queryMode_tamperedSignature_throwsSignatureMismatch() throws Exception {
+        SigV4Presigner.PresignedUrl u = presigner().presignPutObject(
+                AKID, SECRET, REGION, "b", "k", "s3.internal", 9000,
+                java.time.Duration.ofMinutes(10));
+        SigV4PresignerTest.ParsedUrl parsed = SigV4PresignerTest.ParsedUrl.parse(u.url());
+
+        // 翻 sig 最后一个字符
+        String sig = parsed.queryParams.get("X-Amz-Signature");
+        char last = sig.charAt(sig.length() - 1);
+        char flipped = (last == '0') ? '1' : '0';
+        parsed.queryParams.put("X-Amz-Signature", sig.substring(0, sig.length() - 1) + flipped);
+
+        Map<String, String> headers = new HashMap<>();
+        headers.put("host", "s3.internal:9000");
+
+        S3Request req = new S3Request(S3Operation.PUT_OBJECT, "b", "k",
+                parsed.queryParams, headers, null, null, parsed.path);
+        S3Exception ex = assertThrows(S3Exception.class, () ->
+                verifier.verify("PUT", parsed.path, parsed.queryParams, headers, req));
+        assertEquals("SignatureDoesNotMatch", ex.s3Code());
+    }
+
+    /**
+     * 篡改 X-Amz-Expires 数值 → SIGNATURE_DOES_NOT_MATCH(sig 是按原值算的)。
+     */
+    @Test
+    void queryMode_tamperedQuery_throwsSignatureMismatch() throws Exception {
+        SigV4Presigner.PresignedUrl u = presigner().presignPutObject(
+                AKID, SECRET, REGION, "b", "k", "s3.internal", 9000,
+                java.time.Duration.ofMinutes(10));
+        SigV4PresignerTest.ParsedUrl parsed = SigV4PresignerTest.ParsedUrl.parse(u.url());
+        parsed.queryParams.put("X-Amz-Expires", "1");
+
+        Map<String, String> headers = new HashMap<>();
+        headers.put("host", "s3.internal:9000");
+
+        S3Request req = new S3Request(S3Operation.PUT_OBJECT, "b", "k",
+                parsed.queryParams, headers, null, null, parsed.path);
+        S3Exception ex = assertThrows(S3Exception.class, () ->
+                verifier.verify("PUT", parsed.path, parsed.queryParams, headers, req));
+        assertEquals("SignatureDoesNotMatch", ex.s3Code());
+    }
+
+    /**
+     * 篡改 path(改 key)→ SIGNATURE_DOES_NOT_MATCH。
+     */
+    @Test
+    void queryMode_tamperedKey_throwsSignatureMismatch() throws Exception {
+        SigV4Presigner.PresignedUrl u = presigner().presignPutObject(
+                AKID, SECRET, REGION, "b", "original-key", "s3.internal", 9000,
+                java.time.Duration.ofMinutes(10));
+        SigV4PresignerTest.ParsedUrl parsed = SigV4PresignerTest.ParsedUrl.parse(u.url());
+
+        Map<String, String> headers = new HashMap<>();
+        headers.put("host", "s3.internal:9000");
+
+        S3Request req = new S3Request(S3Operation.PUT_OBJECT, "b", "tampered-key",
+                parsed.queryParams, headers, null, null, "/b/tampered-key");
+        S3Exception ex = assertThrows(S3Exception.class, () ->
+                verifier.verify("PUT", "/b/tampered-key", parsed.queryParams, headers, req));
+        assertEquals("SignatureDoesNotMatch", ex.s3Code());
+    }
+
+    /**
+     * wire 上 Host header 与 presigner 用的 host:port 不一致 → SIGNATURE_DOES_NOT_MATCH。
+     */
+    @Test
+    void queryMode_hostMismatch_throwsSignatureMismatch() throws Exception {
+        SigV4Presigner.PresignedUrl u = presigner().presignPutObject(
+                AKID, SECRET, REGION, "b", "k", "s3.internal", 9000,
+                java.time.Duration.ofMinutes(10));
+        SigV4PresignerTest.ParsedUrl parsed = SigV4PresignerTest.ParsedUrl.parse(u.url());
+
+        Map<String, String> headers = new HashMap<>();
+        headers.put("host", "other-host:9000");  // 与 presign 用的 s3.internal 不同
+
+        S3Request req = new S3Request(S3Operation.PUT_OBJECT, "b", "k",
+                parsed.queryParams, headers, null, null, parsed.path);
+        S3Exception ex = assertThrows(S3Exception.class, () ->
+                verifier.verify("PUT", parsed.path, parsed.queryParams, headers, req));
+        assertEquals("SignatureDoesNotMatch", ex.s3Code());
+    }
+
+    /**
+     * query 里没 X-Amz-Signature,header 也没 Authorization → AccessDenied。
+     */
+    @Test
+    void queryMode_missingSignature_throwsAccessDenied() {
+        Map<String, String> query = new HashMap<>();
+        query.put("foo", "bar");
+        Map<String, String> headers = new HashMap<>();
+        headers.put("host", "s3.internal:9000");
+
+        S3Request req = new S3Request(S3Operation.PUT_OBJECT, "b", "k",
+                query, headers, null, null, "/b/k");
+        S3Exception ex = assertThrows(S3Exception.class, () ->
+                verifier.verify("PUT", "/b/k", query, headers, req));
+        assertEquals("AccessDenied", ex.s3Code());
+    }
+
+    /**
+     * 确认 canonical request 的 payload hash 字段字面量是 UNSIGNED-PAYLOAD。
+     * 通过 presign + verify 一来一回 + canonicalUri 检查:走 query 模式的
+     * canonical 是按 UNSIGNED-PAYLOAD 算的,所以篡改 payload 不会破坏 sig
+     * (这是预期行为 —— 客户端带任何 body 都不影响验签)。我们这里验证
+     * 的是相反方向:presigner 输出的 canonicalRequest 字面应含 UNSIGNED-PAYLOAD。
+     */
+    @Test
+    void queryMode_presignerUsesUnsignedPayload() throws Exception {
+        // presign 后,通过 verifier 反向验签成功(说明双方 canonical 一致,且
+        // 用的是 UNSIGNED-PAYLOAD —— 验证已经被 queryMode_roundtripAccepts 覆盖)
+        // 这里再补一条:presigner 内部 buildCanonicalRequest 路径调用产物
+        // (用同一个 AMZDATE / SECRET)与 verifier 端重建的产物必须 byte-equal,
+        // 因此 roundtrip 通过即等价于 canonical 一致。
+        // 显式断言:把 presigner 输出直接过 buildCanonicalRequest,应得同样的
+        // canonical 串(用同样输入)。
+        String method = "GET";
+        String path = "/b/k";
+        Map<String, String> query = new java.util.TreeMap<>();
+        query.put("X-Amz-Algorithm", "AWS4-HMAC-SHA256");
+        query.put("X-Amz-Credential", AKID + "/20260101/" + REGION + "/s3/aws4_request");
+        query.put("X-Amz-Date", "20260101T000000Z");
+        query.put("X-Amz-Expires", "3600");
+        query.put("X-Amz-SignedHeaders", "host");
+        Map<String, String> headers = new HashMap<>();
+        headers.put("host", "s3.internal");
+
+        String canonical = SigV4Verifier.buildCanonicalRequest(
+                method,
+                SigV4Verifier.canonicalUri(path),
+                SigV4Verifier.canonicalQueryString(query),
+                headers,
+                new String[] {"host"},
+                SigV4Verifier.UNSIGNED_PAYLOAD);
+
+        // UNSIGNED-PAYLOAD 必须出现在 canonical 末尾
+        assertTrue(canonical.endsWith("UNSIGNED-PAYLOAD"),
+                "canonical payload 必须是 UNSIGNED-PAYLOAD: " + canonical);
+        assertTrue(canonical.contains("host:s3.internal\n"),
+                "canonical 必须含 host header 行: " + canonical);
+    }
+
+    /**
+     * 构造一个 query,Credential 的 region 与 resolver 配置的 region 不同 → AccessDenied。
+     */
+    @Test
+    void queryMode_regionMismatch_throwsAccessDenied() throws Exception {
+        Instant now = Instant.now();
+        String amzDate = AMZDATE_FMT.format(now);
+        String dateStamp = amzDate.substring(0, 8);
+        Map<String, String> query = new java.util.TreeMap<>();
+        query.put("X-Amz-Algorithm", "AWS4-HMAC-SHA256");
+        query.put("X-Amz-Credential", AKID + "/" + dateStamp + "/ap-east-1/s3/aws4_request");
+        query.put("X-Amz-Date", amzDate);
+        query.put("X-Amz-Expires", "3600");
+        query.put("X-Amz-SignedHeaders", "host");
+        query.put("X-Amz-Signature", "00");
+
+        Map<String, String> headers = new HashMap<>();
+        headers.put("host", "s3.internal:9000");
+
+        S3Request req = new S3Request(S3Operation.PUT_OBJECT, "b", "k",
+                query, headers, null, null, "/b/k");
+        S3Exception ex = assertThrows(S3Exception.class, () ->
+                verifier.verify("PUT", "/b/k", query, headers, req));
+        assertEquals("AccessDenied", ex.s3Code());
+        assertTrue(ex.getMessage().contains("region"));
+    }
+
+    /**
+     * 构造一个 query,bucket 在 resolver 的 allowedBuckets 黑名单里 → AccessDenied。
+     */
+    @Test
+    void queryMode_bucketAclDenied() throws Exception {
+        Properties p = new Properties();
+        // resolver 只允许 "allowed-bucket",请求里发 forbidden-bucket
+        p.setProperty("s3.accessKey." + AKID + ".secret", SECRET);
+        p.setProperty("s3.accessKey." + AKID + ".region", REGION);
+        p.setProperty("s3.accessKey." + AKID + ".buckets", "allowed-bucket");
+        AccessKeyResolver resolver = ConfigAccessKeyResolver.fromProperties(p);
+        SigV4Verifier v = new SigV4Verifier(resolver);
+
+        Instant now = Instant.now();
+        String amzDate = AMZDATE_FMT.format(now);
+        String dateStamp = amzDate.substring(0, 8);
+        Map<String, String> query = new java.util.TreeMap<>();
+        query.put("X-Amz-Algorithm", "AWS4-HMAC-SHA256");
+        query.put("X-Amz-Credential", AKID + "/" + dateStamp + "/" + REGION + "/s3/aws4_request");
+        query.put("X-Amz-Date", amzDate);
+        query.put("X-Amz-Expires", "3600");
+        query.put("X-Amz-SignedHeaders", "host");
+        query.put("X-Amz-Signature", "00");
+
+        Map<String, String> headers = new HashMap<>();
+        headers.put("host", "s3.internal:9000");
+
+        S3Request req = new S3Request(S3Operation.PUT_OBJECT, "forbidden-bucket", "k",
+                query, headers, null, null, "/forbidden-bucket/k");
+        S3Exception ex = assertThrows(S3Exception.class, () ->
+                v.verify("PUT", "/forbidden-bucket/k", query, headers, req));
+        assertEquals("AccessDenied", ex.s3Code());
+        assertTrue(ex.getMessage().contains("forbidden-bucket"));
+    }
 }

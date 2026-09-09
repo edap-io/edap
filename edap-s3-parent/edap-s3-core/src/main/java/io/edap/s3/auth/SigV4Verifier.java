@@ -53,10 +53,20 @@ import java.util.TreeMap;
  * server 模块的 S3HttpHandler 负责从 HttpRequest 抽取 headers / queryParams / path。
  *
  * <p>Phase 1 简化:不支持 presigned URL;不支持 UNSIGNED-PAYLOAD。
+ *
+ * <p>Phase 2:支持 query-string auth mode(预签 URL)。{@link #verify} 入口 dispatch:
+ * <ul>
+ *   <li>request 带 {@code X-Amz-Signature} query param → 走 query 模式验签
+ *       (对应 {@link io.edap.s3.auth.SigV4Presigner} 生成的 URL);</li>
+ *   <li>否则走 header 模式(原逻辑)。</li>
+ * </ul>
  */
 public class SigV4Verifier implements S3AuthVerifier {
 
     private static final String ALGORITHM = "AWS4-HMAC-SHA256";
+
+    /** Query-string auth mode 固定 payload hash。 */
+    public static final String UNSIGNED_PAYLOAD = "UNSIGNED-PAYLOAD";
     private static final DateTimeFormatter AMZDATE_FMT =
             DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss'Z'").withZone(ZoneOffset.UTC);
     private static final Duration CLOCK_SKEW = Duration.ofMinutes(15);
@@ -73,6 +83,13 @@ public class SigV4Verifier implements S3AuthVerifier {
                        Map<String, String> queryParams,
                        Map<String, String> headers,
                        S3Request parsed) throws Exception {
+        // query-string 模式 dispatch:presign URL 带 X-Amz-Signature query param,
+        // header 模式不带 —— 优先按 query 模式验签。
+        if (queryParams != null && queryParams.containsKey("X-Amz-Signature")) {
+            verifyQueryMode(httpMethod, path, queryParams, headers, parsed);
+            return;
+        }
+
         // headers 转 lowercase(SigV4 强制)
         Map<String, String> lowerHeaders = new HashMap<>();
         for (Map.Entry<String, String> e : headers.entrySet()) {
@@ -169,6 +186,142 @@ public class SigV4Verifier implements S3AuthVerifier {
         String serverSignature = hexEncode(hmac(signingKey, stringToSign));
 
         // 9. 对比
+        if (!constantTimeEquals(serverSignature, clientSignature)) {
+            throw new S3Exception(S3ErrorCode.SIGNATURE_DOES_NOT_MATCH,
+                    "Signature mismatch: expected=" + serverSignature + " got=" + clientSignature);
+        }
+    }
+
+    /**
+     * SigV4 query-string 模式验签 —— 服务端接住 {@link SigV4Presigner} 生成的预签 URL 时走这条路。
+     *
+     * <p>与 header 模式的关键差异(本方法已严格按 AWS 规范实现):
+     * <ul>
+     *   <li>所有鉴权字段从 query params 取,header 模式取 {@code Authorization} header。</li>
+     *   <li>{@code SignedHeaders} 恒为 {@code host}(query 模式 spec 强制)。</li>
+     *   <li>canonical payload hash 是字面量 {@code UNSIGNED-PAYLOAD},不重算 body。</li>
+     *   <li>{@code X-Amz-Expires} 是相对 signedAt 的<b>绝对窗口</b> —— 不叠加 clock skew。</li>
+     *   <li>canonical query string 必须<b>不</b>包含 {@code X-Amz-Signature} 自身
+     *       (AWS 规范的硬要求,违反会导致验签永远不过)。</li>
+     * </ul>
+     */
+    private void verifyQueryMode(String httpMethod,
+                                  String path,
+                                  Map<String, String> queryParams,
+                                  Map<String, String> headers,
+                                  S3Request parsed) throws Exception {
+        // 1. 必备 query 字段
+        String algorithm = queryParams.get("X-Amz-Algorithm");
+        String credential = queryParams.get("X-Amz-Credential");
+        String amzDate = queryParams.get("X-Amz-Date");
+        String expiresStr = queryParams.get("X-Amz-Expires");
+        String signedHeaders = queryParams.get("X-Amz-SignedHeaders");
+        String clientSignature = queryParams.get("X-Amz-Signature");
+        if (algorithm == null || credential == null || amzDate == null
+                || expiresStr == null || signedHeaders == null || clientSignature == null) {
+            throw new S3Exception(S3ErrorCode.ACCESS_DENIED,
+                    "Missing one of required SigV4 query params: "
+                            + "X-Amz-Algorithm/Credential/Date/Expires/SignedHeaders/Signature");
+        }
+        if (!ALGORITHM.equals(algorithm)) {
+            throw new S3Exception(S3ErrorCode.ACCESS_DENIED,
+                    "Unsupported algorithm: " + algorithm);
+        }
+
+        // 2. Credential 解析
+        String[] credParts = credential.split("/");
+        if (credParts.length != 5) {
+            throw new S3Exception(S3ErrorCode.SIGNATURE_DOES_NOT_MATCH,
+                    "Credential format invalid: " + credential);
+        }
+        String accessKeyId = credParts[0];
+        String credDate = credParts[1];
+        String credRegion = credParts[2];
+        String credService = credParts[3];
+
+        // 3. 查 access key
+        AccessKeyResolver.ResolvedKey resolved = keyResolver.resolve(accessKeyId);
+        if (resolved == null) {
+            throw new S3Exception(S3ErrorCode.INVALID_ACCESS_KEY_ID,
+                    "The AWS access key ID you provided does not exist: " + accessKeyId);
+        }
+
+        // 4. scope 一致性
+        if (!credDate.equals(amzDate.substring(0, 8))) {
+            throw new S3Exception(S3ErrorCode.ACCESS_DENIED,
+                    "Credential date does not match X-Amz-Date");
+        }
+        if (!credRegion.equals(resolved.region())) {
+            throw new S3Exception(S3ErrorCode.ACCESS_DENIED,
+                    "Credential region mismatch: signed=" + credRegion
+                            + " configured=" + resolved.region());
+        }
+        if (!credService.equals(resolved.service())) {
+            throw new S3Exception(S3ErrorCode.ACCESS_DENIED,
+                    "Credential service mismatch: signed=" + credService
+                            + " configured=" + resolved.service());
+        }
+
+        // 5. expires 校验(绝对窗口,无 clock skew)
+        long expiresSeconds;
+        try {
+            expiresSeconds = Long.parseLong(expiresStr);
+        } catch (NumberFormatException e) {
+            throw new S3Exception(S3ErrorCode.ACCESS_DENIED,
+                    "X-Amz-Expires must be integer seconds: " + expiresStr);
+        }
+        if (expiresSeconds < 1 || expiresSeconds > 604800) {
+            throw new S3Exception(S3ErrorCode.ACCESS_DENIED,
+                    "X-Amz-Expires out of range [1, 604800]: " + expiresSeconds);
+        }
+        Instant signedAt = Instant.from(AMZDATE_FMT.parse(amzDate));
+        Instant expiresAt = signedAt.plusSeconds(expiresSeconds);
+        if (Instant.now().isAfter(expiresAt)) {
+            throw new S3Exception(S3ErrorCode.ACCESS_DENIED,
+                    "Request has expired: signedAt=" + amzDate + " expiresSeconds=" + expiresSeconds);
+        }
+
+        // 6. 桶级 ACL
+        if (parsed.bucket() != null && resolved.allowedBuckets() != null
+                && !resolved.allowedBuckets().contains(parsed.bucket())) {
+            throw new S3Exception(S3ErrorCode.ACCESS_DENIED,
+                    "Access denied to bucket: " + parsed.bucket());
+        }
+
+        // 7. canonical request —— SignedHeaders 必须 = "host",payload = UNSIGNED-PAYLOAD,
+        // query 必须不含 X-Amz-Signature。
+        // headers 是调用方传进来的原始 map,S3HttpHandler 已 lowercased。
+        String hostHeader = headers.get("host");
+        if (hostHeader == null) {
+            throw new S3Exception(S3ErrorCode.ACCESS_DENIED,
+                    "Missing Host header (required for SigV4 query mode)");
+        }
+        if (!"host".equals(signedHeaders)) {
+            throw new S3Exception(S3ErrorCode.SIGNATURE_DOES_NOT_MATCH,
+                    "X-Amz-SignedHeaders must be 'host' for query mode, got: " + signedHeaders);
+        }
+        Map<String, String> pickedHeaders = new LinkedHashMap<>();
+        pickedHeaders.put("host", hostHeader);
+
+        // canonical query:从 queryParams 拷贝,移除 X-Amz-Signature(算 sig 时不带它)
+        Map<String, String> queryForCanonical = new TreeMap<>(queryParams);
+        queryForCanonical.remove("X-Amz-Signature");
+
+        String canonicalRequest = buildCanonicalRequest(
+                httpMethod, canonicalUri(path),
+                canonicalQueryString(queryForCanonical),
+                pickedHeaders, new String[] {"host"},
+                UNSIGNED_PAYLOAD);
+
+        // 8. string to sign
+        String scope = credDate + "/" + credRegion + "/" + credService + "/aws4_request";
+        String stringToSign = ALGORITHM + "\n" + amzDate + "\n" + scope + "\n"
+                + sha256Hex(canonicalRequest.getBytes(StandardCharsets.UTF_8));
+
+        // 9. signing key → signature 比对
+        byte[] signingKey = deriveSigningKey(resolved.secretKey(), credDate, credRegion, credService);
+        String serverSignature = hexEncode(hmac(signingKey, stringToSign));
+
         if (!constantTimeEquals(serverSignature, clientSignature)) {
             throw new S3Exception(S3ErrorCode.SIGNATURE_DOES_NOT_MATCH,
                     "Signature mismatch: expected=" + serverSignature + " got=" + clientSignature);
@@ -287,7 +440,7 @@ public class SigV4Verifier implements S3AuthVerifier {
         return s.trim().replaceAll("\\s+", " ");
     }
 
-    private static byte[] hmac(byte[] key, String data) throws Exception {
+    public static byte[] hmac(byte[] key, String data) throws Exception {
         Mac mac = Mac.getInstance("HmacSHA256");
         mac.init(new SecretKeySpec(key, "HmacSHA256"));
         return mac.doFinal(data.getBytes(StandardCharsets.UTF_8));
