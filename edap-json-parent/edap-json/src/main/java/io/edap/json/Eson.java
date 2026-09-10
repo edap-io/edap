@@ -237,6 +237,8 @@ public class Eson {
             } else {
                 writer.write(toEpochMills((LocalDateTime)obj));
             }
+        } else if ("java.lang.Object".equals(obj.getClass().getName())) {
+            writer.write((byte)'{', (byte)'}');
         } else {
             JsonEncoder codec = REGISTER.getEncoder(obj.getClass());
             codec.encode(writer, obj);
