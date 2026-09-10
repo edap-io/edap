@@ -286,7 +286,7 @@ public class JsonUtil {
             case "int":
             case "java.lang.Integer":
             case "long":
-            case "java.long.Long":
+            case "java.lang.Long":
             case "double":
             case "java.lang.Double":
             case "float":
@@ -308,7 +308,7 @@ public class JsonUtil {
             case "int":
             case "java.lang.Integer":
             case "long":
-            case "java.long.Long":
+            case "java.lang.Long":
             case "double":
             case "java.lang.Double":
             case "float":
