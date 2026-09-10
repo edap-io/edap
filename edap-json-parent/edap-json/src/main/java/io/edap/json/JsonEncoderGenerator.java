@@ -506,7 +506,7 @@ public class JsonEncoderGenerator {
     private void visitIterableFiledMethod(MethodVisitor mv, JsonFieldInfo jfi, Label nextFieldLabel) {
         //Label label2 = new Label();
         mv.visitVarInsn(ALOAD, 1);
-        mv.visitMethodInsn(INVOKEINTERFACE, WRITER_NAME, "writeArrayStart", "(B)V", true);
+        mv.visitMethodInsn(INVOKEINTERFACE, WRITER_NAME, "writeArrayStart", "()V", true);
         mv.visitInsn(ICONST_0);
         mv.visitVarInsn(ISTORE, 4);
         mv.visitVarInsn(ALOAD, 2);
@@ -590,7 +590,7 @@ public class JsonEncoderGenerator {
         mv.visitLabel(label4);
         mv.visitFrame(Opcodes.F_CHOP,2, null, 0, null);
         mv.visitVarInsn(ALOAD, 1);
-        mv.visitMethodInsn(INVOKEINTERFACE, WRITER_NAME, "writeArrayEnd", "(B)V", true);
+        mv.visitMethodInsn(INVOKEINTERFACE, WRITER_NAME, "writeArrayEnd", "()V", true);
     }
 
     private void visitClInit(List<JsonFieldInfo> fields, List<Type> allPojos) {
