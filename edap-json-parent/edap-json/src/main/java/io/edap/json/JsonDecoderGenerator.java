@@ -271,11 +271,6 @@ public class JsonDecoderGenerator {
             } else {
                 mv.visitVarInsn(ALOAD, 3);
                 mv.visitVarInsn(ALOAD, 1);
-                String readMethod = getReadMethod(jfi);
-                mv.visitMethodInsn(INVOKEINTERFACE, READER_NAME, readMethod,
-                        "()" + getDescriptor(jfi.field.getGenericType()), true);
-//            mv.visitMethodInsn(INVOKEVIRTUAL, pojoName, "setField1",
-//                    "(Ljava/lang/String;)V", false);
                 visitSetValueOpcode(mv, jfi);
             }
             mv.visitJumpInsn(GOTO, lbEndSwitch);
@@ -385,11 +380,11 @@ public class JsonDecoderGenerator {
                 mv.visitFrame(Opcodes.F_SAME, 0, null, 0, null);
                 mv.visitVarInsn(ALOAD, 3);
                 mv.visitVarInsn(ALOAD, 1);
-                String readMethod = getReadMethod(jfi);
-                mv.visitMethodInsn(INVOKEINTERFACE, READER_NAME, readMethod,
-                        "()" + getDescriptor(jfi.field.getGenericType()), true);
-                //mv.visitMethodInsn(INVOKEVIRTUAL, pojoName, "setField1",
-                //        "(Ljava/lang/String;)V", false);
+//                String readMethod = getReadMethod(jfi);
+//                mv.visitMethodInsn(INVOKEINTERFACE, READER_NAME, readMethod,
+//                        "()" + getDescriptor(jfi.field.getGenericType()), true);
+//                //mv.visitMethodInsn(INVOKEVIRTUAL, pojoName, "setField1",
+//                //        "(Ljava/lang/String;)V", false);
                 visitSetValueOpcode(mv, fields.get(i));
             }
             mv.visitJumpInsn(GOTO, lbWhileSwitchEnd);
@@ -483,6 +478,43 @@ public class JsonDecoderGenerator {
 
     private void visitSetValueOpcode(MethodVisitor mv, JsonFieldInfo pfi) {
         String valType = getDescriptor(pfi.field.getType());
+        System.out.println(pfi.field.getType().getName());
+        switch (pfi.field.getType().getName()) {
+            case "java.lang.Boolean":
+                mv.visitMethodInsn(INVOKEINTERFACE, READER_NAME, "readBoolean",
+                        "()Z", true);
+                visitMethod(mv, INVOKESTATIC, "java/lang/Boolean",
+                        "valueOf", "(Z)Ljava/lang/Boolean;", false);
+                break;
+            case "java.lang.Double":
+                mv.visitMethodInsn(INVOKEINTERFACE, READER_NAME, "readDouble",
+                        "()D", true);
+                visitMethod(mv, INVOKESTATIC, "java/lang/Double",
+                        "valueOf", "(D)Ljava/lang/Double;", false);
+                break;
+            case "java.lang.Integer":
+                mv.visitMethodInsn(INVOKEINTERFACE, READER_NAME, "readInt",
+                        "()I", true);
+                visitMethod(mv, INVOKESTATIC, "java/lang/Integer",
+                        "valueOf", "(I)Ljava/lang/Integer;", false);
+                break;
+            case "java.lang.Long":
+                mv.visitMethodInsn(INVOKEINTERFACE, READER_NAME, "readLong",
+                        "()J", true);
+                visitMethod(mv, INVOKESTATIC, "java/lang/Long",
+                        "valueOf", "(J)Ljava/lang/Long;", false);
+                break;
+            case "java.lang.Float":
+                mv.visitMethodInsn(INVOKEINTERFACE, READER_NAME, "readFloat",
+                        "()F", true);
+                visitMethod(mv, INVOKESTATIC, "java/lang/Float",
+                        "valueOf", "(F)Ljava/lang/Float;", false);
+                break;
+            default:
+                String readMethod = getReadMethod(pfi);
+                mv.visitMethodInsn(INVOKEINTERFACE, READER_NAME, readMethod,
+                        "()" + getDescriptor(pfi.field.getGenericType()), true);
+        }
         if (pfi.hasSetAccessed) {
             if (pfi.setMethod != null) {
                 String rtnDesc = getDescriptor(pfi.setMethod.getGenericReturnType());
@@ -493,29 +525,6 @@ public class JsonDecoderGenerator {
                         valType);
             }
         } else {
-            System.out.println(pfi.field.getType().getName());
-            switch (pfi.field.getType().getName()) {
-                case "boolean":
-                    visitMethod(mv, INVOKESTATIC, "java/lang/Boolean",
-                            "valueOf", "(Z)Ljava/lang/Boolean;", false);
-                    break;
-                case "double":
-                    visitMethod(mv, INVOKESTATIC, "java/lang/Double",
-                            "valueOf", "(D)Ljava/lang/Double;", false);
-                    break;
-                case "int":
-                    visitMethod(mv, INVOKESTATIC, "java/lang/Integer",
-                            "valueOf", "(I)Ljava/lang/Integer;", false);
-                    break;
-                case "long":
-                    visitMethod(mv, INVOKESTATIC, "java/lang/Long",
-                            "valueOf", "(J)Ljava/lang/Long;", false);
-                    break;
-                case "float":
-                    visitMethod(mv, INVOKESTATIC, "java/lang/Float",
-                            "valueOf", "(F)Ljava/lang/Float;", false);
-                    break;
-            }
             mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/reflect/Field", "set",
                     "(Ljava/lang/Object;Ljava/lang/Object;)V", false);
         }
