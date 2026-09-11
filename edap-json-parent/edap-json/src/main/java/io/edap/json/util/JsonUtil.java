@@ -402,7 +402,6 @@ public class JsonUtil {
                                 String annFieldName = (String)m.invoke(ann);
                                 if (annFieldName != null && annFieldName.length() > 0) {
                                     jfi.jsonFieldName = annFieldName;
-                                    System.out.println("pojoCls:" + pojoCls.getName() + ",fieldName=" + f.getName() + ",jsonFieldName=" + annFieldName);
                                 }
                             } catch (Exception e) {
                                 throw new RuntimeException(e);
