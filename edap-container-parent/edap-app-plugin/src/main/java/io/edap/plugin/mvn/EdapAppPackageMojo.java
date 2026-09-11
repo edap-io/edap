@@ -92,7 +92,7 @@ public class EdapAppPackageMojo extends AbstractMojo {
             // 编译输出目录:默认是 ${project.basedir}/target/classes
             File classesDir = new File(project.getBuild().getOutputDirectory());
 
-            String classesPrefix = "";
+            String classesPrefix = "APP-INF/classes/";
             if (classesDir.isDirectory()) {
                 if (classesDir.list().length != 0) {
                     addDirectoryRecursive(jos, classesDir.toPath(), classesDir.toPath(),
