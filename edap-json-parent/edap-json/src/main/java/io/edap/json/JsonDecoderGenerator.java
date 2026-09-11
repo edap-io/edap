@@ -478,7 +478,6 @@ public class JsonDecoderGenerator {
 
     private void visitSetValueOpcode(MethodVisitor mv, JsonFieldInfo pfi) {
         String valType = getDescriptor(pfi.field.getType());
-        System.out.println(pfi.field.getType().getName());
         switch (pfi.field.getType().getName()) {
             case "java.lang.Boolean":
                 mv.visitMethodInsn(INVOKEINTERFACE, READER_NAME, "readBoolean",
