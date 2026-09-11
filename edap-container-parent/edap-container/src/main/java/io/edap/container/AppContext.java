@@ -27,9 +27,11 @@ import io.edap.container.mw.*;
 import io.edap.container.scan.EarScanner;
 import io.edap.container.ws.ServiceWSHandler;
 import io.edap.container.ws.WSServiceMsgHandler;
-import io.edap.grpc.GrpcHandler;
 import io.edap.http.HttpHandler;
 import io.edap.http.PathInfo;
+import io.edap.http.cache.MethodCache;
+import io.edap.http.server.UrlMapping;
+import io.edap.http.server.UrlMappingItem;
 import io.edap.http.ws.WSAuthenticator;
 import io.edap.log.Logger;
 import io.edap.log.LoggerManager;
@@ -102,7 +104,7 @@ public class AppContext implements Lifecycle {
     // ─── 子系统（构造期组装，不做扫描 / 不做实例化）───
     private final Environment        env;           // 配置视图（build.json + Container.env）
     private final EventPublisher     events;        // 内部事件总线
-    private final RouterHub          routers;       // 4 份协议 Handler List 的被动持有者
+    //private final RouterHub          routers;       // 4 份协议 Handler List 的被动持有者
     private final BeanContainer      beans;         // Bean 装配核心
     private final ShardRegistry      shards;        // @Sharded 方法所属 bean 的分片实例
     private final AppResourceLoader  resourceLoader;// 通过 appCL 读 jar 内资源
@@ -166,7 +168,7 @@ public class AppContext implements Lifecycle {
         this.events         = new EventPublisher();
         this.shards         = new ShardRegistry();                   // shardCount 由 ClusterShardRouter 运行时决定
         this.beans          = new BeanContainer(this, env, events, shards);
-        this.routers        = new RouterHub();
+        //this.routers        = new RouterHub();
         this.resourceLoader = new AppResourceLoader(appCL);
         this.serviceWSHandler = new ServiceWSHandler(this);
         // SPI:从 appCL 加载 BeanPostProcessor 实现(per-app 隔离,避免跨 app 的 BPP 状态污染)。
@@ -403,7 +405,7 @@ public class AppContext implements Lifecycle {
         Throwable firstErr = null;
         // 1. 路由摘除（让 in-flight 之外不再有请求到达本 AppContext）
         try {
-            routers.unbindAll();
+            //routers.unbindAll();
             httpHandlersByPath.clear();
             // ServiceWSHandler 的 msgHandlers 表也清空 —— 长连接下次 msg 按老 handler 实例 dispatch
             // （in-flight 安全）；新 msg 因 msgHandlers 已空会回 404 method not found
@@ -818,15 +820,82 @@ public class AppContext implements Lifecycle {
      */
     private Map<FastBufDataRange, PathInfo> buildPathTable() {
         Map<FastBufDataRange, PathInfo> table = new HashMap<>();
-
+        List<UrlMapping> urlMappings = getBeansOfType(UrlMapping.class);
+        MethodCache methodCache = MethodCache.instance();
+        if (!CollectionUtils.isEmpty(urlMappings)) {
+            if (container.hasCapability(Capability.HTTP)) {
+                for (UrlMapping um : urlMappings) {
+                    Map<String, UrlMappingItem> umis = um.urlMappings();
+                    if (CollectionUtils.isEmpty(umis)) {
+                        continue;
+                    }
+                    for (Map.Entry<String, UrlMappingItem> e : umis.entrySet()) {
+                        UrlMappingItem umi = e.getValue();
+                        FastBufDataRange range = FastBufDataRange.from(umi.getPath());
+                        PathInfo pi = table.get(range);
+                        String method = umi.getMethod();
+                        if (method != null) {
+                            method = method.toUpperCase(Locale.ENGLISH);
+                        } else {
+                            method = "GET";
+                        }
+                        int methodIndex = methodCache.getMethodIndex(method);
+                        if (pi == null) {
+                            String path = umi.getPath();
+                            pi = new PathInfo();
+                            pi.setPath(path);
+                            pi.setFound(true);
+                            HttpHandler[] handlers = new HttpHandler[methodIndex + 1];
+                            handlers[methodIndex] = umi.getHandler();
+                            pi.setHttpHandlers(handlers);
+                            table.put(range, pi);
+                        } else {
+                            HttpHandler[] handlers = pi.getHttpHandlers();
+                            if (handlers.length > methodIndex) {
+                                handlers[methodIndex] = umi.getHandler();
+                            } else {
+                                HttpHandler[] tmp = new HttpHandler[methodIndex+1];
+                                System.arraycopy(handlers, 0, tmp, 0, handlers.length);
+                                tmp[methodIndex] = umi.getHandler();
+                                pi.setHttpHandlers(tmp);
+                            }
+                        }
+                    }
+                }
+            }
+        }
         // 1. HTTP entries
         for (Map.Entry<String, HttpHandler> e : httpHandlersByPath.entrySet()) {
             String path = e.getKey();
-            PathInfo pi = new PathInfo();
-            pi.setPath(path);
-            pi.setFound(true);
-            pi.setHttpHandlers(new HttpHandler[]{e.getValue()});
-            table.put(FastBufDataRange.from(path), pi);
+            int index = path.indexOf(':');
+            String method;
+            if (index == -1) {
+                method = "GET";
+            } else {
+                method = path.substring(0, index).toUpperCase(Locale.ENGLISH);
+                path = path.substring(index+1);
+            }
+            FastBufDataRange range = FastBufDataRange.from(path);
+            PathInfo pi = table.get(range);
+            int methodIndex = methodCache.getMethodIndex(method);
+            if (pi == null) {
+                pi = new PathInfo();
+                pi.setPath(path);
+                pi.setFound(true);
+                HttpHandler[] handlers = new HttpHandler[methodIndex+1];
+                handlers[methodIndex] = e.getValue();
+                pi.setHttpHandlers(handlers);
+                table.put(range, pi);
+            } else {
+                HttpHandler[] handlers = pi.getHttpHandlers();
+                if (handlers.length > methodIndex) {
+                    handlers[methodIndex] = e.getValue();
+                } else {
+                    HttpHandler[] tmp = new HttpHandler[methodIndex+1];
+                    tmp[methodIndex] = e.getValue();
+                    pi.setHttpHandlers(tmp);
+                }
+            }
         }
 
         // 2. WS entry（仅当本 app 有 @ProtoWebSocket 方法时才写）
@@ -847,10 +916,10 @@ public class AppContext implements Lifecycle {
 
     private void generateMethodsHandlers(Class<?> protoIf, List<ProtoMethodData> protoMethodDatas)
             throws ClassNotFoundException {
-        List<HttpHandler>            httpH = routers.httpHandlers();
-        List<WSServiceMsgHandler<?>> wsH   = routers.wsHandlers();
-        List<ErpcHandler>            erpcH = routers.erpcHandlers();
-        List<GrpcHandler>            grpcH = routers.grpcHandlers();
+//        List<HttpHandler>            httpH = routers.httpHandlers();
+//        List<WSServiceMsgHandler<?>> wsH   = routers.wsHandlers();
+//        List<ErpcHandler>            erpcH = routers.erpcHandlers();
+//        List<GrpcHandler>            grpcH = routers.grpcHandlers();
 
         String protoHttpAnn = ProtoHttp.class.getName();
         String protoWsAnn   = ProtoWebSocket.class.getName();
@@ -877,7 +946,7 @@ public class AppContext implements Lifecycle {
                 if (protoHttpAnn.equals(t)) {
                     if (container.hasCapability(Capability.HTTP)) {
                         HttpHandler h = generateHandler(HttpHandler.class, protoIf, pmd.getAnnoDatas(), anno, m, shards);
-                        httpH.add(h);
+                        //httpH.add(h);
                         httpHandlersByPath.put(deriveHttpPath(protoIf, m, anno), h);
                     }
                     // 2. WS：方法上有 @ProtoWebSocket 才生成；节点具备 WS 能力
@@ -886,7 +955,7 @@ public class AppContext implements Lifecycle {
                         @SuppressWarnings({"rawtypes", "unchecked"})
                         WSServiceMsgHandler h = (WSServiceMsgHandler) generateHandler(
                                 (Class) WSServiceMsgHandler.class, protoIf, pmd.getAnnoDatas(), anno, m, shards);
-                        wsH.add(h);
+                        //wsH.add(h);
                         // 按 method 名而非 path 索引：dispatch 由 ServiceWSHandler 按 JSON method 字段查
                         wsMsgHandlers.put(m.getName(), h);
                     }
@@ -906,14 +975,26 @@ public class AppContext implements Lifecycle {
      */
     private static String deriveHttpPath(Class<?> protoIf, Method m, AnnoData anno) {
         Object p = anno.getValues().get("path");
+        String path = null;
         if (p != null) {
             String s = p.toString();
             if (!s.isEmpty()) {
-                return s;
+                path = s;
             }
         }
-        String simple = protoIf.getSimpleName();
-        return ("/" + simple + "/" + m.getName()).toLowerCase(Locale.ENGLISH);
+        Object methodObj = anno.getValues().get("method");
+        String method;
+        if (methodObj != null) {
+            method = methodObj.toString().toUpperCase(Locale.ENGLISH);
+        } else {
+            method = "GET";
+        }
+        if (path == null) {
+            String simple = protoIf.getSimpleName();
+            path =  ("/" + simple + "/" + m.getName()).toLowerCase(Locale.ENGLISH);
+        }
+
+        return method + ":" + path;
     }
 
     /** 从 BeanContainer 按 name 拿已实例化的 bean；找不到 → BeanContainer 内部抛 NoSuchBeanException（启动期 fail-fast）。 */
@@ -964,6 +1045,32 @@ public class AppContext implements Lifecycle {
         return type.cast(beans.getBean(type));
     }
 
+    /**
+     * 按类型查该类型下全部 bean 实例(不做 @Primary 消歧,不做 Container.beans fallback)。
+     *
+     * <p>多实现场景(典型:全部 EventListener、全部 HandlerInterceptor、全部
+     * {@code WSAuthenticator} 候选)用本方法,比 {@link #getBean(Class)} 更合适 —— 后者
+     * 在多候选时只能按 @Primary 消歧,且 miss 时抛 NoSuchBeanException,而批量查场景
+     * "没注册" 是合法结果。</p>
+     *
+     * <p>空集不抛异常 —— 调用方按场景自己判空。
+     * 返回的列表是 {@link Collections#unmodifiableList} 包装,后续 register /
+     * replaceInstance 不会反映到已返回的列表上(快照语义)。
+     * 注意:PROTOTYPE scope 不在 byType 索引中(@Sharded 分片实例同样),本方法看不到,
+     * 拿 PROTOTYPE 候选请走 {@link #getBean(String, Class)} byName。</p>
+     */
+    public <T> List<T> getBeansOfType(Class<T> type) {
+        List<BeanWrap> wraps = beans.beanWrapsByType(type);
+        if (wraps.isEmpty()) {
+            return Collections.emptyList();
+        }
+        List<T> out = new ArrayList<>(wraps.size());
+        for (BeanWrap bw : wraps) {
+            out.add(type.cast(bw.instance()));
+        }
+        return Collections.unmodifiableList(out);
+    }
+
     /** 事件发布快捷入口（state == GATHERING 之后可调；NEW 不允许）。 */
     public void publishEvent(ApplicationEvent e) {
         events.publish(e);
@@ -986,7 +1093,7 @@ public class AppContext implements Lifecycle {
      * 路由注册中心（HTTP/WS/eRPC/gRPC 四份 Handler List）。
      * BeanContainer.injectAware 在 RouterHubAware 回调时通过本方法取。
      */
-    public RouterHub          routers()   { return routers; }
+    //public RouterHub          routers()   { return routers; }
     /**
      * 本 app 的 HTTP path → handler 映射（Container.rebuildHttpMapping 聚合来源）。
      * 不可修改视图：返回的 Map 由本 AppContext 独占，外部只读，stop() 期间随 routers.unbindAll 一起清空。

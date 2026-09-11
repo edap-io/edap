@@ -518,9 +518,6 @@ public class BeanContainer {
         if (instance instanceof BeanNameAware) {
             ((BeanNameAware) instance).setBeanName(def.name());
         }
-        if (instance instanceof RouterHubAware) {
-            ((RouterHubAware) instance).setRouterHub(this.appContext.routers());
-        }
     }
 
     /**
@@ -582,7 +579,6 @@ public class BeanContainer {
         if (type == AppContext.class)     return this.appContext;
         if (type == Environment.class)    return this.env;
         if (type == EventPublisher.class) return this.events;
-        if (type == RouterHub.class)      return this.appContext.routers();
         if (type == ShardRegistry.class)  return this.shards;
         return beanWrapByType(type).instance();
     }
@@ -816,6 +812,24 @@ public class BeanContainer {
             if (bw != null) return bw;
         }
         return null;
+    }
+
+    /**
+     * 按类型查该 type 下全部 BeanWrap（不做 @Primary 消歧，不 fallback）。
+     *
+     * <p>与 {@link #findBeanWrapByType} 的区别:本方法返回 type token 命中的全部候选
+     * （含全部 @Primary / 无 @Primary / 全部非 Primary），由调用方决定消歧策略;
+     * 典型用法:批量查某个接口的全部实现(全部 EventListener、全部 HandlerInterceptor)。
+     * 不做 container.beans() fallback —— 批量查场景下混进框架默认 bean 容易让业务方困惑,
+     * 需要兜底时显式 {@code container.containerBeans().beanWrapsByType(type)}。</p>
+     *
+     * <p>miss 返回 {@link Collections#emptyList()} 而非 null —— 调用方少一个判空分支。
+     * 本类内部 byType 索引已含自类 + 父类链 + 全部接口(含父接口),所以按接口或父类查都能命中;
+     * PROTOTYPE scope 不入 byType(@Sharded 分片实例同样),本方法看不到。</p>
+     */
+    public List<BeanWrap> beanWrapsByType(Class<?> type) {
+        List<BeanWrap> list = byType.get(type);
+        return list == null ? Collections.emptyList() : list;
     }
 
     /** 查当前 BeanContainer byType（不 fallback）。返回 null = miss，无歧义抛错。 */

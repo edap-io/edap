@@ -10,7 +10,9 @@ import io.edap.container.mw.*;
 import io.edap.container.scan.EarScanner;
 import io.edap.http.server.HttpServer;
 import io.edap.http.PathInfo;
+import io.edap.http.server.PathInfoMatcher;
 import io.edap.http.ws.HeaderTokenAuthenticator;
+import io.edap.http.HttpHandler;
 import io.edap.http.ws.WSAuthenticator;
 import io.edap.microservice.Scope;
 import io.edap.mw.context.JwtUserResolver;
@@ -68,7 +70,7 @@ public class Container {
     /**
      * ② 指针表：appId → 当前接流量的 RouterHub。回答"流量走哪个"
      */
-    private final ConcurrentHashMap<String, RouterHub> currentRouters = new ConcurrentHashMap<>();
+    //private final ConcurrentHashMap<String, RouterHub> currentRouters = new ConcurrentHashMap<>();
     /**
      * ③ 锁表：appId → 写锁。只增不删（原因见 §3.7.5）
      */
@@ -488,9 +490,9 @@ public class Container {
                 continue;
             }
             AppContext cur = e.current();
-            if (cur != null && cur.routers() != null) {
-                currentRouters.put(appId, cur.routers());
-            }
+//            if (cur != null && cur.routers() != null) {
+//                currentRouters.put(appId, cur.routers());
+//            }
         }
         // 启动恢复末位 rebuild HTTP mapping：所有 current 指针已就位，dispatch 必须 ready 才接受流量
         rebuildHttpMapping();
@@ -598,7 +600,7 @@ public class Container {
             }
             // 同步清掉本 appId 的 currentRouters 指针 + FQCN 注册
             // （ctx.stop() 不动这两张表，因为 undeploy 路径由 Container 自己清 —— 这里是 stop 路径）
-            currentRouters.remove(ctx.appId());
+            //currentRouters.remove(ctx.appId());
             unregisterIfs(ctx.appId(), ctx.dmd());
         }
         // 最终 rebuild HTTP mapping：所有 appId 已停 → 重建结果为空 mapping，dispatch 兜底 404
@@ -843,9 +845,9 @@ public class Container {
             registry.put(appId, empty.withSlot(slot, ctx));
             // 7.5 拨 currentRouters + rebuild mapping：只在落 CURRENT 时拨指针，其它槽位只 rebuild
             //     mapping（rebuildHttpMapping 从当前 currentRouters 全集读，无 current 变动 = no-op 重建）
-            if (slot == Slot.CURRENT) {
-                currentRouters.put(appId, ctx.routers());
-            }
+//            if (slot == Slot.CURRENT) {
+//                currentRouters.put(appId, ctx.routers());
+//            }
             rebuildHttpMapping();
             return BaseResult.success(appId + ":" + version + " -> " + slot);
 
@@ -984,9 +986,6 @@ public class Container {
                 registry.put(appId, next);
             }
             // 3. 清掉 currentRouters 指针：被卸的是 current → 业务不再接流量；非 current 不动
-            if (next.current() == null) {
-                currentRouters.remove(appId);
-            }
             // 3.5 rebuild HTTP mapping：current 变动必触发；非 current 变动 → 重建是 no-op（指针未动）
             rebuildHttpMapping();
             // 4. 同步 .deploy/<role>-<appId>.json（被卸的 slot 文件删，其它 slot 文件按 registry 实际状态重写）
@@ -1038,7 +1037,7 @@ public class Container {
             //     生成并写入 ctx.routers()，NIO Server 注册由 Container.deploy() 末尾的
             //     appServerGroup.addServer(s) 完成
             //   - 切换版本只是换"哪个 RouterHub 接流量"，不是重新注册 routes
-            currentRouters.put(appId, next.current().routers());
+            //currentRouters.put(appId, next.current().routers());
             // rebuild HTTP mapping：current 指针动了 → 必须重建 dispatch 表
             rebuildHttpMapping();
             // 同步 .deploy/<role>-<appId>.json 三个文件：非空 slot 写、空 slot 删
@@ -1328,13 +1327,77 @@ public class Container {
         if (httpServer == null) {
             return;                                        // HTTP capability 未启用
         }
+        PathInfoMatcher pathInfoMatcher = new PathInfoMatcher();
         Map<FastBufDataRange, PathInfo> combined = new HashMap<>();
-        for (String appId : currentRouters.keySet()) {
-            Map<FastBufDataRange, PathInfo> t = appPathTables.get(appId);
-            if (t != null) {
-                combined.putAll(t);
+        for (Map<FastBufDataRange, PathInfo> t : appPathTables.values()) {
+            if (t == null) {
+                continue;
+            }
+            for (Map.Entry<FastBufDataRange, PathInfo> e : t.entrySet()) {
+                PathInfo src = e.getValue();
+                if (src == null) {
+                    continue;
+                }
+                if (src.getPath().indexOf('*') == 0) {
+                    pathInfoMatcher.registerPrefixMatcher(src);
+                    continue;
+                } else if (src.getPath().indexOf('*') > 0) {
+                    pathInfoMatcher.registerPostfixMatcher(src);
+                    continue;
+                }
+                PathInfo dst = combined.get(e.getKey());
+                if (dst == null) {
+                    combined.put(e.getKey(), src);          // 首次注册,直接占位
+                    continue;
+                }
+                // 同 path 已被另一个 app 注册 —— 按 method 下标并集合并,
+                // 避免 combined.putAll 把先注册的 PathInfo 整体替换,
+                // 丢掉它在其他 method 上的 handler。
+                mergeHttpHandlers(dst, src);
+                // wsHandler / wsAuthenticator: deployAppRoutes 已通过 wsPathOwners
+                // 保证同 path 唯一 owner,这里做防御性合并(空槽才填)。
+                if (dst.getWsHandler() == null && src.getWsHandler() != null) {
+                    dst.setWsHandler(src.getWsHandler());
+                }
+                if (dst.getWsAuthenticator() == null && src.getWsAuthenticator() != null) {
+                    dst.setWsAuthenticator(src.getWsAuthenticator());
+                }
             }
         }
-        httpServer.setHttpMapping(combined);
+        pathInfoMatcher.setCache(combined);
+        httpServer.setPathInfoMatcher(pathInfoMatcher);
+    }
+
+    /**
+     * 按 HTTP method 下标合并 src.httpHandlers 到 dst.httpHandlers。
+     *
+     * <p>语义:
+     * <ul>
+     *   <li>dst 数组不够长 → 扩容到 src.length,旧元素保留</li>
+     *   <li>同 method 下标:dst 已占位则保留(dst 先注册优先),否则填入 src</li>
+     *   <li>这样不同 method 的 handler 不会互相覆盖,跨 app 注册同一 path 不同 method 的场景
+     *       (典型:App A 注册 GET /x,App B 注册 POST /x)能各自保留</li>
+     * </ul>
+     */
+    private static void mergeHttpHandlers(PathInfo dst, PathInfo src) {
+        HttpHandler[] srcHandlers = src.getHttpHandlers();
+        if (srcHandlers == null || srcHandlers.length == 0) {
+            return;
+        }
+        HttpHandler[] dstHandlers = dst.getHttpHandlers();
+        int srcLen = srcHandlers.length;
+        if (dstHandlers == null || dstHandlers.length < srcLen) {
+            HttpHandler[] grown = new HttpHandler[srcLen];
+            if (dstHandlers != null) {
+                System.arraycopy(dstHandlers, 0, grown, 0, dstHandlers.length);
+            }
+            dst.setHttpHandlers(grown);
+            dstHandlers = grown;
+        }
+        for (int i = 0; i < srcLen; i++) {
+            if (dstHandlers[i] == null && srcHandlers[i] != null) {
+                dstHandlers[i] = srcHandlers[i];
+            }
+        }
     }
 }

@@ -76,9 +76,19 @@ public class ServerGroup {
      */
     private ThreadType threadType = ThreadType.REACTOR;
     /**
-     * 运行的线程模型
+     * run() 阶段从配置解析出的 ThreadType,post-run addServerAndBind 复用。
+     * run() 之前为 null。
      */
     private ThreadType runningThreadType;
+    /**
+     * run() 阶段选定并保留的 Acceptor,用于 addServerAndBind post-run 路径复用
+     * (run() 之前为 null)。详见 {@link #addServerAndBind}。
+     */
+    private Acceptor runningAcceptor;
+    /**
+     * run() 阶段选定的 SelectorProvider,post-run addServerAndBind 复用。
+     */
+    private SelectorProvider runningProvider;
 
     static {
         LOCK = new ReentrantLock();
@@ -178,7 +188,12 @@ public class ServerGroup {
     }
 
     /**
-     * 先将服务组里每个服务初始化后再启动各个服务的监听，以防端口监听后服务还未启动导致服务无法响应的问题。
+     * 先将服务组里每个服务初始化后再启动各个服务的监听,以防端口监听后服务还未启动导致服务无法响应的问题。
+     *
+     * <p><b>run() 之后的 server 增量加入</b>:本方法会把选定的 {@code acceptor} / {@code provider} /
+     * {@code threadType} 缓存到实例字段,供 {@link #addServerAndBind} post-run 路径复用。
+     * run() 之前调 {@code addServer} 只入队,server 不 listen;run() 之后调
+     * {@link #addServerAndBind} 走 {@link #bindServer} 完成 init+listen+accept。
      */
     public void run() {
         EventDispatchType eventDispatchType = parseEventDispatchType(edap.getConfig());
@@ -207,45 +222,124 @@ public class ServerGroup {
             System.err.println("No selectorProvider enabled");
             System.exit(1);
         }
-        Acceptor fAcceptor = acceptor;
-        SelectorProvider provider = selectorProvider;
+        // 缓存到实例字段,供 addServerAndBind post-run 路径复用
+        final Acceptor finalAcceptor = acceptor;
+        final SelectorProvider finalProvider = selectorProvider;
+        this.runningAcceptor        = finalAcceptor;
+        this.runningProvider        = finalProvider;
+        this.runningThreadType      = threadType;
         LOG.info("serverGroup {} acceptorName {} selectorProvider name {}",
-                l -> l.arg(name).arg(fAcceptor.getClass().getName()).arg(provider.getClass().getName()));
+                l -> l.arg(name)
+                        .arg(finalAcceptor.getClass().getName())
+                        .arg(finalProvider.getClass().getName()));
 
         for (Server s : servers) {
-            s.init();
-            s.setServerGroup(this);
-            s.setSelectorProvider(provider);
-            s.setThreadType(threadType);
-            List<Server.Addr> addrs = s.getListenAddrs();
-            Edap edap = getEdap();
-            for (Server.Addr addr : addrs) {
-                ServerChannelContext scc = new ServerChannelContext();
-                Acceptor acpt;
-                if (fAcceptor instanceof FastAcceptor) {
-                    acpt = new FastAcceptor();
-                } else {
-                    acpt = new NormalAcceptor();
-                }
-                scc.setServer(s);
-                scc.setSelectorProvider(provider);
-                scc.setAcceptDispatcherFactory(s.getAcceptDispatcherFactor());
-                scc.setReadDispatcherFactory(s.getReadDispatcherFactory());
-                IoSelectorManager ioSelectorManager = new IoSelectorManager(s, addr);
-                scc.setIoSelectorManager(ioSelectorManager);
-                s.addIoSelectorManager(addr, ioSelectorManager);
-                scc.setEdap(edap);
-                String key = s.getServerGroup().getName() + "->" + s.name() + "->" + addr;
-                scc.setMonitorIndex(edap.getMonitorIndex(key));
-
-                acpt.setServerChannelContext(scc);
-                acpt.listen(addr);
-
-                acceptors.add(acpt);
-                acpt.accept();
-            }
+            bindServer(s, finalAcceptor, finalProvider, threadType);
         }
         LOG.info("{}",  l -> l.arg(providers));
+    }
+
+    /**
+     * 增量加入 server:
+     * <ul>
+     *   <li>run() <b>之前</b> 调:仅入队,与 {@link #addServer} 等价</li>
+     *   <li>run() <b>之后</b> 调:走 {@link #bindServer} 完成 init + listen + accept(用于 runtime deploy
+     *       时把新 ctx 的 server bean 立刻生效)</li>
+     * </ul>
+     *
+     * <p>幂等:同一 instance 二次入队 no-op。</p>
+     */
+    public ServerGroup addServerAndBind(Server server) {
+        if (server == null) {
+            return this;
+        }
+        try {
+            LOCK.lock();
+            if (servers.contains(server)) {
+                return this;
+            }
+            server.setServerGroup(this);
+            servers.add(server);
+            if (runningAcceptor != null) {
+                // run() 已执行过 — 立即 bind 这个新 server,使其开始监听
+                bindServer(server, runningAcceptor, runningProvider, runningThreadType);
+            }
+        } finally {
+            LOCK.unlock();
+        }
+        return this;
+    }
+
+    /**
+     * 停 server 的所有 acceptor、移除引用。等价于 run() 启动循环的逆操作。
+     *
+     * <p>只移除 server 自己 listen 的那些 acceptor(通过 {@link ServerChannelContext#getServer}
+     * 反查归属),不影响同组内其它 server 的 acceptor。</p>
+     */
+    public void removeServer(Server server) {
+        if (server == null) {
+            return;
+        }
+        try {
+            LOCK.lock();
+            java.util.Iterator<Acceptor> it = acceptors.iterator();
+            while (it.hasNext()) {
+                Acceptor a = it.next();
+                ServerChannelContext scc = a.getServerChannelContext();
+                if (scc != null && scc.getServer() == server) {
+                    try {
+                        a.stop();
+                    } catch (Throwable t) {
+                        LOG.warn("serverGroup {} stop acceptor for {} failed",
+                                l -> l.arg(getName()).arg(server.name()).threw(t));
+                    }
+                    it.remove();
+                }
+            }
+            servers.remove(server);
+        } finally {
+            LOCK.unlock();
+        }
+    }
+
+    /**
+     * 把单个 server 的所有 listen 地址绑到本 group:init → setServerGroup/setSelectorProvider/
+     * setThreadType → 为每个 addr 建 ServerChannelContext + Acceptor + listen + accept。
+     * 与 run() 启动循环内的 server 处理逻辑一一对应,抽出来供 {@link #run} 与
+     * {@link #addServerAndBind} 两条路径共用。
+     */
+    private void bindServer(Server s, Acceptor acceptor, SelectorProvider provider, ThreadType threadType) {
+        s.init();
+        s.setServerGroup(this);
+        s.setSelectorProvider(provider);
+        s.setThreadType(threadType);
+        List<Server.Addr> addrs = s.getListenAddrs();
+        Edap edap = getEdap();
+        for (Server.Addr addr : addrs) {
+            ServerChannelContext scc = new ServerChannelContext();
+            Acceptor acpt;
+            if (acceptor instanceof FastAcceptor) {
+                acpt = new FastAcceptor();
+            } else {
+                acpt = new NormalAcceptor();
+            }
+            scc.setServer(s);
+            scc.setSelectorProvider(provider);
+            scc.setAcceptDispatcherFactory(s.getAcceptDispatcherFactor());
+            scc.setReadDispatcherFactory(s.getReadDispatcherFactory());
+            IoSelectorManager ioSelectorManager = new IoSelectorManager(s, addr);
+            scc.setIoSelectorManager(ioSelectorManager);
+            s.addIoSelectorManager(addr, ioSelectorManager);
+            scc.setEdap(edap);
+            String key = s.getServerGroup().getName() + "->" + s.name() + "->" + addr;
+            scc.setMonitorIndex(edap.getMonitorIndex(key));
+
+            acpt.setServerChannelContext(scc);
+            acpt.listen(addr);
+
+            acceptors.add(acpt);
+            acpt.accept();
+        }
     }
 
 
