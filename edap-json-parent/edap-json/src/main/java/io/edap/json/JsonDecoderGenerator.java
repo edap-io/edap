@@ -511,9 +511,11 @@ public class JsonDecoderGenerator {
                         "valueOf", "(F)Ljava/lang/Float;", false);
                 break;
             default:
-                String readMethod = getReadMethod(pfi);
-                mv.visitMethodInsn(INVOKEINTERFACE, READER_NAME, readMethod,
-                        "()" + getDescriptor(pfi.field.getGenericType()), true);
+                if (!isList(pfi.field.getType())) {
+                    String readMethod = getReadMethod(pfi);
+                    mv.visitMethodInsn(INVOKEINTERFACE, READER_NAME, readMethod,
+                            "()" + getDescriptor(pfi.field.getGenericType()), true);
+                }
         }
         if (pfi.hasSetAccessed) {
             if (pfi.setMethod != null) {
