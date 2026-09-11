@@ -37,9 +37,12 @@ public class PathDecoder implements RangeTokenDecoder<PathInfo> {
      * </ul>
      * 旧实现直接拿静态单例 {@code PathInfoMatcher.instance()} —— 全 JVM 共享，多 Container 互踩。
      */
-    private final PathInfoMatcher pathInfoMatcher;
+    private volatile PathInfoMatcher pathInfoMatcher;
 
-    public PathDecoder(PathInfoMatcher pathInfoMatcher) {
+    public PathDecoder() {
+    }
+
+    public void setPathInfoMatcher(PathInfoMatcher pathInfoMatcher) {
         this.pathInfoMatcher = pathInfoMatcher;
     }
 

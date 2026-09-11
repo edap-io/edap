@@ -21,6 +21,7 @@ import io.edap.http.HttpHandleOption;
 import io.edap.http.HttpHandler;
 import io.edap.http.PathInfo;
 import io.edap.http.WSHandler;
+import io.edap.http.cache.MethodCache;
 import io.edap.http.codec.HttpFastBufDataRange;
 import io.edap.http.server.handler.FaviconHandler;
 import io.edap.nio.codec.FastBufDataRange;
@@ -203,25 +204,41 @@ public class HttpServerBuilder {
     }
 
     private void addPathHandler(String path, HttpHandler handler, HttpHandleOption option, String... methods) {
+        MethodCache methodCache = MethodCache.instance();
         if (path.startsWith("*")) {
             PathInfo pathInfo = new PathInfo();
             pathInfo.setMatchPath(path);
             pathInfo.setPath(path);
-            pathInfo.setHttpHandlers(new HttpHandler[]{handler});
+            List<HttpHandler> handlers = new ArrayList<>();
+            for (String method : methods) {
+                int methodIndex = methodCache.getMethodIndex(method);
+                handlers.add(methodIndex, handler);
+            }
+            pathInfo.setHttpHandlers(handlers.toArray(new HttpHandler[0]));
             pathInfo.setHandlerOption(option);
             pathInfoMatcher.registerPrefixMatcher(pathInfo);
         } else if (path.endsWith("*")) {
             PathInfo pathInfo = new PathInfo();
             pathInfo.setMatchPath(path);
             pathInfo.setPath(path);
-            pathInfo.setHttpHandlers(new HttpHandler[]{handler});
+            List<HttpHandler> handlers = new ArrayList<>();
+            for (String method : methods) {
+                int methodIndex = methodCache.getMethodIndex(method);
+                handlers.add(methodIndex, handler);
+            }
+            pathInfo.setHttpHandlers(handlers.toArray(new HttpHandler[0]));
             pathInfo.setHandlerOption(option);
             pathInfoMatcher.registerPostfixMatcher(pathInfo);
         } else {
             PathInfo pathInfo = new PathInfo();
             pathInfo.setMatchPath(path);
             pathInfo.setPath(path);
-            pathInfo.setHttpHandlers(new HttpHandler[]{handler});
+            List<HttpHandler> handlers = new ArrayList<>();
+            for (String method : methods) {
+                int methodIndex = methodCache.getMethodIndex(method);
+                handlers.add(methodIndex, handler);
+            }
+            pathInfo.setHttpHandlers(handlers.toArray(new HttpHandler[0]));
             pathInfo.setHandlerOption(option);
             pathInfo.setFound(true);
             mapping.put(path, pathInfo);
@@ -238,7 +255,8 @@ public class HttpServerBuilder {
         if (mapping.get("/icon.svg") == null) {
             this.get("/favicon.ico", new FaviconHandler());
         }
-        HttpServer server = new HttpServer(pathInfoMatcher);
+        HttpServer server = new HttpServer();
+        server.setPathInfoMatcher(pathInfoMatcher);
         String httpDecoderType = System.getProperty("edap.http.decoder.type");
         if (!StringUtil.isEmpty(httpDecoderType) && "fast".equalsIgnoreCase(httpDecoderType)) {
             server.setDecoderType(HttpServer.DecoderType.FAST);
@@ -254,7 +272,7 @@ public class HttpServerBuilder {
             for (Map.Entry<String, PathInfo> entry : mapping.entrySet()) {
                 serverMapping.put(HttpFastBufDataRange.from(entry.getKey()), entry.getValue());
             }
-            server.setHttpMapping(serverMapping);
+            pathInfoMatcher.setCache(serverMapping);
         }
         BufPool bufPool = new SimpleFastBufPool();
         server.setBufPool(bufPool);

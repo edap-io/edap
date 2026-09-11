@@ -36,7 +36,7 @@ public class PathDecoderTest {
 
     @Test
     public void testDecode() throws UnsupportedEncodingException {
-        PathDecoder pathDecoder = new PathDecoder(new PathInfoMatcher());
+        PathDecoder pathDecoder = new PathDecoder();
         FastBuf buf = new FastBuf(1024);
         HttpFastBufDataRange hbdr = new HttpFastBufDataRange();
         HttpRequest request = new ValueHttpRequest();

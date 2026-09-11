@@ -222,7 +222,7 @@ public class HttpServerNioSession extends HttpNioSession implements WSConnection
 				HttpHandler[] handlers = pathInfo.getHttpHandlers();
 				try {
 					if (handlers != null && handlers.length > 0) {
-						handler = handlers[0];
+						handler = handlers[request.getMethodInfo().getMethodIndex()];
 					}
 				} catch (Exception e) {
 					log.warn("{} get HttpHandler error {}", (l -> l.arg(request.getPath()).arg(e)));

@@ -65,7 +65,7 @@ public class RangeHttpRequestDecoder extends AbstractHttpDecoder implements Deco
      * 生产路径走 {@link #RangeHttpRequestDecoder(PathDecoder)}，由 HttpServer 注入。
      */
     public RangeHttpRequestDecoder() {
-        this(new PathDecoder(new PathInfoMatcher()));
+        this(new PathDecoder());
     }
 
     public RangeHttpRequestDecoder(PathDecoder pathDecoder) {
@@ -111,7 +111,7 @@ public class RangeHttpRequestDecoder extends AbstractHttpDecoder implements Deco
         if (state == null) {
             state = State.SKIP_CONTROL_CHARS;
         }
-        System.out.println("[DEBUG-RD] decode START state=" + state + " bufRemain=" + buf.remain());
+
         DecodeContext dc = THREAD_DECODE_CONTEXT.get();
         HttpFastBufDataRange dataRange = dc.dataRange;
         ValueHttpRequest request = dc.request;
@@ -123,7 +123,7 @@ public class RangeHttpRequestDecoder extends AbstractHttpDecoder implements Deco
             request.reset();
         }
        	parseHttpRequest(buf, state, dataRange, request, httpNioSession, result);
-        System.out.println("[DEBUG-RD] decode END state=" + httpNioSession.getDecodeState() + " resultFinished=" + result.isFinished() + " bufRemain=" + buf.remain() + " reqMethod=" + (request.getMethod()));
+
         if (result.isFinished()) {
             result.setMessage(request);
             result.setFinished(true);
