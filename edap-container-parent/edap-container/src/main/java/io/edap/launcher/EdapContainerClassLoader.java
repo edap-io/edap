@@ -80,7 +80,14 @@ public class EdapContainerClassLoader extends URLClassLoader {
         super(new URL[]{ /* placeholder,实际 findClass 走 NestedJarFile */ }, parent);
         this.root          = new NestedJarFile(jarFile);
         this.libJars       = scanLibJars(root, nestDir);
-        this.classesPrefix = nestDir + "/classes/";
+        // nestDir 由 caller 传(如 "APP-INF/" 或 "BOOT-INF")。无论是否带 trailing slash,
+        // 都规范化为 "<dir>/classes/" 单斜杠形式 —— 避免 caller 传 "APP-INF/" 时拼出
+        // "APP-INF//classes/" 双斜杠,与 EAR 内 entry 名不匹配,findClass 永远 miss 业务类。
+        String dir = nestDir == null ? "" : nestDir;
+        while (dir.endsWith("/")) {
+            dir = dir.substring(0, dir.length() - 1);
+        }
+        this.classesPrefix = dir.isEmpty() ? "classes/" : dir + "/classes/";
         this.rootAbsPath   = jarFile.getAbsolutePath();
     }
 
