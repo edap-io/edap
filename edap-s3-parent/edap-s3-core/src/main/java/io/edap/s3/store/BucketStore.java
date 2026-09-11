@@ -9,11 +9,13 @@
  */
 package io.edap.s3.store;
 
+import io.edap.s3.model.BucketCannedAcl;
+
 import java.io.IOException;
 import java.util.List;
 
 /**
- * S3 桶存储 SPI —— 桶的存在性 / 创建 / 删除 / 列表。
+ * S3 桶存储 SPI —— 桶的存在性 / 创建 / 删除 / 列表 / canned ACL。
  *
  * <p>{@link #create} 时若桶已存在,实现选择:
  * <ul>
@@ -23,6 +25,10 @@ import java.util.List;
  *
  * <p>{@link #delete} 时若桶非空,backend 应抛 BUCKET_NOT_EMPTY
  * (或让上层 handler 配合 {@link ObjectStore#isEmpty} 检测)。
+ *
+ * <p>{@link #setCannedAcl} / {@link #getCannedAcl} —— 桶级 canned ACL,
+ * 用于支持 public-read / public-read-write。getCannedAcl 对未设置 ACL 的桶
+ * 返回 {@link BucketCannedAcl#PRIVATE}(默认私有)。
  */
 public interface BucketStore {
 
@@ -33,4 +39,15 @@ public interface BucketStore {
     boolean exists(String bucket) throws IOException;
 
     List<String> list() throws IOException;
+
+    /**
+     * 设桶的 canned ACL(覆盖)。桶不存在抛 NO_SUCH_BUCKET。
+     */
+    void setCannedAcl(String bucket, BucketCannedAcl acl) throws IOException;
+
+    /**
+     * 读桶的 canned ACL。桶不存在抛 NO_SUCH_BUCKET;
+     * 桶存在但未设过 ACL 返回 PRIVATE。
+     */
+    BucketCannedAcl getCannedAcl(String bucket) throws IOException;
 }

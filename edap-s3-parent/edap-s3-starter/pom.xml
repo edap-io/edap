@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>io.edap</groupId>
+        <artifactId>edap-s3-parent</artifactId>
+        <version>${edap.version}</version>
+    </parent>
+
+    <artifactId>edap-s3-starter</artifactId>
+
+    <dependencies>
+        <dependency>
+            <groupId>io.edap</groupId>
+            <artifactId>edap-s3-server</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.edap</groupId>
+            <artifactId>edap-microservice-annotation</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.edap</groupId>
+            <artifactId>edap-s3-disk</artifactId>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>io.edap</groupId>
+                <artifactId>edap-app-plugin</artifactId>
+                <version>${edap.version}</version>
+                <!-- 配置插件的执行策略 -->
+                <executions>
+                    <!-- 定义一个执行配置 -->
+                    <execution>
+                        <!-- 指定执行的阶段为编译阶段 -->
+                        <phase>compile</phase>
+                        <!-- 定义该执行配置的目标 -->
+                        <goals>
+                            <!-- 声明一个名为'package'的目标 -->
+                            <goal>package</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+</project>

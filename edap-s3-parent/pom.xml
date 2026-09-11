@@ -15,6 +15,7 @@
         <module>edap-s3-core</module>
         <module>edap-s3-server</module>
         <module>edap-s3-disk</module>
+        <module>edap-s3-starter</module>
     </modules>
 
 </project>

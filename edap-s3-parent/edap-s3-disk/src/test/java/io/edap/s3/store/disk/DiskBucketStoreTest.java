@@ -11,10 +11,12 @@ package io.edap.s3.store.disk;
 
 import io.edap.s3.error.S3ErrorCode;
 import io.edap.s3.error.S3Exception;
+import io.edap.s3.model.BucketCannedAcl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 
@@ -72,5 +74,48 @@ public class DiskBucketStoreTest {
         assertEquals("a", all.get(0));
         assertEquals("m", all.get(1));
         assertEquals("z", all.get(2));
+    }
+
+    @Test
+    void aclDefaultsToPrivate() throws Exception {
+        store.create("foo");
+        assertEquals(BucketCannedAcl.PRIVATE, store.getCannedAcl("foo"));
+    }
+
+    @Test
+    void setAclPersistsToDotAclFile() throws Exception {
+        store.create("foo");
+        store.setCannedAcl("foo", BucketCannedAcl.PUBLIC_READ);
+        Path aclFile = tmp.resolve("foo").resolve(".acl");
+        assertTrue(Files.exists(aclFile));
+        assertEquals("PUBLIC_READ", Files.readString(aclFile).trim());
+    }
+
+    @Test
+    void aclSurvivesRestart() throws Exception {
+        store.create("foo");
+        store.setCannedAcl("foo", BucketCannedAcl.PUBLIC_READ_WRITE);
+        // 模拟重启:重新构造 store
+        DiskBucketStore reopened = new DiskBucketStore(tmp);
+        assertEquals(BucketCannedAcl.PUBLIC_READ_WRITE, reopened.getCannedAcl("foo"));
+    }
+
+    @Test
+    void aclOnMissingBucketThrows() {
+        S3Exception ex1 = assertThrows(S3Exception.class,
+                () -> store.setCannedAcl("ghost", BucketCannedAcl.PUBLIC_READ));
+        assertEquals(S3ErrorCode.NO_SUCH_BUCKET, ex1.code());
+        S3Exception ex2 = assertThrows(S3Exception.class,
+                () -> store.getCannedAcl("ghost"));
+        assertEquals(S3ErrorCode.NO_SUCH_BUCKET, ex2.code());
+    }
+
+    @Test
+    void corruptedAclFileFailsOpenToPrivate() throws Exception {
+        store.create("foo");
+        Path aclFile = tmp.resolve("foo").resolve(".acl");
+        Files.writeString(aclFile, "INVALID_ACL_NAME");
+        assertEquals(BucketCannedAcl.PRIVATE, store.getCannedAcl("foo"),
+                "corrupt .acl should fail-open to PRIVATE");
     }
 }

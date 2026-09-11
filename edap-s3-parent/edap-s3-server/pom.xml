@@ -33,4 +33,17 @@
         </dependency>
     </dependencies>
 
+    <build>
+        <plugins>
+            <!-- 父 pom 把 skipTests 写死成 true,这里覆盖回来跑测试 -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <skipTests>true</skipTests>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+
 </project>

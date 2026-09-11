@@ -11,6 +11,7 @@ package io.edap.s3.store.mem;
 
 import io.edap.s3.error.S3ErrorCode;
 import io.edap.s3.error.S3Exception;
+import io.edap.s3.model.BucketCannedAcl;
 import io.edap.s3.store.BucketStore;
 
 import java.io.IOException;
@@ -30,6 +31,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public class InMemoryBucketStore implements BucketStore {
 
     private final Set<String> buckets = ConcurrentHashMap.newKeySet();
+    private final ConcurrentHashMap<String, BucketCannedAcl> acls = new ConcurrentHashMap<>();
 
     @Override
     public void create(String bucket) throws IOException {
@@ -44,6 +46,7 @@ public class InMemoryBucketStore implements BucketStore {
         // 不在这里判空 / 不存在 —— 让上层 DeleteBucketHandler 配合 ObjectStore.isEmpty 决定
         // 这里只做 key 删除:桶不存在时幂等返回(S3 DELETE 是 idempotent)
         buckets.remove(bucket);
+        acls.remove(bucket);
     }
 
     @Override
@@ -56,5 +59,24 @@ public class InMemoryBucketStore implements BucketStore {
         List<String> snapshot = new ArrayList<>(buckets);
         Collections.sort(snapshot);
         return snapshot;
+    }
+
+    @Override
+    public void setCannedAcl(String bucket, BucketCannedAcl acl) throws IOException {
+        if (!buckets.contains(bucket)) {
+            throw new S3Exception(S3ErrorCode.NO_SUCH_BUCKET,
+                    "No such bucket: " + bucket, "/" + bucket);
+        }
+        acls.put(bucket, acl);
+    }
+
+    @Override
+    public BucketCannedAcl getCannedAcl(String bucket) throws IOException {
+        if (!buckets.contains(bucket)) {
+            throw new S3Exception(S3ErrorCode.NO_SUCH_BUCKET,
+                    "No such bucket: " + bucket, "/" + bucket);
+        }
+        BucketCannedAcl acl = acls.get(bucket);
+        return acl == null ? BucketCannedAcl.PRIVATE : acl;
     }
 }

@@ -66,6 +66,12 @@ public final class DiskObjectStore implements ObjectStore {
         Path metaFile = bucketDir.resolve(key + ".meta");
         Path tmpFile = bucketDir.resolve(key + ".tmp");
 
+        // S3 key 可含 "/" —— 需先建中间目录
+        Path keyParent = dataFile.getParent();
+        if (keyParent != null && !Files.isDirectory(keyParent)) {
+            Files.createDirectories(keyParent);
+        }
+
         // 写临时文件 + 算 MD5
         long total = 0;
         MessageDigest md5;

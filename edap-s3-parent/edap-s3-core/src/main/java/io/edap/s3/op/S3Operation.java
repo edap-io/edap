@@ -25,6 +25,7 @@ public enum S3Operation {
     DELETE_BUCKET,         // DELETE /{bucket}
     HEAD_BUCKET,           // HEAD /{bucket}
     LIST_OBJECTS_V2,       // GET /{bucket}?list-type=2
+    PUT_BUCKET_ACL,        // PUT /{bucket}?acl  (x-amz-acl header)
 
     // ===== 对象级 =====
     PUT_OBJECT,            // PUT /{bucket}/{key...}

@@ -13,6 +13,7 @@ import io.edap.http.HttpHandler;
 import io.edap.http.server.HttpServer;
 import io.edap.http.server.HttpServerBuilder;
 import io.edap.s3.auth.AccessKeyResolver;
+import io.edap.s3.auth.BucketPolicyAwareVerifier;
 import io.edap.s3.auth.S3AuthVerifier;
 import io.edap.s3.auth.SigV4Verifier;
 import io.edap.s3.op.S3OperationHandler;
@@ -21,6 +22,7 @@ import io.edap.s3.op.handler.CompleteMultipartHandler;
 import io.edap.s3.op.handler.InitiateMultipartHandler;
 import io.edap.s3.op.handler.ListMultipartUploadsHandler;
 import io.edap.s3.op.handler.ListPartsHandler;
+import io.edap.s3.op.handler.PutBucketAclHandler;
 import io.edap.s3.op.handler.UploadPartHandler;
 import io.edap.s3.store.BucketStore;
 import io.edap.s3.store.MultipartStore;
@@ -47,6 +49,11 @@ import io.edap.s3.store.ObjectStore;
  *       .build();
  *   server.start();
  * }</pre>
+ *
+ * <p>桶级 ACL:只要 {@link #bucketStore} 已设置且未显式提供 {@link #authVerifier},
+ * build() 会自动用 {@link BucketPolicyAwareVerifier} 包装底层 SigV4 verifier,
+ * 使桶 ACL = public-read / public-read-write 时允许匿名读。如果调用方自己
+ * 注入了 {@code authVerifier},就以调用方为准(可禁用 ACL 自动放行)。
  */
 public final class S3ServerBuilder {
 
@@ -109,6 +116,19 @@ public final class S3ServerBuilder {
         return this;
     }
 
+    /**
+     * 注册 {@link PutBucketAclHandler} —— 必须先 {@link #bucketStore(BucketStore)}
+     * 设好 store。
+     */
+    public S3ServerBuilder registerBucketAclHandler() {
+        if (bucketStore == null) {
+            throw new IllegalStateException(
+                    "bucketStore must be set before registerBucketAclHandler()");
+        }
+        register(new PutBucketAclHandler(bucketStore));
+        return this;
+    }
+
     // ===================== HttpServerBuilder 直通 =====================
 
     public S3ServerBuilder listen(int... ports) {
@@ -127,7 +147,12 @@ public final class S3ServerBuilder {
                 throw new IllegalStateException(
                         "Either authVerifier or accessKeyResolver must be set");
             }
-            authVerifier = new SigV4Verifier(accessKeyResolver);
+            S3AuthVerifier sigV4 = new SigV4Verifier(accessKeyResolver);
+            // 如果调用方提供了 bucketStore,默认用 BucketPolicyAwareVerifier 包装,
+            // 让桶级 canned ACL 生效(public-read / public-read-write 时允许匿名读)。
+            authVerifier = bucketStore != null
+                    ? new BucketPolicyAwareVerifier(sigV4, bucketStore)
+                    : sigV4;
         }
         S3HttpHandler handler = new S3HttpHandler(dispatcher, authVerifier);
         // postfix wildcard 一条规则覆盖所有 S3 路径

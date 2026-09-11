@@ -113,6 +113,23 @@ public class S3RequestParserTest {
     }
 
     @Test
+    void putBucketAclFromQuery() throws Exception {
+        HttpRequest req = makeRequest("PUT", "/mybucket", "acl=", null);
+        S3Request s3 = parser.parse(req);
+        assertEquals(S3Operation.PUT_BUCKET_ACL, s3.operation());
+        assertEquals("mybucket", s3.bucket());
+        assertNull(s3.key());
+    }
+
+    @Test
+    void putBucketAclWithOtherBucketQueryFallsBackToCreate() throws Exception {
+        // 没有 acl query → 走 CREATE_BUCKET(不触发 PUT_BUCKET_ACL)
+        HttpRequest req = makeRequest("PUT", "/mybucket", null, null);
+        S3Request s3 = parser.parse(req);
+        assertEquals(S3Operation.CREATE_BUCKET, s3.operation());
+    }
+
+    @Test
     void listObjectsV2FromQuery() throws Exception {
         HttpRequest req = makeRequest("GET", "/mybucket", "list-type=2&prefix=foo/", null);
         S3Request s3 = parser.parse(req);

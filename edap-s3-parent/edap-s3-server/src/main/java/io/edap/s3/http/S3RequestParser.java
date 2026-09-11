@@ -85,6 +85,7 @@ public final class S3RequestParser {
             if (op != S3Operation.CREATE_BUCKET
                     && op != S3Operation.DELETE_BUCKET
                     && op != S3Operation.HEAD_BUCKET
+                    && op != S3Operation.PUT_BUCKET_ACL
                     && op != S3Operation.LIST_OBJECTS_V2
                     && op != S3Operation.LIST_MULTIPART_UPLOADS) {
                 key = extractKey(path);
@@ -138,7 +139,10 @@ public final class S3RequestParser {
                     }
                     if (segCount >= 1) return S3Operation.UPLOAD_PART;
                 }
-                if (segCount == 1) return S3Operation.CREATE_BUCKET;
+                if (segCount == 1) {
+                    if (query.containsKey("acl")) return S3Operation.PUT_BUCKET_ACL;
+                    return S3Operation.CREATE_BUCKET;
+                }
                 return S3Operation.PUT_OBJECT;
             case "DELETE":
                 if (hasUploadId && segCount >= 1) return S3Operation.ABORT_MULTIPART;

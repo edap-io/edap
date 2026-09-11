@@ -67,7 +67,9 @@ public final class S3HttpHandler implements HttpHandler {
             if (auth == null && !querySigned && !authVerifier.allowAnonymous()) {
                 throw new S3Exception(S3ErrorCode.ACCESS_DENIED, "Missing Authorization header");
             }
-            if (auth != null || querySigned) {
+            // allowAnonymous()=true 时也要走 verify()(包装型 verifier 内部会按
+            // 桶 ACL 决定是否放行匿名请求);否则只对有签名的请求验签。
+            if (auth != null || querySigned || authVerifier.allowAnonymous()) {
                 authVerifier.verify(req.getMethod(),
                         s3Req.rawHttpRequest(),
                         s3Req.queryParams(),
