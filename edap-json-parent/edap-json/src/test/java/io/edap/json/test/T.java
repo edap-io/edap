@@ -18,26 +18,36 @@ package io.edap.json.test;
 
 import eje.com.jsoniter.benchmark.with_map_field.TestObject;
 import io.edap.io.ByteArrayBufOut;
-import io.edap.json.JsonCodecRegister;
-import io.edap.json.JsonDecoderGenerator;
-import io.edap.json.JsonEncoder;
-import io.edap.json.SerializerFeature;
+import io.edap.json.*;
 import io.edap.json.enums.DataType;
 import io.edap.json.test.model.DemoOneString;
 import io.edap.json.test.model.DemoPojo;
+import io.edap.json.test.model.SimplePojo;
 import io.edap.json.test.model.TableExpectInfo;
 import io.edap.json.writer.ByteArrayJsonWriter;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+import java.util.HashMap;
 
 public class T {
 
     public static void main(String[] args) throws IOException {
-        Class cls = Gender.class;
-        System.out.println(cls);
+        CollectionHolder h = new CollectionHolder();
+        h.items = Arrays.asList("a", "b");
+        String json = Eson.toJsonString(h);
+        System.out.println(json);
 
-        Gender female = Gender.GENDER_FEMALE;
-        System.out.println(female);
+        Wrapper w = new Wrapper();
+        w.setData(new HashMap<>());  // 或任何实例
+        json = Eson.toJsonString(w);  // StackOverflowError
+
+        System.out.println("----------------------");
+        System.out.println(json);
+// 情情形 2：裸 Object 实例
+        Eson.toJsonString(new Object());
+        System.out.println("----------------------");
+        System.out.println(json);
     }
 }

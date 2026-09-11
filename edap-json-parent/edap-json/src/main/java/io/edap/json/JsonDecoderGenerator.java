@@ -222,7 +222,7 @@ public class JsonDecoderGenerator {
                 mv.visitMethodInsn(INVOKEINTERFACE, READER_NAME, "readObject",
                         "(Ljava/lang/Class;)Ljava/lang/Object;", true);
                 mv.visitTypeInsn(CHECKCAST, pojoName);
-                visitSetValueOpcode(mv, jfi);
+                visitSetValueOpcode(mv, jfi, false);
             } else if (isList(jfi.field.getGenericType())) {
                 ParameterizedType ptype = (ParameterizedType)jfi.field.getGenericType();
                 java.lang.reflect.Type itemType = ptype.getActualTypeArguments()[0];
@@ -233,7 +233,7 @@ public class JsonDecoderGenerator {
                 mv.visitFieldInsn(GETSTATIC, DATATYPE_NAME, dataType.name(), "L" + DATATYPE_NAME +";");
                 mv.visitMethodInsn(INVOKEVIRTUAL, pojoDecoderName, "readList",
                         "(L" + READER_NAME + ";Ljava/lang/Class;L" + DATATYPE_NAME + ";)Ljava/util/List;", false);
-                visitSetValueOpcode(mv, jfi);
+                visitSetValueOpcode(mv, jfi, false);
             } else if (isMap(jfi.field.getGenericType())) {
                 mv.visitVarInsn(ALOAD, 3);
                 mv.visitVarInsn(ALOAD, 1);
@@ -244,7 +244,7 @@ public class JsonDecoderGenerator {
 //            mv.visitMethodInsn(INVOKEVIRTUAL, pojoName, "setField1",
 //                    "(Ljava/lang/String;)V", false);
                 mv.visitTypeInsn(CHECKCAST, "java/util/Map");
-                visitSetValueOpcode(mv, jfi);
+                visitSetValueOpcode(mv, jfi, false);
             } else if (jfi.field.getType().isEnum()) {
                 boolean isProtoEnum = false;
                 Annotation[] anns = jfi.field.getType().getDeclaredAnnotations();
@@ -267,11 +267,11 @@ public class JsonDecoderGenerator {
                     mv.visitMethodInsn(INVOKESTATIC, enumName, "valueOf",
                             "(Ljava/lang/String;)L" + enumName + ";", false);
                 }
-                visitSetValueOpcode(mv, jfi);
+                visitSetValueOpcode(mv, jfi, false);
             } else {
                 mv.visitVarInsn(ALOAD, 3);
                 mv.visitVarInsn(ALOAD, 1);
-                visitSetValueOpcode(mv, jfi);
+                visitSetValueOpcode(mv, jfi, true);
             }
             mv.visitJumpInsn(GOTO, lbEndSwitch);
         }
@@ -330,7 +330,7 @@ public class JsonDecoderGenerator {
                 mv.visitMethodInsn(INVOKEINTERFACE, READER_NAME, "readObject",
                         "(Ljava/lang/Class;)Ljava/lang/Object;", true);
                 mv.visitTypeInsn(CHECKCAST, pojoName);
-                visitSetValueOpcode(mv, jfi);
+                visitSetValueOpcode(mv, jfi, false);
             } else if (isList(jfi.field.getGenericType())) {
                 ParameterizedType ptype = (ParameterizedType)jfi.field.getGenericType();
                 java.lang.reflect.Type itemType = ptype.getActualTypeArguments()[0];
@@ -341,7 +341,7 @@ public class JsonDecoderGenerator {
                 mv.visitFieldInsn(GETSTATIC, DATATYPE_NAME, dataType.name(), "L" + DATATYPE_NAME +";");
                 mv.visitMethodInsn(INVOKEVIRTUAL, pojoDecoderName, "readList",
                         "(L" + READER_NAME + ";Ljava/lang/Class;L" + DATATYPE_NAME + ";)Ljava/util/List;", false);
-                visitSetValueOpcode(mv, jfi);
+                visitSetValueOpcode(mv, jfi, false);
             } else if (isMap(jfi.field.getGenericType())) {
                 mv.visitVarInsn(ALOAD, 3);
                 mv.visitVarInsn(ALOAD, 1);
@@ -352,7 +352,7 @@ public class JsonDecoderGenerator {
 //            mv.visitMethodInsn(INVOKEVIRTUAL, pojoName, "setField1",
 //                    "(Ljava/lang/String;)V", false);
                 mv.visitTypeInsn(CHECKCAST, "java/util/Map");
-                visitSetValueOpcode(mv, jfi);
+                visitSetValueOpcode(mv, jfi, false);
             } else if (jfi.field.getType().isEnum()) {
                 boolean isProtoEnum = false;
                 Annotation[] anns = jfi.field.getType().getDeclaredAnnotations();
@@ -375,7 +375,7 @@ public class JsonDecoderGenerator {
                     mv.visitMethodInsn(INVOKESTATIC, enumName, "valueOf",
                             "(Ljava/lang/String;)L" + enumName + ";", false);
                 }
-                visitSetValueOpcode(mv, jfi);
+                visitSetValueOpcode(mv, jfi, false);
             } else {
                 mv.visitFrame(Opcodes.F_SAME, 0, null, 0, null);
                 mv.visitVarInsn(ALOAD, 3);
@@ -385,7 +385,7 @@ public class JsonDecoderGenerator {
 //                        "()" + getDescriptor(jfi.field.getGenericType()), true);
 //                //mv.visitMethodInsn(INVOKEVIRTUAL, pojoName, "setField1",
 //                //        "(Ljava/lang/String;)V", false);
-                visitSetValueOpcode(mv, fields.get(i));
+                visitSetValueOpcode(mv, fields.get(i), true);
             }
             mv.visitJumpInsn(GOTO, lbWhileSwitchEnd);
         }
@@ -476,7 +476,7 @@ public class JsonDecoderGenerator {
         mv.visitEnd();
     }
 
-    private void visitSetValueOpcode(MethodVisitor mv, JsonFieldInfo pfi) {
+    private void visitSetValueOpcode(MethodVisitor mv, JsonFieldInfo pfi, boolean needRead) {
         String valType = getDescriptor(pfi.field.getType());
         switch (pfi.field.getType().getName()) {
             case "java.lang.Boolean":
@@ -510,7 +510,7 @@ public class JsonDecoderGenerator {
                         "valueOf", "(F)Ljava/lang/Float;", false);
                 break;
             default:
-                if (!isList(pfi.field.getType())) {
+                if (needRead) {
                     String readMethod = getReadMethod(pfi);
                     mv.visitMethodInsn(INVOKEINTERFACE, READER_NAME, readMethod,
                             "()" + getDescriptor(pfi.field.getGenericType()), true);
