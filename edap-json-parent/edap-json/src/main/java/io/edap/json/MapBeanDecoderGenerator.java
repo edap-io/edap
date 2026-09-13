@@ -25,6 +25,7 @@ import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Type;
 
 import java.io.IOException;
+import java.lang.annotation.Annotation;
 import java.lang.reflect.ParameterizedType;
 import java.util.ArrayList;
 import java.util.List;
@@ -275,6 +276,34 @@ public class MapBeanDecoderGenerator {
                 && ((Class<?>) genericType).isArray()
                 && !((Class<?>) genericType).getComponentType().isPrimitive()) {
             emitArrayAssign(mv, pfi, ((Class<?>) genericType).getComponentType(), varBean, varV);
+        } else if (genericType instanceof Class && ((Class)genericType).isEnum()) {
+            Annotation[] anns = ((Class<?>) genericType).getAnnotations();
+            boolean isProtoEnum = false;
+            for (Annotation ann : anns) {
+               if ("io.edap.protobuf.annotation.ProtoEnum".equals(ann.annotationType().getName())) {
+                   isProtoEnum = true;
+                   break;
+               }
+            }
+            if (isProtoEnum) {
+                mv.visitVarInsn(ALOAD, varBean);
+                mv.visitVarInsn(ALOAD, varV);
+                mv.visitMethodInsn(INVOKESTATIC, "io/edap/json/util/JsonUtil", "getIntValue",
+                        "(Ljava/lang/Object;)I", false);
+                String enumName = toInternalName(((Class<?>) genericType).getName());
+                mv.visitMethodInsn(INVOKESTATIC, enumName, "valueOf",
+                        "(I)L" + enumName + ";", false);
+                invokeSetterOrPutField(mv, pfi, "L" + enumName + ";");
+            } else {
+                mv.visitVarInsn(ALOAD, varBean);
+                mv.visitVarInsn(ALOAD, varV);
+                mv.visitMethodInsn(INVOKESTATIC, "java/lang/String", "valueOf",
+                        "(Ljava/lang/Object;)Ljava/lang/String;", false);
+                String enumName = toInternalName(((Class<?>) genericType).getName());
+                mv.visitMethodInsn(INVOKESTATIC, enumName, "valueOf",
+                        "(Ljava/lang/String;)L" + enumName + ";", false);
+                invokeSetterOrPutField(mv, pfi, "L" + enumName + ";");
+            }
         } else {
             emitScalarAssign(mv, pfi, varBean, varV);
         }
