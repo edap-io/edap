@@ -429,7 +429,8 @@ public class HttpHandlerGenerator {
             mv.visitFieldInsn(GETFIELD, handlerName, "log", "Lio/edap/log/Logger;");
             mv.visitLdcInsn("{}.{} invoke error");
             visitBizLogLambda();
-            mv.visitInvokeDynamicInsn("accept", "()Ljava/util/function/Consumer;",
+            mv.visitVarInsn(ALOAD, varEx);
+            mv.visitInvokeDynamicInsn("accept", "(Ljava/lang/Throwable;)Ljava/util/function/Consumer;",
                     new Handle(Opcodes.H_INVOKESTATIC, "java/lang/invoke/LambdaMetafactory", "metafactory",
                             "(Ljava/lang/invoke/MethodHandles$Lookup;Ljava/lang/String;" +
                                     "Ljava/lang/invoke/MethodType;Ljava/lang/invoke/MethodType;" +
@@ -437,7 +438,7 @@ public class HttpHandlerGenerator {
                                     "Ljava/lang/invoke/CallSite;", false),
                     new Object[]{Type.getType("(Ljava/lang/Object;)V"),
                             new Handle(Opcodes.H_INVOKESTATIC, handlerName, "lambda$handle$0",
-                                    "(Lio/edap/log/LogArgs;)V", false),
+                                    "(Ljava/lang/Throwable;Lio/edap/log/LogArgs;)V", false),
                             Type.getType("(Lio/edap/log/LogArgs;)V")});
             mv.visitMethodInsn(INVOKEINTERFACE, "io/edap/log/Logger", "warn",
                     "(Ljava/lang/String;Ljava/util/function/Consumer;)V", true);
