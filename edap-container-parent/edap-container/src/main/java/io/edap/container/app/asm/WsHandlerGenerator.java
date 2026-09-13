@@ -15,6 +15,7 @@ import java.util.List;
 
 import static io.edap.container.app.asm.HandlerAsmGenerator.handlerName;
 import static io.edap.util.AsmUtil.toInternalName;
+import static io.edap.util.ClazzUtil.getDescriptor;
 import static org.objectweb.asm.ClassWriter.COMPUTE_FRAMES;
 import static org.objectweb.asm.ClassWriter.COMPUTE_MAXS;
 import static org.objectweb.asm.Opcodes.*;
@@ -226,7 +227,7 @@ public class WsHandlerGenerator {
         // return bean.<method>(pojo);
         mv.visitFieldInsn(GETSTATIC, handlerName, "bean", "L" + serviceIfInternal + ";");
         mv.visitVarInsn(ALOAD, varPojo);
-        String methodDesc = "(L" + paramTypeInternal + ";)Ljava/lang/Object;";
+        String methodDesc = "(L" + paramTypeInternal + ";)" + getDescriptor(method.getGenericReturnType());
         mv.visitMethodInsn(INVOKEINTERFACE, serviceIfInternal, method.getName(),
                 methodDesc, true);
         mv.visitInsn(ARETURN);
