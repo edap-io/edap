@@ -1329,7 +1329,16 @@ public class Container {
         }
         PathInfoMatcher pathInfoMatcher = new PathInfoMatcher();
         Map<FastBufDataRange, PathInfo> combined = new HashMap<>();
-        for (Map<FastBufDataRange, PathInfo> t : appPathTables.values()) {
+        // 仅消费 CURRENT 槽位的 pathTable —— STAGING / PREVIOUS 已部署但暂不接流量。
+        // 历史 bug:遍历 appPathTables.values() 把 3 个槽位的 PathInfo 全混进 combined,
+        // 导致 switchVersion 后 wildcard 路由命中陈旧版本(后注册者覆盖前者的非确定性 +
+        // PrefixWildcardPathRouter.registerPathInfo 用引用 equals 去重失败)。
+        for (Map.Entry<String, SlotEntry> appEntry : registry.entrySet()) {
+            AppContext cur = appEntry.getValue().current();
+            if (cur == null) {
+                continue;                                  // 该 appId 暂无 current 槽位
+            }
+            Map<FastBufDataRange, PathInfo> t = appPathTables.get(appEntry.getKey());
             if (t == null) {
                 continue;
             }
