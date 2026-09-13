@@ -118,6 +118,40 @@ public class PrefixWildcardPathRouterTest {
 		assertEquals(pathInfos[4].getMatchPath(), ".do");
 	}
 
+	/**
+	 * 验证不同 PathInfo 实例、同 path 字符串的 register 只保留一份。
+	 * 旧实现用 PathInfo.equals(引用比较)去重,不同实例永远不 equals,导致重复 entry 残留。
+	 * 修复后按 path 字符串去重,后续同名 register 直接跳过。
+	 */
+	@Test
+	public void testRegisterPathInfoDedupeByPathString() throws NoSuchFieldException, IllegalAccessException {
+		PrefixWildcardPathRouter router = new PrefixWildcardPathRouter();
+
+		PathInfo first = new PathInfo();
+		first.setPath("*.jsp");
+		first.setHttpHandlers(new HttpHandler[]{new NotFoundHandler()});
+		router.registerPathInfo(first);
+
+		// 不同实例,同 path —— 模拟"两个 AppContext 都注册了 /*"
+		PathInfo second = new PathInfo();
+		second.setPath("*.jsp");
+		second.setHttpHandlers(new HttpHandler[]{new NotFoundHandler()});
+		router.registerPathInfo(second);
+
+		// 第三个不同实例,同 path
+		PathInfo third = new PathInfo();
+		third.setPath("*.jsp");
+		third.setHttpHandlers(new HttpHandler[]{new NotFoundHandler()});
+		router.registerPathInfo(third);
+
+		Field infosField = PrefixWildcardPathRouter.class.getDeclaredField("prefixPathInfos");
+		infosField.setAccessible(true);
+		PathInfo[] pathInfos = (PathInfo[]) infosField.get(router);
+		assertEquals(1, pathInfos.length, "同 path 不同实例应只保留 1 份");
+		assertEquals("*.jsp", pathInfos[0].getPath());
+		assertSame(first, pathInfos[0], "应保留首次注册的实例");
+	}
+
 	@Test
 	public void testUnregisterPathInfo() throws NoSuchFieldException, IllegalAccessException {
 		PrefixWildcardPathRouter router = new PrefixWildcardPathRouter();
