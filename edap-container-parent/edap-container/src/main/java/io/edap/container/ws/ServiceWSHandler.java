@@ -8,6 +8,9 @@ import io.edap.json.JsonObject;
 import io.edap.json.JsonObjectImpl;
 import io.edap.log.Logger;
 import io.edap.log.LoggerManager;
+import io.edap.mw.context.RequestContext;
+import io.edap.mw.context.RequestContextHolder;
+import io.edap.mw.context.UserResolver;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -37,6 +40,8 @@ public class ServiceWSHandler implements WSHandler {
     /** AppContext 引用（用于 onOpen 阶段异步加载用户信息 / 拿 bean）。 */
     private final AppContext appContext;
 
+    private UserResolver userResolver;
+
     /**
      * method → 业务 handler 映射表。
      *
@@ -49,6 +54,7 @@ public class ServiceWSHandler implements WSHandler {
 
     public ServiceWSHandler(AppContext appContext) {
         this.appContext = appContext;
+        this.userResolver = (UserResolver)appContext.beans().getBean("jwtUserResolver");
     }
 
     // ─────────── 连接生命周期 ───────────
@@ -59,6 +65,10 @@ public class ServiceWSHandler implements WSHandler {
         webSocket.clearSessionContext();
         // principal 在 handeshake 阶段已写入 sessionContext（per-path WSAuthenticator 完成）；
         // onOpen 阶段可直接从 sessionContext 取，或异步加载用户信息。
+        UserResolver.ResolverResult userResult = userResolver.resolve(webSocket.getHttpRequest());
+        if (userResult != null && userResult.isSuccess()) {
+            webSocket.setSessionContext("loginInfo", userResult.getRequestContext());
+        }
         log.info("WS connection opened: {}", l -> l.arg(remoteAddrSafe(webSocket)));
     }
 
@@ -81,13 +91,15 @@ public class ServiceWSHandler implements WSHandler {
 
     @Override
     public void onMessage(WSConnection ws, String message) {
+        log.info("msg:{}", l -> l.arg(message));
         if (ws == null || message == null) return;
-        int msgId = 0;
+        String msgId = "";
+        RequestContextHolder.clear();
         try {
             JsonObject json = Eson.parseJsonObject(message);
             String method = json.getString("method");
-            msgId = json.getIntValue("msgId");                         // 缺字段默认 0
-            JsonObject payload = json.getJsonObject("payload");
+            msgId = json.getString("id");                         // 缺字段默认 0
+            JsonObject payload = json.getJsonObject("params");
 
             WSServiceMsgHandler<?> handler = msgHandlers.get(method);
             if (handler == null) {
@@ -96,6 +108,10 @@ public class ServiceWSHandler implements WSHandler {
             }
 
             try {
+                Object requestContextObj = ws.getSessionContext("loginInfo");
+                if (requestContextObj != null && requestContextObj instanceof RequestContext) {
+                    RequestContextHolder.set((RequestContext) requestContextObj);
+                }
                 // wildcard capture：msgHandlers 的 handler 是 WSServiceMsgHandler<?>，取出的实例
                 // 类型变量绑定为具体 ?；这里 payload 已知是 JsonObject，handler 的 T 也是
                 // JsonObject（WsHandlerGenerator 固定生成 WSServiceMsgHandler<Object> 实现，
@@ -105,8 +121,8 @@ public class ServiceWSHandler implements WSHandler {
                 Object result = ((WSServiceMsgHandler) handler).handle(payload);
                 sendOk(ws, msgId, result);
             } catch (Throwable biz) {
-                final int msgIdFinal = msgId;
                 final String methodFinal = method;
+                String msgIdFinal = msgId;
                 log.warn("WS biz error: method={}, msgId={}",
                         l -> l.arg(methodFinal).arg(msgIdFinal).threw(biz));
                 sendError(ws, msgId, 500, "internal error");
@@ -123,7 +139,7 @@ public class ServiceWSHandler implements WSHandler {
         // 1. 解 field#1 (bytes method)
         // 2. 解 field#2 (varint msgId)
         // 3. 解 field#3 (bytes payload)
-        sendError(ws, 0, 501, "protobuf not implemented yet");
+        sendError(ws, "", 501, "protobuf not implemented yet");
     }
 
     @Override
@@ -149,20 +165,22 @@ public class ServiceWSHandler implements WSHandler {
 
     // ─────────── 响应辅助方法 ───────────
 
-    private void sendOk(WSConnection ws, int msgId, Object payload) {
+    private void sendOk(WSConnection ws, String msgId, Object payload) {
         JsonObject resp = new JsonObjectImpl();
         resp.put("code", 0);
         resp.put("msg", "ok");
-        resp.put("msgId", msgId);
-        resp.put("payload", payload);                                   // payload 已是 Map/List/基础类型
-        ws.sendText(Eson.toJsonString(resp));
+        resp.put("id", msgId);
+        resp.put("data", payload);                                   // payload 已是 Map/List/基础类型
+        String respJson = Eson.toJsonString(resp);
+        log.info("resp msg:{}", l -> l.arg(respJson));
+        ws.sendText(respJson);
     }
 
-    private void sendError(WSConnection ws, int msgId, int code, String msg) {
+    private void sendError(WSConnection ws, String msgId, int code, String msg) {
         JsonObject resp = new JsonObjectImpl();
         resp.put("code", code);
         resp.put("msg", msg);
-        resp.put("msgId", msgId);
+        resp.put("id", msgId);
         ws.sendText(Eson.toJsonString(resp));
     }
 
