@@ -54,7 +54,6 @@ public class HttpEmptyParamHandler extends AbstractHandler implements HttpHandle
 
                 resp.write(Eson.toJsonString(bean.hello(helloReq)));
             } catch (Throwable e) {
-                e.printStackTrace();
                 log.warn("", e);
                 Map<String, Object> respData = new HashMap<>();
                 respData.put("code", 101);
