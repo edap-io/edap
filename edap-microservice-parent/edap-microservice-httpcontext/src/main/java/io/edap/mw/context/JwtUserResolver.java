@@ -44,7 +44,10 @@ public class JwtUserResolver implements UserResolver {
     public ResolverResult resolve(HttpRequest req) {
         String token = headerValue(req, "Authorization");
         if (token == null || token.isEmpty()) {
-            return new ResolverResult(false,"missing Authorization header");
+            token = req.getParameter("token");
+            if (token == null || token.isEmpty()) {
+                return new ResolverResult(false, "missing Authorization header");
+            }
         }
         // 部分客户端传 "Bearer <token>" 格式,兼容剥离前缀
         if (token.regionMatches(true, 0, "Bearer ", 0, 7)) {
