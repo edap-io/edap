@@ -66,13 +66,19 @@ public class PrefixWildcardPathRouter implements PathRouter {
 			pathInfo.setMatchPath(matchPath);
 			List<PathInfo> pathInfos = new ArrayList<>();
 			int size = prefixPathInfos.length;
+			boolean exists = false;
 			if (size > 0) {
 				for (int i = 0; i < size; i++) {
 					PathInfo info = prefixPathInfos[i];
+					// 按 path 字符串去重 —— PathInfo 默认 equals 是引用比较,不同 AppContext
+					// 实例化的 PathInfo 永远不会 equals,旧的 contains(pathInfo) 去重无效。
+					if (path.equals(info.getPath())) {
+						exists = true;
+					}
 					pathInfos.add(info);
 				}
 			}
-			if (!pathInfos.contains(pathInfo)) {
+			if (!exists) {
 				pathInfos.add(pathInfo);
 				Collections.sort(pathInfos, (o1, o2) -> {
 					if (o1.getPath().length() > o2.getPath().length()) {
