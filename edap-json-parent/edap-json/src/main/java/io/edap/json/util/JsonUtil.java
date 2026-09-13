@@ -397,11 +397,20 @@ public class JsonUtil {
                 } else if ("io.edap.protobuf.annotation.ProtoField".equals(ann.annotationType().getName())) {
                     Method[] ms = ann.getClass().getDeclaredMethods();
                     for (Method m : ms) {
-                        if (m.getName().equals("name")) {
+                        if ("name".equals(m.getName())) {
                             try {
                                 String annFieldName = (String)m.invoke(ann);
                                 if (annFieldName != null && annFieldName.length() > 0) {
                                     jfi.jsonFieldName = annFieldName;
+                                }
+                            } catch (Exception e) {
+                                throw new RuntimeException(e);
+                            }
+                        } else if ("jsonType".equals(m.getName())) {
+                            try {
+                                String jsonType = (String)m.invoke(ann);
+                                if (jsonType != null && jsonType.length() > 0) {
+                                    jfi.jsonType = jsonType;
                                 }
                             } catch (Exception e) {
                                 throw new RuntimeException(e);

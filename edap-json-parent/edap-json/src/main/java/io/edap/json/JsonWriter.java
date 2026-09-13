@@ -33,6 +33,8 @@ public interface JsonWriter extends BufWriter {
     void write(Integer i);
     void write(long l);
     void write(Long l);
+    void writeAsString(long l);
+    void writeAsString(Long l);
     void write(float f);
     void write(Float f);
     void write(double d);

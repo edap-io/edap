@@ -203,6 +203,24 @@ public class ByteArrayJsonWriter extends AbstractJsonWriter implements JsonWrite
     }
 
     @Override
+    public void writeAsString(long l) {
+        expand(22);
+        byte[] _buf = buf;
+        _buf[pos++] = '"';
+        pos = uncheckWriteLong(_buf, pos, l);
+        _buf[pos++] = '"';
+    }
+
+    @Override
+    public void writeAsString(Long l) {
+        if (l == null) {
+            writeNull();
+            return;
+        }
+        writeAsString(l.longValue());
+    }
+
+    @Override
     public void write(float f) {
         if (f == Float.POSITIVE_INFINITY) {
             write(POSITIVE_INFINITY_BYTES, 0, POSITIVE_INFINITY_BYTES.length);
