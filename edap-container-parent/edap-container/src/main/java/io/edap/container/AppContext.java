@@ -689,8 +689,15 @@ public class AppContext implements Lifecycle {
         Class<?> handlerClass = generatedHandlers.computeIfAbsent(cacheKey, k -> {
             // 2. 拿生成类专用 ClassLoader（parent = appCL）—— protoIf 必被 appCL 加载
             ClassLoader appCL = protoIf.getClassLoader();
+            String handlerName = HandlerAsmGenerator.INSTANCE.handlerName(targetIf, protoIf, method);
             GeneratedClassLoader genCL = generatedCLs.computeIfAbsent(appCL, GeneratedClassLoader::new);
-
+            try {
+                Class handlerCls = Class.forName(handlerName, false, genCL);
+                log.info("handlerCls {} exists", l -> l.arg(handlerName));
+                return handlerCls;
+            } catch (ClassNotFoundException e) {
+                log.warn("Class.forName {}", l -> l.arg(handlerName).threw(e));
+            }
             // 3. ASM 字节码生成（无状态工具 HandlerAsmGenerator.INSTANCE，不持有 app 状态）
             byte[] bytes = HandlerAsmGenerator.INSTANCE.generateHandlerClass(
                     targetIf, protoIf, method, annoDatas, appCL);
@@ -699,7 +706,6 @@ public class AppContext implements Lifecycle {
             //    用 Class.forName(name, true, genCL) 会先走 genCL → appCL 双亲委派，
             //    appCL 没有这个类就 CNFE，Handler impl 永远不会被实际注册。
             try {
-                String handlerName = HandlerAsmGenerator.INSTANCE.handlerName(targetIf, protoIf, method);
                 saveClassFile("./" + toInternalName(handlerName) + ".class", bytes);
                 return genCL.define(handlerName, bytes);
             } catch (LinkageError | IllegalArgumentException | IOException e) {
@@ -957,7 +963,20 @@ public class AppContext implements Lifecycle {
                                 (Class) WSServiceMsgHandler.class, protoIf, pmd.getAnnoDatas(), anno, m, shards);
                         //wsH.add(h);
                         // 按 method 名而非 path 索引：dispatch 由 ServiceWSHandler 按 JSON method 字段查
-                        wsMsgHandlers.put(m.getName(), h);
+                        String methodName;
+                        Object methodObj = anno.getValues().get("method");
+                        if (methodObj == null || !(methodObj instanceof String)
+                                || ((String)methodObj).trim().length() <= 0) {
+                            methodName = protoIf.getSimpleName().substring(0, 1).toLowerCase(Locale.ENGLISH);
+                            if (protoIf.getSimpleName().length() > 1) {
+                                methodName += protoIf.getSimpleName().substring(1);
+                            }
+                            methodName += ".";
+                            methodName += m.getName();
+                        } else {
+                            methodName = (String)methodObj;
+                        }
+                        wsMsgHandlers.put(methodName, h);
                     }
                 }
                 // eRPC / gRPC option 解析尚未在 EarScanner 落地——对应 Capability 检查留待后续 PR
