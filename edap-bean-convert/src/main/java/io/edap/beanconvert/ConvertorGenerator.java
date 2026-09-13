@@ -18,6 +18,8 @@ package io.edap.beanconvert;
 
 import io.edap.beanconvert.AbstractConvertor.ConvertFieldInfo;
 import io.edap.beanconvert.util.ConvertUtil;
+import io.edap.log.Logger;
+import io.edap.log.LoggerManager;
 import io.edap.util.CollectionUtils;
 import io.edap.util.internal.GeneratorClassInfo;
 import org.objectweb.asm.*;
@@ -38,6 +40,8 @@ import static org.objectweb.asm.Opcodes.*;
  */
 public class ConvertorGenerator {
 
+    static Logger log = LoggerManager.getLogger(ConvertorGenerator.class);
+
     static String PARENT_ANME = AbstractConvertor.class.getName();
     static String REGISTER_NAME = toInternalName(ConvertorRegister.class.getName());
     static String MAPPER_NAME = toInternalName(MapperRegister.class.getName());
@@ -55,7 +59,7 @@ public class ConvertorGenerator {
         this.orignalCls = orignalCls;
         this.destCls = destCls;
         this.configs = configs;
-        this.convertorName = getConvertorName(orignalCls, destCls);
+        this.convertorName = toInternalName(getConvertorName(orignalCls, destCls));
     }
 
     public GeneratorClassInfo getClassInfo() {
@@ -395,14 +399,18 @@ public class ConvertorGenerator {
 
             visitSetValueOpcode(mv, destCls, orignalInfo, destInfo);
         } else {
-            String fieldConvertorName = getFieldConvertorName(orignalInfo.field.getName());
-            mv.visitVarInsn(ALOAD, 2);
-            mv.visitFieldInsn(GETSTATIC, toInternalName(convertorName), fieldConvertorName, "L" + IFACE_NAME + ";");
-            visitGetFieldValue(mv, orignalCls, orignalInfo, rType);
-            //mv.visitMethodInsn(INVOKEVIRTUAL, "io/edap/x/beanconvert/test/model/Car", "getType", "()Lio/edap/x/beanconvert/test/model/CarType;", false);
-            mv.visitMethodInsn(INVOKEINTERFACE, IFACE_NAME, "convert", "(Ljava/lang/Object;)Ljava/lang/Object;", true);
-            mv.visitTypeInsn(CHECKCAST, toInternalName(destInfo.field.getType().getName()));
-            visitSetValueOpcode(mv, destCls, orignalInfo, destInfo);
+            log.error("field {} srcType:{},destType:{}",
+                    l -> l.arg(cinfo.orignalInfo.field.getName())
+                            .arg(cinfo.orignalInfo.field.getType())
+                            .arg(cinfo.destInfo.field.getType()));
+//            String fieldConvertorName = getFieldConvertorName(orignalInfo.field.getName());
+//            mv.visitVarInsn(ALOAD, 2);
+//            mv.visitFieldInsn(GETSTATIC, toInternalName(convertorName), fieldConvertorName, "L" + IFACE_NAME + ";");
+//            visitGetFieldValue(mv, orignalCls, orignalInfo, rType);
+//            //mv.visitMethodInsn(INVOKEVIRTUAL, "io/edap/x/beanconvert/test/model/Car", "getType", "()Lio/edap/x/beanconvert/test/model/CarType;", false);
+//            mv.visitMethodInsn(INVOKEINTERFACE, IFACE_NAME, "convert", "(Ljava/lang/Object;)Ljava/lang/Object;", true);
+//            mv.visitTypeInsn(CHECKCAST, toInternalName(destInfo.field.getType().getName()));
+//            visitSetValueOpcode(mv, destCls, orignalInfo, destInfo);
         }
 
 
@@ -669,6 +677,8 @@ public class ConvertorGenerator {
                     continue;
                 }
 
+            } else if (convertor == null) {
+                continue;
             }
             needCinits.add(cinfo);
         }
