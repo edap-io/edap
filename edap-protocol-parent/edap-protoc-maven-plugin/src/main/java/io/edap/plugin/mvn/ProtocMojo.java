@@ -19,6 +19,7 @@ package io.edap.plugin.mvn;
 import io.edap.protobuf.codegen.CodeGenertor;
 
 import io.edap.protobuf.wire.Proto;
+import org.apache.maven.artifact.Artifact;
 import org.apache.maven.model.Resource;
 import org.apache.maven.plugin.AbstractMojo;
 import org.apache.maven.plugin.MojoExecutionException;
@@ -26,16 +27,20 @@ import org.apache.maven.plugin.MojoFailureException;
 import org.apache.maven.plugins.annotations.LifecyclePhase;
 import org.apache.maven.plugins.annotations.Mojo;
 import org.apache.maven.plugins.annotations.Parameter;
+import org.apache.maven.plugins.annotations.ResolutionScope;
 import org.apache.maven.project.MavenProject;
+import org.codehaus.plexus.util.CollectionUtils;
 
-import java.io.File;
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
+import java.io.*;
+import java.nio.charset.StandardCharsets;
+import java.util.*;
+import java.util.jar.JarEntry;
+import java.util.jar.JarFile;
 
 @Mojo(name = "generate",
         defaultPhase = LifecyclePhase.GENERATE_SOURCES,
-        threadSafe = true)
+        threadSafe = true,
+        requiresDependencyResolution = ResolutionScope.COMPILE)
 public class ProtocMojo extends AbstractMojo {
 
     @Parameter(defaultValue = "${project}", readonly = true, required = true)
@@ -67,6 +72,22 @@ public class ProtocMojo extends AbstractMojo {
             throw new MojoFailureException("接口实现模块源代码目录" + implSrcDir + "不存在");
         }
 
+        Set<Artifact> artifacts = project.getArtifacts();
+        Map<String, String> depenceProtosdepenceProtos = new HashMap<>();
+        if (artifacts != null && !artifacts.isEmpty()) {
+            for (Artifact artifact : artifacts) {
+                File libFile = artifact.getFile();
+                if (!libFile.getName().endsWith(".jar")) {
+                    continue;
+                }
+                try {
+                    scanProtos(new JarFile(libFile), depenceProtosdepenceProtos);
+                } catch (IOException e) {
+                    getLog().warn("parse proto file error", e);
+                }
+            }
+        }
+
         srcDir = sources.get(0);
         List<Resource> resources = project.getResources();
         List<String> protoPaths = new ArrayList<>();
@@ -82,12 +103,36 @@ public class ProtocMojo extends AbstractMojo {
         for (String protoPath : protoPaths) {
             try {
                 List<Proto> protos = CodeGenertor.parseProtos(protoPath, msg -> getLog().info(msg));
-                CodeGenertor.generate(protos, srcDir,msg -> getLog().info(msg));
+                CodeGenertor.generate(protos, depenceProtosdepenceProtos, srcDir,msg -> getLog().info(msg));
                 if (createImpl) {
                     CodeGenertor.generateImpl(protos, implSrcDir, msg -> getLog().info(msg));
                 }
             } catch (IOException e) {
                 getLog().error(e);
+            }
+        }
+    }
+
+    private void scanProtos(JarFile libJar, Map<String, String> protoEntry) {
+        Enumeration<JarEntry> entries = libJar.entries();
+        while (entries.hasMoreElements()) {
+            JarEntry entry = entries.nextElement();
+            StringBuilder sb = new StringBuilder();
+            if (entry.getName().startsWith("proto/") && entry.getName().endsWith(".proto")) {
+                String name = entry.getName().substring(6);
+                try (InputStream inputStream = libJar.getInputStream(entry);
+                     BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8))) {
+                    sb.delete(0, sb.length());
+                    String line;
+                    while ((line = reader.readLine()) != null) {
+                        sb.append(line).append('\n');
+                    }
+                    String content = sb.toString();
+                    protoEntry.put(name, content);
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+
             }
         }
     }

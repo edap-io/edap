@@ -179,7 +179,7 @@ public class JavaGenerator {
             return;
         }
         List<Proto> protos = parseProtoFile(protoFiles);
-        IfaceGenerator ifaceGenerator = new IfaceGenerator(srcPath, protos);
+        IfaceGenerator ifaceGenerator = new IfaceGenerator(srcPath, protos, new HashMap<>());
         ifaceGenerator.setBuildOption(buildOption);
         ifaceGenerator.generate();
     }

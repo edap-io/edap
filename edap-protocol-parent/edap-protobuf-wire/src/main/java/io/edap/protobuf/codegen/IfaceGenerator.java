@@ -33,10 +33,12 @@ public class IfaceGenerator {
     private final List<Proto> files;
     private JavaBuildOption buildOption;
     private CodeCreatePrint codeCreatePrint;
+    private Map<String, String> dependencyProtos;
 
-    public IfaceGenerator(File srcPath, List<Proto> files) {
+    public IfaceGenerator(File srcPath, List<Proto> files, Map<String, String> dependencyProtos) {
         this.srcPath = srcPath;
         this.files = files;
+        this.dependencyProtos = dependencyProtos;
     }
 
     public void setBuildOption(JavaBuildOption buildOption) {
@@ -61,8 +63,12 @@ public class IfaceGenerator {
             impProtos.remove(proto.getName());
         }
         for (String name : impProtos) {
+            String path = "/proto/" + name;
+            if (null == IfaceGenerator.class.getResource(path)) {
+                continue;
+            }
             try (BufferedReader in = new BufferedReader(new InputStreamReader(
-                    IfaceGenerator.class.getResourceAsStream("/proto/" + name), StandardCharsets.UTF_8))) {
+                    IfaceGenerator.class.getResourceAsStream(path), StandardCharsets.UTF_8))) {
                 String line = in.readLine();
                 StringBuilder builder = new StringBuilder();
                 while (line != null) {
@@ -156,7 +162,7 @@ public class IfaceGenerator {
     }
 
     public void generateDtoMessage(Proto proto, JavaBuildOption buildOps, Map<String, Proto> protos) {
-        JavaBuilder builder = new JavaBuilder();
+        JavaBuilder builder = new JavaBuilder(dependencyProtos);
 
         buildOps.setDtoPrefix(buildOption.getDtoPrefix());
 

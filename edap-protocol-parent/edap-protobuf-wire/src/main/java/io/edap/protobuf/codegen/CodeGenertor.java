@@ -34,7 +34,7 @@ public class CodeGenertor {
         }
 
         List<Proto> protos = parseProtos(protoPath, msg -> System.out.println(msg));
-        generate(protos, javaOut, System.out::println);
+        generate(protos, new HashMap<>(), javaOut, System.out::println);
 
     }
 
@@ -74,10 +74,10 @@ public class CodeGenertor {
         return protos;
     }
 
-    public static void generate(List<Proto> protos, String javaOut, CodeCreatePrint codeCreatePrint) throws IOException {
+    public static void generate(List<Proto> protos, Map<String, String> dependencyProtos, String javaOut, CodeCreatePrint codeCreatePrint) throws IOException {
         long startTime = System.currentTimeMillis();
 
-        IfaceGenerator ifaceGenerator = new IfaceGenerator(new File(javaOut), protos);
+        IfaceGenerator ifaceGenerator = new IfaceGenerator(new File(javaOut), protos, dependencyProtos);
         JavaBuildOption javaBuildOption = new JavaBuildOption();
         ifaceGenerator.setBuildOption(javaBuildOption);
         ifaceGenerator.setCodeCreatePrint(codeCreatePrint);

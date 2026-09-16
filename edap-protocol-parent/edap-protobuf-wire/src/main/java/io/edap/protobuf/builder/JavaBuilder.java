@@ -25,7 +25,9 @@ import io.edap.protobuf.wire.Field.Cardinality;
 import io.edap.protobuf.wire.ProtoEnum;
 import io.edap.protobuf.wire.ProtoEnum.EnumEntry;
 import io.edap.protobuf.wire.WireFormat.JavaType;
+import io.edap.protobuf.wire.parser.ProtoParser;
 
+import java.beans.JavaBean;
 import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
@@ -48,6 +50,17 @@ public class JavaBuilder {
         String[] types = ("double,float,int32,int64,uint32,uint64,sint32,sint64,"
                 + "fixed32,fixed64,sfixed32,sfixed64,bool,string,bytes").split(",");
         BASE_TYPES.addAll(Arrays.asList(types));
+    }
+
+    private Map<String, String> depProtoContext = new HashMap<>();
+    private Map<String, Proto> depProtos = new HashMap<>();
+
+    public JavaBuilder() {}
+
+    public JavaBuilder(Map<String, String> depProtos) {
+        if (depProtos != null && !depProtos.isEmpty()) {
+            this.depProtoContext.putAll(depProtos);
+        }
     }
 
     public static void saveJavaFile(String javaFilePath, String code)
@@ -637,6 +650,8 @@ public class JavaBuilder {
                         javaPackage = impProto.getProtoPackage();
                     }
                     addImport(imps, javaPackage + type.substring(index));
+                } else {
+                    impDep(type, proto, imps);
                 }
             }
             if (field instanceof MapField) {
@@ -644,6 +659,47 @@ public class JavaBuilder {
             } else if (field.getCardinality() == Field.Cardinality.REPEATED) {
                 addImport(imps, "java.util.List");
                 addImport(imps, "java.util.ArrayList");
+            }
+        }
+    }
+
+    private void impDep(String type, Proto proto, List<String> imps) {
+        List<String> impProtos = proto.getImports();
+        for (String impp : impProtos) {
+            if (!depProtos.containsKey(impp)) {
+                if (depProtoContext.containsKey(impp)) {
+                    //System.out.println("impp:" + impp + ",depProtoContext.containsKey(impp)=" + depProtoContext.containsKey(impp));
+                    try {
+                        Proto depProto = new ProtoParser(depProtoContext.get(impp)).parse();
+                        depProtos.put(impp, depProto);
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                }
+            }
+            Proto depProto = depProtos.get(impp);
+            //System.out.println("type:" + type + ",depProto.package=" + depProto.getProtoPackage());
+            String javaPack = getJavaPackage(depProto);
+            if (type.startsWith(depProto.getProtoPackage() + ".")) {
+                List<Message> msgs = depProto.getMessages();
+                if (msgs != null && !depProto.isEmpty()) {
+                    for (Message msg : msgs) {
+                        if (type.equals(depProto.getProtoPackage() + "." + msg.getName())) {
+                            addImport(imps, javaPack + "." + msg.getName());
+                            return;
+                        }
+                    }
+                }
+
+                List<ProtoEnum> enums = depProto.getEnums();
+                if (enums != null && !enums.isEmpty()) {
+                    for (ProtoEnum pe : enums) {
+                        if (type.equals(depProto.getProtoPackage() + "." + pe.getName())) {
+                            addImport(imps, javaPack + "." + pe.getName());
+                            return;
+                        }
+                    }
+                }
             }
         }
     }
@@ -679,7 +735,15 @@ public class JavaBuilder {
             if (impProto == null) {
                 continue;
             }
-            allEnums.putAll(getAllProtoEnum(impProto, protos));
+            protoEnums = impProto.getEnums();
+            for (ProtoEnum protoEnum : protoEnums) {
+                String packName = proto.getProtoPackage();
+                String javaPack = getJavaPackage(proto);
+                if (javaPack != null && javaPack.trim().length() > 0) {
+                    packName = javaPack;
+                }
+                allEnums.put(packName + "." + protoEnum.getName(), protoEnum);
+            }
         }
         return allEnums;
     }
