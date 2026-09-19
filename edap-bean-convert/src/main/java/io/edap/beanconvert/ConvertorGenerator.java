@@ -333,6 +333,7 @@ public class ConvertorGenerator {
                 switch (destType) {
                     case "int":
                         mv.visitTypeInsn(CHECKCAST, toInternalName(Integer.class.getName()));
+                        mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/Integer", "intValue", "()I", false);
                         break;
                     case "long":
                         mv.visitTypeInsn(CHECKCAST, toInternalName(Long.class.getName()));
@@ -340,6 +341,7 @@ public class ConvertorGenerator {
                         break;
                     case "boolean":
                         mv.visitTypeInsn(CHECKCAST, toInternalName(Boolean.class.getName()));
+                        mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/Boolean", "booleanValue", "()Z", false);
                         break;
                     case "double":
                         mv.visitTypeInsn(CHECKCAST, toInternalName(Double.class.getName()));
