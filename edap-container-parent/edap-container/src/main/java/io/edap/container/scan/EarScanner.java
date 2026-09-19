@@ -7,10 +7,13 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.jar.Attributes;
+import java.util.jar.Manifest;
 
 import static io.edap.container.utils.JarUtils.scanBuildInfo;
 import static io.edap.container.utils.JarUtils.scanMavenInfo;
 import static io.edap.container.utils.ProtoServiceUtils.visitProtoService;
+import static java.util.jar.JarFile.MANIFEST_NAME;
 
 /**
  * edap微服务ear包的扫描器
@@ -40,6 +43,7 @@ public class EarScanner {
         NestedJarFile  ear   = earFile;
         Set<String>    names = ear.entryNames();
         List<String>   deps  = new ArrayList<>();
+        Manifest manifest = null;
         List<ProtoServiceData>   protoServiceInfos = dmd.getProtoServiceInfos();
         Map<String, ServiceMeta> serviceMetaMap    = dmd.getServiceMetaMap();
         Map<String, ConfigurationMetaData> configurationMetaDataMap = dmd.getConfigurationMetaMap();
@@ -47,6 +51,12 @@ public class EarScanner {
             if (name.endsWith("/pom.properties")) {
                 clazzCount.addAndGet(1);
                 dmd.setMavenInfo(scanMavenInfo(ear, name));
+            }
+            System.out.println("#####name=" + name + ",MANIFEST_NAME=" + MANIFEST_NAME);
+            if (name.equals(MANIFEST_NAME)) {
+                try (InputStream inputStream = ear.getInputStream(name)) {
+                    manifest = new Manifest(inputStream);
+                }
             }
             if (name.equals("META-INF/BUILD.json")) {
                 clazzCount.addAndGet(1);
@@ -67,8 +77,31 @@ public class EarScanner {
                 }
             }
         }
+        Set<String> excludeJars = new HashSet<>();
+        if (manifest != null) {
+            for (Map.Entry<Object, Object> entry : manifest.getMainAttributes().entrySet()) {
+                if ("ProtoService-scan-excludes".equals(String.valueOf(entry.getKey()))) {
+                    String fs = String.valueOf(entry.getValue());
+                    if (fs != null && fs.length() > 0) {
+                        String[] files = String.valueOf(entry.getValue()).split(",");
+                        for (String file : files) {
+                            excludeJars.add(file);
+                        }
+                    }
+                }
+            }
+        }
         Map<String, DeployComponent> componentMap = new HashMap<>();
         for (String name : deps) {
+            String libName;
+            if (name.length() > "APP-INF/lib/".length()) {
+                libName = name.substring("APP-INF/lib/".length());
+            } else {
+                libName = name;
+            }
+            if (excludeJars.contains(libName)) {
+                continue;
+            }
             NestedJarScanner njs = new NestedJarScanner(ear.getNestedJarFile(name));
             DeployComponent dc = njs.scan();
             if (dc != null) {
