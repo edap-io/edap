@@ -1,7 +1,12 @@
 package io.edap.plugin.mvn;
 
+import io.edap.json.Eson;
+import io.edap.json.JsonArray;
+import io.edap.json.JsonObject;
+import io.edap.util.CollectionUtils;
 import org.apache.maven.artifact.Artifact;
 import org.apache.maven.execution.MavenSession;
+import org.apache.maven.model.Resource;
 import org.apache.maven.plugin.AbstractMojo;
 import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugin.MojoFailureException;
@@ -56,6 +61,36 @@ public class EdapAppPackageMojo extends AbstractMojo {
             earFile += "-T" + buildTime.format(TIME_FORMATTER);
         }
         earFile += "-" + project.getVersion() + ".ear";
+
+        if (project.getVersion().endsWith("-SNAPSHOT")) {
+            File targetDir = new File(project.getBasedir().getAbsolutePath() + "/target/");
+            if (targetDir.exists() && targetDir.isDirectory()) {
+                String[] names = targetDir.list();
+                List<String> snapEars = new ArrayList<>();
+                for (String name : names) {
+                    if (name.startsWith(project.getName() + "-T") && name.endsWith("-SNAPSHOT.ear")) {
+                        snapEars.add(name);
+                    }
+                }
+                Collections.sort(snapEars);
+                Collections.reverse(snapEars);
+
+                if (snapEars.size() > 4) {
+                    int size = snapEars.size() - 4;
+                    for (int i=0;i<size;i++) {
+                        String name = snapEars.get(snapEars.size() - 1);
+                        getLog().info("remove file " + name);
+                        File oldFile = new File(targetDir, name);
+                        getLog().info("remove file " + name + ",exists:" + oldFile.exists());
+                        if (oldFile.exists()) {
+                            boolean deleted = oldFile.delete();
+                            getLog().info("remove file " + name + ",deleted:" + deleted);
+                        }
+                        snapEars.remove(snapEars.size() - 1);
+                    }
+                }
+            }
+        }
 
         Set<Artifact> artifacts = project.getArtifacts();
         Path outJar = Paths.get(earFile);
@@ -207,6 +242,31 @@ public class EdapAppPackageMojo extends AbstractMojo {
         attrs.put(Attributes.Name.MANIFEST_VERSION, "1.0");
         attrs.putValue("Created-By", pluginArtifactId + "-" + pluginVersion);
         attrs.putValue("Build-Jdk-Spec", javaSpecVersion);
+
+        List<Resource> resources = project.getResources();
+        if (resources != null && !resources.isEmpty()) {
+            List<String> excludes = new ArrayList<>();
+            StringBuilder sb = new StringBuilder();
+            for (Resource resource : resources) {
+                File rdir = new File(resource.getDirectory());
+                if (rdir.exists() && rdir.isDirectory()) {
+                    File scanFile = new File(rdir, "edap-scan.json");
+                    queryExcludeJar(scanFile, excludes, sb);
+                }
+            }
+            Set<Artifact> artifacts = project.getArtifacts();
+            sb.delete(0, sb.length());
+            for (Artifact artifact : artifacts) {
+                String artname = artifact.getGroupId() + ":" + artifact.getArtifactId();
+                if (excludes.contains(artname)) {
+                    if (sb.length() > 0) {
+                        sb.append(',');
+                    }
+                    sb.append(artifact.getFile().getName());
+                }
+            }
+            attrs.putValue("ProtoService-scan-excludes", sb.toString());
+        }
         try {
             ByteArrayOutputStream bout = new ByteArrayOutputStream();
             mf.write(bout);
@@ -214,6 +274,41 @@ public class EdapAppPackageMojo extends AbstractMojo {
             throw new RuntimeException(e);
         }
         return mf;
+    }
+
+    private void queryExcludeJar(File scanFile, List<String> artifacts, StringBuilder sb) {
+        if (!scanFile.exists()) {
+            return;
+        }
+        sb.delete(0, sb.length());
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(new FileInputStream(scanFile), StandardCharsets.UTF_8))) {
+            String line = reader.readLine();
+            while (line != null) {
+                sb.append(line).append('\n');
+                line = reader.readLine();
+            }
+            String jsonStr = sb.toString();
+            getLog().info("json:" + jsonStr);
+            JsonObject json = Eson.parseJsonObject(jsonStr);
+            getLog().info("json.containsKey(\"excludes\"):" + json.containsKey("excludes"));
+            if (json.containsKey("excludes")) {
+                Object obj = json.get("excludes");
+                getLog().info("excludes obj:" + obj + ",obj instanceof JsonArray:" +
+                        (obj instanceof JsonArray) + ",obj=" + obj.getClass().getName());
+                if (obj != null && obj instanceof List) {
+                    List jarray = (List) obj;
+                    if (jarray == null || jarray.isEmpty()) {
+                        return;
+                    }
+                    for (Object o : jarray) {
+                        getLog().info("o=" + o);
+                        artifacts.add(String.valueOf(o));
+                    }
+                }
+            }
+        } catch (IOException e) {
+            getLog().warn("queryExcludeJar error", e);
+        }
     }
 
     private void addMavenFiles(JarOutputStream jos) throws IOException {
