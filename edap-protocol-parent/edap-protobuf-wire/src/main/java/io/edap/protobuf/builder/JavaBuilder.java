@@ -25,6 +25,7 @@ import io.edap.protobuf.wire.Field.Cardinality;
 import io.edap.protobuf.wire.ProtoEnum;
 import io.edap.protobuf.wire.ProtoEnum.EnumEntry;
 import io.edap.protobuf.wire.WireFormat.JavaType;
+import io.edap.protobuf.wire.exceptions.ProtoParseException;
 import io.edap.protobuf.wire.parser.ProtoParser;
 
 import java.beans.JavaBean;
@@ -335,6 +336,10 @@ public class JavaBuilder {
                                 msgName = reqType.substring(index + 1);
                             }
                             needSaveJavaFiles.put(reqType, impProto.getMessage(msgName));
+                        } else {
+                            System.out.println("##### reqType=" + reqType + " not found");
+                            reqType = getDepType(proto, reqType);
+                            System.out.println("##### reqType=" + reqType + " founded");
                         }
                         addImport(impMsgs, reqType);
                         String respType = m.getResponse();
@@ -352,6 +357,10 @@ public class JavaBuilder {
                                 msgName = respType.substring(index + 1);
                             }
                             needSaveJavaFiles.put(respType, impProto.getMessage(msgName));
+                        } else {
+                            System.out.println("##### respType=" + respType + " not found");
+                            respType = getDepType(proto, respType);
+                            System.out.println("##### respType=" + respType + " founded");
                         }
                         addImport(impMsgs, respType);
                     });
@@ -371,6 +380,41 @@ public class JavaBuilder {
         impMsgs.stream()
                 .sorted(String::compareTo)
                 .forEach(e -> cb.e("import $msg$;").arg(e).ln());
+    }
+
+    private String getDepType(Proto proto, String dtoType) {
+        List<String> imports = proto.getImports();
+        for (String imp : imports) {
+            if (!depProtos.containsKey(imp)) {
+                if (depProtoContext.containsKey(imp)) {
+                    ProtoParser parser = new ProtoParser(depProtoContext.get(imp));
+                    try {
+                        depProtos.put(imp, parser.parse());
+                    } catch (ProtoParseException e) {
+                        System.out.println("Parse " + imp + " error\n\t" + e.getMessage());
+                    }
+                }
+            }
+            if (depProtos.containsKey(imp)) {
+                Proto impProto = depProtos.get(imp);
+                List<Message> impMs = impProto.getMessages();
+                for (Message msg : impMs) {
+                    if (dtoType.equals(impProto.getProtoPackage() + "." + msg.getName())) {
+                        dtoType = getJavaPackage(impProto) + "." + msg.getName();
+                        break;
+                    }
+                }
+                List<ProtoEnum> impEs = impProto.getEnums();
+                for (ProtoEnum penum : impEs) {
+                    if (dtoType.equals(impProto.getProtoPackage() + "." + penum.getName())) {
+                        dtoType = getJavaPackage(impProto) + "." + penum.getName();
+                        break;
+                    }
+                }
+            }
+        }
+
+        return dtoType;
     }
 
     public String buildService(Service service, int indent, JavaBuildOption buildOps,
