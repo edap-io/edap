@@ -28,6 +28,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.Map;
 
 import static io.edap.json.Eson.serialize;
@@ -511,6 +512,16 @@ public class ByteArrayJsonWriter extends AbstractJsonWriter implements JsonWrite
             }
             pos = j;
         }
+    }
+
+    @Override
+    public void writeBase64(byte[] data) {
+        byte[] dest = Base64.getEncoder().encode(data);
+        expand(dest.length + 2);
+        buf[pos++] = '"';
+        System.arraycopy(dest, 0, buf, pos, dest.length);
+        pos += data.length;
+        buf[pos++] = '"';
     }
 
     @Override

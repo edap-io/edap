@@ -184,7 +184,20 @@ public class JsonEncoderGenerator {
             } else if (isIterable(jfi.field.getGenericType())) {
                 visitIterableFiledMethod(mv, jfi, l0);
             } else if (jfi.field.getType().isArray()) {
-                visitArrayFieldMethod(mv, jfi, l0);
+                if (jfi.field.getType().getName().equals("[B")) {
+                    mv.visitVarInsn(ALOAD, 1);
+                    mv.visitVarInsn(ALOAD, 2);
+                    if (jfi.method != null) {
+                        visitMethod(mv, INVOKEVIRTUAL, pojoName, jfi.method.getName(), "()" + typeString,
+                                false);
+                    } else {
+                        mv.visitFieldInsn(GETFIELD, pojoName, jfi.field.getName(), typeString);
+                    }
+                    visitMethod(mv, INVOKEINTERFACE, WRITER_NAME, "writeBase64",
+                            "([B)V", true);
+                } else {
+                    visitArrayFieldMethod(mv, jfi, l0);
+                }
             } else if (jfi.field.getType().isEnum()) {
                 mv.visitVarInsn(ALOAD, 1);
                 mv.visitVarInsn(ALOAD, 2);

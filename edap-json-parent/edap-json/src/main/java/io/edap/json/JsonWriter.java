@@ -48,6 +48,7 @@ public interface JsonWriter extends BufWriter {
     void write(String s);
     void write(byte[] bs);
     void write(byte[] bs, int offset, int length);
+    void writeBase64(byte[] data);
 
     void write(BigDecimal bigDecimal);
 

@@ -25,6 +25,14 @@ public class JsonObjectImpl implements JsonObject {
 
     private Map<String, Object> map = new HashMap<>();
 
+    public JsonObjectImpl() {
+
+    }
+
+    public JsonObjectImpl(Map<String, Object> values) {
+        map.putAll(values);
+    }
+
     @Override
     public int size() {
         return map.size();
