@@ -6,6 +6,7 @@ import io.edap.json.model.ByteArrayDataRange;
 import io.edap.json.model.DataRange;
 import io.edap.json.model.JsonFieldInfo;
 import io.edap.json.model.StringDataRange;
+import io.edap.json.util.DateTimeUtils;
 import io.edap.util.StringUtil;
 import io.edap.util.internal.GeneratorClassInfo;
 import org.objectweb.asm.*;
@@ -13,6 +14,8 @@ import org.objectweb.asm.*;
 import java.io.IOException;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.ParameterizedType;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -36,6 +39,8 @@ public class JsonDecoderGenerator {
     static final String PARENT_NAME = toInternalName(AbstractDecoder.class.getName());
 
     static final String DATATYPE_NAME = toInternalName(DataType.class.getName());
+
+    static final String DATETIME_UTILS_NAME = toInternalName(DateTimeUtils.class.getName());
 
     private List<GeneratorClassInfo> inners;
 
@@ -268,6 +273,25 @@ public class JsonDecoderGenerator {
                             "(Ljava/lang/String;)L" + enumName + ";", false);
                 }
                 visitSetValueOpcode(mv, jfi, false);
+            } else if (jfi.field.getType().getName().equals(LocalDateTime.class.getName())
+                    || jfi.field.getType().getName().equals(LocalDate.class.getName())) {
+                mv.visitVarInsn(ALOAD, 3);
+                mv.visitVarInsn(ALOAD, 1);
+                mv.visitMethodInsn(INVOKEINTERFACE, READER_NAME, "readLong",
+                        "()J", true);
+                mv.visitMethodInsn(INVOKESTATIC, DATETIME_UTILS_NAME, "to" + jfi.field.getType().getSimpleName(),
+                        "(J)" + getDescriptor(jfi.field.getType()), false);
+                visitSetValueOpcode(mv, fields.get(i), false);
+            } else if (jfi.field.getType().getName().equals("[B")) {
+                mv.visitVarInsn(ALOAD, 3);
+                mv.visitMethodInsn(INVOKESTATIC, "java/util/Base64", "getDecoder",
+                        "()Ljava/util/Base64$Decoder;", false);
+                mv.visitVarInsn(ALOAD, 1);
+                mv.visitMethodInsn(INVOKEINTERFACE, READER_NAME, "readString",
+                        "()Ljava/lang/String;", true);
+                mv.visitMethodInsn(INVOKEVIRTUAL, "java/util/Base64$Decoder", "decode",
+                        "(Ljava/lang/String;)[B", false);
+                visitSetValueOpcode(mv, fields.get(i), false);
             } else {
                 mv.visitVarInsn(ALOAD, 3);
                 mv.visitVarInsn(ALOAD, 1);
@@ -376,7 +400,26 @@ public class JsonDecoderGenerator {
                             "(Ljava/lang/String;)L" + enumName + ";", false);
                 }
                 visitSetValueOpcode(mv, jfi, false);
-            } else {
+            } else if (jfi.field.getType().getName().equals(LocalDateTime.class.getName())
+                    || jfi.field.getType().getName().equals(LocalDate.class.getName())) {
+                mv.visitVarInsn(ALOAD, 3);
+                mv.visitVarInsn(ALOAD, 1);
+                mv.visitMethodInsn(INVOKEINTERFACE, READER_NAME, "readLong",
+                        "()J", true);
+                mv.visitMethodInsn(INVOKESTATIC, DATETIME_UTILS_NAME, "to" + jfi.field.getType().getSimpleName(),
+                        "(J)" + getDescriptor(jfi.field.getType()), false);
+                visitSetValueOpcode(mv, fields.get(i), false);
+            }  else if (jfi.field.getType().getName().equals("[B")) {
+                mv.visitVarInsn(ALOAD, 3);
+                mv.visitMethodInsn(INVOKESTATIC, "java/util/Base64", "getDecoder",
+                        "()Ljava/util/Base64$Decoder;", false);
+                mv.visitVarInsn(ALOAD, 1);
+                mv.visitMethodInsn(INVOKEINTERFACE, READER_NAME, "readString",
+                        "()Ljava/lang/String;", true);
+                mv.visitMethodInsn(INVOKEVIRTUAL, "java/util/Base64$Decoder", "decode",
+                        "(Ljava/lang/String;)[B", false);
+                visitSetValueOpcode(mv, fields.get(i), false);
+            }else {
                 mv.visitFrame(Opcodes.F_SAME, 0, null, 0, null);
                 mv.visitVarInsn(ALOAD, 3);
                 mv.visitVarInsn(ALOAD, 1);
