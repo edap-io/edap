@@ -287,7 +287,16 @@ public class StringJsonReader implements JsonReader {
                 }
                 throw new JsonParseException("整数不能有前导0的字符");
             } else if (ind == endType) {
-                throw new JsonParseException("整数不符合规范");
+                if (c1 == 'n' && json.length() > pos + 3 && json.charAt(_pos) == 'u' && json.charAt(_pos+1) == 'l'
+                        && json.charAt(_pos+2) == 'l') {
+                    pos = _pos + 3;
+                    return 0;
+                } else if (c1 == '"') {
+                    String s = readString();
+                    return Long.parseLong(s);
+                } else {
+                    throw new JsonParseException("整数不符合规范");
+                }
             }
             if (end - _pos > 8) {
                 int ind2 = INT_DIGITS[json.charAt(_pos++)];
