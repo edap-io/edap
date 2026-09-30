@@ -17,14 +17,17 @@
 package io.edap;
 
 import io.edap.config.EdapConfig;
+import io.edap.json.Eson;
+import io.edap.json.JsonObject;
 import io.edap.log.Logger;
-import io.edap.log.LoggerFactory;
 import io.edap.log.LoggerManager;
 import io.edap.nio.SelectorProvider;
 import io.edap.props.Props;
 import io.edap.util.CollectionUtils;
 
-import java.io.IOException;
+import java.io.*;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.locks.ReentrantLock;
@@ -49,6 +52,7 @@ public class Edap {
     private volatile EdapState            state;
     private          Map<String, Integer> monitorIndexs = new HashMap<>();
     private final    ReentrantLock        lifecycleLock = new ReentrantLock();
+    private          Props                edapProps;
 
     public Edap() {
         serverGroups = new HashMap<>();
@@ -67,11 +71,42 @@ public class Edap {
                 SELECTOR_PROVIDERS.add(provider);
             }
         }
+        BufferedReader reader = null;
+        try {
+            URL loc = Edap.class.getProtectionDomain().getCodeSource().getLocation();
+            File f = new File(loc.toURI());
+            if (!f.isFile()) {
+                throw new IllegalStateException("Edap is not inside a file jar: " + loc);
+            }
+
+            File conf = new File(f.getParent() + File.separator + "edap.json5");
+
+            if (conf.exists()) {
+                reader = new BufferedReader(new InputStreamReader(new FileInputStream(conf), StandardCharsets.UTF_8));
+                StringBuilder json = new StringBuilder();
+                String line = reader.readLine();
+                while (line != null) {
+                    json.append(line).append('\n');
+                    line = reader.readLine();
+                }
+                JsonObject jsonObject = Eson.parseV5JsonObject(json.toString());
+                this.edapProps = new Props(jsonObject);
+            }
+        } catch (Exception e) {
+            throw new IllegalStateException("Cannot locate outer jar file", e);
+        } finally {
+            if (reader != null) {
+                try {reader.close();} catch (IOException e) {}
+            }
+        }
     }
 
     public Props getProps() {
+        if (edapProps == null) {
+            edapProps = new Props(new HashMap<>());
+        }
         // 完整配置由 EdapConfig 加载后构造；当前 stub 阶段先返回 null（容器侧 Environment 构造由 Container.start 接好）
-        return new Props(new HashMap<>());
+        return edapProps;
     }
 
     public synchronized int getMonitorIndex(String key) {
