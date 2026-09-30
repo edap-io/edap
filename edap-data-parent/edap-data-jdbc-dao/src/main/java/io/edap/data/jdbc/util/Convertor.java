@@ -101,6 +101,9 @@ public class Convertor {
     }
 
     public static long[] toArrayJ(Object obj) {
+        if (obj == null) {
+            return new long[0];
+        }
         try {
             Long[] vals = ((Long[]) ((Array) (obj)).getArray());
             long[] arrays = new long[vals.length];
