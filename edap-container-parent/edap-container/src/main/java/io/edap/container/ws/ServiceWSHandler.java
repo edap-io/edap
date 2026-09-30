@@ -1,6 +1,6 @@
 package io.edap.container.ws;
 
-import io.edap.container.AppContext;
+import io.edap.container.Container;
 import io.edap.http.WSConnection;
 import io.edap.http.WSHandler;
 import io.edap.json.Eson;
@@ -11,10 +11,13 @@ import io.edap.log.LoggerManager;
 import io.edap.mw.context.RequestContext;
 import io.edap.mw.context.RequestContextHolder;
 import io.edap.mw.context.UserResolver;
+import io.edap.nio.util.NetUtil;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * edap 容器层 {@link WSHandler} 唯一实现：WS 连接级事件 + 业务 method 二次路由。
@@ -27,8 +30,9 @@ import java.util.Map;
  *   <li>跨版本 method 表统一管理：{@link #rebindMsgHandlers} 整张替换（与 {@code RouterHub.setHandlers} 对称）</li>
  * </ul>
  *
- * <p><b>生命周期</b>：全 Container 单例（path 唯一 {@code /ws}），跨版本复用。
- *     长连接不随 version 切换断开（与 HTTP rebind 策略对称）。</p>
+ * <p><b>生命周期</b>：per-Container × per-path 单例（由 {@link Container#getOrCreateWsHandler(String)}
+ *     创建并缓存），跨 app 版本共享同一实例 → 老 WS 连接（{@code HttpServerNioSession.wsHandler}
+ *     握手时钉住）下一条消息靠 msgHandlers 被 rebind 感知新版本。
  *
  * <p><b>WSAuthenticator 不在此处</b>：握手鉴权在 {@code HttpServerNioSession.handeshake} 阶段
  *     从 {@code PathInfo.wsAuthenticator} 取（per-path 1:1 绑定），不在连接级 handler 上重复持有。</p>
@@ -37,24 +41,35 @@ public class ServiceWSHandler implements WSHandler {
 
     private static final Logger log = LoggerManager.getLogger(ServiceWSHandler.class);
 
-    /** AppContext 引用（用于 onOpen 阶段异步加载用户信息 / 拿 bean）。 */
-    private final AppContext appContext;
-
-    private UserResolver userResolver;
+    private final UserResolver userResolver;
 
     /**
-     * method → 业务 handler 映射表。
+     * appId → 该 app 的 method → handler 表。跨 app 共享同一个 ServiceWSHandler 实例（per-path
+     * 单例），不同 app 的 method 表按 appId 二级分片，互不干扰。
      *
-     * <p>替换语义：每次 deploy / version 切换由 {@code AppContext.generateAndBindRoutes}
-     *     整张替换为"当前激活版本"的完整 method 表。volatile publish 保证 reader 要么看到
-     *     旧版本要么看到新版本，in-flight 消息走老 handler 完整返回（老 bean 实例不会被 GC，
-     *     整条引用链由本字段 + RouterHub.wsHandlers 稳定持有）。</p>
+     * <p>写入语义：
+     * <ul>
+     *   <li>{@link #rebindMsgHandlers}：按 appId 整张替换该 app 的 method 表（同 app 跨版本切换）
+     *   <li>{@link #unbindAppMsgHandlers}：移除该 app 整个 method 表（AppContext.stop / undeploy）
+     * </ul>
+     *
+     * <p>合并视图 {@link #msgHandlers} 在每次写入后通过 {@link #rebuildMerged} 重建，volatile publish
+     *     让 dispatch 路径 reader 要么看到旧版本要么看到新版本。</p>
+     */
+    private final ConcurrentHashMap<String, Map<String, WSServiceMsgHandler<?>>> appMsgHandlers =
+            new ConcurrentHashMap<>();
+
+    /**
+     * 合并视图：所有 app 的 method 表 union，dispatch 路径读这个（{@code onMessage}）。
+     * volatile publish 保证 reader 要么看到旧版本要么看到新版本。
      */
     private volatile Map<String, WSServiceMsgHandler<?>> msgHandlers = Collections.emptyMap();
 
-    public ServiceWSHandler(AppContext appContext) {
-        this.appContext = appContext;
-        this.userResolver = (UserResolver)appContext.beans().getBean("jwtUserResolver");
+    public ServiceWSHandler(Container container) {
+        // "jwtUserResolver" 是 Container.attach() 阶段 register 的框架默认 bean
+        // （参见 Container.registerBuiltinBeans），不依赖任何 app —— 所以 wsHandler
+        // 提到 Container 单例后仍能从 containerBeans() 取。
+        this.userResolver = (UserResolver) container.containerBeans().getBean("jwtUserResolver");
     }
 
     // ─────────── 连接生命周期 ───────────
@@ -67,7 +82,10 @@ public class ServiceWSHandler implements WSHandler {
         // onOpen 阶段可直接从 sessionContext 取，或异步加载用户信息。
         UserResolver.ResolverResult userResult = userResolver.resolve(webSocket.getHttpRequest());
         if (userResult != null && userResult.isSuccess()) {
-            webSocket.setSessionContext("loginInfo", userResult.getRequestContext());
+            RequestContext rc = userResult.getRequestContext();
+            rc.ip(NetUtil.getRemoteAddress(webSocket.getSocketChannel()));
+            rc.ua("");
+            webSocket.setSessionContext("loginInfo", rc);
         }
         log.info("WS connection opened: {}", l -> l.arg(remoteAddrSafe(webSocket)));
     }
@@ -151,12 +169,72 @@ public class ServiceWSHandler implements WSHandler {
     // ─────────── method 表版本切换 ───────────
 
     /**
-     * 整张替换 method 表。调用方：{@code AppContext.generateAndBindRoutes}（部署期持 appLock 串行）。
+     * 按 appId 整张替换该 app 的 method 表（rebind）。
      *
-     * <p>原子：volatile store，reader 要么看到旧版本要么看到新版本。null 视为空映射（清空）。</p>
+     * <p>语义：
+     * <ul>
+     *   <li>同 appId（version 切换）→ 新 method 表覆盖旧 method 表（同 app 内 method 名不会撞）
+     *   <li>跨 appId → 检测 method 名冲突，新表 method 名 vs 已注册其他 app 的 method 名 → 重名
+     *       抛 {@link IllegalStateException}（fail-fast，业务方需改 method 名 / 错开 path）
+     *   <li>newMap 空 → 摘除该 appId 的 method 表
+     * </ul>
+     *
+     * <p>调用方：{@code Container.rebindCurrentWsHandlers}（deploy / switchVersion / undeploy /
+     *     restoreToSlot / 启动恢复 末尾），持 appLock 串行化。
+     *
+     * <p>原子：{@code synchronized} 块内做"检测+写入+rebuildMerged"，reader 通过
+     *     {@link #msgHandlers} volatile 字段读合并视图，要么看到旧版本要么看到新版本。</p>
      */
-    public void rebindMsgHandlers(Map<String, WSServiceMsgHandler<?>> newMap) {
-        this.msgHandlers = newMap == null ? Collections.emptyMap() : newMap;
+    public void rebindMsgHandlers(String appId, Map<String, WSServiceMsgHandler<?>> newMap) {
+        if (appId == null) throw new IllegalArgumentException("appId 不能为空");
+        Map<String, WSServiceMsgHandler<?>> toPut;
+        if (newMap == null || newMap.isEmpty()) {
+            synchronized (this) {
+                appMsgHandlers.remove(appId);
+                rebuildMerged();
+            }
+            return;
+        }
+        // 跨 app method 名冲突检测（fail-fast）。同 appId 整张覆盖不检测（v1/v2 切换语义）。
+        synchronized (this) {
+            for (Map.Entry<String, Map<String, WSServiceMsgHandler<?>>> e : appMsgHandlers.entrySet()) {
+                if (e.getKey().equals(appId)) continue;       // 同 app 跳过（同 app 跨版本切换整张覆盖）
+                for (String m : newMap.keySet()) {
+                    if (e.getValue().containsKey(m)) {
+                        throw new IllegalStateException(
+                                "WS method [" + m + "] already registered by appId=" + e.getKey()
+                                        + ", cannot register for appId=" + appId
+                                        + "（同一 Container 内 WS method 需唯一）");
+                    }
+                }
+            }
+            toPut = new HashMap<>(newMap);                    // 复制防共享
+            appMsgHandlers.put(appId, toPut);
+            rebuildMerged();
+        }
+    }
+
+    /**
+     * 摘除指定 appId 的 method 表（{@link AppContext#stop} / undeploy 路径调用）。
+     */
+    public void unbindAppMsgHandlers(String appId) {
+        if (appId == null) return;
+        synchronized (this) {
+            if (appMsgHandlers.remove(appId) != null) {
+                rebuildMerged();
+            }
+        }
+    }
+
+    /**
+     * 重建 {@link #msgHandlers} 合并视图。{@code synchronized} 块内调用。
+     */
+    private void rebuildMerged() {
+        Map<String, WSServiceMsgHandler<?>> merged = new HashMap<>();
+        for (Map<String, WSServiceMsgHandler<?>> appMap : appMsgHandlers.values()) {
+            merged.putAll(appMap);
+        }
+        this.msgHandlers = merged;                                // volatile publish
     }
 
     public Map<String, WSServiceMsgHandler<?>> msgHandlers() {
@@ -181,7 +259,9 @@ public class ServiceWSHandler implements WSHandler {
         resp.put("code", code);
         resp.put("msg", msg);
         resp.put("id", msgId);
-        ws.sendText(Eson.toJsonString(resp));
+        String respJson = Eson.toJsonString(resp);
+        log.info("resp msg:{}", l -> l.arg(respJson));
+        ws.sendText(respJson);
     }
 
     private static String remoteAddrSafe(WSConnection ws) {
