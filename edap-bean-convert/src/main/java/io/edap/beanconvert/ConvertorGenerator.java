@@ -101,6 +101,10 @@ public class ConvertorGenerator {
             // 如果原bean的field的属性存在配置则使用进行设置
             if (fieldConfig != null) {
                 ConvertFieldInfo destField = destFields.get(fieldConfig.getDestName());
+                if (destField == null) {
+                    log.error("destField name {} not found", l -> l.arg(fieldConfig.getDestName()));
+                    continue;
+                }
                 ConvertInfo cinfo = new ConvertInfo();
                 cinfo.destInfo = destField;
                 cinfo.orignalInfo = entry.getValue();
