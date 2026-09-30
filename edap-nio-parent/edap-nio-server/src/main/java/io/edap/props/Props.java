@@ -1,5 +1,9 @@
 package io.edap.props;
 
+import io.edap.json.JsonObject;
+import io.edap.json.JsonObjectImpl;
+
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
 
@@ -21,34 +25,29 @@ import java.util.Properties;
  */
 public final class Props {
 
-    private final Map<String, String> values;
+    private final JsonObject values;
 
-    public Props(Map<String, String> values) {
-        this.values = Map.copyOf(values);
+    public Props(Map<String, Object> values) {
+        if (values == null) {
+            values = new HashMap<>();
+        }
+        this.values = new JsonObjectImpl(values);
     }
 
     public Props(Properties props) {
-        Map<String, String> map = new java.util.HashMap<>();
+        Map<String, Object> map = new java.util.HashMap<>();
         for (String name : props.stringPropertyNames()) {
             map.put(name, props.getProperty(name));
         }
-        this.values = Map.copyOf(map);
+        this.values = new JsonObjectImpl(map);
     }
 
     public Props child(String prefix) {
-        String p = prefix == null ? "" : prefix;
-        String withDot = p.endsWith(".") || p.isEmpty() ? p : p + ".";
-        Map<String, String> sub = new java.util.HashMap<>();
-        for (Map.Entry<String, String> e : values.entrySet()) {
-            if (e.getKey().startsWith(withDot)) {
-                sub.put(e.getKey().substring(withDot.length()), e.getValue());
-            }
-        }
-        return new Props(sub);
+        return new Props((JsonObject)values.getByPath(prefix));
     }
 
     public Props merge(Props other) {
-        Map<String, String> merged = new java.util.HashMap<>(this.values);
+        Map<String, Object> merged = new java.util.HashMap<>(this.values);
         if (other != null) {
             merged.putAll(other.values);
         }
@@ -56,38 +55,39 @@ public final class Props {
     }
 
     public String getString(String key) {
-        return values.get(key);
+        Object v = values.getByPath(key);
+        return String.valueOf(v);
     }
 
     public String getString(String key, String defaultValue) {
-        String v = values.get(key);
-        return v != null ? v : defaultValue;
+        Object v = values.getByPath(key);
+        return v != null ? String.valueOf(v) : defaultValue;
     }
 
     public int getInt(String key, int defaultValue) {
-        String v = values.get(key);
+        Object v = values.getByPath(key);
         if (v == null) return defaultValue;
         try {
-            return Integer.parseInt(v);
+            return Integer.parseInt(String.valueOf(v));
         } catch (NumberFormatException e) {
             return defaultValue;
         }
     }
 
     public long getLong(String key, long defaultValue) {
-        String v = values.get(key);
+        Object v = values.getByPath(key);
         if (v == null) return defaultValue;
         try {
-            return Long.parseLong(v);
+            return Long.parseLong(String.valueOf(v));
         } catch (NumberFormatException e) {
             return defaultValue;
         }
     }
 
     public boolean getBoolean(String key, boolean defaultValue) {
-        String v = values.get(key);
+        Object v = values.getByPath(key);
         if (v == null) return defaultValue;
-        return Boolean.parseBoolean(v);
+        return Boolean.parseBoolean(String.valueOf(v));
     }
 
     public boolean containsKey(String key) {
