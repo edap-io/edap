@@ -45,7 +45,6 @@ import io.edap.props.Props;
 import io.edap.protobuf.annotation.ProtoHttp;
 import io.edap.protobuf.annotation.ProtoWebSocket;
 import io.edap.protobuf.annotation.Sharded;
-import io.edap.rpc.ErpcHandler;
 import io.edap.tx.EdapTransactionManager;
 import io.edap.tx.jdbc.DataSourceTransactionManager;
 import io.edap.util.CollectionUtils;
@@ -57,6 +56,7 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ScheduledFuture;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
 import javax.inject.Named;
@@ -128,22 +128,21 @@ public class AppContext implements Lifecycle {
 
     /**
      * WS method → 业务 {@link WSServiceMsgHandler}。
-     * 仅用于 {@link #generateAndBindRoutes} 末尾一次性喂给 {@link #serviceWSHandler} 的
-     * msgHandlers（volatile 替换）。dispatch 阶段不走此字段——只走 serviceWSHandler.msgHandlers()。
+     * 仅用于 {@link #generateAndBindRoutes} 末尾一次性喂给 Container 持有的
+     * {@link io.edap.container.ws.ServiceWSHandler} 单例的 msgHandlers（volatile 替换）。
+     * dispatch 阶段不走此字段——只走 ServiceWSHandler.msgHandlers()。
      */
     private final Map<String, WSServiceMsgHandler<?>> wsMsgHandlers = new HashMap<>();
-
-    /**
-     * 单 app 唯一一个 {@link ServiceWSHandler}（{@link #WS_PATH} 路径专用）。
-     * 持有 method → 业务 WSServiceMsgHandler 的 volatile map（version 切换时整张替换）。
-     * 长连接不断开，跨 version 复用同一 serviceWSHandler 实例 → in-flight 消息按老版本处理。
-     */
-    private final ServiceWSHandler serviceWSHandler;
 
     /**
      * WS 固定路径。第一期约定：所有 {@code @ProtoWebSocket} 标注的方法共用同一 path（与 HTTP per-method
      * 不同——WS 用单一长连接 + 业务 method 二次路由）；{@code /ws} 写死在 PathInfo 里，避免每 method 自定
      * path 引入的多 ServiceWSHandler / 多 PathInfo.wsHandler 复杂度。
+     *
+     * <p>对应的 {@link io.edap.container.ws.ServiceWSHandler} 实例由 {@link Container}
+     *     按 path 单例持有（{@code Container.wsHandlers}），AppContext 不再自持 —— 跨版本共享
+     *     同一 wsHandler 实例，老 WS 连接（{@code HttpServerNioSession.wsHandler} 握手时钉住）
+     *     靠 msgHandlers 被 rebind 切版本。</p>
      */
     public static final String WS_PATH = "/ws";
 
@@ -155,6 +154,29 @@ public class AppContext implements Lifecycle {
     private final Map<ClassLoader, GeneratedClassLoader> generatedCLs   = new ConcurrentHashMap<>();
 
     private volatile AppState        state = AppState.NEW;
+
+    /**
+     * 被 demote 到 PREVIOUS 槽的时间戳（毫秒）。0 = 未 demote；&gt;0 = demote 时间。
+     *
+     * <p>PREVIOUS 槽的语义：
+     * <ol>
+     *   <li>记录上次的版本（供 listSlots 查询 / 审计）</li>
+     *   <li>承接 switchVersion 时还没跑完的 in-flight 请求 —— 路由已不可达（rebuildHttpMapping
+     *       只看 current 槽），但 ctx 还 alive 一段时间让老请求 graceful drain</li>
+     * </ol>
+     * PREVIOUS <b>不接 rollback</b>：回滚路径统一走"deploy 到 staging → switchVersion(staging → current)"二段式。</p>
+     *
+     * <p>demote 时由 Container 设值，并排一个延迟 stop 任务（默认 60s，可配置）；
+     *     到点由 Container.prevReleaseScheduler 调 {@link #stop()} 释放连接池。
+     *     若 60s 内又发生 switchVersion 新的 demote，Container 会先 cancel 旧任务再立即 stop 这个 ctx。</p>
+     */
+    private volatile long demotedAt;
+
+    /**
+     * demote 排的延迟 stop 任务的句柄，cancel 用于"下一次 switchVersion 提前释放"。
+     * 由 Container 设值 / cancel；AppContext 自己不持有调度器。
+     */
+    private volatile ScheduledFuture<?> releaseFuture;
 
     public AppContext(Container container, String appId, String version,
                       EdapAppClassLoader appCL, DeployMetaData dmd) {
@@ -170,7 +192,6 @@ public class AppContext implements Lifecycle {
         this.beans          = new BeanContainer(this, env, events, shards);
         //this.routers        = new RouterHub();
         this.resourceLoader = new AppResourceLoader(appCL);
-        this.serviceWSHandler = new ServiceWSHandler(this);
         // SPI:从 appCL 加载 BeanPostProcessor 实现(per-app 隔离,避免跨 app 的 BPP 状态污染)。
         // TransactionalBeanPostProcessor 通过此机制零配置接入,业务方无需在 deploy 阶段手动 register。
         loadBeanPostProcessorsFromSPI();
@@ -397,6 +418,18 @@ public class AppContext implements Lifecycle {
     /** SIGTERM / undeploy / switchVersion 时的标准停止路径。幂等。 */
     @Override
     public void stop() throws Throwable {
+        stop(true);
+    }
+
+    /**
+     * 内部 stop 入口。
+     *
+     * @param unbindFromShared true = 从 {@link ServiceWSHandler#appMsgHandlers} 摘除本 ctx appId
+     *     的 method 表（undeploy / deploy 替换旧 STAGING 路径用 true）
+     *     false = 保留 shared method 表（PREVIOUS 槽 demote 释放用 false —— 同 appId 的 current
+     *     槽还有新版本 ctx 持有 method 表，按 appId 摘会误伤 current 槽的 method 表）
+     */
+    public void stop(boolean unbindFromShared) throws Throwable {
         AppState cur = state;
         if (cur == AppState.NEW || cur == AppState.STOPPED) return;
         if (cur == AppState.STOPPING) return;
@@ -407,10 +440,17 @@ public class AppContext implements Lifecycle {
         try {
             //routers.unbindAll();
             httpHandlersByPath.clear();
-            // ServiceWSHandler 的 msgHandlers 表也清空 —— 长连接下次 msg 按老 handler 实例 dispatch
-            // （in-flight 安全）；新 msg 因 msgHandlers 已空会回 404 method not found
-            serviceWSHandler.rebindMsgHandlers(java.util.Collections.<String, WSServiceMsgHandler<?>>emptyMap());
+            // 共享 ServiceWSHandler 的 msgHandlers 按 appId 二级分片 —— 本 ctx stop 时按需摘
+            // 自己 appId 的 method 表（避免 method 残留或跨 app 误伤）。
+            // unbindFromShared=false 时：保留 shared method 表（PREVIOUS 槽 demote 释放场景，
+            //   同 appId 的 current 槽 ctx 仍持有 method 表，按 appId 摘会清掉 current 槽的 method 表）。
             wsMsgHandlers.clear();
+            if (unbindFromShared) {
+                ServiceWSHandler sharedWsHandler = container.getOrCreateWsHandler(WS_PATH);
+                if (sharedWsHandler != null) {
+                    sharedWsHandler.unbindAppMsgHandlers(this.appId);
+                }
+            }
         }
         catch (Throwable t) { firstErr = t; }
 
@@ -696,7 +736,7 @@ public class AppContext implements Lifecycle {
                 log.info("handlerCls {} exists", l -> l.arg(handlerName));
                 return handlerCls;
             } catch (ClassNotFoundException e) {
-                log.warn("Class.forName {}", l -> l.arg(handlerName).threw(e));
+                //log.warn("Class.forName {}", l -> l.arg(handlerName).threw(e));
             }
             // 3. ASM 字节码生成（无状态工具 HandlerAsmGenerator.INSTANCE，不持有 app 状态）
             byte[] bytes = HandlerAsmGenerator.INSTANCE.generateHandlerClass(
@@ -787,18 +827,18 @@ public class AppContext implements Lifecycle {
             Thread.currentThread().setContextClassLoader(prevCL);
         }
 
-        // 所有 ProtoService 遍历完后，一次性把整张 wsMsgHandlers 喂给 ServiceWSHandler。
-        // 这里必须在每个 ProtoService 各自 add 进 wsMsgHandlers 之后、外层 buildPathTable 之前调：
-        // 否则 dispatch 路径（serviceWSHandler.msgHandlers）看到的可能是空表，导致首批 WS 消息 404。
-        // serviceWSHandler.rebindMsgHandlers 是 volatile store（原子发布），reader 要么看到旧版本
-        // 要么看到新版本；in-flight 消息走老 handler 完整返回（老 bean 实例不被 GC）。
-        if (!wsMsgHandlers.isEmpty()) {
-            serviceWSHandler.rebindMsgHandlers(new HashMap<>(wsMsgHandlers));
-        }
+        // 所有 ProtoService 遍历完后，本 ctx 的 wsMsgHandlers 已填好。
+        // 不再此处调 ServiceWSHandler.rebindMsgHandlers —— wsHandler 是 Container
+        // 持有的 per-path 单例，跨 ctx 共享；rebind 改在 Container.deploy /
+        // switchVersion / restoreToSlot 末尾由 rebindCurrentWsHandlers 统一调，
+        // 避免 STAGING ctx start 期间就 rebind 到不接流量的版本。
+        // buildPathTable() 紧跟其后调 container.deployAppRoutes() 把 pathTable 注册出去。
 
         // 全部 Handler 生成 + RouterHub 写完后：构建全量 pathTable（HTTP + WS），推给 Container。
-        // 顺序：先写 RouterHub / serviceWSHandler.msgHandlers（dispatch 路径就绪），
+        // 顺序：buildPathTable() 内部取 Container 持有的共享 ServiceWSHandler（跨 ctx 单例）写到 WS PathInfo，
         // 再 deployAppRoutes → Container 做 WS path 冲突检测 + 写 appPathTables。
+        // msgHandlers 的 rebind 由 Container.deploy/switchVersion/restoreToSlot 末尾统一调
+        // （当前 STAGING ctx start 不 rebind，避免 STAGING 把自己的 method 表塞到 dispatch 路径）；
         // HttpServer.mapping 的发布由 Container.deploy 末位的 rebuildHttpMapping() 一次性完成
         // （dispatch 热路径无锁读）；本 AppContext 不直接触发 setHttpMapping。
         // 失败抛 RouteBindException → start() 转 FAILED → deploy 回滚。
@@ -814,9 +854,9 @@ public class AppContext implements Lifecycle {
      * path 来自 {@link #deriveHttpPath}。</p>
      *
      * <p><b>WS 段</b>：所有 {@code @ProtoWebSocket} 方法共用单一 path {@link #WS_PATH} →
-     * 一个 PathInfo entry（wsHandler = {@link #serviceWSHandler} + wsAuthenticator）。
-     * 多个 {@code @ProtoWebSocket} 方法不产生多个 PathInfo entry——WS 走长连接 + 业务 method
-     * 二次路由，path 仅作连接入口。</p>
+     * 一个 PathInfo entry（wsHandler = Container 持有的 per-path 单例 ServiceWSHandler +
+     * wsAuthenticator）。多个 {@code @ProtoWebSocket} 方法不产生多个 PathInfo entry——WS 走
+     * 长连接 + 业务 method 二次路由，path 仅作连接入口。</p>
      *
      * <p><b>WSAuthenticator 取值</b>：{@code beans.beanWrapByType(WSAuthenticator.class)} miss
      *     → 由 BeanContainer fallback 到 {@code container.containerBeans()} 的
@@ -909,7 +949,9 @@ public class AppContext implements Lifecycle {
             PathInfo pi = new PathInfo();
             pi.setPath(WS_PATH);
             pi.setFound(true);
-            pi.setWsHandler(serviceWSHandler);
+            // 从 Container 拿 per-path 共享 ServiceWSHandler —— 跨 ctx 复用同一实例，
+            // 老连接 session.wsHandler 引用不变，靠 msgHandlers 被 rebind 感知版本切换。
+            pi.setWsHandler(container.getOrCreateWsHandler(WS_PATH));
             BeanWrap bw = beans.beanWrapByType(WSAuthenticator.class);
             if (bw != null && bw.instance() instanceof WSAuthenticator) {
                 pi.setWsAuthenticator((WSAuthenticator) bw.instance());
@@ -982,9 +1024,9 @@ public class AppContext implements Lifecycle {
                 // eRPC / gRPC option 解析尚未在 EarScanner 落地——对应 Capability 检查留待后续 PR
             }
         }
-        // 注意：serviceWSHandler.rebindMsgHandlers 的调用从本方法移到了 generateAndBindRoutes 末尾
-        // （所有 ProtoService 处理完毕后一次性 rebind）。原写法每个 ProtoService 都会触发一次
-        // 全量 HashMap 拷贝 + volatile store，N 个 ProtoService 就是 O(N²) 冗余。
+        // 注意：ServiceWSHandler.rebindMsgHandlers 不再在本方法调用 —— wsHandler 是
+        // Container 持有的 per-path 单例，rebind 统一在 Container.deploy / switchVersion
+        // / restoreToSlot 末尾由 rebindCurrentWsHandlers(currentCtx.wsMsgHandlers()) 调。
     }
 
     /**
@@ -1120,14 +1162,45 @@ public class AppContext implements Lifecycle {
     public Map<String, HttpHandler> httpHandlersByPath() {
         return Collections.unmodifiableMap(httpHandlersByPath);
     }
-    /** WS method → 业务 {@link WSServiceMsgHandler}。dispatch 阶段不走此字段（走 serviceWSHandler.msgHandlers()）。 */
+    /** WS method → 业务 {@link WSServiceMsgHandler}。dispatch 阶段不走此字段（走 Container 持有的 ServiceWSHandler.msgHandlers()）。 */
     public Map<String, WSServiceMsgHandler<?>> wsMsgHandlers() {
         return Collections.unmodifiableMap(wsMsgHandlers);
     }
-    /** 本 app 唯一一个 WS 入口 handler（{@link #WS_PATH} path 专用），持有 method → 业务 handler 的 volatile 表。 */
-    public ServiceWSHandler serviceWSHandler() {
-        return serviceWSHandler;
+    /**
+     * 本 ctx 是否处于 PREVIOUS 槽（被 demote 的 current）。true 表示等待 {@link #releaseFuture}
+     * 延迟 stop —— 由 {@link Container#schedulePrevRelease(AppContext)} 调度。
+     */
+    public boolean isDemoted() {
+        return demotedAt > 0;
     }
+
+    /** demote 时间戳（毫秒）；0 = 未 demote。 */
+    public long demotedAt() {
+        return demotedAt;
+    }
+
+    /** 由 Container.switchVersion demote 时调用，记录被降级到 PREVIOUS 槽的时间。 */
+    public void markDemoted() {
+        this.demotedAt = System.currentTimeMillis();
+    }
+
+    /** 由 Container 设值：延迟 stop 任务句柄（用于 cancel 提前释放）。 */
+    public void setReleaseFuture(ScheduledFuture<?> f) {
+        this.releaseFuture = f;
+    }
+
+    /**
+     * 由 Container.cancelAndStopPrev 调用 —— 仅 cancel 延迟任务，<b>不调 stop()</b>。
+     * stop 由调用方在 cancel 之后立即触发，调用边界显式。
+     */
+    public void cancelRelease() {
+        ScheduledFuture<?> f = this.releaseFuture;
+        if (f != null) {
+            f.cancel(false);                                     // mayInterruptIfRunning=false：让已触发的任务跑完
+            this.releaseFuture = null;
+        }
+    }
+
     public ShardRegistry      shards()    { return shards; }
     public AppResourceLoader resourceLoader() { return resourceLoader; }
     public AppState           state()     { return state; }
