@@ -152,6 +152,8 @@ public class DaoUtil {
                 noIdSql.append(column);
                 if (extInfo != null && extInfo.getJsonb() != null) {
                     noIdWen.append("?::jsonb");
+                } else if (extInfo != null && extInfo.getInet() != null) {
+                    noIdWen.append("?::inet");
                 } else if (extInfo != null && extInfo.getTypeConvertor() != null) {
                     TypeConvertor tc = extInfo.getTypeConvertor();
                     if (!StringUtil.isEmpty(tc.jdbcPlaceholder())) {
@@ -488,6 +490,10 @@ public class DaoUtil {
             if (jsonb != null) {
                 extInfo.setJsonb(jsonb);
             }
+            Inet inet = getFieldInet(f, fieldGetMethods);
+            if (inet != null) {
+                extInfo.setInet(inet);
+            }
             TypeConvertor typeConvertor = getFieldTypeConvertor(f, fieldGetMethods);
             if (typeConvertor != null) {
                 extInfo.setTypeConvertor(typeConvertor);
@@ -647,6 +653,30 @@ public class DaoUtil {
             }
         }
         return id;
+    }
+
+    private static Inet getFieldInet(Field f, Map<String, Method> fieldMethods) {
+        Inet inet = null;
+        Annotation[] anns = f.getAnnotations();
+        if (anns != null) {
+            for (Annotation ann : anns) {
+                if (ann instanceof Inet) {
+                    inet = (Inet) ann;
+                }
+            }
+        }
+        if (inet != null) {
+            return inet;
+        }
+        Method m = fieldMethods.get(f.getName());
+        if (m != null && m.getAnnotations() != null) {
+            for (Annotation ann : m.getAnnotations()) {
+                if (ann instanceof Inet) {
+                    inet = (Inet) ann;
+                }
+            }
+        }
+        return inet;
     }
 
     private static Jsonb getFieldJsonb(Field f, Map<String, Method> fieldMethods) {
