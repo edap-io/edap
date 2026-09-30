@@ -20,6 +20,8 @@ import io.edap.log.Logger;
 import io.edap.log.LoggerManager;
 
 import java.io.IOException;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.nio.channels.SelectableChannel;
 import java.nio.channels.SocketChannel;
@@ -37,7 +39,16 @@ public class NetUtil {
         try {
             SocketAddress addr = ((SocketChannel)channel).getRemoteAddress();
             if (addr != null) {
-                return addr.toString();
+                if (addr instanceof InetSocketAddress) {
+                    InetAddress inetAddr = ((InetSocketAddress) addr).getAddress();
+                    if (inetAddr != null) {
+                        return inetAddr.getHostAddress();
+                    } else {
+                        return addr.toString();
+                    }
+                } else {
+                    return addr.toString();
+                }
             }
         } catch (IOException e) {
             LOG.warn("channel.getRemoteAddress() error", e);
