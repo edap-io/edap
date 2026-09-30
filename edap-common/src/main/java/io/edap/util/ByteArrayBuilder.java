@@ -506,6 +506,7 @@ public class ByteArrayBuilder {
                 return appendStringSlow(str, pos, pos+len);
             }
         }
+        ensureCapacity(count + len);
         byte[] _buf = value;
         int i = 0;
         int index = count;
