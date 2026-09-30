@@ -1,11 +1,13 @@
 package io.edap.data.jdbc.model;
 
+import io.edap.data.jdbc.annotation.Inet;
 import io.edap.data.jdbc.annotation.Jsonb;
 import io.edap.data.jdbc.annotation.TypeConvertor;
 
 public class ColumnExtInfo {
 
     private Jsonb jsonb;
+    private Inet inet;
     private TypeConvertor typeConvertor;
 
     public Jsonb getJsonb() {
@@ -22,5 +24,13 @@ public class ColumnExtInfo {
 
     public void setTypeConvertor(TypeConvertor typeConvertor) {
         this.typeConvertor = typeConvertor;
+    }
+
+    public Inet getInet() {
+        return inet;
+    }
+
+    public void setInet(Inet inet) {
+        this.inet = inet;
     }
 }
