@@ -520,7 +520,7 @@ public class ByteArrayJsonWriter extends AbstractJsonWriter implements JsonWrite
         expand(dest.length + 2);
         buf[pos++] = '"';
         System.arraycopy(dest, 0, buf, pos, dest.length);
-        pos += data.length;
+        pos += dest.length;
         buf[pos++] = '"';
     }
 
