@@ -25,6 +25,8 @@ public final class RequestContext {
     private final String       userName;
     private final Set<String>  roles;
     private final String       traceId;
+    private       String       ip;
+    private       String       ua;
 
     public RequestContext(String userId, String userName, Set<String> roles, String traceId) {
         this.userId   = userId;
@@ -45,4 +47,14 @@ public final class RequestContext {
     public String      userName() { return userName; }
     public Set<String> roles()    { return roles; }
     public String      traceId()  { return traceId; }
+    public RequestContext ip(String ip) {
+        this.ip = ip;
+        return this;
+    }
+    public String      ip() { return ip;}
+    public RequestContext ua(String ua) {
+        this.ua = ua;
+        return this;
+    }
+    public String      ua() { return ua;}
 }
