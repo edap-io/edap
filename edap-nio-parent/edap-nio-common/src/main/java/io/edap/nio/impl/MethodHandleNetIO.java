@@ -93,7 +93,7 @@ public class MethodHandleNetIO implements EdapNetIO {
             if (WRITE0_MH != null) {
                 int wlen = invokeWrite0(WRITE0_MH, fd, address, len);
                 if (wlen == IO_UNAVAILABLE) {
-                    LOG.debug("write0 returned UNAVAILABLE (EAGAIN/EWOULDBLOCK), transient — return 0, upper layer retries via OP_WRITE");
+                    //LOG.debug("write0 returned UNAVAILABLE (EAGAIN/EWOULDBLOCK), transient — return 0, upper layer retries via OP_WRITE");
                     return 0;
                 }
                 if (wlen < 0) {
@@ -110,7 +110,7 @@ public class MethodHandleNetIO implements EdapNetIO {
                 while (remain > 0) {
                     int tmpLen = invokeWrite0(WRITE0_MH, fd, address, remain);
                     if (tmpLen == IO_UNAVAILABLE) {
-                        LOG.debug("write0 returned UNAVAILABLE mid-write, returning partial " + wlen);
+                        //LOG.debug("write0 returned UNAVAILABLE mid-write, returning partial " + wlen);
                         return wlen;
                     }
                     if (tmpLen < 0) {
@@ -128,7 +128,7 @@ public class MethodHandleNetIO implements EdapNetIO {
             } else {
                 int wlen = invokeWrite0(WRITE0_MH2, fd, address, len);
                 if (wlen == IO_UNAVAILABLE) {
-                    LOG.debug("write0 (4-arg) returned UNAVAILABLE, transient — return 0");
+                    //LOG.debug("write0 (4-arg) returned UNAVAILABLE, transient — return 0");
                     return 0;
                 }
                 if (wlen < 0) {
