@@ -4,10 +4,11 @@ import io.edap.Edap;
 import io.edap.ServerGroup;
 import io.edap.auth.jwt.DefaultJwtService;
 import io.edap.auth.jwt.JwtService;
-import io.edap.container.app.RouterHub;
 import io.edap.container.event.EventPublisher;
 import io.edap.container.mw.*;
 import io.edap.container.scan.EarScanner;
+import io.edap.container.ws.ServiceWSHandler;
+import io.edap.container.ws.WSServiceMsgHandler;
 import io.edap.http.server.HttpServer;
 import io.edap.http.PathInfo;
 import io.edap.http.server.PathInfoMatcher;
@@ -21,6 +22,7 @@ import io.edap.json.Eson;
 import io.edap.launcher.NestedJarFile;
 import io.edap.log.Logger;
 import io.edap.log.LoggerManager;
+import io.edap.nio.util.ConfigUtils;
 import io.edap.props.Props;
 
 import java.io.ByteArrayOutputStream;
@@ -41,6 +43,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
 
 import static io.edap.container.scan.EarScanner.clazzCount;
@@ -77,11 +83,17 @@ public class Container {
     private final ConcurrentHashMap<String, ReentrantLock> appLocks = new ConcurrentHashMap<>();
 
     /**
-     * ④ ProtoService 接口 FQCN → 拥有它的 appId。冲突检测表：deploy / switchVersion 时
-     * 检查 dmd 里所有 ProtoService FQCN，若已被另一个 appId 注册 → 409 拒绝部署。
-     * 同 appId 重部署允许（覆盖语义，version 切换场景）；undeploy 摘除。
+     * ④ ProtoService 接口 FQCN → 拥有它的 appId。按槽位拆三个 map（CURRENT/STAGING/PREVIOUS），
+     * 让 PREVIOUS 槽的注册在物理上就不参与 deploy 期冲突检测。
+     *
+     * <p>冲突检测只在活动槽（CURRENT + STAGING）之间做；PREVIOUS 短暂承接 in-flight，
+     * 不参与命名空间仲裁。</p>
+     *
+     * <p>同 appId 重部署允许（覆盖语义）；跨 appId 同 FQCN 在活动槽里 → 409 拒绝。</p>
      */
-    private final ConcurrentHashMap<String, String> registeredIfs = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, String> currentRegistered  = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, String> stagingRegistered  = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, String> previousRegistered = new ConcurrentHashMap<>();
 
     /**
      * 框架级 Bean 容器：edap 容器内置功能 bean 集合（如 {@link WSAuthenticator} 默认实现）。
@@ -91,14 +103,54 @@ public class Container {
     private BeanContainer containerBeans;
 
     /**
-     * ⑤ WS path → owner appId。冲突检测表：deploy / version 切换时
-     * 检查 app 全量 pathTable 中所有 WS path，若已被另一个 appId 注册 → 409 拒绝部署。
-     * 同 appId 重部署允许（version 切换场景）；undeploy 摘除。
-     * <p>为什么需要独立的 WS path 冲突检测：HTTP path 冲突由 ProtoService FQCN 唯一性间接挡住，
-     *     不同 appId 不能持有同 FQCN；但 WS path 是字符串粒度，不同 FQCN 的两个 proto service
-     *     完全可能标同一个 {@code @ProtoWebSocket(path="/ws")}——FQCN 检测挡不住 WS path 冲突。</p>
+     * ⑤ WS path → 持有该 path 的 appId 集合（多 owner）。
+     *
+     * <p><b>语义变更</b>：不再做"同 path 不同 appId 冲突抛异常"。不同 appId 注册同一 WS path 是
+     *     合法场景（frontend 和 backend 都用 {@code /ws}，dispatch 通过
+     *     {@link ServiceWSHandler#appMsgHandlers} 按 appId 二级分片 + 跨 app method 名冲突检测）。
+     *     本表仅用于记录"哪些 appId 注册过这个 path"，undeploy 时反向摘除。</p>
+     *
+     * <p>为何保留：undeploy 时需要知道"这个 path 还有没有其他 owner"，决定是否要从 shared
+     *     wsHandler 里摘 wsHandler 字段。无 owner 时 wsPathOwners.remove(path, owners) 触发
+     *     combined mapping 摘 path。</p>
      */
-    private final ConcurrentHashMap<String, String> wsPathOwners = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, Set<String>> wsPathOwners = new ConcurrentHashMap<>();
+
+    /**
+     * ⑤.5 WS path → 共享 {@link ServiceWSHandler} 单例。
+     * 跨 AppContext 实例、跨版本共享同一 ServiceWSHandler 引用；
+     * 借 {@link ServiceWSHandler#rebindMsgHandlers} 整张替换 msgHandlers volatile map，
+     * 让老 WS 连接（{@code HttpServerNioSession.wsHandler} 握手时钉住）也能感知版本切换。
+     *
+     * <p>粒度对齐 {@link #wsPathOwners} —— key 是 WS path 字符串（如 {@code "/ws"}）。
+     *     当前架构一 Container 一 HttpServer，HttpServer 维度无变化时 per-path 单例等价于
+     *     per-(HttpServer × path)，多 Container 之间天然隔离（不用跨 Container 同步）。</p>
+     */
+    private final ConcurrentHashMap<String, ServiceWSHandler> wsHandlers = new ConcurrentHashMap<>();
+
+    /**
+     * PREVIOUS 槽延迟释放调度器。
+     *
+     * <p>switchVersion(staging → current) 时老 current 被 demote 到 PREVIOUS 槽。
+     * PREVIOUS 槽的语义是"承接 in-flight 老请求 graceful drain + 记录上次版本"，
+     * 不是"rollback 备用"。调度器在 demote 那一刻起 {@link #prevReleaseDelayMs} 毫秒后
+     * 调 ctx.stop() —— destroyAllSingletons 关闭 Hikari 等连接池，释放数据库连接。</p>
+     *
+     * <p>单线程 daemon executor：延迟任务不需要并行；daemon 不会阻止 JVM 退出。</p>
+     */
+    private final ScheduledExecutorService prevReleaseScheduler =
+            Executors.newSingleThreadScheduledExecutor(r -> {
+                Thread t = new Thread(r, "container-prev-release");
+                t.setDaemon(true);
+                return t;
+            });
+
+    /**
+     * PREVIOUS 槽 ctx 延迟释放时长（毫秒）。给 in-flight 老请求一个收尾窗口。
+     * 60s 到点直接调 ctx.stop()，即使还有请求没跑完也会被强杀（Hikari close）——
+     * 业务方需保证关键请求在 60s 内完成；后续如需精细化可改为 in-flight 计数归零触发。
+     */
+    private volatile long prevReleaseDelayMs = 60_000L;
 
     /**
      * ⑥ appId → 该 app 贡献的 path 表。{@link #deployAppRoutes} 每次写入 / 重建 combined map 时按 app 合并。
@@ -188,8 +240,7 @@ public class Container {
             // 当前依赖只覆盖 edap-http-server；WS / eRPC / gRPC Server impl 暂缺，留 TODO
             // 等对应 server impl jar 加入依赖后再启用。
             if (capabilities.contains(Capability.HTTP)) {
-                int httpPort = Integer.parseInt(
-                        System.getProperty("edap.container.http.port", "8080"));
+                int httpPort = env.getInt("http.port", 8080);
                 HttpServer http = new HttpServer();
                 http.listen(httpPort);
                 sg.addServer(http);
@@ -268,7 +319,7 @@ public class Container {
         // edap.getProps().child("jwt").getString("signKey") 读,缺失则跳过注册
         // (应用若 @Inject JwtService,容器查不到 → NoSuchBeanException,业务自己 register)。
         BeanDef jwtDef = null;
-        String jwtSignKey = edap.getProps().child("jwt").getString("signKey");
+        String jwtSignKey = edap.getProps().child("jwt").getString("signKey", "");
         if (jwtSignKey == null || jwtSignKey.trim().length() == 0) {
             log.warn("未配置 jwt.signKey,使用默认的key");
             jwtSignKey = "20a4d5e1-3c3d-4259-962f-78b2c07b2b06";
@@ -348,11 +399,16 @@ public class Container {
      *
      * <p>流程：
      * <ol>
-     *   <li>对 {@code newTable} 中所有 PathInfo.wsHandler != null 的 entry 做跨 app WS path 冲突检测
-     *       （同 appId 覆盖放行；不同 appId 抛 IllegalStateException → deploy 失败）</li>
-     *   <li>{@link #wsPathOwners} 写 owner</li>
+     *   <li>对 {@code newTable} 中所有 PathInfo.wsHandler != null 的 entry，{@link #wsPathOwners}
+     *       记录 owner（多 owner Set，不做跨 app 冲突检测）</li>
      *   <li>{@link #appPathTables} put(appId, newTable)</li>
      * </ol>
+     *
+     * <p><b>跨 app WS method 冲突</b>不在此处检测 —— dispatch 路径走 shared {@link
+     *     ServiceWSHandler}，由 {@link ServiceWSHandler#rebindMsgHandlers(String, Map)}
+     *     在 deploy / switchVersion 末尾 rebind 时按 appId 维度检测 method 名是否撞 —— 撞了
+     *     抛 {@link IllegalStateException}，触发 {@code Container.deploy} catch 的
+     *     {@code destroyPartial} 回滚整 ctx。</p>
      *
      * <p><b>本方法不再触发 setHttpMapping</b> —— 发布的责任统一交给 {@link #rebuildHttpMapping}。
      * 起初 deployAppRoutes 内部会自己 publish 一次（{@code setHttpMapping(mergeAllAppPathTables)}），
@@ -366,13 +422,14 @@ public class Container {
      *
      * @param appId    当前部署的应用 ID
      * @param newTable app 全量 path 表（含 HTTP entries + WS entries）
-     * @throws IllegalStateException 跨 app WS path 冲突
      */
     public void deployAppRoutes(String appId, Map<FastBufDataRange, PathInfo> newTable) {
         if (newTable == null) {
             newTable = Collections.emptyMap();
         }
-        // 1. 冲突检测（同 appId 覆盖放行；不同 appId 抛异常）
+        // 1. WS path → 多 owner Set 记录（不做跨 app 冲突检测）。
+        //    跨 app method 名冲突检测由 ServiceWSHandler.rebindMsgHandlers 在 deploy/switchVersion
+        //    末尾做（抛 IllegalStateException → Container.deploy catch 走 destroyPartial 回滚）。
         for (Map.Entry<FastBufDataRange, PathInfo> e : newTable.entrySet()) {
             PathInfo pi = e.getValue();
             if (pi != null && pi.getWsHandler() != null) {
@@ -380,21 +437,27 @@ public class Container {
                 if (pathStr == null || pathStr.isEmpty()) {
                     continue;                                       // 无 path 字段的 PathInfo 跳过
                 }
-                String prevOwner = wsPathOwners.putIfAbsent(pathStr, appId);
-                if (prevOwner != null && !prevOwner.equals(appId)) {
-                    throw new IllegalStateException(
-                            "WS path [" + pathStr + "] already owned by appId=" + prevOwner
-                                    + ", cannot register for appId=" + appId
-                                    + "（同一 Container 内 WS path 需唯一）");
-                }
-                // 同 appId 重 deploy / version 切换：putIfAbsent 不会覆盖，需手动放行
-                if (prevOwner != null && prevOwner.equals(appId)) {
-                    wsPathOwners.put(pathStr, appId);               // 同 owner 强制刷新（顺序无影响）
-                }
+                Set<String> owners = wsPathOwners.computeIfAbsent(pathStr,
+                        k -> ConcurrentHashMap.newKeySet());
+                owners.add(appId);                                  // 多 owner 记录，重复添加幂等
             }
         }
         // 2. 存表（不 publish，等调用方 rebuildHttpMapping 一次性写）
         appPathTables.put(appId, newTable);
+    }
+
+    /**
+     * 摘除某 appId 在指定 WS path 上的 owner 记录。{@code undeployAppRoutes} 末尾调；
+     * 路径 owner Set 空时同步从 wsPathOwners map 移除 key。
+     */
+    private void unregisterWsPathOwner(String pathStr, String appId) {
+        if (pathStr == null || pathStr.isEmpty()) return;
+        Set<String> owners = wsPathOwners.get(pathStr);
+        if (owners == null) return;
+        owners.remove(appId);
+        if (owners.isEmpty()) {
+            wsPathOwners.remove(pathStr, owners);
+        }
     }
 
     /**
@@ -414,6 +477,129 @@ public class Container {
                 }
             }
         }
+    }
+
+    /**
+     * 按 WS path 拿共享 {@link ServiceWSHandler} 实例。miss 时由 Container 创建并放进 {@link #wsHandlers} map。
+     *
+     * <p>跨 AppContext 实例、跨版本共享同一 ServiceWSHandler 引用 —— 老 WS 连接
+     *     （{@code HttpServerNioSession.wsHandler} 握手时钉住）下次 decode 仍走同一实例，
+     *     内部 msgHandlers 被 {@link ServiceWSHandler#rebindMsgHandlers} 整张替换后即感知新版本。</p>
+     *
+     * <p>首次创建时，{@code userResolver} 从 {@link #containerBeans()} 取（"jwtUserResolver" 是
+     *     Container.attach() 阶段 register 的框架默认 bean，不依赖任何 app）。</p>
+     *
+     * <p>调用方：AppContext.buildPathTable()（PathInfo.wsHandler 写入）。其他需要 rebind 的场景
+     *     走 {@link #rebindCurrentWsHandlers}，不要直接调本接口后再操作 msgHandlers。</p>
+     *
+     * @param path WS path 字符串（如 {@code "/ws"}）
+     * @return path 上的共享 ServiceWSHandler 实例
+     */
+    public ServiceWSHandler getOrCreateWsHandler(String path) {
+        return wsHandlers.computeIfAbsent(path, p -> new ServiceWSHandler(this));
+    }
+
+    /**
+     * 把 entry.current() 槽 ctx 的 {@code wsMsgHandlers} 整张 rebind 到 path 共享 wsHandler。
+     *
+     * <p>调用方：{@link #deploy} / {@link #switchVersion} / {@link #restoreToSlot} / {@link #undeploy}
+     *     末尾，{@link #rebuildHttpMapping} 整张发布之后。语义：dispatch 路径的 PathInfo.wsHandler
+     *     已是 current（rebuildHttpMapping 已写过），现在让 wsHandler 内部的 msgHandlers 也同步到
+     *     current 版本的方法表 —— 老连接下一条消息即走新版本。</p>
+     *
+     * <p>跳过条件：entry / current 为 null（无 current 槽）、current.wsMsgHandlers() 空（无
+     *     {@code @ProtoWebSocket} 方法）、共享 wsHandler 还没创建（理论上不会 —— buildPathTable
+     *     会触发 computeIfAbsent —— 但防御性检查）。</p>
+     *
+     * @param entry 写完 {@link #registry} 之后的 SlotEntry
+     */
+    private void rebindCurrentWsHandlers(SlotEntry entry) {
+        if (entry == null) return;
+        AppContext cur = entry.current();
+        if (cur == null) return;
+        Map<String, WSServiceMsgHandler<?>> msgHandlers = cur.wsMsgHandlers();
+        if (msgHandlers.isEmpty()) return;  // 无 @ProtoWebSocket 方法的 app 跳过
+        ServiceWSHandler shared = wsHandlers.get(AppContext.WS_PATH);
+        if (shared == null) return;          // /ws 路径未被访问过（理论上不会 —— buildPathTable 会触发）
+        // 按 appId 维度 rebind：同 appId 整张覆盖（version 切换）；跨 appId 检测 method 名冲突
+        // （撞了抛 IllegalStateException，调用方走 destroyPartial 回滚）
+        shared.rebindMsgHandlers(cur.appId(), msgHandlers);
+    }
+
+    /**
+     * 给刚 demote 到 PREVIOUS 槽的 ctx 排延迟 stop。
+     *
+     * <p>到点由 {@link #prevReleaseScheduler} 调 ctx.stop()：destroyAllSingletons 阶段
+     * 会关掉 AutoCloseable bean（含 HikariDataSource）→ 连接池释放 → 数据库连接回收。
+     * in-flight 老请求会被强杀 —— 业务方需保证关键请求在 60s 内完成。</p>
+     *
+     * <p>调用方：{@link #switchVersion} 第一分支末尾（staging → current 时 demotedCurrent）。
+     *     {@link AppContext#setReleaseFuture} 持有句柄，下一次 switchVersion 又产生 demote
+     *     时先 cancel 再立即 stop。</p>
+     */
+    private void schedulePrevRelease(AppContext ctx) {
+        if (ctx == null) return;
+        long delayMs = this.prevReleaseDelayMs;
+        ScheduledFuture<?> f = prevReleaseScheduler.schedule(() -> {
+            try {
+                log.info("PREVIOUS 槽 ctx 超时释放 [{}:{}]",
+                        l -> l.arg(ctx.appId()).arg(compositeOf(ctx)));
+                // PREVIOUS 槽 demote 释放：unbindFromShared=false —— 同 appId 的 current 槽
+                // 还有新版本 ctx 持有 method 表，按 appId 摘会误伤 current 的 method 表
+                ctx.stop(false);
+                // 清掉 PREVIOUS map 里本 appId 的 FQCN 注册（PREVIOUS 短暂承接期间写入的）。
+                // 此时 PREVIOUS 槽在 SlotEntry 里仍是这个 ctx，map 状态对应仍正确；下一次
+                // switchVersion 时 SlotEntry 替换才会触发新的 move。
+                unregisterSlotIfs(Slot.PREVIOUS, ctx.appId(), ctx.dmd());
+                // 同步 .deploy/previous-*.json —— delayed stop 路径原来漏调，导致磁盘档案残留。
+                // 现在 PREVIOUS 槽在 SlotEntry 里仍是这个 ctx（syncDeployMetaFiles 看到非空会重写），
+                // 下一次 switchVersion 把这个 PREVIOUS 替换掉时 syncDeployMetaFiles 才会删文件。
+                // 所以这里**不删** JSON，等下次 SlotEntry 真变空时再删 —— 跟 undeploy / switchVersion
+                // 的 sync 时机对齐。
+            } catch (Throwable t) {
+                log.warn("PREVIOUS 槽 ctx.stop() 异常 [{}]",
+                        l -> l.arg(ctx.appId()).threw(t));
+            }
+        }, delayMs, TimeUnit.MILLISECONDS);
+        ctx.setReleaseFuture(f);
+    }
+
+    /**
+     * 立即停止 PREVIOUS 槽里上一个 demoted 的 ctx。用于"60s 内又发生 switchVersion 又要 demote 新
+     * current" 的场景：旧 PREVIOUS 给新 PREVIOUS 腾位置。
+     *
+     * <p>流程：ctx.cancelRelease() 取消延迟任务（{@code mayInterruptIfRunning=false} 让
+     *     已触发的任务跑完，避免和 stop() 并发打架），然后立即同步调 ctx.stop(false)。
+     *     ctx.stop() 内部 phase 2 走 destroyAllSingletons 释放连接池。</p>
+     *
+     * <p>unbindFromShared=false：PREVIOUS 槽 demote 释放场景，同 appId 的 current 槽还有新版本 ctx
+     *     持有 method 表，按 appId 摘会误伤 current 槽的 method 表（参见 AppContext.stop(boolean)）。</p>
+     *
+     * <p>与 60s 到点 stop 同样会打断 in-flight —— 业务方需自担。</p>
+     */
+    private void stopPrevImmediate(AppContext ctx) {
+        if (ctx == null) return;
+        ctx.cancelRelease();
+        try {
+            log.info("PREVIOUS 槽 ctx 提前释放 [{}:{}]",
+                    l -> l.arg(ctx.appId()).arg(compositeOf(ctx)));
+            ctx.stop(false);
+        } catch (Throwable t) {
+            log.warn("PREVIOUS 槽 ctx.stop() 异常 [{}]",
+                    l -> l.arg(ctx.appId()).threw(t));
+        }
+    }
+
+    /**
+     * 设置 PREVIOUS 槽延迟释放时长（毫秒）。用于测试 / 业务方调整。默认 60000。
+     */
+    public void setPrevReleaseDelayMs(long ms) {
+        this.prevReleaseDelayMs = ms;
+    }
+
+    /** PREVIOUS 槽延迟释放时长（毫秒）。 */
+    public long getPrevReleaseDelayMs() {
+        return prevReleaseDelayMs;
     }
 
     /**
@@ -496,6 +682,15 @@ public class Container {
         }
         // 启动恢复末位 rebuild HTTP mapping：所有 current 指针已就位，dispatch 必须 ready 才接受流量
         rebuildHttpMapping();
+        // 把所有 current 槽 ctx 的 wsMsgHandlers rebind 到共享 wsHandler —— 老连接 session.wsHandler
+        // 引用不变，但启动期第一次握手后 decode 即能命中新方法表（不存在"上次运行残留"问题，但
+        // 保持与运行时一致的 rebind 路径，避免后续切版本时的代码差异）。
+        for (String appId : appIds) {
+            SlotEntry e = registry.get(appId);
+            if (e != null) {
+                rebindCurrentWsHandlers(e);
+            }
+        }
 
         appServerGroup.run();
         lifecycleLock.lock();
@@ -583,28 +778,43 @@ public class Container {
             lifecycleLock.unlock();
         }
 
-        // 锁外：逆序停所有 AppContext（从所有 3 槽位收集）
-        List<AppContext> all = new ArrayList<>();
+        // 锁外：逆序停所有 AppContext（从所有 3 槽位收集）。记下每个 ctx 的槽位以正确清 map。
+        List<Map.Entry<AppContext, Slot>> all = new ArrayList<>();
         for (SlotEntry entry : registry.values()) {
-            if (entry.previous() != null) all.add(entry.previous());
-            if (entry.current()  != null) all.add(entry.current());
-            if (entry.staging()  != null) all.add(entry.staging());
+            if (entry.previous() != null) all.add(Map.entry(entry.previous(), Slot.PREVIOUS));
+            if (entry.current()  != null) all.add(Map.entry(entry.current(),  Slot.CURRENT));
+            if (entry.staging()  != null) all.add(Map.entry(entry.staging(),  Slot.STAGING));
         }
         Collections.reverse(all);
-        for (AppContext ctx : all) {
+        for (Map.Entry<AppContext, Slot> e : all) {
+            AppContext ctx = e.getKey();
+            Slot slot = e.getValue();
             try {
                 // 同 undeploy：ctx.stop() 已覆盖路由/Server 摘除，不另调 removeServer
                 ctx.stop();
             } catch (Throwable t) {
                 log.warn("Container.stop 时 {} 异常", l -> l.arg(ctx.appId()).threw(t));
             }
-            // 同步清掉本 appId 的 currentRouters 指针 + FQCN 注册
-            // （ctx.stop() 不动这两张表，因为 undeploy 路径由 Container 自己清 —— 这里是 stop 路径）
-            //currentRouters.remove(ctx.appId());
-            unregisterIfs(ctx.appId(), ctx.dmd());
+            // 同步清掉本 appId 在对应槽的 FQCN 注册
+            // （ctx.stop() 不动 map，因为 undeploy 路径由 Container 自己清 —— 这里是 stop 路径）
+            unregisterSlotIfs(slot, ctx.appId(), ctx.dmd());
         }
         // 最终 rebuild HTTP mapping：所有 appId 已停 → 重建结果为空 mapping，dispatch 兜底 404
         rebuildHttpMapping();
+        // 清空 wsHandlers map：所有 AppContext 已 stop，map entry 的 ServiceWSHandler 实例
+        // 无外部引用（dispatch 路径已空），显式 clear 让 wsHandler 随 map 一起释放。
+        wsHandlers.clear();
+        // shutdown PREVIOUS 延迟释放调度器：awaitTermination 等所有未触发的延迟任务跑完，
+        // 避免容器关闭期间还有线程在调 ctx.stop() 引起竞态。60s 上限防止 Container.stop() 阻塞过久。
+        prevReleaseScheduler.shutdown();
+        try {
+            if (!prevReleaseScheduler.awaitTermination(60, TimeUnit.SECONDS)) {
+                prevReleaseScheduler.shutdownNow();
+            }
+        } catch (InterruptedException e) {
+            prevReleaseScheduler.shutdownNow();
+            Thread.currentThread().interrupt();
+        }
 
         lifecycleLock.lock();
         try {
@@ -709,7 +919,8 @@ public class Container {
                 } catch (Throwable t) {
                     log.warn("旧 STAGING AppContext.stop() 异常", t);
                 }
-                unregisterIfs(appId, oldStaging.dmd());
+                // 替换 STAGING：清掉旧版本在 STAGING map 的注册（条件删除，安全）
+                unregisterSlotIfs(Slot.STAGING, appId, oldStaging.dmd());
                 // 重建 empty:staging 槽位腾空。注意:此处不动 appPathTables —— ctx.stop()
                 // 已通过 RouterHub.unbindAll() 摘路由;新 STAGING 的 ctx.start() 会重新调
                 // deployAppRoutes() 覆盖同名 appId 条目。
@@ -721,13 +932,9 @@ public class Container {
             EdapAppClassLoader appCL = new EdapAppClassLoader(ear, containerCL);
             AppContext ctx = new AppContext(this, appId, version, appCL, dmd);
 
-            // 5.5 FQCN 冲突检测（不同 appId 抛 409；同 appId 允许覆盖语义）
-            //     必须在 ctx.start() 之前 —— 否则 Bean 已经注册到容器再发现冲突，回滚成本高
-            String ifErr = checkAndRegisterIfs(appId, dmd);
-            if (ifErr != null) {
-                appCL.close();
-                return BaseResult.fail(409, ifErr);
-            }
+            // 5.5 FQCN 注册（覆盖写,无冲突检测）。BeanContainer 是 per-AppContext 的,
+            //     同名 ProtoService FQCN 由各自 ClassLoader 天然隔离,这里只写诊断表。
+            checkAndRegisterStaging(appId, dmd);
 
             // 6. 三段式启动（GATHERING → COMMITTING → READY）
             try {
@@ -738,7 +945,8 @@ public class Container {
                 // 原始故障就丢了。
                 log.error("AppContext 启动失败 [" + appId + ":" + version + "]", t);
                 ctx.destroyPartial();                          // 回滚已注册的 Bean / 路由
-                unregisterIfs(appId, dmd);                     // 回滚 FQCN 注册
+                // 回滚 STAGING 槽的 FQCN 注册（deploy 路径只会写到 STAGING）
+                unregisterSlotIfs(Slot.STAGING, appId, dmd);
                 appCL.close();                                // 释放 ClassLoader
                 return BaseResult.fail(104, "AppContext 启动失败: "
                         + t.getClass().getName()
@@ -753,6 +961,9 @@ public class Container {
             //     deploy() 路径 target 只可能是 STAGING（firstEmptySlot 永不返回 CURRENT/PREVIOUS），
             //     不拨 currentRouters —— STAGING 不接流量，需 switchVersion(staging → current) 才上线
             rebuildHttpMapping();
+            // 注意：deploy() 末尾不 rebind 共享 wsHandler.msgHandlers —— STAGING 不接流量，
+            // 此时 rebind 会让 STAGING 的 method 表被 dispatch 路径看到，与"STAGING 不接流量"
+            // 语义冲突。rebind 时机推迟到 switchVersion(staging → current) 末尾。
             // 8. 持久化 .deploy/<role>-<appId>.json（start() 启动恢复靠它定位 EAR）
             writeDeployMeta(appId, target.name().toLowerCase(), dmd);
             // 9. 更新 apps.json（start() 启动恢复靠它找 appId）
@@ -816,12 +1027,8 @@ public class Container {
             EdapAppClassLoader appCL = new EdapAppClassLoader(ear, containerCL);
             AppContext ctx = new AppContext(this, appId, version, appCL, dmd);
 
-            // 5.5 FQCN 冲突检测（启动恢复路径同样要拦 —— 多个 appId 的 EAR 并存时必须唯一）
-            String ifErr = checkAndRegisterIfs(appId, dmd);
-            if (ifErr != null) {
-                appCL.close();
-                return BaseResult.fail(409, ifErr);
-            }
+            // 5.5 FQCN 注册到目标 slot（覆盖写,无冲突检测）。详见 deploy() 路径注释。
+            checkAndRegisterInSlot(appId, slot, dmd);
 
             // 6. 三段式启动（GATHERING → COMMITTING → READY）；失败回滚 + close appCL
             try {
@@ -834,7 +1041,8 @@ public class Container {
                 // 完整路径(类名+message+at+Caused by 都已修通),堆栈不会再丢。
                 log.error("AppContext 启动失败 [" + appId + ":" + version + "]", t);
                 ctx.destroyPartial();
-                unregisterIfs(appId, dmd);
+                // 回滚刚注册的 FQCN（按本路径的目标 slot）
+                unregisterSlotIfs(slot, appId, dmd);
                 appCL.close();
                 return BaseResult.fail(104, "AppContext 启动失败: "
                         + t.getClass().getName()
@@ -849,6 +1057,10 @@ public class Container {
 //                currentRouters.put(appId, ctx.routers());
 //            }
             rebuildHttpMapping();
+            // 只在恢复 CURRENT 槽时 rebind —— PREVIOUS / STAGING 不接流量，与 deploy() 同理。
+            if (slot == Slot.CURRENT) {
+                rebindCurrentWsHandlers(registry.get(appId));
+            }
             return BaseResult.success(appId + ":" + version + " -> " + slot);
 
         } catch (RuntimeException e) {
@@ -859,43 +1071,6 @@ public class Container {
         } finally {
             appLock.unlock();
         }
-    }
-
-    /**
-     * 启动期 previous 槽位空，但 {@code .deploy/previous-<appId>.json} 可能在（上次运行时
-     * switchVersion 退位写下的"待命角色"快照）。switchVersion() 切到 previous 时按需 lazy restore：
-     * 读 metadata 拿 EAR，{@link #restoreToSlot(File, Slot)} 写到 PREVIOUS 槽。
-     *
-     * <p>三种返回：
-     * <ul>
-     *   <li>registry.previous 已是 target version → 直接返回（in-memory hit，无需重建）</li>
-     *   <li>previous 槽空 + .deploy/previous-*.json 有 EAR → restoreToSlot 后返回</li>
-     *   <li>previous 槽被占（且版本不同）/ .deploy 缺文件 / restore 失败 → 返回 null（调用方 404）</li>
-     * </ul>
-     *
-     * <p>前置：appLock[appId] 已持有（switchVersion 持有外层锁；restoreToSlot 内部 lock 为
-     * ReentrantLock 重复入同一线程，不冲突）。
-     */
-    private AppContext lazyRestorePrevious(String appId, String version) {
-        SlotEntry entry = registry.get(appId);
-        if (entry != null && entry.previous() != null) {
-            if (version.equals(compositeOf(entry.previous()))) {
-                return entry.previous();                                      // in-memory hit
-            }
-            return null;                                                      // 槽被占且版本不同 → 不覆盖
-        }
-        DeployMeta meta = readDeployMetaFile("previous-" + appId + ".json");
-        if (meta == null) return null;
-        File ear = locateEar(meta.getEarName());
-        if (ear == null) return null;
-        BaseResult<String> r = restoreToSlot(ear, Slot.PREVIOUS);
-        if (!r.isSuccess()) return null;
-        entry = registry.get(appId);
-        if (entry == null || entry.previous() == null
-                || !version.equals(compositeOf(entry.previous()))) {
-            return null;                                                      // restore 后版本不匹配
-        }
-        return entry.previous();
     }
 
     /**
@@ -974,9 +1149,9 @@ public class Container {
             } catch (Throwable t) {
                 log.warn("undeploy 时 AppContext.stop() 异常", t);
             }
-            // 1.5 摘除本 appId 注册的 ProtoService FQCN —— 必须 ctx.stop() 之后调，避免新 deploy
-            //     自冲突的瞬时误判（见 unregisterIfs javadoc）
-            unregisterIfs(appId, ctx.dmd());
+            // 1.5 摘除本 appId 在指定 slot 注册的 ProtoService FQCN —— 必须 ctx.stop() 之后调，
+            //     避免新 deploy 自冲突的瞬时误判
+            unregisterSlotIfs(slot, appId, ctx.dmd());
             // 2. 写 registry（整 SlotEntry 替换）
             SlotEntry next = prev.withSlot(slot, null);
             if (next.isEmpty()) {
@@ -988,6 +1163,14 @@ public class Container {
             // 3. 清掉 currentRouters 指针：被卸的是 current → 业务不再接流量；非 current 不动
             // 3.5 rebuild HTTP mapping：current 变动必触发；非 current 变动 → 重建是 no-op（指针未动）
             rebuildHttpMapping();
+            // 3.6 rebind 共享 wsHandler.msgHandlers：被卸的若是 current，新 current（如果有）
+            //     已经接过 ctx.stop() 之外的 slot 切换；dispatch 表换了，但 wsHandler 内的
+            //     msgHandlers 还是老 ctx 的 method 表 —— 用新 current 的 wsMsgHandlers 覆盖。
+            //     非 current 卸 → current 没动 → rebindCurrentWsHandlers 见 entry.current() 无变化无副作用。
+            SlotEntry afterUndeploy = registry.get(appId);
+            if (afterUndeploy != null) {
+                rebindCurrentWsHandlers(afterUndeploy);
+            }
             // 4. 同步 .deploy/<role>-<appId>.json（被卸的 slot 文件删，其它 slot 文件按 registry 实际状态重写）
             syncDeployMetaFiles(appId);
             // 5. SlotEntry 全空 → apps.json 移除 appId
@@ -1018,19 +1201,33 @@ public class Container {
             SlotEntry next;
             AppContext demotedCurrent = prev.current();
             if (prev.staging() != null && version.equals(compositeOf(prev.staging()))) {
+                // staging → current；先把 PREVIOUS 槽里上一个 demoted（如果有）cancel + 立即 stop
+                // —— 新 demotedCurrent 落入 PREVIOUS 槽之前要腾位置
+                AppContext oldPrev = prev.previous();
+                if (oldPrev != null && oldPrev.isDemoted()) {
+                    oldPrev.cancelRelease();
+                    stopPrevImmediate(oldPrev);
+                }
                 // staging → current；current 落入 previous
                 next = new SlotEntry(demotedCurrent, prev.staging(), null);
             } else {
-                // previous → current（快速回滚）；current 落入 staging
-                // 启动期 previous 槽位空但 .deploy/previous-*.json 可能在 → lazyRestorePrevious 按需重建
-                AppContext restored = lazyRestorePrevious(appId, version);
-                if (restored == null) {
-                    return BaseResult.fail(404, "版本不在 staging/previous 中，无法切换");
-                }
-                next = new SlotEntry(null, restored, demotedCurrent);
+                // rollback 统一走 "deploy 到 staging → switchVersion(staging → current)" 二段式
+                // PREVIOUS 槽不接 rollback —— 它只承接 in-flight 跑完 + 记录上次版本
+                return BaseResult.fail(400, "rollback 路径已统一：先 deploy 到 staging 槽，再 switchVersion(staging → current)。"
+                        + "PREVIOUS 槽不接 rollback，版本 " + version + " 不在 staging 槽");
             }
             // 整 SlotEntry 替换，ConcurrentHashMap.put 原子发布
             registry.put(appId, next);
+            // FQCN 注册跟随 slot 转移：
+            //   - demotedCurrent（原 current → 现在 PREVIOUS 槽）的 FQCN：currentRegistered → previousRegistered
+            //   - 新 current（曾 staging）的 FQCN：stagingRegistered → currentRegistered
+            // moveSlotIfs 用 owner.equals(appId) 严格 scope 到本 appId —— 跨 appId 的 switchVersion
+            // 是并行的（不同 appId 走各自 appLock），但 moveSlotIfs 不会误动其他 app 的 entries。
+            // 同一 appId 的 switchVersion 在 appLock 串行下，不会并发对同一 map 做反向 move。
+            if (demotedCurrent != null) {
+                moveSlotIfs(Slot.CURRENT, Slot.PREVIOUS, appId, demotedCurrent.dmd());
+            }
+            moveSlotIfs(Slot.STAGING, Slot.CURRENT, appId, prev.staging().dmd());
             // 更新 currentRouters 指针：业务 dispatch 走 currentRouters.get(appId)
             //   - 不调 edap.rebindRouter：Edap 不知道 Router 逻辑，不持有路由表
             //   - 各 AppContext 的 routes 已在 ctx.start() Phase 3 由 AppContext.generateAndBindRoutes()
@@ -1040,8 +1237,18 @@ public class Container {
             //currentRouters.put(appId, next.current().routers());
             // rebuild HTTP mapping：current 指针动了 → 必须重建 dispatch 表
             rebuildHttpMapping();
+            // 把 next.current() 的 wsMsgHandlers rebind 到 /ws 共享 wsHandler —— 老连接
+            // session.wsHandler 引用不变，靠 msgHandlers 被替换感知新版本方法表。
+            rebindCurrentWsHandlers(next);
             // 同步 .deploy/<role>-<appId>.json 三个文件：非空 slot 写、空 slot 删
             syncDeployMetaFiles(appId);
+            // PREVIOUS 槽里新 demotedCurrent 排延迟释放 —— 给 in-flight 一个收尾窗口（默认 60s），
+            // 到点由 prevReleaseScheduler 调 ctx.stop()，destroyAllSingletons 释放 Hikari 等连接池。
+            // 如果 60s 内又发生 switchVersion 新的 demote，上面的分支已 cancel + 立即 stop 这个 ctx。
+            if (demotedCurrent != null) {
+                demotedCurrent.markDemoted();
+                schedulePrevRelease(demotedCurrent);
+            }
             return BaseResult.success("切换到 " + version);
         } finally {
             appLock.unlock();
@@ -1264,38 +1471,87 @@ public class Container {
      *
      * @return null 表示成功；非 null 是失败原因（BaseResult 的 message）
      */
-    private String checkAndRegisterIfs(String appId, DeployMetaData dmd) {
+    /**
+     * deploy 路径专用：deploy 永远写 STAGING 槽。
+     * <p>无冲突检测 —— BeanContainer 是 per-AppContext 的,同名 ProtoService FQCN 在不同 app 间
+     * 由各自的 ClassLoader 天然隔离。注册表只用于诊断/反向查询,谁后写谁赢。
+     */
+    private void checkAndRegisterStaging(String appId, DeployMetaData dmd) {
         Set<String> fqcns = extractProtoServiceFQCNs(dmd);
         if (fqcns.isEmpty()) {
-            return null;                                   // 没有 ProtoService 接口，无需检测
+            return;
         }
-        // 先全部校验（不中途写）——避免半写状态
+        // 覆盖写：不同 appId 也允许,后写者赢。cleanup 走 unregisterSlotIfs 的条件删除,
+        // 不会误删并发注册的同 FQCN。
         for (String fqcn : fqcns) {
-            String owner = registeredIfs.get(fqcn);
-            if (owner != null && !owner.equals(appId)) {
-                return "ProtoService " + fqcn + " 已被 appId=" + owner + " 注册，与 "
-                        + appId + " 冲突（同一 Container 内 ProtoService FQCN 需唯一）";
-            }
+            stagingRegistered.put(fqcn, appId);
         }
-        // 全部通过 → 注册（覆盖同 appId 的旧条目；version 切换场景）
-        for (String fqcn : fqcns) {
-            registeredIfs.put(fqcn, appId);
-        }
-        return null;
     }
 
     /**
-     * 摘除本 appId 注册的 FQCN。undeploy 调用。注意：只在 ctx 真的被释放后才调——
-     * 否则同 appId 立即重新 deploy 会失败（自冲突——其实不会，因为 check 允许同 appId，
-     * 但 FQCN 还没摘除时，会看到 "owner=我自己" 通过，行为正确）。
-     *
-     * <p>为了避免「先 undeploy 再 deploy 同 appId 的瞬间」误报，建议 undeploy 末尾调。</p>
+     * 启动恢复路径专用：restoreToSlot 已知目标槽。
+     * <p>无冲突检测 —— 直接覆盖写。{@link #checkAndRegisterStaging} 同理。
+     */
+    private void checkAndRegisterInSlot(String appId, Slot slot, DeployMetaData dmd) {
+        Set<String> fqcns = extractProtoServiceFQCNs(dmd);
+        if (fqcns.isEmpty()) {
+            return;
+        }
+        Map<String, String> target = mapOf(slot);
+        // 覆盖写：target map 中已有的同名 FQCN（不论 owner 是哪个 appId）一律被本 appId 顶掉
+        for (String fqcn : fqcns) {
+            target.put(fqcn, appId);
+        }
+    }
+
+    /**
+     * 摘除本 appId 在指定 slot 的 FQCN 注册。条件删除（{@code remove(fqcn, appId)}），
+     * 不会误删并发注册的同 FQCN。
      */
     private void unregisterIfs(String appId, DeployMetaData dmd) {
-        Set<String> fqcns = extractProtoServiceFQCNs(dmd);
-        for (String fqcn : fqcns) {
-            // 仅当 owner 是自己时才删——避免误删并发注册的同 FQCN（虽然冲突检测会拦住）
-            registeredIfs.remove(fqcn, appId);
+        // 兼容旧调用点：从三个 map 都尝试条件删除（清理可能跨槽的残留）
+        for (String fqcn : extractProtoServiceFQCNs(dmd)) {
+            currentRegistered.remove(fqcn, appId);
+            stagingRegistered.remove(fqcn, appId);
+            previousRegistered.remove(fqcn, appId);
+        }
+    }
+
+    /**
+     * 摘除本 appId 在指定 slot 的 FQCN 注册（slot 已知版本）。条件删除。
+     */
+    private void unregisterSlotIfs(Slot slot, String appId, DeployMetaData dmd) {
+        Map<String, String> m = mapOf(slot);
+        for (String fqcn : extractProtoServiceFQCNs(dmd)) {
+            m.remove(fqcn, appId);
+        }
+    }
+
+    /**
+     * 把 FQCN 注册从 from 槽移到 to 槽（switchVersion 用）。
+     * 仅当 entry 当前 owner 是 appId 时才移动，避免误移并发注册的同 FQCN。
+     */
+    private void moveSlotIfs(Slot from, Slot to, String appId, DeployMetaData dmd) {
+        Map<String, String> src = mapOf(from);
+        Map<String, String> dst = mapOf(to);
+        for (String fqcn : extractProtoServiceFQCNs(dmd)) {
+            String owner = src.get(fqcn);
+            if (owner != null && owner.equals(appId)) {
+                src.remove(fqcn, appId);
+                dst.put(fqcn, appId);
+            }
+        }
+    }
+
+    /**
+     * 按槽位取对应的注册 map。Slot 是单文件 enum，switch 直接覆盖三个分支。
+     */
+    private Map<String, String> mapOf(Slot slot) {
+        switch (slot) {
+            case PREVIOUS: return previousRegistered;
+            case CURRENT:  return currentRegistered;
+            case STAGING:  return stagingRegistered;
+            default: throw new IllegalArgumentException("unknown slot: " + slot);
         }
     }
 
