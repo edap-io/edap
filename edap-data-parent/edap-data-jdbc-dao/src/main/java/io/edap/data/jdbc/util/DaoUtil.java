@@ -154,6 +154,8 @@ public class DaoUtil {
                     noIdWen.append("?::jsonb");
                 } else if (extInfo != null && extInfo.getInet() != null) {
                     noIdWen.append("?::inet");
+                } else if (extInfo != null && extInfo.getGeometry() != null) {
+                    noIdWen.append("ST_Transform(ST_GeomFromText(?, 4326), 3857)");
                 } else if (extInfo != null && extInfo.getTypeConvertor() != null) {
                     TypeConvertor tc = extInfo.getTypeConvertor();
                     if (!StringUtil.isEmpty(tc.jdbcPlaceholder())) {
@@ -498,6 +500,10 @@ public class DaoUtil {
             if (typeConvertor != null) {
                 extInfo.setTypeConvertor(typeConvertor);
             }
+            Geometry geometry = getFieldGeometry(f, fieldGetMethods);
+            if (geometry != null) {
+                extInfo.setGeometry(geometry);
+            }
             extInfos.put(columName, extInfo);
             columns.add(columName);
             fieldNames.add(f.getName());
@@ -677,6 +683,30 @@ public class DaoUtil {
             }
         }
         return inet;
+    }
+
+    private static Geometry getFieldGeometry(Field f, Map<String, Method> fieldMethods) {
+        Geometry geometry = null;
+        Annotation[] anns = f.getAnnotations();
+        if (anns != null) {
+            for (Annotation ann : anns) {
+                if (ann instanceof Geometry) {
+                    geometry = (Geometry) ann;
+                }
+            }
+        }
+        if (geometry != null) {
+            return geometry;
+        }
+        Method m = fieldMethods.get(f.getName());
+        if (m != null && m.getAnnotations() != null) {
+            for (Annotation ann : m.getAnnotations()) {
+                if (ann instanceof Geometry) {
+                    geometry = (Geometry) ann;
+                }
+            }
+        }
+        return geometry;
     }
 
     private static Jsonb getFieldJsonb(Field f, Map<String, Method> fieldMethods) {
