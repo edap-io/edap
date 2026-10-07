@@ -97,7 +97,12 @@ public class CodeGenertor {
         ProtoParser protoParser = new ProtoParser(build.toString());
         protoParser.setCodeCreatePrint(codeCreatePrint);
         //protoParser.setPrintParseInfo(true);
-        return protoParser.parse();
+        try {
+            return protoParser.parse();
+        } catch (ProtoParseException e) {
+            codeCreatePrint.print("proto file: " + path.toString());
+            throw new RuntimeException(e);
+        }
     }
 
     private static void readToStringBuilder(Path path, StringBuilder builder) {

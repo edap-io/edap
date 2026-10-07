@@ -279,17 +279,11 @@ public class JavaBuilder {
             methods.stream()
                     .forEach(m -> {
                         String respType = m.getResponse();
-                        if (impMessages.containsKey(respType)) {
-                            System.out.println("#########respType=" + respType);
-                        }
                         String respName = fillDtoPackName(
                                 buildOps.getJavaPackage() + "."
                                         + m.getResponse(), buildOps);
                         addImport(impMsgs, respName);
                         String reqType = m.getRequest();
-                        if (impMessages.containsKey(reqType)) {
-                            System.out.println("#########reqType=" + reqType);
-                        }
                         String reqName = fillDtoPackName(
                                 buildOps.getJavaPackage() + "."
                                         + m.getRequest(), buildOps);
@@ -337,9 +331,7 @@ public class JavaBuilder {
                             }
                             needSaveJavaFiles.put(reqType, impProto.getMessage(msgName));
                         } else {
-                            System.out.println("##### reqType=" + reqType + " not found");
                             reqType = getDepType(proto, reqType);
-                            System.out.println("##### reqType=" + reqType + " founded");
                         }
                         addImport(impMsgs, reqType);
                         String respType = m.getResponse();
@@ -358,9 +350,7 @@ public class JavaBuilder {
                             }
                             needSaveJavaFiles.put(respType, impProto.getMessage(msgName));
                         } else {
-                            System.out.println("##### respType=" + respType + " not found");
                             respType = getDepType(proto, respType);
-                            System.out.println("##### respType=" + respType + " founded");
                         }
                         addImport(impMsgs, respType);
                     });

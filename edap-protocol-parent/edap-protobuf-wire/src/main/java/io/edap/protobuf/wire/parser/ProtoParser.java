@@ -580,7 +580,6 @@ public class ProtoParser {
                 String reserved = parseReserved();
                 msg.addReserved(Reserved.parseReserved(reserved, comments));
             } else if ("oneof".equals(token)) {
-                System.out.println("#### oneof");
                 msg.addOneof(parseOneof());
             } else {
                 Field field = parseField(Cardinality.OPTIONAL, token);
@@ -687,12 +686,20 @@ public class ProtoParser {
             clientStream = isStream(request);
         }
         trim();
+        boolean nextLine = nextLine();
+        while (nextLine) {
+            nextLine = nextLine();
+        }
         String response = "";
         String token = readToken();
         if (!"returns".equals(token)) {
             throw new ProtoParseException(ROW_MSG + row + "] service haven't returns");
         } else {
             trim();
+            nextLine = nextLine();
+            while (nextLine) {
+                nextLine = nextLine();
+            }
             params = parseMethodVars();
             if (!params.isEmpty()) {
                 response = params.get(0).trim();
