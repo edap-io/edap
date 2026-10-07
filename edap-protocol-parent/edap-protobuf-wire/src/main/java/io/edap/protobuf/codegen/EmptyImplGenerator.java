@@ -1,10 +1,7 @@
 package io.edap.protobuf.codegen;
 
 import io.edap.protobuf.internal.CodeBuilder;
-import io.edap.protobuf.wire.Message;
-import io.edap.protobuf.wire.Proto;
-import io.edap.protobuf.wire.Service;
-import io.edap.protobuf.wire.ServiceMethod;
+import io.edap.protobuf.wire.*;
 
 import java.io.File;
 import java.io.IOException;
@@ -116,12 +113,44 @@ public class EmptyImplGenerator {
         }
 
         cb.ln();
+        cb.c("/**").ln();
+        Service service = serviceInfo.getService();
+        if (service.getComments() != null && !service.getComments().getLines().isEmpty()) {
+            service.getComments().getLines().forEach(comment -> cb.c(" * ").c(comment).ln());
+        }
+        cb.c(" */").ln();
         cb.c("@MicroServiceBean").ln();
         cb.c("public class ").c(ifaceSimpleName).c("Impl implements ").c(ifaceSimpleName).c(" {").ln(2);
-
+        int level = 1;
         for (ServiceMethod sm : serviceInfo.service.getMethods()) {
             String respSimpleName = simpleName(sm.getResponse());
             String reqSimpleName = simpleName(sm.getRequest());
+            Comment comment = sm.getComment();
+            if (comment.getType() == Comment.CommentType.DOCUMENT) {
+                cb.t(level).c("/**").ln();
+                for (String c : comment.getLines()) {
+                    cb.t(level).c(" * ").c(c).ln();
+                }
+            } else if (comment.getType() == Comment.CommentType.MULTILINE) {
+                cb.t(level).c("/**").ln();
+                for (String c : comment.getLines()) {
+                    cb.t(level).c(" * ").c(c).ln();
+                }
+            } else {
+                cb.t(level).c("/**").ln();
+                for (String c : comment.getLines()) {
+                    cb.t(level).c(" * ").c(c).ln();
+                }
+            }
+            String[] params = new String[4];
+            params[0] = formatTypeName(sm.getResponse(), sm.getType());
+            params[1] = formatParamName(sm.getName(), sm.getType());
+            params[2] = formatTypeName(sm.getRequest(), sm.getType());
+            params[3] = formatParamName(sm.getRequest(), sm.getType());
+            cb.t(level).e(" * @param $param$ ").arg(params[3]).ln();
+            cb.t(level).e(" * @return").arg(params[3]).ln();
+            cb.t(level).c(" */").ln();
+
             cb.t(1).c("public ").c(respSimpleName).c(" ").c(lowerFirstChar(sm.getName())).c("(")
                     .c(reqSimpleName).c(" ").c(lowerFirstChar(reqSimpleName)).c(") {").ln();
             String respVar = "resp";
