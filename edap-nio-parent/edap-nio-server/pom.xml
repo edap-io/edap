@@ -24,6 +24,10 @@
             <groupId>com.lmax</groupId>
             <artifactId>disruptor</artifactId>
         </dependency>
+        <dependency>
+            <groupId>io.edap</groupId>
+            <artifactId>edap-json</artifactId>
+        </dependency>
 
         <!-- 单元测试相关依赖 -->
         <dependency>

@@ -18,7 +18,7 @@ public class EdapDataSourceFactory {
     static Logger log = LoggerManager.getLogger(EdapDataSourceFactory.class);
 
     public EdapDataSource createDataSource(String dataSourceId) {
-        String jdbcUrl = "jdbc:postgresql://192.168.64.2:5432/estylr?sslmode=disable";
+        String jdbcUrl = "jdbc:postgresql://pg.test:5432/estylr?sslmode=disable";
         log.info("datasource jdbcurl:{}", l -> l.arg(jdbcUrl));
         String username = "estylr";
         String password = "estylr@Pass";
