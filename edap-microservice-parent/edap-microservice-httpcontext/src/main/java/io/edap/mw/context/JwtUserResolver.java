@@ -69,13 +69,17 @@ public class JwtUserResolver implements UserResolver {
 
         Map<String, Object> custom = payload.getCustomerClaims();
         String userName = custom != null ? asString(custom.get("userName")) : null;
+        String nickname = custom != null ? asString(custom.get("nickname")) : null;
+        String avatarUrl = custom != null ? asString(custom.get("avatarUrl")) : null;
         Set<String> roles = custom != null ? toRoleSet(custom.get("roles")) : Collections.emptySet();
         String traceId = headerValue(req, "X-Trace-Id");
         if (traceId == null || traceId.isEmpty()) {
             traceId = UUID.randomUUID().toString();
         }
-
-        return new ResolverResult(new RequestContext(payload.getSubject(), userName, roles, traceId));
+        RequestContext requestContext = new RequestContext(payload.getSubject(), userName, roles, traceId);
+        requestContext.setAvatarUrl(avatarUrl);
+        requestContext.setNickname(nickname);
+        return new ResolverResult(requestContext);
     }
 
     private static String headerValue(HttpRequest req, String name) {

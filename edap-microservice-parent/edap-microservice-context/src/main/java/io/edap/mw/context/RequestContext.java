@@ -2,6 +2,7 @@ package io.edap.mw.context;
 
 import java.util.Collections;
 import java.util.LinkedHashSet;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -23,10 +24,13 @@ public final class RequestContext {
 
     private final String       userId;
     private final String       userName;
+    private       String       nickname;
+    private       String       avatarUrl;
     private final Set<String>  roles;
     private final String       traceId;
     private       String       ip;
     private       String       ua;
+    private Map<String, Object> attributes;
 
     public RequestContext(String userId, String userName, Set<String> roles, String traceId) {
         this.userId   = userId;
@@ -57,4 +61,28 @@ public final class RequestContext {
         return this;
     }
     public String      ua() { return ua;}
+
+    public String getNickname() {
+        return nickname;
+    }
+
+    public void setNickname(String nickname) {
+        this.nickname = nickname;
+    }
+
+    public String getAvatarUrl() {
+        return avatarUrl;
+    }
+
+    public void setAvatarUrl(String avatarUrl) {
+        this.avatarUrl = avatarUrl;
+    }
+
+    public Map<String, Object> getAttributes() {
+        return attributes;
+    }
+
+    public void setAttributes(Map<String, Object> attributes) {
+        this.attributes = attributes;
+    }
 }
