@@ -21,6 +21,7 @@ import io.edap.container.app.asm.HandlerAsmGenerator;
 import io.edap.container.event.ApplicationEvent;
 import io.edap.container.event.ContextClosedEvent;
 import io.edap.container.event.ContextRefreshedEvent;
+import io.edap.container.event.ContextStartedEvent;
 import io.edap.container.event.EventPublisher;
 import io.edap.container.exc.RouteBindException;
 import io.edap.container.mw.*;
@@ -177,6 +178,8 @@ public class AppContext implements Lifecycle {
      * 由 Container 设值 / cancel；AppContext 自己不持有调度器。
      */
     private volatile ScheduledFuture<?> releaseFuture;
+
+    private Map<FastBufDataRange, PathInfo> pathInfoMap;
 
     public AppContext(Container container, String appId, String version,
                       EdapAppClassLoader appCL, DeployMetaData dmd) {
@@ -842,8 +845,12 @@ public class AppContext implements Lifecycle {
         // HttpServer.mapping 的发布由 Container.deploy 末位的 rebuildHttpMapping() 一次性完成
         // （dispatch 热路径无锁读）；本 AppContext 不直接触发 setHttpMapping。
         // 失败抛 RouteBindException → start() 转 FAILED → deploy 回滚。
-        Map<FastBufDataRange, PathInfo> pathTable = buildPathTable();
-        container.deployAppRoutes(appId, pathTable);
+        this.pathInfoMap = buildPathTable();
+
+        // 锚点 2:接口回调(fail-fast) + 事件发布(沿用 EventPublisher log+continue 语义)
+        notifyContextStarted();
+
+        container.deployAppRoutes(appId, pathInfoMap);
     }
 
     /**
@@ -960,6 +967,53 @@ public class AppContext implements Lifecycle {
         }
 
         return table;
+    }
+
+    public Map<FastBufDataRange, PathInfo> getPathInfoMap() {
+        return Collections.unmodifiableMap(pathInfoMap);
+    }
+
+    /**
+     * 锚点 2 双轨通知：{@link ContextStartedAware} 接口回调 + {@link ContextStartedEvent} 事件发布。
+     *
+     * <p>两者的差异：
+     * <ul>
+     *   <li>{@link ContextStartedAware} 接口：按 BeanDef 拓扑序遍历 beans，fail-fast
+     *       （任一回调抛错 → {@link #start()} 转 FAILED，deploy 回滚）</li>
+     *   <li>{@link ContextStartedEvent} 事件：沿用 {@link EventPublisher} 默认语义，
+     *       listener 抛错 log warn + 继续（与 {@link ContextRefreshedEvent} 一致）</li>
+     * </ul>
+     *
+     * <p>调用方：{@link #generateAndBindRoutes()} 内部，在 {@code buildPathTable()}
+     * 之后、{@link Container#deployAppRoutes} 之前。</p>
+     */
+    private void notifyContextStarted() {
+        invokeContextStartedAware();
+        events.publish(new ContextStartedEvent(this));
+    }
+
+    /**
+     * 按 BeanDef 拓扑序遍历 beans，对每个实现 {@link ContextStartedAware} 的实例调
+     * {@link ContextStartedAware#onContextStarted}。任一回调抛错 → 包成
+     * {@link RuntimeException} 冒泡，{@link #start()} 转入 {@code FAILED} 状态（deploy 回滚）。
+     *
+     * <p>异常信息带上 bean name + appId 便于定位失败源头。</p>
+     */
+    private void invokeContextStartedAware() {
+        for (BeanDef def : beans.sorted()) {
+            BeanWrap bw = beans.beanWrapByName(def.name());
+            if (bw == null) continue;
+            Object inst = bw.instance();
+            if (inst instanceof ContextStartedAware) {
+                try {
+                    ((ContextStartedAware) inst).onContextStarted(this);
+                } catch (Throwable t) {
+                    throw new RuntimeException(
+                            "[" + appId + "] ContextStartedAware failed on bean '"
+                                    + def.name() + "': " + t.getMessage(), t);
+                }
+            }
+        }
     }
 
     private void generateMethodsHandlers(Class<?> protoIf, List<ProtoMethodData> protoMethodDatas)
