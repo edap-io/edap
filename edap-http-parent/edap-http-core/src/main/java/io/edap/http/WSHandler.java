@@ -59,4 +59,18 @@ public interface WSHandler {
     default void onClose(WSConnection webSocket) {
 
     }
+
+    /**
+     * 设置OnOpen的监听器
+     * @param name 监听器名称
+     * @param onOpenListener onOpen监听器
+     */
+    default void setOnOpenListener(String name, WSOnOpenListener onOpenListener) {}
+
+    /**
+     * 设置OnClose的监听器
+     * @param name
+     * @param onCloseListener
+     */
+    default void setOnCloseListener(String name, WSOnCloseListener onCloseListener) {}
 }

@@ -3,6 +3,8 @@ package io.edap.container.ws;
 import io.edap.container.Container;
 import io.edap.http.WSConnection;
 import io.edap.http.WSHandler;
+import io.edap.http.WSOnCloseListener;
+import io.edap.http.WSOnOpenListener;
 import io.edap.json.Eson;
 import io.edap.json.JsonObject;
 import io.edap.json.JsonObjectImpl;
@@ -12,6 +14,7 @@ import io.edap.mw.context.RequestContext;
 import io.edap.mw.context.RequestContextHolder;
 import io.edap.mw.context.UserResolver;
 import io.edap.nio.util.NetUtil;
+import io.edap.util.CollectionUtils;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -42,6 +45,9 @@ public class ServiceWSHandler implements WSHandler {
     private static final Logger log = LoggerManager.getLogger(ServiceWSHandler.class);
 
     private final UserResolver userResolver;
+
+    private Map<String, WSOnOpenListener> onOpenListenerMap = new HashMap<>();
+    private Map<String, WSOnCloseListener> onCloseListenerMap = new HashMap<>();
 
     /**
      * appId → 该 app 的 method → handler 表。跨 app 共享同一个 ServiceWSHandler 实例（per-path
@@ -88,6 +94,16 @@ public class ServiceWSHandler implements WSHandler {
             webSocket.setSessionContext("loginInfo", rc);
         }
         log.info("WS connection opened: {}", l -> l.arg(remoteAddrSafe(webSocket)));
+        if (!CollectionUtils.isEmpty(onOpenListenerMap)) {
+            for (Map.Entry<String, WSOnOpenListener> entry : onOpenListenerMap.entrySet()) {
+                try {
+                    log.info("Invoke OnOpenListener {}", l -> l.arg(entry.getKey()));
+                    entry.getValue().onOpen(webSocket);
+                } catch (Throwable e) {
+                    log.error("Invoke onOpenListener {} error", l -> l.arg(entry.getKey()));
+                }
+            }
+        }
     }
 
     @Override
@@ -97,6 +113,16 @@ public class ServiceWSHandler implements WSHandler {
             webSocket.getSocketChannel().close();
         } catch (IOException e) {
             log.warn("webSocket.getSocketChannel().close() error", e);
+        }
+        if (!CollectionUtils.isEmpty(onCloseListenerMap)) {
+            for (Map.Entry<String, WSOnCloseListener> entry : onCloseListenerMap.entrySet()) {
+                try {
+                    log.info("Invoke OnCloseListener {}", l -> l.arg(entry.getKey()));
+                    entry.getValue().onClose(webSocket);
+                } catch (Throwable e) {
+                    log.error("Invoke OnCloseListener {} error", l -> l.arg(entry.getKey()));
+                }
+            }
         }
     }
 
@@ -121,7 +147,11 @@ public class ServiceWSHandler implements WSHandler {
 
             WSServiceMsgHandler<?> handler = msgHandlers.get(method);
             if (handler == null) {
-                sendError(ws, msgId, 404, "method not found: " + method);
+                if ("_ping".equalsIgnoreCase(method)) {
+                    sendOk(ws, msgId, Collections.EMPTY_MAP);
+                } else {
+                    sendError(ws, msgId, 404, "method not found: " + method);
+                }
                 return;
             }
 
@@ -270,5 +300,25 @@ public class ServiceWSHandler implements WSHandler {
         } catch (Exception e) {
             return "?";
         }
+    }
+
+    /**
+     * 设置OnOpen的监听器
+     * @param name 监听器名称
+     * @param onOpenListener onOpen监听器
+     */
+    @Override
+    public void setOnOpenListener(String name, WSOnOpenListener onOpenListener) {
+        onOpenListenerMap.put(name, onOpenListener);
+    }
+
+    /**
+     * 设置OnClose的监听器
+     * @param name
+     * @param onCloseListener
+     */
+    @Override
+    public void setOnCloseListener(String name, WSOnCloseListener onCloseListener) {
+        onCloseListenerMap.put(name, onCloseListener);
     }
 }
