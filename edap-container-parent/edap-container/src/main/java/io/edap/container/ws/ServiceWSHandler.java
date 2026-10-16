@@ -46,6 +46,17 @@ public class ServiceWSHandler implements WSHandler {
 
     private final UserResolver userResolver;
 
+    private final static String PONG_STRING;
+
+    static {
+        JsonObject resp = new JsonObjectImpl();
+        resp.put("code", 0);
+        resp.put("msg", "ok");
+        resp.put("method", "_pong");
+        resp.put("data", new HashMap<>());                                   // payload 已是 Map/List/基础类型
+        PONG_STRING = Eson.toJsonString(resp);
+    }
+
     private Map<String, WSOnOpenListener> onOpenListenerMap = new HashMap<>();
     private Map<String, WSOnCloseListener> onCloseListenerMap = new HashMap<>();
 
@@ -148,7 +159,7 @@ public class ServiceWSHandler implements WSHandler {
             WSServiceMsgHandler<?> handler = msgHandlers.get(method);
             if (handler == null) {
                 if ("_ping".equalsIgnoreCase(method)) {
-                    sendOk(ws, msgId, Collections.EMPTY_MAP);
+                    sendPong(ws, msgId, Collections.EMPTY_MAP);
                 } else {
                     sendError(ws, msgId, 404, "method not found: " + method);
                 }
@@ -282,6 +293,11 @@ public class ServiceWSHandler implements WSHandler {
         String respJson = Eson.toJsonString(resp);
         log.info("resp msg:{}", l -> l.arg(respJson));
         ws.sendText(respJson);
+    }
+
+    private void sendPong(WSConnection ws, String msgId, Object payload) {
+        log.info("resp msg:{}", l -> l.arg(PONG_STRING));
+        ws.sendText(PONG_STRING);
     }
 
     private void sendError(WSConnection ws, String msgId, int code, String msg) {
