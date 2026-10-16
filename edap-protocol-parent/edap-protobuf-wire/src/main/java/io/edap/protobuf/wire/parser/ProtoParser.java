@@ -1128,6 +1128,7 @@ public class ProtoParser {
                     comment.append(data, start, pos-start);
                 }
                 String cmt = comment.toString();
+                cmt = replaceStart(cmt);
                 if (cmt != null && cmt.length() > 0 && cmt.charAt(0) == ' ') {
                     return cmt.substring(1);
                 }
@@ -1137,6 +1138,7 @@ public class ProtoParser {
         }
         comment.append(data, start, pos-start);
         String cmt = comment.toString();
+        cmt = replaceStart(cmt);
         if (cmt.length() > 0 && cmt.charAt(0) == ' ') {
             return cmt.substring(1);
         }
@@ -1168,6 +1170,7 @@ public class ProtoParser {
 
                 comment.append(data, start, pos-start);
                 String cmt = trimLnr(comment.toString());
+                cmt = replaceStart(cmt);
                 if (isFirst) {
                     if (cmt.length() > 0) {
                         lines.add(cmt);
@@ -1185,6 +1188,19 @@ public class ProtoParser {
             pos++;
         }
         return lines;
+    }
+
+    private String replaceStart(String str) {
+        if (str == null || str.isEmpty()) {
+            return str;
+        }
+        int index = str.lastIndexOf("*/");
+        while (index != -1) {
+            str = str.substring(0, index) + "&#42;" + str.substring(index+1);
+            index = str.lastIndexOf("*/");
+        }
+
+        return str;
     }
 
     private String trimLnr(String s) {
