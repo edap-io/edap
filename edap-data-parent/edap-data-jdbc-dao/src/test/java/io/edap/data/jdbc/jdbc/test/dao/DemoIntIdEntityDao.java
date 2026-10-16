@@ -52,6 +52,41 @@ public class DemoIntIdEntityDao extends JdbcBaseEntityDao implements JdbcEntityD
         this.limitDialect = DialectFactory.createLimitDialect(daoOption);
     }
 
+
+    @Override
+    public int upsert(DemoIntId d) throws Exception {
+        StatementSession session = getStatementSession();
+        int rows;
+        try {
+            PreparedStatement ps;
+            boolean hasIdValue = hasIdValue(d.getId());
+            if (hasIdValue) {
+                ps = session.prepareStatement("insert into demo (username,create_time,id) values (?,?,?,?)");
+            }  else {
+                ps = session.prepareStatement("insert into demo (username,create_time) values (?,?,?)", 1);
+            }
+            //ps.setString(1, d.getField1());
+            ps.setLong(2, d.getCreateTime());
+            if (hasIdValue) {
+                ps.setLong(3, d.getId());
+            }
+            rows = ps.executeUpdate();
+            if (!hasIdValue) {
+                ResultSet rs = ps.getGeneratedKeys();
+                if (rs != null) {
+                    if (rs.next()) {
+                        d.setId(rs.getInt(1));
+                    }
+                    //rs.getDate()
+                    rs.close();
+                }
+            }
+            return rows;
+        } finally {
+            session.close();
+        }
+    }
+
     @Override
     public int insert(DemoIntId d) throws Exception {
         StatementSession session = getStatementSession();

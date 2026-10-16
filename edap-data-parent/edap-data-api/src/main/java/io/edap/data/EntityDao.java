@@ -34,6 +34,17 @@ public interface EntityDao<T> extends ViewDao<T> {
     int insert(T t) throws Exception;
 
     /**
+     * 根据唯一索引查询如果有则更新记录，如果没有则插入数据
+     * @param t 要保存的持久化的bean
+     * @param uniqueFields 唯一索引的列名列表
+     * @return 返回成功数据记录个数
+     * @throws Exception
+     */
+    default int upsert(T t) throws Exception {
+        throw new UnsupportedOperationException("");
+    }
+
+    /**
      * 持久化java对象列表
      * @param ts 需要持久化的对象列表
      * @return 返回每个对象对应的数据行数
