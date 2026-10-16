@@ -24,6 +24,8 @@ public interface WSConnection {
 
     void sendFrame(AbstractFrame frame);
 
+    void flush();
+
     default void sendText(String text) {
         sendFrame(new TextFrame(text.getBytes(StandardCharsets.UTF_8)));
     }
