@@ -21,6 +21,7 @@ import io.edap.log.Logger;
 import io.edap.log.LoggerManager;
 import io.edap.nio.NioSession;
 import io.edap.nio.ParseResult;
+import io.edap.pool.Pool;
 
 import java.io.FileDescriptor;
 import java.io.IOException;
@@ -249,6 +250,37 @@ public abstract class NioServerSession<T> extends NioSession {
             buf.wpos(buf.wpos() + ret);
         }
         return ret;
+    }
+
+    public void flush() throws IOException {
+        flush(null);
+    }
+
+    public void flush(Pool<FastBuf> bbPool) throws IOException {
+        FastBuf wbuf = getWriteBuf();
+        FastBuf writeBuf = THREAD_WRITE_BUF.get();
+        if (wbuf == null) {
+            if (!writeToChannel(writeBuf)) {
+                putToWriteQueue(writeBuf);
+                FastBuf nbuf = null;
+                if (bbPool != null) {
+                    nbuf = bbPool.borrow();
+                }
+                if (nbuf == null) {
+                    nbuf = new FastBuf(32768);
+                }
+                THREAD_WRITE_BUF.set(nbuf);
+                setSelectionKey(getSocketChannel()
+                        .register(getSelector(), SelectionKey.OP_WRITE, this));
+            }
+        } else {
+            if (writeToChannel(wbuf)) {
+                removeWriteBuf(wbuf);
+                if (bbPool != null) {
+                    bbPool.requite(wbuf);
+                }
+            }
+        }
     }
 
     public int fastWrite(FastBuf buf) throws IOException {

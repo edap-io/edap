@@ -40,9 +40,9 @@ public class NetUtil {
             SocketAddress addr = ((SocketChannel)channel).getRemoteAddress();
             if (addr != null) {
                 if (addr instanceof InetSocketAddress) {
-                    InetAddress inetAddr = ((InetSocketAddress) addr).getAddress();
+                    InetSocketAddress inetAddr = (InetSocketAddress) addr;
                     if (inetAddr != null) {
-                        return inetAddr.getHostAddress();
+                        return inetAddr.getAddress().getHostAddress() + ":" + inetAddr.getPort();
                     } else {
                         return addr.toString();
                     }

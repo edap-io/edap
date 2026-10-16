@@ -85,24 +85,7 @@ public class DisruptorReadDispatcher implements ReadDispatcher {
                     if (!nioSession.decode(buf, false)) {
 						return;
 					}
-					FastBuf wbuf = nioSession.getWriteBuf();
-					if (wbuf == null) {
-						if (!nioSession.writeToChannel(writeBuf)) {
-							nioSession.putToWriteQueue(writeBuf);
-							FastBuf nbuf = bbPool.borrow();
-                            if (nbuf == null) {
-                                nbuf = new FastBuf(32768);
-                            }
-							THREAD_WRITE_BUF.set(nbuf);
-							nioSession.setSelectionKey(nioSession.getSocketChannel()
-									.register(nioSession.getSelector(), SelectionKey.OP_WRITE, nioSession));
-						}
-					} else {
-						if (nioSession.writeToChannel(wbuf)) {
-							nioSession.removeWriteBuf(wbuf);
-                            bbPool.requite(wbuf);
-						}
-					}
+                    nioSession.flush(bbPool);
 				}
 			} catch (IOException e) {
 				closeChannel(readKey, nioSession);
