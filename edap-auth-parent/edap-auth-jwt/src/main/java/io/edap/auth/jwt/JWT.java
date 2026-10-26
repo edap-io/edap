@@ -7,6 +7,7 @@ import io.edap.json.JsonParseException;
 import io.edap.util.StringUtil;
 
 import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
@@ -182,7 +183,7 @@ public class JWT {
      * <p>调用前提：签名已验证通过；这里不再做格式校验（payload 内容由 issuer 负责）。</p>
      */
     private static void parsePayload(String payloadB64, VerifyResult result) {
-        JsonObject jsonObject = Eson.parseJsonObject(Base64URL.decode(payloadB64.getBytes()));
+        JsonObject jsonObject = Eson.parseJsonObject(Base64.getUrlDecoder().decode(payloadB64.getBytes()));
         JwtPayload pl = new JwtPayload();
         Map<String, Object> customerClaims = new HashMap<>();
         for (Map.Entry<String, Object> entry : jsonObject.entrySet()) {
