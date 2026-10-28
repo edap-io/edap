@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>io.edap</groupId>
+        <artifactId>edap-raft-parent</artifactId>
+        <version>${edap.version}</version>
+    </parent>
+
+    <artifactId>edap-raft</artifactId>
+
+    <description>
+        edap 的 Raft 共识实现：Leader 选举、日志复制、多数派提交、状态机 apply、
+        日志压缩与 InstallSnapshot、joint consensus 成员变更、ReadIndex 线性一致读。
+        传输层基于 edap-nio-server 的 Server/NioServerSession/Decoder 体系，
+        持久化通过 RaftStorage SPI 提供内存与文件两套实现。
+    </description>
+
+    <dependencies>
+        <dependency>
+            <groupId>io.edap</groupId>
+            <artifactId>edap-nio-server</artifactId>
+            <version>${edap.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.edap</groupId>
+            <artifactId>edap-log-api</artifactId>
+            <version>${edap.version}</version>
+        </dependency>
+
+        <!-- 单元测试相关依赖 -->
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- 队列基准测试(JMH) -->
+        <dependency>
+            <groupId>org.openjdk.jmh</groupId>
+            <artifactId>jmh-core</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.openjdk.jmh</groupId>
+            <artifactId>jmh-generator-annprocess</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <!-- 父 pom 把 skipTests 写死成 true,这里覆盖回来跑测试 -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <skipTests>false</skipTests>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>

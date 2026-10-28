@@ -75,11 +75,10 @@ public class Edap {
         try {
             URL loc = Edap.class.getProtectionDomain().getCodeSource().getLocation();
             File f = new File(loc.toURI());
-            if (!f.isFile()) {
-                throw new IllegalStateException("Edap is not inside a file jar: " + loc);
-            }
-
-            File conf = new File(f.getParent() + File.separator + "edap.json5");
+            // 从 jar 加载时取 jar 的同级目录；从 classes 目录加载(开发/测试)时取目录本身。
+            // 找不到 edap.json5 不是致命错误，此时使用默认配置。
+            File dir = f.isFile() ? f.getParentFile() : f;
+            File conf = new File(dir, "edap.json5");
 
             if (conf.exists()) {
                 reader = new BufferedReader(new InputStreamReader(new FileInputStream(conf), StandardCharsets.UTF_8));
@@ -93,7 +92,7 @@ public class Edap {
                 this.edapProps = new Props(jsonObject);
             }
         } catch (Exception e) {
-            throw new IllegalStateException("Cannot locate outer jar file", e);
+            throw new IllegalStateException("Load edap.json5 failed", e);
         } finally {
             if (reader != null) {
                 try {reader.close();} catch (IOException e) {}
@@ -221,6 +220,32 @@ public class Edap {
             if (sg != null) {
                 sg.addServer(server);
             }
+        } finally {
+            lifecycleLock.unlock();
+        }
+    }
+
+    /**
+     * 注册一个 server：Edap 尚未运行时仅入队（由 run() 统一 bind），已运行时立即 bind 并开始监听。
+     *
+     * <p>与 {@link #addServer(Server)} 的区别：addServer 在 run() 之后调用只会入队不会 bind，
+     * 适合启动前一次性注册；本方法在 run() 之后调用会真正把端口监听起来，
+     * 适合运行时动态挂载（如 raft 节点在容器启动后才加入集群）。</p>
+     */
+    public void addServerAndBind(Server server) {
+        if (server == null) {
+            return;
+        }
+        lifecycleLock.lock();
+        try {
+            ServerGroup sg = serverGroups.get("default");
+            if (sg == null) {
+                sg = new ServerGroup();
+                sg.setEdap(this);
+                sg.setName("default");
+                serverGroups.put("default", sg);
+            }
+            sg.addServerAndBind(server);
         } finally {
             lifecycleLock.unlock();
         }

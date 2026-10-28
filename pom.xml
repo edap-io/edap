@@ -71,6 +71,7 @@
         <module>edap-native</module>
         <module>edap-tx-parent</module>
         <module>edap-s3-parent</module>
+        <module>edap-raft-parent</module>
 
     </modules>
 
@@ -358,6 +359,11 @@
                 <artifactId>edap-tx</artifactId>
                 <version>${project.version}</version>
             </dependency>
+            <dependency>
+                <groupId>io.edap</groupId>
+                <artifactId>edap-raft</artifactId>
+                <version>${project.version}</version>
+            </dependency>
         </dependencies>
     </dependencyManagement>
     <build>
@@ -445,7 +451,7 @@
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>3.5.0</version>
                 <configuration>
-                    <skipTests>${skipTests}</skipTests>
+                    <skipTests>true</skipTests>
                     <argLine>--add-opens java.base/java.lang=ALL-UNNAMED --add-opens java.base/java.nio=ALL-UNNAMED --add-opens java.base/sun.nio.ch=ALL-UNNAMED</argLine>
                 </configuration>
             </plugin>

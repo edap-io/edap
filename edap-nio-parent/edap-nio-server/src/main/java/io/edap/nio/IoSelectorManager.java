@@ -68,6 +68,9 @@ public class IoSelectorManager {
         this.dispatcherFactory = server.getReadDispatcherFactory();
         if (server.getIoThreadCount() < 1) {
             ioThreadCount = SystemUtil.getCpuCount();
+        } else {
+            // Server 显式指定了 IO 线程数，必须用它，否则 ioWorkers 长度为 0
+            ioThreadCount = server.getIoThreadCount();
         }
 //        int reactorCount = ioThreadCount / 8;
 //        if (reactorCount < 1) {

@@ -1,6 +1,7 @@
 package io.edap.json.test;
 
 import eje.com.jsoniter.benchmark.with_map_field.TestObjectEncoder;
+import io.edap.json.test.io.edap.json.test.model.SimplePojoDecoder;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.util.ASMifier;
@@ -24,7 +25,7 @@ public class Asm {
 
 //        String clsPath = "/Users/louis/NetBeansProjects/edap/edap-json/target/test-classes/" +
 //                "io/edap/json/test/DemoPojoDecoder.class";
-        String clsPath = GenderEncoder.class.getName();
+        String clsPath = SimplePojoDecoder.class.getName();
         ClassReader cr;
         if (clsPath.endsWith(".class") || clsPath.indexOf('\\') > -1
                 || clsPath.indexOf('/') > -1) {

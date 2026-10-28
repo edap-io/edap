@@ -98,7 +98,9 @@ public abstract class NioServerSession<T> extends NioSession {
 	private BlockingQueue<FastBuf> writeBufs;
 
 	public boolean writeToChannel(FastBuf buf) throws IOException {
-		int len = (int)(buf.wpos() - buf.address());
+		// 剩余待写字节数。fastWrite 只写 rpos..limit 并返回本次实际写出的字节数，
+		// 部分写之后 rpos 已经前移，若这里用整帧长度做比较会导致永远写不完、队列卡死。
+		int len = (int)(buf.limit() - buf.rpos());
 		int wlen = fastWrite(buf);
 		if (wlen >= len) {
 			buf.clear();

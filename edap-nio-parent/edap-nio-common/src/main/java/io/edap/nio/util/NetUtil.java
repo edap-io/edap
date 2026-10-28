@@ -42,7 +42,7 @@ public class NetUtil {
                 if (addr instanceof InetSocketAddress) {
                     InetSocketAddress inetAddr = (InetSocketAddress) addr;
                     if (inetAddr != null) {
-                        return inetAddr.getAddress().getHostAddress() + ":" + inetAddr.getPort();
+                        return inetAddr.getAddress().getHostAddress();
                     } else {
                         return addr.toString();
                     }

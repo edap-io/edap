@@ -4,6 +4,7 @@ public class SimplePojo {
 
     private Long id;        // ← 包装类型 Long
     private String name;
+    private byte[] data;
 
 
     public Long getId() {
@@ -20,5 +21,13 @@ public class SimplePojo {
 
     public void setName(String name) {
         this.name = name;
+    }
+
+    public byte[] getData() {
+        return data;
+    }
+
+    public void setData(byte[] data) {
+        this.data = data;
     }
 }
