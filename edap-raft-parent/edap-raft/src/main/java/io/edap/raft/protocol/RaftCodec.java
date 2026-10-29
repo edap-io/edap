@@ -240,24 +240,45 @@ public class RaftCodec {
         return msg;
     }
 
+    /**
+     * 类型字节的最高位：置 1 表示这条条目带一个请求 id。
+     *
+     * <p>请求 id 是可选的：绝大多数条目没有对应的客户端请求（同步提案、
+     * 选举产生的空条目、成员变更）。让它们每条多背 8 字节会改变流控的分批
+     * 边界 —— {@code maxSizePerMsg} 正好卡在两条 1000 字节载荷的边界上，
+     * 多 8 字节就会从「一条消息装两条」变成「装一条」。</p>
+     */
+    private static final int ENTRY_FLAG_HAS_REQUEST_ID = 0x80;
+
     private static void encodeEntry(ByteWriter writer, Entry entry) {
         writer.writeLong(entry.getIndex());
         writer.writeLong(entry.getTerm());
-        writer.writeByte(entry.getType().getCode());
+        long requestId = entry.getRequestId();
+        int typeFlags = entry.getType().getCode() & 0x7F;
+        if (requestId != 0) {
+            typeFlags |= ENTRY_FLAG_HAS_REQUEST_ID;
+        }
+        writer.writeByte((byte) typeFlags);
         byte[] data = entry.getData();
         writer.writeInt(data == null ? 0 : data.length);
+        if (requestId != 0) {
+            writer.writeLong(requestId);
+        }
         writer.writeBytes(data);
     }
 
     /**
      * 单条日志编码后的字节数。
      *
-     * <p>布局是 index(8) + term(8) + type(1) + dataLen(4) + data，
-     * 与 {@link #encodeEntry(ByteWriter, Entry)} 一一对应。</p>
+     * <p>布局是 index(8) + term(8) + typeFlags(1) + dataLen(4) + [requestId(8)] + data，
+     * 与 {@link #encodeEntry(ByteWriter, Entry)} 一一对应。
+     * 请求 id 只在非 0 时才占那 8 个字节。</p>
      */
     public static int entrySize(Entry entry) {
         byte[] data = entry.getData();
-        return 8 + 8 + 1 + 4 + (data == null ? 0 : data.length);
+        return 8 + 8 + 1 + 4
+                + (entry.getRequestId() == 0 ? 0 : 8)
+                + (data == null ? 0 : data.length);
     }
 
     /**
@@ -277,9 +298,15 @@ public class RaftCodec {
     private static Entry decodeEntry(ByteReader reader) {
         long index = reader.readLong();
         long term = reader.readLong();
-        EntryType type = EntryType.of((byte) reader.readUnsignedByte());
-        byte[] data = reader.readBytes(reader.readInt());
-        return new Entry(index, term, type, data);
+        int typeFlags = reader.readUnsignedByte();
+        int dataLen = reader.readInt();
+        long requestId = 0;
+        if ((typeFlags & ENTRY_FLAG_HAS_REQUEST_ID) != 0) {
+            requestId = reader.readLong();
+        }
+        EntryType type = EntryType.of((byte) (typeFlags & 0x7F));
+        byte[] data = reader.readBytes(dataLen);
+        return new Entry(index, term, type, data, requestId);
     }
 
     /**

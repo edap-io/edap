@@ -21,7 +21,7 @@ import io.edap.raft.protocol.ConfState;
 import io.edap.raft.protocol.Entry;
 import io.edap.raft.protocol.Message;
 import io.edap.raft.storage.MemoryStorage;
-import io.edap.raft.storage.Storage;
+import io.edap.raft.storage.PersistentStorage;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -48,7 +48,7 @@ public final class RaftTestSupport {
     /**
      * Go: newTestConfig
      */
-    public static RaftConfig newTestConfig(long id, int election, int heartbeat, Storage storage) {
+    public static RaftConfig newTestConfig(long id, int election, int heartbeat, PersistentStorage storage) {
         RaftConfig cfg = new RaftConfig();
         cfg.id = id;
         cfg.electionTick = election;
@@ -90,7 +90,7 @@ public final class RaftTestSupport {
     /**
      * Go: newTestRaft
      */
-    public static Raft newTestRaft(long id, int election, int heartbeat, Storage storage) {
+    public static Raft newTestRaft(long id, int election, int heartbeat, PersistentStorage storage) {
         return new Raft(newTestConfig(id, election, heartbeat, storage));
     }
 
@@ -99,14 +99,14 @@ public final class RaftTestSupport {
      *
      * <p>与 {@link #newTestRaft} 一样，learner 的身份来自存储里的成员配置。</p>
      */
-    public static Raft newTestLearnerRaft(long id, int election, int heartbeat, Storage storage) {
+    public static Raft newTestLearnerRaft(long id, int election, int heartbeat, PersistentStorage storage) {
         return new Raft(newTestConfig(id, election, heartbeat, storage));
     }
 
     /**
      * Go: newTestRawNode
      */
-    public static RawNode newTestRawNode(long id, int election, int heartbeat, Storage storage) {
+    public static RawNode newTestRawNode(long id, int election, int heartbeat, PersistentStorage storage) {
         return new RawNode(newTestConfig(id, election, heartbeat, storage));
     }
 
@@ -124,7 +124,7 @@ public final class RaftTestSupport {
      *
      * <p>把未落盘的条目写进存储，跑一遍「落盘之后」的动作，返回已提交的条目。</p>
      */
-    public static List<Entry> nextEnts(Raft r, Storage s) {
+    public static List<Entry> nextEnts(Raft r, PersistentStorage s) {
         RaftLog log = r.getRaftLog();
         // 把未落盘的条目追加到存储
         if (s instanceof MemoryStorage) {

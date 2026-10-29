@@ -22,6 +22,7 @@ import io.edap.nio.ParseResult;
 import io.edap.raft.protocol.Message;
 
 import java.io.IOException;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * raft 的入站连接会话。
@@ -40,6 +41,9 @@ public class RaftServerSession extends NioServerSession<Message> {
 
     private volatile RaftMessageHandler handler;
 
+    /** 入站帧计数器，为 null 时不计数 */
+    private volatile AtomicLong receivedCounter;
+
     public RaftServerSession() {
         setDecoder(raftDecoder);
     }
@@ -49,6 +53,13 @@ public class RaftServerSession extends NioServerSession<Message> {
      */
     public void setHandler(RaftMessageHandler handler) {
         this.handler = handler;
+    }
+
+    /**
+     * 设置入站帧计数器
+     */
+    public void setReceivedCounter(AtomicLong receivedCounter) {
+        this.receivedCounter = receivedCounter;
     }
 
     @Override
@@ -67,6 +78,10 @@ public class RaftServerSession extends NioServerSession<Message> {
 
     @Override
     public void handle(Message message) throws IOException {
+        AtomicLong counter = receivedCounter;
+        if (counter != null) {
+            counter.incrementAndGet();
+        }
         RaftMessageHandler h = handler;
         if (h != null) {
             h.onMessage(message);

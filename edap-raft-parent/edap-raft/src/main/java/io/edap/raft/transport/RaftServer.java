@@ -19,6 +19,8 @@ package io.edap.raft.transport;
 import io.edap.Server;
 import io.edap.raft.protocol.Message;
 
+import java.util.concurrent.atomic.AtomicLong;
+
 /**
  * raft 的入站服务器。
  *
@@ -27,16 +29,37 @@ import io.edap.raft.protocol.Message;
  */
 public class RaftServer extends Server<Message, RaftServerSession> {
 
+    /** 默认的 IO 线程数：raft 的流量很小（心跳 + 复制），一个 IO 线程足够，
+     *  避免每个端口都起一整套 reactor */
+    public static final int DEFAULT_IO_THREAD_COUNT = 1;
+
     private final RaftDecoder decoder = new RaftDecoder();
 
+    /** 入站收到的帧数，用来给传输层的健康度计数供数 */
+    private final AtomicLong receivedFrames = new AtomicLong();
+
+    /** IO 线程数，必须在 {@link #init()} 之前设置 */
+    private int raftIoThreadCount = DEFAULT_IO_THREAD_COUNT;
+
     private volatile RaftMessageHandler handler;
+
+    /**
+     * 设置 IO 线程数。必须在 {@link #init()} 之前调用（框架在 init 里读它）。
+     */
+    @Override
+    public void setIoThreadCount(int ioThreadCount) {
+        if (ioThreadCount <= 0) {
+            throw new IllegalArgumentException("ioThreadCount must be positive");
+        }
+        this.raftIoThreadCount = ioThreadCount;
+        super.setIoThreadCount(ioThreadCount);
+    }
 
     @Override
     public void init() {
         super.init();
         setDecoder(decoder);
-        // raft 的流量很小（心跳 + 复制），一个 IO 线程足够，避免每个端口都起一整套 reactor
-        setIoThreadCount(1);
+        setIoThreadCount(raftIoThreadCount);
     }
 
     @Override
@@ -47,7 +70,15 @@ public class RaftServer extends Server<Message, RaftServerSession> {
         session.setDecoder(decoder);
         session.setBufPool(getBufPool());
         session.setHandler(handler);
+        session.setReceivedCounter(receivedFrames);
         return session;
+    }
+
+    /**
+     * 入站收到的帧数
+     */
+    public long getReceivedFrames() {
+        return receivedFrames.get();
     }
 
     /**

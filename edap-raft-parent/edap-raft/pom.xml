@@ -58,6 +58,10 @@
                 <artifactId>maven-surefire-plugin</artifactId>
                 <configuration>
                     <skipTests>false</skipTests>
+                    <!-- edap-nio 的 FastSelectorProvider 反射 sun.nio.ch,
+                         edap-common 的 UnsafeUtil 反射 java.nio.Buffer.address,
+                         JDK17 下不加这些开关会抛 InaccessibleObjectException -->
+                    <argLine>--add-opens java.base/java.lang=ALL-UNNAMED --add-opens java.base/java.nio=ALL-UNNAMED --add-opens java.base/sun.nio.ch=ALL-UNNAMED</argLine>
                 </configuration>
             </plugin>
         </plugins>

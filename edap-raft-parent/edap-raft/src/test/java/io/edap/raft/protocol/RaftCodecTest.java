@@ -114,6 +114,41 @@ class RaftCodecTest {
     }
 
     @Test
+    @DisplayName("带请求 id 的条目往返")
+    void requestIdRoundTrip() {
+        Entry withId = new Entry(1, 1, EntryType.NORMAL, new byte[]{9, 8, 7}, 0x0000_0002_0000_0001L);
+        Entry withoutId = new Entry(2, 1, EntryType.NORMAL, new byte[]{6, 5});
+
+        Message msg = new Message().setType(MessageType.MSG_APP)
+                .setEntries(Arrays.asList(withId, withoutId));
+        Message decoded = RaftCodec.decodeFrame(RaftCodec.encode(msg), 0);
+
+        assertEquals(2, decoded.getEntries().size());
+        assertEquals(withId, decoded.getEntries().get(0));
+        assertEquals(0x0000_0002_0000_0001L, decoded.getEntries().get(0).getRequestId());
+        assertEquals(withoutId, decoded.getEntries().get(1));
+        assertEquals(0L, decoded.getEntries().get(1).getRequestId());
+    }
+
+    @Test
+    @DisplayName("请求 id 是条件编码：不带请求 id 的条目字节数不变")
+    void requestIdIsConditionallyEncoded() {
+        Entry withoutId = new Entry(1, 1, EntryType.NORMAL, new byte[]{1, 2, 3});
+        Entry withId = new Entry(1, 1, EntryType.NORMAL, new byte[]{1, 2, 3}, 42L);
+
+        // 带请求 id 的条目多 8 字节
+        assertEquals(RaftCodec.entrySize(withoutId) + 8, RaftCodec.entrySize(withId));
+
+        // 整条消息只在这 8 个字节上有差别 —— 不带请求 id 的条目编码长度不变，
+        // 流控的分批边界（maxSizePerMsg）不受影响
+        byte[] without = RaftCodec.encode(new Message().setType(MessageType.MSG_APP)
+                .setEntries(Collections.singletonList(withoutId)));
+        byte[] with = RaftCodec.encode(new Message().setType(MessageType.MSG_APP)
+                .setEntries(Collections.singletonList(withId)));
+        assertEquals(without.length + 8, with.length);
+    }
+
+    @Test
     @DisplayName("快照与成员配置往返")
     void snapshotRoundTrip() {
         ConfState cs = new ConfState(

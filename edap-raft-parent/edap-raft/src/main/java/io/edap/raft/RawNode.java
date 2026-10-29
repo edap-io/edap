@@ -86,6 +86,32 @@ public class RawNode {
     private final List<Message> stepsOnAdvance = new ArrayList<>();
 
     /**
+     * 框架落盘模式下，落盘完成之后要回灌给状态机的消息。
+     *
+     * <p>与 {@link #stepsOnAdvance} 的区别只在时机：这一批消息必须等到
+     * 硬状态与日志真的落盘之后才能交给状态机 —— 落在自己身上的投票确认
+     * 与日志落盘确认都属于这一批。</p>
+     */
+    private final List<Message> stepsOnPersist = new ArrayList<>();
+
+    /**
+     * 已经通过落盘门控、可以发出去的消息。
+     *
+     * <p>框架落盘模式下，确认类消息（投票确认、日志追加确认）不能在
+     * 第一个 Ready 里就带出去 —— 它们的意思是「我已经持久化了这些日志」。
+     * {@link #takePersistGatedMessages()} 把它们摘下来，等落盘完成之后
+     * 用 {@link #releasePersistGatedMessages(List)} 放回来，
+     * 下一个 Ready 再带出去。</p>
+     */
+    private final List<Message> gatedReady = new ArrayList<>();
+
+    /** 是否由框架接管落盘 */
+    private final boolean frameworkPersist;
+
+    /** 已提交条目是否由独立的 apply 线程处理 */
+    private final boolean separateApplyThread;
+
+    /**
      * 用给定配置创建一个 RawNode
      *
      * @param config 配置，非法时抛出 {@link RaftException}
@@ -94,6 +120,8 @@ public class RawNode {
         this.raft = new Raft(config);
         this.prevSoftSt = raft.softState();
         this.prevHardSt = raft.hardState();
+        this.frameworkPersist = config.frameworkPersist;
+        this.separateApplyThread = config.applyHandler != null;
     }
 
     /**
@@ -106,6 +134,30 @@ public class RawNode {
         this.raft = raft;
         this.prevSoftSt = raft.softState();
         this.prevHardSt = raft.hardState();
+        RaftConfig cfg = raft.getRaftConfig();
+        this.frameworkPersist = cfg.frameworkPersist;
+        this.separateApplyThread = cfg.applyHandler != null;
+    }
+
+    /**
+     * 是否由框架接管落盘
+     */
+    public boolean isFrameworkPersist() {
+        return frameworkPersist;
+    }
+
+    /**
+     * 已提交条目的处理器，没有则返回 null
+     */
+    public ApplyHandler getApplyHandler() {
+        return raft.getRaftConfig().applyHandler;
+    }
+
+    /**
+     * 日志存储
+     */
+    public io.edap.raft.storage.PersistentStorage getStorage() {
+        return raft.getRaftConfig().storage;
     }
 
     /**
@@ -281,13 +333,58 @@ public class RawNode {
 
         // 同步落盘模式下，落在自己身上的消息要等未落盘状态持久化之后再处理，
         // 因此这里不把它们放进 Messages，而是记到 stepsOnAdvance 里。
-        for (Message m : raft.getMessagesAfterAppend()) {
-            if (m.getTo() != raft.getId()) {
-                rd.getMessages().add(m);
+        if (frameworkPersist) {
+            // 框架落盘：确认类消息等落盘完成之后再带出去，
+            // 先带出去的是已经通过门控的那些。
+            rd.getMessages().addAll(gatedReady);
+        } else {
+            for (Message m : raft.getMessagesAfterAppend()) {
+                if (m.getTo() != raft.getId()) {
+                    rd.getMessages().add(m);
+                }
             }
         }
 
         return rd;
+    }
+
+    /**
+     * 取出这一批「必须等落盘才能发出去」的确认消息。
+     *
+     * <p>框架落盘模式下，确认类消息（投票确认、日志追加确认）不能跟着
+     * 第一个 Ready 一起发出去：它们的意思是「我已经持久化了这些日志」。
+     * 这个方法把它们从状态机里摘出来，等落盘完成之后用
+     * {@link #releasePersistGatedMessages(List)} 放回去，
+     * 下一个 Ready 会自动带上它们。</p>
+     *
+     * <p>其余消息（复制、心跳）不带任何持久化承诺，先发出去可以让对端
+     * 立刻开始落盘，与本节点的落盘重叠 —— 两个 fsync 不串行，
+     * 端到端延迟少一个落盘周期。</p>
+     *
+     * @return 摘出来的确认消息（发给别人的那些；落在自己身上的由
+     *         {@link #acceptReady(Ready, List)} 处理）
+     */
+    public List<Message> takePersistGatedMessages() {
+        List<Message> gated = new ArrayList<>();
+        for (Message m : raft.getMessagesAfterAppend()) {
+            if (m.getTo() != raft.getId()) {
+                gated.add(m);
+            }
+        }
+        return gated;
+    }
+
+    /**
+     * 落盘完成之后，把之前摘出来的确认消息放回去。
+     *
+     * <p>它们会在下一个 Ready 里被带出去 —— 那时候对应的日志已经落盘，
+     * 「我已经持久化了这些日志」这句话才算成立。</p>
+     */
+    public void releasePersistGatedMessages(List<Message> msgs) {
+        if (msgs == null || msgs.isEmpty()) {
+            return;
+        }
+        gatedReady.addAll(msgs);
     }
 
     /**
@@ -296,6 +393,20 @@ public class RawNode {
      * <p>从本方法调用到下一次 {@link #ready()} 之间，RawNode 的状态不允许再被改动。</p>
      */
     public void acceptReady(Ready rd) {
+        acceptReady(rd, rd.getCommittedEntries());
+    }
+
+    /**
+     * 接管一个 Ready，并指定本次要交给应用层的已提交条目。
+     *
+     * <p>与 {@link #acceptReady(Ready)} 的区别：已提交条目可以与 Ready 里的分开传。
+     * 独立 apply 线程模式下，Ready 里不再带已提交条目（应用层不需要它们），
+     * 但 {@code acceptApplying} 仍然要用它们推进 applying 指针，
+     * 所以由调用方单独传进来。</p>
+     *
+     * @param committedEnts 本次交给应用层的已提交条目
+     */
+    public void acceptReady(Ready rd, List<Entry> committedEnts) {
         if (rd.getSoftState() != null) {
             prevSoftSt = rd.getSoftState();
         }
@@ -305,29 +416,58 @@ public class RawNode {
         if (!rd.getReadStates().isEmpty()) {
             raft.clearReadStates();
         }
-        if (!stepsOnAdvance.isEmpty()) {
+        if (!stepsOnAdvance.isEmpty() || !stepsOnPersist.isEmpty()) {
             throw new RaftException("two accepted Ready structs without call to Advance");
         }
+        // 落在自己身上的消息：投票确认、日志落盘确认。
+        // 框架落盘模式下它们要等落盘完成之后才交给状态机。
+        List<Message> persistMsgs = new ArrayList<>();
         for (Message m : raft.getMessagesAfterAppend()) {
             if (m.getTo() == raft.getId()) {
-                stepsOnAdvance.add(m);
+                persistMsgs.add(m);
             }
         }
         if (needStorageAppendRespMsg(rd)) {
-            stepsOnAdvance.add(newStorageAppendRespMsg(rd));
+            persistMsgs.add(newStorageAppendRespMsg(rd));
         }
-        if (needStorageApplyRespMsg(rd)) {
-            stepsOnAdvance.add(newStorageApplyRespMsg(rd.getCommittedEntries()));
+        if (frameworkPersist) {
+            stepsOnPersist.addAll(persistMsgs);
+        } else {
+            stepsOnAdvance.addAll(persistMsgs);
+        }
+        // 独立 apply 线程模式下，「已应用到状态机」的通知由 apply 线程自己发
+        if (!separateApplyThread && needStorageApplyRespMsg(committedEnts)) {
+            stepsOnAdvance.add(newStorageApplyRespMsg(committedEnts));
         }
 
         raft.clearMessages();
         raft.clearMessagesAfterAppend();
+        // 已经通过落盘门控的消息随这个 Ready 交出去了
+        gatedReady.clear();
         raft.getRaftLog().acceptUnstable();
-        if (!rd.getCommittedEntries().isEmpty()) {
-            List<Entry> ents = rd.getCommittedEntries();
-            long index = ents.get(ents.size() - 1).getIndex();
-            raft.getRaftLog().acceptApplying(index, Raft.entsSize(ents), applyUnstableEntries());
+        if (committedEnts != null && !committedEnts.isEmpty()) {
+            long index = committedEnts.get(committedEnts.size() - 1).getIndex();
+            raft.getRaftLog().acceptApplying(index, Raft.entsSize(committedEnts), applyUnstableEntries());
         }
+    }
+
+    /**
+     * 通知 raft：硬状态与日志已经落盘。
+     *
+     * <p>只有框架落盘模式（{@link RaftConfig#frameworkPersist}）才需要调用：
+     * 这一步把「落盘相关」的消息回灌给状态机 —— 落在自己身上的投票确认、
+     * 日志落盘确认。它们的含义是「我现在可以安全地承认自己投的票、
+     * 承认自己日志里的条目已经持久化了」，必须等到真的落盘之后才成立。</p>
+     */
+    public void persisted(Ready rd) {
+        if (!frameworkPersist) {
+            throw new RaftException("persisted() is only meaningful in framework persist mode");
+        }
+        for (int i = 0; i < stepsOnPersist.size(); i++) {
+            raft.step(stepsOnPersist.get(i));
+            stepsOnPersist.set(i, null);
+        }
+        stepsOnPersist.clear();
     }
 
     /**
@@ -360,6 +500,10 @@ public class RawNode {
             return true;
         }
         if (!raft.getMessages().isEmpty() || !raft.getMessagesAfterAppend().isEmpty()) {
+            return true;
+        }
+        if (!gatedReady.isEmpty()) {
+            // 已经通过落盘门控、等着发出去的消息
             return true;
         }
         if (raft.getRaftLog().hasNextUnstableEnts()
@@ -470,8 +614,8 @@ public class RawNode {
     /**
      * raft 是否需要知道「已提交的日志已经应用到状态机了」
      */
-    private static boolean needStorageApplyRespMsg(Ready rd) {
-        return !rd.getCommittedEntries().isEmpty();
+    private static boolean needStorageApplyRespMsg(List<Entry> committedEnts) {
+        return committedEnts != null && !committedEnts.isEmpty();
     }
 
     /**

@@ -17,6 +17,8 @@
 package io.edap.raft.transport;
 
 import io.edap.Edap;
+import io.edap.log.Logger;
+import io.edap.log.LoggerManager;
 import io.edap.raft.Peer;
 import io.edap.raft.protocol.Message;
 
@@ -27,7 +29,9 @@ import io.edap.raft.protocol.Message;
  * 如果 {@code edap} 是本传输层自己创建的，{@link #start()} 会把 {@code Edap} 跑起来；
  * 如果是宿主应用共享的 {@code Edap}，则由宿主负责 run。</p>
  */
-public class NioRaftTransport implements RaftTransport {
+public class NioRaftTransport implements RaftTransport, TransportStats {
+
+    private static final Logger log = LoggerManager.getLogger(NioRaftTransport.class);
 
     private final RaftServer        server;
     private final Edap              edap;
@@ -65,6 +69,8 @@ public class NioRaftTransport implements RaftTransport {
             try {
                 edap.run();
             } catch (Exception e) {
+                // 根因藏在 cause 里，不打出来就只能靠猜
+                log.error("Start raft transport failed", l -> l.threw(e));
                 throw new io.edap.raft.RaftException("Start raft transport failed", e);
             }
         }
@@ -82,6 +88,32 @@ public class NioRaftTransport implements RaftTransport {
     @Override
     public void send(Peer peer, Message message) {
         client.send(peer, message);
+    }
+
+    @Override
+    public long getFramesSent() {
+        return client.getFramesSent();
+    }
+
+    @Override
+    public long getBytesSent() {
+        return client.getBytesSent();
+    }
+
+    @Override
+    public long getFramesReceived() {
+        // 入站（NIO 服务器收到的）+ 出站连接上读到的
+        return server.getReceivedFrames() + client.getFramesReceived();
+    }
+
+    @Override
+    public long getFramesDropped() {
+        return client.getFramesDropped();
+    }
+
+    @Override
+    public long getCriticalFramesDropped() {
+        return client.getCriticalFramesDropped();
     }
 
     private void onMessage(Message message) {

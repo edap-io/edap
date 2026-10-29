@@ -28,11 +28,28 @@ public class Entry {
     private final EntryType type;
     private final byte[]    data;
 
+    /**
+     * 请求 id，0 表示这条条目没有对应的客户端请求。
+     *
+     * <p>异步提案靠它把「提交」和「客户端的 future」对上：请求 id 随条目
+     * 一起复制到各个节点，任何节点都能在条目被提交时找到对应的调用方。</p>
+     *
+     * <p>不能用「index → future」的方式：客户端向 follower 提案时
+     * follower 会转发给 leader，本地拿不到 index；条目被新 leader 截断覆盖后，
+     * 同一个 index 会对应完全不同的提案，按 index 匹配会误报「提交成功」。</p>
+     */
+    private final long      requestId;
+
     public Entry(long index, long term, EntryType type, byte[] data) {
+        this(index, term, type, data, 0L);
+    }
+
+    public Entry(long index, long term, EntryType type, byte[] data, long requestId) {
         this.index = index;
         this.term = term;
         this.type = type;
         this.data = data == null ? new byte[0] : data;
+        this.requestId = requestId;
     }
 
     public long getIndex() {
@@ -52,15 +69,23 @@ public class Entry {
     }
 
     /**
+     * 请求 id，0 表示这条条目没有对应的客户端请求。
+     */
+    public long getRequestId() {
+        return requestId;
+    }
+
+    /**
      * 复制一条日志
      */
     public Entry copy() {
-        return new Entry(index, term, type, data);
+        return new Entry(index, term, type, data, requestId);
     }
 
     @Override
     public String toString() {
-        return "Entry{index=" + index + ", term=" + term + ", type=" + type + ", dataLen=" + data.length + "}";
+        return "Entry{index=" + index + ", term=" + term + ", type=" + type
+                + ", requestId=" + requestId + ", dataLen=" + data.length + "}";
     }
 
     @Override
@@ -72,7 +97,8 @@ public class Entry {
             return false;
         }
         Entry other = (Entry) o;
-        return index == other.index && term == other.term && type == other.type && Arrays.equals(data, other.data);
+        return index == other.index && term == other.term && type == other.type
+                && requestId == other.requestId && Arrays.equals(data, other.data);
     }
 
     @Override

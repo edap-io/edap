@@ -92,11 +92,15 @@ public class FileRaftStorageTest {
 
     /**
      * 硬状态落盘，重启后能读回来
+     *
+     * <p>commit 是易失的：它只在 term 或 vote 变化时搭车落盘，落盘的是陈旧下界，
+     * 而且不会超过日志的最后一条（否则重启后 {@code loadState} 会认为状态非法）。</p>
      */
     @Test
     void testHardStateSurvivesRestart(@TempDir Path dir) {
         try (FileRaftStorage s = new FileRaftStorage(dir)) {
-            s.setHardState(new HardState(7, 3, 12));
+            s.append(entries(1, 1, 2, 3));
+            s.setHardState(new HardState(7, 3, 2));
         }
 
         try (FileRaftStorage s = new FileRaftStorage(dir)) {
@@ -104,7 +108,99 @@ public class FileRaftStorageTest {
             assertNotNull(hs);
             assertEquals(7, hs.getTerm());
             assertEquals(3, hs.getVote());
-            assertEquals(12, hs.getCommit());
+            assertEquals(2, hs.getCommit());
+        }
+    }
+
+    /**
+     * commit 超过日志最后一条时要被压下来
+     */
+    @Test
+    void testCommitIsClampedToLastIndex(@TempDir Path dir) {
+        try (FileRaftStorage s = new FileRaftStorage(dir)) {
+            s.append(entries(1, 1, 2, 3));
+            s.setHardState(new HardState(7, 3, 12));
+        }
+
+        try (FileRaftStorage s = new FileRaftStorage(dir)) {
+            HardState hs = s.initialState();
+            assertNotNull(hs);
+            assertEquals(7, hs.getTerm());
+            // commit 被压到日志的最后一条
+            assertEquals(3, hs.getCommit());
+        }
+    }
+
+    /**
+     * 只有 commit 变化时不落盘
+     *
+     * <p>term 与 vote 没变，说明这一轮没有新的投票决定要保护，
+     * 不值得为它付一次 fsync。</p>
+     */
+    @Test
+    void testCommitOnlyChangeIsNotPersisted(@TempDir Path dir) {
+        try (FileRaftStorage s = new FileRaftStorage(dir)) {
+            s.append(entries(1, 1, 2, 3));
+            s.setHardState(new HardState(1, 0, 1));
+        }
+
+        try (FileRaftStorage s = new FileRaftStorage(dir)) {
+            // term/vote 没变，commit 的变化不写
+            s.setHardState(new HardState(1, 0, 3));
+            HardState hs = s.initialState();
+            assertNotNull(hs);
+            assertEquals(1, hs.getCommit());
+        }
+
+        // 重启后拿到的还是上一次落盘的值
+        try (FileRaftStorage s = new FileRaftStorage(dir)) {
+            HardState hs = s.initialState();
+            assertNotNull(hs);
+            assertEquals(1, hs.getCommit());
+        }
+    }
+
+    /**
+     * 硬状态与日志在同一次落盘里写进去
+     */
+    @Test
+    void testSaveWritesStateAndEntriesTogether(@TempDir Path dir) {
+        try (FileRaftStorage s = new FileRaftStorage(dir)) {
+            s.save(new HardState(2, 1, 2), entries(1, 1, 2));
+        }
+
+        try (FileRaftStorage s = new FileRaftStorage(dir)) {
+            HardState hs = s.initialState();
+            assertNotNull(hs);
+            assertEquals(2, hs.getTerm());
+            assertEquals(1, hs.getVote());
+            assertEquals(2, hs.getCommit());
+            assertEquals(2, s.lastIndex());
+            assertEquals(2, s.term(2).getTerm());
+        }
+    }
+
+    /**
+     * 冲突截断之后，term 与 vote 不能丢
+     */
+    @Test
+    void testTermSurvivesConflictTruncate(@TempDir Path dir) {
+        try (FileRaftStorage s = new FileRaftStorage(dir)) {
+            s.append(entries(1, 1, 2, 3));
+            s.setHardState(new HardState(2, 1, 1));
+            // 冲突截断：重写 index 2
+            s.append(entries(2, 5));
+            assertEquals(2, s.lastIndex());
+            assertEquals(5, s.term(2).getTerm());
+        }
+
+        try (FileRaftStorage s = new FileRaftStorage(dir)) {
+            HardState hs = s.initialState();
+            assertNotNull(hs);
+            assertEquals(2, hs.getTerm());
+            assertEquals(1, hs.getVote());
+            assertEquals(2, s.lastIndex());
+            assertEquals(5, s.term(2).getTerm());
         }
     }
 
@@ -231,8 +327,8 @@ public class FileRaftStorageTest {
             s.append(entries(1, 1, 2));
         }
 
-        // 往 log.bin 尾部追加一段垃圾（模拟写日志时崩溃）
-        Path logPath = dir.resolve("log.bin");
+        // 往 wal.bin 尾部追加一段垃圾（模拟写日志时崩溃）
+        Path logPath = dir.resolve("wal.bin");
         long size = Files.size(logPath);
         try (RandomAccessFile raf = new RandomAccessFile(logPath.toFile(), "rw")) {
             raf.seek(size);
@@ -259,7 +355,7 @@ public class FileRaftStorageTest {
         }
 
         // 改掉最后一条记录里的一个字节，CRC 就不对了
-        Path logPath = dir.resolve("log.bin");
+        Path logPath = dir.resolve("wal.bin");
         byte[] content = Files.readAllBytes(logPath);
         content[content.length - 1] ^= 0xFF;
         Files.write(logPath, content);
@@ -283,6 +379,35 @@ public class FileRaftStorageTest {
             assertEquals(1, got.size());
             assertArrayEquals(payload, got.get(0).getData());
             assertEquals(EntryType.NORMAL, got.get(0).getType());
+        }
+    }
+
+    /**
+     * 条目里的请求 id 要能原样读回来
+     *
+     * <p>异步提案靠请求 id 与「已提交条目」对上，日志落盘再读回来之后
+     * 请求 id 丢了，future 就永远等不到。</p>
+     */
+    @Test
+    void testEntryRequestId(@TempDir Path dir) {
+        long requestId = 0x0000_0003_0000_0007L;
+        try (FileRaftStorage s = new FileRaftStorage(dir)) {
+            s.append(Arrays.asList(
+                    new Entry(1, 1, EntryType.NORMAL, new byte[]{1}, requestId),
+                    new Entry(2, 1, EntryType.NORMAL, new byte[]{2})));
+
+            List<Entry> got = s.entries(1, 3);
+            assertEquals(2, got.size());
+            assertEquals(requestId, got.get(0).getRequestId());
+            assertEquals(0L, got.get(1).getRequestId());
+        }
+
+        // 重启之后还在
+        try (FileRaftStorage s = new FileRaftStorage(dir)) {
+            List<Entry> got = s.entries(1, 3);
+            assertEquals(2, got.size());
+            assertEquals(requestId, got.get(0).getRequestId());
+            assertEquals(0L, got.get(1).getRequestId());
         }
     }
 

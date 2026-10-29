@@ -20,7 +20,7 @@ import io.edap.raft.protocol.Entry;
 import io.edap.raft.protocol.HardState;
 import io.edap.raft.protocol.Snapshot;
 import io.edap.raft.storage.MemoryStorage;
-import io.edap.raft.storage.Storage;
+import io.edap.raft.storage.PersistentStorage;
 
 import java.util.List;
 import java.util.function.Supplier;
@@ -34,7 +34,7 @@ import java.util.function.Supplier;
  * 这样一来，快照里的数据是「已经应用到状态机的内容」，而不是
  * MemoryStorage 内部那个只在压缩时才更新的快照。</p>
  */
-public class InteractionStorage implements Storage {
+public class InteractionStorage implements PersistentStorage {
 
     /** 底层真正的存储 */
     private final MemoryStorage memory;
@@ -94,8 +94,17 @@ public class InteractionStorage implements Storage {
     }
 
     /**
+     * 一次落盘：硬状态与一批日志条目
+     */
+    @Override
+    public void save(HardState st, List<Entry> entries) {
+        memory.save(st, entries);
+    }
+
+    /**
      * 保存硬状态
      */
+    @Override
     public void setHardState(HardState st) {
         memory.setHardState(st);
     }
@@ -103,6 +112,7 @@ public class InteractionStorage implements Storage {
     /**
      * 应用快照
      */
+    @Override
     public void applySnapshot(Snapshot snap) {
         memory.applySnapshot(snap);
     }
@@ -110,13 +120,23 @@ public class InteractionStorage implements Storage {
     /**
      * 压缩日志，丢弃 firstIndex 之前的条目
      */
+    @Override
     public void compact(long newFirstIndex) {
         memory.compact(newFirstIndex);
     }
 
     /**
+     * 在 index 处生成一份快照
+     */
+    @Override
+    public Snapshot createSnapshot(long index, io.edap.raft.protocol.ConfState cs, byte[] data) {
+        return memory.createSnapshot(index, cs, data);
+    }
+
+    /**
      * 追加日志条目
      */
+    @Override
     public void append(List<Entry> entries) {
         memory.append(entries);
     }

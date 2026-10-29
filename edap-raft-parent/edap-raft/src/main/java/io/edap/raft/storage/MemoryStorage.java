@@ -30,7 +30,7 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * 内存实现的 {@link Storage}，等价于 etcd raft 的 {@code MemoryStorage}。
+ * 内存实现的 {@link PersistentStorage}，等价于 etcd raft 的 {@code MemoryStorage}。
  *
  * <p>内部用一个数组保存日志：{@code ents.get(i)} 对应的 raft log 位置是
  * {@code i + ents.get(0).getIndex()}。数组的第 0 个元素是占位条目
@@ -41,7 +41,7 @@ import java.util.List;
  * <p>所有方法都加锁：读侧在 Raft 核心线程上调用，写侧（{@link #append} 等）
  * 可能来自应用线程。</p>
  */
-public class MemoryStorage implements Storage {
+public class MemoryStorage implements PersistentStorage {
 
     /**
      * 占位条目：etcd 的 dummy entry，index/term 都是 0，表示“还没有任何日志”。
@@ -133,10 +133,35 @@ public class MemoryStorage implements Storage {
     }
 
     /**
+     * 一次落盘：硬状态与一批日志条目。
+     *
+     * <p>与 {@link FileRaftStorage} 的语义一致：硬状态只有在 <b>term 或 vote
+     * 变化</b>时才更新，commit 搭车写进去，落盘的是它的陈旧下界。
+     * 「只有 commit 变化」的轮次不产生任何副作用。</p>
+     */
+    @Override
+    public synchronized void save(HardState st, List<Entry> entries) {
+        if (entries != null && !entries.isEmpty()) {
+            append(entries);
+        }
+        if (st == null || st.getTerm() == 0) {
+            // term 为 0 说明还没选过主，没有需要保护的 term/vote
+            return;
+        }
+        boolean changed = hardState == null
+                ? (st.getTerm() != 0 || st.getVote() != 0)
+                : (st.getTerm() != hardState.getTerm() || st.getVote() != hardState.getVote());
+        if (changed) {
+            this.hardState = st;
+        }
+    }
+
+    /**
      * 保存当前的 HardState（term/vote/commit），应用层负责在回复投票请求前落盘
      */
+    @Override
     public synchronized void setHardState(HardState st) {
-        this.hardState = st;
+        save(st, null);
     }
 
     /**

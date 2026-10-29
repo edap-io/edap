@@ -41,8 +41,8 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 public final class AsyncProposalHarness {
 
-    /** 载荷：4 字节客户端 id + 8 字节序号 */
-    private static final int PAYLOAD_LEN = 12;
+    /** 载荷：4 字节客户端 id + 8 字节序号 + 4 字节填充，共 16 字节 */
+    private static final int PAYLOAD_LEN = 16;
 
     /** 统计状态机收到的提案数 */
     static final class CountingRaft extends Raft {
@@ -79,6 +79,11 @@ public final class AsyncProposalHarness {
         cfg.storage = storage;
         cfg.maxSizePerMsg = RaftConfig.NO_LIMIT;
         cfg.maxInflightMsgs = 256;
+        // 提案队列不设上限：
+        // 这个 harness 量的是「状态机能处理多少条提案」的天花板，不是背压。
+        // 而且 async-commit 模式下客户端是按序等提交的，
+        // 队列一旦有界，被丢掉的提案序号永远等不到提交 —— 客户端会死等。
+        cfg.maxPendingProposals = 0;
 
         CountingRaft raft = new CountingRaft(cfg);
         Node node = new Node(new RawNode(raft));
@@ -160,8 +165,16 @@ public final class AsyncProposalHarness {
             throw new IllegalStateException("node is not leader");
         }
 
-        boolean fireAndForget = "async".equals(mode);
+        // mode 的解析必须用 startsWith：
+        // 之前写的是 "async".equals(mode)，而 mode 的值是 "async-commit"，
+        // 恒为 false —— 于是 fire-and-forget 分支从来没执行过，
+        // 所有「异步」的数字其实跑的都是阻塞路径。
+        boolean fireAndForget = mode.startsWith("async");
         boolean waitCommit = mode.endsWith("-commit");
+        if (!fireAndForget && !waitCommit && !"sync".equals(mode)) {
+            throw new IllegalArgumentException(
+                    "unknown mode: " + mode + " (expect sync|sync-commit|async|async-commit)");
+        }
 
         // 端到端延迟：提案从发布到被观察到提交的耗时
         long[] latencies = new long[200_000];
@@ -294,6 +307,7 @@ public final class AsyncProposalHarness {
         ByteBuffer buf = ByteBuffer.allocate(PAYLOAD_LEN);
         buf.putInt(clientId);
         buf.putLong(seq);
+        buf.putInt(0);
         return buf.array();
     }
 }

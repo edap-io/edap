@@ -93,6 +93,9 @@ public class Raft {
     /** 日志输出器 */
     private final RaftLogger log;
 
+    /** 节点配置，只读 */
+    private final RaftConfig cfg;
+
     /** 单条追加消息的字节上限 */
     private final long maxMsgSize;
 
@@ -202,6 +205,7 @@ public class Raft {
 
         this.id = cfg.id;
         this.log = cfg.logger == null ? new DefaultRaftLogger() : cfg.logger;
+        this.cfg = cfg;
         this.raftLog = new RaftLog(cfg.storage, this.log);
         this.raftLog.setMaxApplyingEntsSize(cfg.maxCommittedSizePerReady);
         this.maxMsgSize = cfg.maxSizePerMsg;
@@ -265,6 +269,13 @@ public class Raft {
      */
     public long getId() {
         return id;
+    }
+
+    /**
+     * 节点配置。
+     */
+    public RaftConfig getRaftConfig() {
+        return cfg;
     }
 
     /**
@@ -1067,7 +1078,7 @@ public class Raft {
                 log.info("%x ignoring conf change %v at config %s: %s",
                         id, cc, trk.getConfig(), failedCheck);
                 // 把这条成员变更降级成普通条目
-                proposal.set(i, new Entry(entry.getIndex(), entry.getTerm(), EntryType.NORMAL, null));
+                proposal.set(i, new Entry(entry.getIndex(), entry.getTerm(), EntryType.NORMAL, null, entry.getRequestId()));
             } else {
                 pendingConfIndex = raftLog.lastIndex() + i + 1;
             }
@@ -1656,6 +1667,24 @@ public class Raft {
     // ------------------------------------------------------------------
 
     /**
+     * 这类消息必须等日志落盘之后才能发出去。
+     *
+     * <p>它们都是「应答」：投票确认与日志追加确认。发出去的意思是
+     * 「我已经把对应的日志持久化了」。提前发出去，对端会以为这些日志
+     * 已经安全 —— 机器掉电之后对端可能拿不回这些日志，而 leader
+     * 已经把它算进多数派了。</p>
+     *
+     * <p>复制类消息（{@link MessageType#MSG_APP}）与心跳不在此列：
+     * 它们不带任何持久化承诺，先发出去可以让对端立刻开始落盘，
+     * 与本节点的落盘重叠，两个 fsync 不串行。</p>
+     */
+    static boolean isPersistGated(MessageType type) {
+        return type == MessageType.MSG_APP_RESP
+                || type == MessageType.MSG_VOTE_RESP
+                || type == MessageType.MSG_PRE_VOTE_RESP;
+    }
+
+    /**
      * 排入一条要发出的消息。
      *
      * <p>投票类消息要求消息里已经带上了任期；其余消息要求任期为空
@@ -1682,8 +1711,7 @@ public class Raft {
                 m.setTerm(term);
             }
         }
-        if (type == MessageType.MSG_APP_RESP || type == MessageType.MSG_VOTE_RESP
-                || type == MessageType.MSG_PRE_VOTE_RESP) {
+        if (isPersistGated(type)) {
             msgsAfterAppend.add(m);
         } else {
             if (m.getTo() == id) {
@@ -1892,7 +1920,7 @@ public class Raft {
         List<Entry> cloned = new ArrayList<>(es.size());
         for (int i = 0; i < es.size(); i++) {
             Entry e = es.get(i);
-            cloned.add(new Entry(li + 1 + i, term, e.getType(), e.getData()));
+            cloned.add(new Entry(li + 1 + i, term, e.getType(), e.getData(), e.getRequestId()));
         }
 
         // 记账未提交日志的大小

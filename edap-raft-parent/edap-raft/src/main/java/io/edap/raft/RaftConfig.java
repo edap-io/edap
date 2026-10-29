@@ -16,7 +16,7 @@
 
 package io.edap.raft;
 
-import io.edap.raft.storage.Storage;
+import io.edap.raft.storage.PersistentStorage;
 
 /**
  * 启动一个 raft 节点的参数，等价于 etcd 的 {@code raft.Config}。
@@ -51,7 +51,26 @@ public class RaftConfig {
     /**
      * 日志存储，不能为 null。
      */
-    public Storage storage;
+    public PersistentStorage storage;
+
+    /**
+     * 是否由框架（{@link Node}）接管落盘。
+     *
+     * <p>false（默认）时与 etcd raft 的模型一致：应用层从 Ready 里取出
+     * 硬状态与日志条目，自己写进 {@link #storage}，写完再调 {@code advance()}。</p>
+     *
+     * <p>true 时框架在交付 Ready 之前先把硬状态与整批日志一次性落盘
+     * （只做一次 fsync），Ready 里不再带日志条目，应用层不要重复落盘。</p>
+     */
+    public boolean frameworkPersist;
+
+    /**
+     * 已提交条目的处理器，非 null 时启用独立 apply 线程。
+     *
+     * <p>非 null 时框架把已提交条目交给这个处理器，Ready 里不再带
+     * committedEntries。处理器在独立线程上被调用，实现要自己保证线程安全。</p>
+     */
+    public ApplyHandler applyHandler;
 
     /**
      * 重启时最后已应用的位置，只能在重启时设置。
@@ -80,6 +99,25 @@ public class RaftConfig {
      * <p>超过上限后新的提案会被丢弃，防止日志无限增长。</p>
      */
     public long maxUncommittedEntriesSize = NO_LIMIT;
+
+    /**
+     * 提案队列的容量上限，0 表示不限制。
+     *
+     * <p>默认 2048，与 dragonboat 的 {@code IncomingProposalQueueLength} 一致。</p>
+     *
+     * <p>注意这个上限只对<b>异步</b>提案路径有实际约束力：同步提案
+     * {@link Node#propose(byte[])} 阻塞到状态机 step 完，每个调用方最多只有
+     * 一条提案排在队列里，队列长度约等于并发调用方数。</p>
+     */
+    public int maxPendingProposals = 2048;
+
+    /**
+     * 提案队列满时的行为，默认 {@link ProposalFullPolicy#BLOCK}。
+     *
+     * <p>只影响同步提案路径。异步提案路径永远立刻拒绝
+     * （{@link RaftBusyException}），传输层回调路径永远丢弃。</p>
+     */
+    public ProposalFullPolicy proposalFullPolicy = ProposalFullPolicy.BLOCK;
 
     /**
      * 乐观复制阶段在途追加消息的条数上限，必须大于 0。
@@ -168,6 +206,9 @@ public class RaftConfig {
             maxInflightBytes = NO_LIMIT;
         } else if (maxInflightBytes < maxSizePerMsg) {
             throw new RaftException("max inflight bytes must be >= max message size");
+        }
+        if (maxPendingProposals < 0) {
+            throw new RaftException("max pending proposals must be >= 0");
         }
         if (readOnlyOption == ReadOnlyOption.READ_ONLY_LEASE_BASED && !checkQuorum) {
             throw new RaftException("CheckQuorum must be enabled when ReadOnlyOption is ReadOnlyLeaseBased");
