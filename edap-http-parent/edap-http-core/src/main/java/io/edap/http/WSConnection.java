@@ -4,6 +4,7 @@ import io.edap.http.ws.AbstractFrame;
 import io.edap.http.ws.BinaryFrame;
 import io.edap.http.ws.TextFrame;
 
+import java.io.IOException;
 import java.nio.channels.SocketChannel;
 import java.nio.charset.StandardCharsets;
 import java.util.Set;
@@ -24,7 +25,7 @@ public interface WSConnection {
 
     void sendFrame(AbstractFrame frame);
 
-    void flush();
+    void flush() throws IOException;
 
     default void sendText(String text) {
         sendFrame(new TextFrame(text.getBytes(StandardCharsets.UTF_8)));
