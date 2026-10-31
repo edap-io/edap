@@ -37,8 +37,10 @@ import org.junit.jupiter.api.Timeout;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
@@ -147,6 +149,37 @@ public class RaftNodeTest {
             f.get(5, TimeUnit.SECONDS);
         } finally {
             es.shutdownNow();
+        }
+    }
+
+    /**
+     * 停机必须是有界的：stop() 返回之后，节点的所有线程都已经退出。
+     *
+     * <p>回归的是一次真实事故：基准跑完之后 stop() 一直等状态机线程退出，
+     * 而状态机线程停在 park 上没醒（那一次 unpark 没能送到），
+     * 整个进程挂住不退出 —— 现场见 doc/RAFT_DESIGN.md §10.10.4。</p>
+     *
+     * <p>现在 park 带超时，线程最迟一秒就会醒来；万一还是没醒，
+     * stop() 也只等有界的时间，打印告警然后继续。</p>
+     */
+    @Test
+    void nodeStopIsBounded() {
+        Set<Thread> before = new HashSet<>(Thread.getAllStackTraces().keySet());
+        Node n = newNode(RaftTestSupport.newTestConfig(1, 10, 1,
+                RaftTestSupport.newTestMemoryStorage(1)));
+        Set<Thread> mine = new HashSet<>();
+        for (Thread t : Thread.getAllStackTraces().keySet()) {
+            if (!before.contains(t) && t.getName().startsWith("edap-raft")) {
+                mine.add(t);
+            }
+        }
+        assertFalse(mine.isEmpty(), "node threads not found");
+        long t0 = System.nanoTime();
+        n.stop();
+        long elapsed = (System.nanoTime() - t0) / 1_000_000;
+        assertTrue(elapsed < 5000, "stop() took " + elapsed + "ms");
+        for (Thread t : mine) {
+            assertFalse(t.isAlive(), "thread " + t.getName() + " still alive after stop()");
         }
     }
 

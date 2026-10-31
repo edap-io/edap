@@ -30,6 +30,7 @@ import io.edap.raft.protocol.MessageType;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
@@ -40,6 +41,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -92,6 +94,9 @@ public class Node {
 
     /** 提案队列的空间监视器：队列腾出位置时 notifyAll */
     private final Object proposalSpace = new Object();
+
+    /** 正在等提案队列腾位置的提案者数 */
+    private final AtomicInteger proposalSpaceWaiters = new AtomicInteger();
 
     /** 提案队列的空间版本号：队列每腾出一次位置就递增 */
     private final AtomicLong spaceVersion = new AtomicLong();
@@ -147,8 +152,16 @@ public class Node {
     /** 等待状态机线程处理的请求 */
     private final Set<PendingRequest> pendingRequests = ConcurrentHashMap.newKeySet();
 
-    /** 异步提案的待完成表：请求 id -> future */
-    private final ConcurrentHashMap<Long, CompletableFuture<Void>> pendingProposals = new ConcurrentHashMap<>();
+    /** 异步提案的待完成表：请求 id -> 待完成记录 */
+    private final ConcurrentHashMap<Long, PendingProposal> pendingProposals = new ConcurrentHashMap<>();
+
+    /**
+     * 已经通知过客户端的最大提交索引。
+     *
+     * <p>只由状态机线程读写。碎片批次合并期间同一个 Ready 会被反复
+     * 重新组装，用它来跳过已经通知过的那一段提交。</p>
+     */
+    private long lastNotifiedIndex;
 
     /** 异步提案的请求 id 序号 */
     private final AtomicLong requestSeq = new AtomicLong();
@@ -184,6 +197,35 @@ public class Node {
 
     /** 落盘线程，框架不接管落盘时为 null */
     private final Thread persistThread;
+
+    /** 超时清扫线程：把到期的异步提案结束掉 */
+    private final Thread timeoutThread;
+
+    /**
+     * 落盘线程累计的忙时（纳秒）：只统计真正在写 + fsync 的时间。
+     *
+     * <p>落盘线程自己写，落盘线程自己读；读到的永远是已经发生过的值，
+     * 用来算「忙时占比」不需要精确到纳秒。</p>
+     */
+    private final AtomicLong persistBusyNanos = new AtomicLong();
+
+    /**
+     * 忙时占比的统计窗口起点（纳秒）。只有状态机线程读写。
+     */
+    private long busyWindowStartNanos;
+
+    /**
+     * 统计窗口起点时的累计忙时（纳秒）。只有状态机线程读写。
+     */
+    private long busyWindowStartBusyNanos;
+
+    /**
+     * 最近的落盘忙时占比：落盘线程有多少比例的时间在真的写 + fsync。
+     *
+     * <p>负数表示还没测出来（第一个统计窗口没走完）。
+     * 只有状态机线程读写。</p>
+     */
+    private double persistBusyRatio = -1.0;
 
     /** 提案是否被阻塞：节点被移出集群之后不再接收提案 */
     private boolean proposalBlocked;
@@ -224,6 +266,10 @@ public class Node {
         } else {
             this.persistThread = null;
         }
+        this.timeoutThread = new Thread(this::runTimeoutSweeper,
+                "edap-raft-timeout-" + rawNode.getRaft().getId());
+        this.timeoutThread.setDaemon(true);
+        this.timeoutThread.start();
     }
 
     /**
@@ -360,7 +406,10 @@ public class Node {
         CompletableFuture<Void> future = new CompletableFuture<>();
         // 先注册再入队：提案有可能比 proposeAsync 返回还快，
         // 先入队的话提交事件会先于注册发生，future 就永远等不到了。
-        pendingProposals.put(requestId, future);
+        long deadlineNanos = timeoutMillis > 0
+                ? System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMillis)
+                : 0L;
+        pendingProposals.put(requestId, new PendingProposal(future, deadlineNanos));
         Message m = new Message().setType(MessageType.MSG_PROP)
                 .setEntries(Collections.singletonList(
                         new Entry(0, 0, EntryType.NORMAL, data, requestId)));
@@ -370,11 +419,6 @@ public class Node {
             pendingProposals.remove(requestId);
             future.completeExceptionally(pm.getError());
             return future;
-        }
-        if (timeoutMillis > 0) {
-            future.orTimeout(timeoutMillis, TimeUnit.MILLISECONDS);
-            // 超时之后要把表里的条目摘掉，否则表会无限增长
-            future.whenComplete((v, t) -> pendingProposals.remove(requestId));
         }
         return future;
     }
@@ -640,8 +684,47 @@ public class Node {
             // 让落盘线程从等待里醒过来，它看到 stopped 就会退出
             persistThread.interrupt();
         }
+        // 让超时清扫线程从等待里醒过来，它看到 stopped 就会退出
+        LockSupport.unpark(timeoutThread);
+        // 先等落盘线程：它可能正写盘。等它退出，调用方才能安全地关存储 ——
+        // 否则 close() 会和一次还在进行的 fsync 撞在一起。
+        joinBounded(persistThread, PERSIST_JOIN_TIMEOUT_MILLIS, "persist");
+        joinBounded(applyThread, APPLY_JOIN_TIMEOUT_MILLIS, "apply");
+        joinBounded(timeoutThread, TIMEOUT_JOIN_TIMEOUT_MILLIS, "timeout");
+        joinBounded(worker, WORKER_JOIN_TIMEOUT_MILLIS, "worker");
+    }
+
+    /**
+     * 等一个线程退出，最多等 {@code timeoutMillis}。
+     *
+     * <p>等到就返回；等不到就打印告警（带线程栈）、打断它，
+     * 再给一小段时间，然后放弃 —— 停机不能因为一个线程卡住而把调用方也拖死。
+     * 线程都是守护线程，放弃之后它们也不会挡住 JVM 退出。</p>
+     */
+    private void joinBounded(Thread t, long timeoutMillis, String name) {
+        if (t == null) {
+            return;
+        }
         try {
-            worker.join();
+            t.join(timeoutMillis);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return;
+        }
+        if (!t.isAlive()) {
+            return;
+        }
+        // 没退出：把它的栈打出来，下一次再遇到就能直接定位
+        StringBuilder sb = new StringBuilder("raft: thread ").append(name)
+                .append(" did not exit within ").append(timeoutMillis)
+                .append("ms, interrupting it; stack:");
+        for (StackTraceElement ste : t.getStackTrace()) {
+            sb.append("\n\tat ").append(ste);
+        }
+        log.warn(sb.toString());
+        t.interrupt();
+        try {
+            t.join(STOP_JOIN_RETRY_MILLIS);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
@@ -770,24 +853,38 @@ public class Node {
      * @param version 进入等待前看到的空间版本号；空间已经腾出来就不用等
      */
     private void awaitProposalSpace(long version) {
-        synchronized (proposalSpace) {
-            if (spaceVersion.get() != version) {
-                // 空间已经被腾出来了，白等
-                return;
+        // 先登记自己是等待者，再进监视器：
+        // 状态机线程看到「有人在等」才会 notifyAll
+        proposalSpaceWaiters.incrementAndGet();
+        try {
+            synchronized (proposalSpace) {
+                if (spaceVersion.get() != version) {
+                    // 空间已经被腾出来了，白等
+                    return;
+                }
+                try {
+                    proposalSpace.wait(PROPOSAL_SPACE_WAIT_MILLIS);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
             }
-            try {
-                proposalSpace.wait(PROPOSAL_SPACE_WAIT_MILLIS);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
+        } finally {
+            proposalSpaceWaiters.decrementAndGet();
         }
     }
 
     /**
      * 通知等着入队的提案者：队列腾出位置了。
+     *
+     * <p>没有等待者时直接跳过：{@code notifyAll} 是 native 调用，
+     * 每次调用都是一次 JVM safepoint —— 全线程都要停一下。
+     * 队列每腾空一次就通知一次，在提案速率高的时候会白白拖慢整个进程。</p>
      */
     private void notifyProposalSpace() {
         spaceVersion.incrementAndGet();
+        if (proposalSpaceWaiters.get() == 0) {
+            return;
+        }
         synchronized (proposalSpace) {
             proposalSpace.notifyAll();
         }
@@ -852,6 +949,14 @@ public class Node {
         boolean dirty = false;
         // 当前正在落盘的任务，null 表示没有落盘在进行
         PersistTask persistTask = null;
+        // 碎片批次合并：等到这个时刻为止还在等新提案；0 表示不在等
+        long deferUntilNanos = 0;
+        // 碎片批次合并：这一轮推迟从什么时候开始（总时长上限）
+        long deferStartNanos = 0;
+        // 碎片批次合并：预计会到来的新提案条数（上一批通知了多少个客户端）
+        int expectBatchSize = 0;
+        // 碎片批次合并：上一次判断时本批的条目数（用来发现「批还在长」）
+        int deferSeenEntries = -1;
         long lead = Raft.NONE;
 
         try {
@@ -873,6 +978,9 @@ public class Node {
                                 r.getId(), lead, r.getTerm());
                     }
                     lead = currentLead;
+                    // 换了 leader：上一任的通知跟这一任对不上，预期作废
+                    expectBatchSize = 0;
+                    deferUntilNanos = 0;
                 }
 
                 // 提案：只有知道 leader 的时候才处理，否则提案阻塞在这里。
@@ -973,41 +1081,80 @@ public class Node {
                         rd.setCommittedEntries(Collections.emptyList());
                     }
                     // 提案被提交：结束对应的异步提案
-                    completePendingProposals(rdCommitted);
+                    int notified = completePendingProposals(rdCommitted);
+                    if (notified > 0) {
+                        // 通知了多少个客户端，就预计会回来同样数量的新提案。
+                        // 下一批攒到这个量再落盘，一次 fsync 就能覆盖整批。
+                        expectBatchSize = notified;
+                    }
                     rdPersisted = false;
-                    readyPending = true;
                     dirty = false;
-                    if (frameworkPersist) {
-                        // 确认类消息等落盘完成之后再发出去，先从状态机里摘下来
-                        List<Message> gated = rn.takePersistGatedMessages();
-                        // 立刻接管这个 Ready：raft 的消息列表清空，消息都收进 Ready 里。
-                        // 之后状态机可以继续 step 提案（攒下一批），新产生的消息
-                        // 不会因为 acceptReady 而被抹掉。
-                        rn.acceptReady(rd, rdCommitted);
-                        rdAccepted = true;
-                        // 已提交条目分两批：已经落盘的可以立刻应用，
-                        // 还在这一批日志里的要等落盘完成 ——
-                        // 应用层看到的状态不能比日志更靠前
-                        List<Entry> committedPending = Collections.emptyList();
-                        if (applyHandler != null && !rdCommitted.isEmpty()) {
-                            int split = splitCommitted(rdCommitted, rdEntries);
-                            if (split > 0) {
-                                applyq.add(new ArrayList<>(rdCommitted.subList(0, split)));
-                            }
-                            committedPending = new ArrayList<>(rdCommitted.subList(split, rdCommitted.size()));
+                    // 碎片批次合并：这一批只有零星几条，而刚刚提交了更多条目 ——
+                    // 拿到通知的客户端马上会发新提案过来，等它们到齐再一起落盘，
+                    // 比「为一条条目付一次 fsync」划算得多。
+                    boolean deferred = false;
+                    if (frameworkPersist && shouldDeferPersist(rd, rdEntries, expectBatchSize)) {
+                        long now = System.nanoTime();
+                        if (deferUntilNanos == 0) {
+                            // 开始这一轮推迟
+                            deferUntilNanos = now + TimeUnit.MILLISECONDS.toNanos(DEFER_WAIT_MILLIS);
+                            deferStartNanos = now;
+                        } else if (rdEntries.size() != deferSeenEntries) {
+                            // 批还在长：把等待窗口往后延，才能等到整批
+                            deferUntilNanos = now + TimeUnit.MILLISECONDS.toNanos(DEFER_WAIT_MILLIS);
                         }
-                        // 交给落盘线程：一次 write + 一次 fsync。
-                        persistTask = new PersistTask(rd, rdEntries, gated, committedPending);
-                        persistq.add(persistTask);
-                        // 有独立 apply 线程时，Ready 可以立刻交付：
-                        // 复制消息早发出去，对端可以立刻开始落盘，
-                        // 与本节点的落盘重叠，两个 fsync 不串行。
-                        // 带快照的 Ready 要等落盘完成 —— 快照必须先进存储。
-                        // 没有独立 apply 线程时，Ready 带着已提交条目，
-                        // 要等落盘完成才能交给应用层。
-                        rdWaitPersist = applyHandler == null || rd.getSnapshot() != null;
-                    } else {
-                        rdWaitPersist = false;
+                        deferSeenEntries = rdEntries.size();
+                        long waited = now - deferStartNanos;
+                        if (now < deferUntilNanos
+                                && waited < TimeUnit.MILLISECONDS.toNanos(DEFER_MAX_WAIT_MILLIS)) {
+                            deferred = true;
+                            // 丢弃这个 Ready：readyWithoutAccept() 是只读的，
+                            // 下一轮重新组装，条目会更多。
+                            // 消息也还在状态机里（acceptReady 才会清空它们），
+                            // 下一轮的 Ready 会带上。
+                            rd = null;
+                            rdEntries = Collections.emptyList();
+                            rdCommitted = Collections.emptyList();
+                            readyPending = false;
+                            dirty = true;
+                        }
+                    }
+                    if (!deferred) {
+                        deferUntilNanos = 0;
+                        deferSeenEntries = -1;
+                        readyPending = true;
+                        if (frameworkPersist) {
+                            // 确认类消息等落盘完成之后再发出去，先从状态机里摘下来
+                            List<Message> gated = rn.takePersistGatedMessages();
+                            // 立刻接管这个 Ready：raft 的消息列表清空，消息都收进 Ready 里。
+                            // 之后状态机可以继续 step 提案（攒下一批），新产生的消息
+                            // 不会因为 acceptReady 而被抹掉。
+                            rn.acceptReady(rd, rdCommitted);
+                            rdAccepted = true;
+                            // 已提交条目分两批：已经落盘的可以立刻应用，
+                            // 还在这一批日志里的要等落盘完成 ——
+                            // 应用层看到的状态不能比日志更靠前
+                            List<Entry> committedPending = Collections.emptyList();
+                            if (applyHandler != null && !rdCommitted.isEmpty()) {
+                                int split = splitCommitted(rdCommitted, rdEntries);
+                                if (split > 0) {
+                                    applyq.add(new ArrayList<>(rdCommitted.subList(0, split)));
+                                }
+                                committedPending = new ArrayList<>(rdCommitted.subList(split, rdCommitted.size()));
+                            }
+                            // 交给落盘线程：一次 write + 一次 fsync。
+                            persistTask = new PersistTask(rd, rdEntries, gated, committedPending);
+                            persistq.add(persistTask);
+                            // 有独立 apply 线程时，Ready 可以立刻交付：
+                            // 复制消息早发出去，对端可以立刻开始落盘，
+                            // 与本节点的落盘重叠，两个 fsync 不串行。
+                            // 带快照的 Ready 要等落盘完成 —— 快照必须先进存储。
+                            // 没有独立 apply 线程时，Ready 带着已提交条目，
+                            // 要等落盘完成才能交给应用层。
+                            rdWaitPersist = applyHandler == null || rd.getSnapshot() != null;
+                        } else {
+                            rdWaitPersist = false;
+                        }
                     }
                 }
 
@@ -1039,8 +1186,24 @@ public class Node {
                 // 唤醒标志被清掉说明这一轮确实没活干，可以睡。
                 // 生产者在这两步之间塞消息也不会丢：它会置上标志并 unpark，
                 // LockSupport 会记住这次 unpark，park 立刻返回。
+                //
+                // 这里用带超时的 park 而不是无限期 park：万一有一次 unpark
+                // 没能送到（实测出现过一次，1/约 100 次运行），无限期 park
+                // 的线程就再也醒不过来了 —— 停机时 stop() 会一直等它退出。
+                // 带超时的 park 最多晚 WORKER_PARK_MILLIS 就能醒来重新看一眼
+                // stopped，代价是每个节点每秒多醒一次（空转一轮循环，可忽略）。
                 if (!wakeupFlag.getAndSet(false)) {
-                    LockSupport.park(this);
+                    if (deferUntilNanos > 0) {
+                        // 碎片批次合并：等新提案到齐。
+                        // 有新提案到达时会被 unpark 提前唤醒；
+                        // 没人来就等到窗口结束为止。
+                        long remain = deferUntilNanos - System.nanoTime();
+                        if (remain > 0) {
+                            LockSupport.parkNanos(this, remain);
+                        }
+                    } else {
+                        LockSupport.parkNanos(this, WORKER_PARK_NANOS);
+                    }
                 }
             }
         } catch (InterruptedException e) {
@@ -1056,11 +1219,18 @@ public class Node {
      * <p>快照要排在日志前面 —— 快照之后的日志才能接在它后面写。</p>
      */
     private void persist(Ready rd, List<Entry> entries) {
-        io.edap.raft.storage.PersistentStorage storage = rn.getStorage();
-        if (rd.getSnapshot() != null) {
-            storage.applySnapshot(rd.getSnapshot());
+        long t0 = System.nanoTime();
+        try {
+            io.edap.raft.storage.PersistentStorage storage = rn.getStorage();
+            if (rd.getSnapshot() != null) {
+                storage.applySnapshot(rd.getSnapshot());
+            }
+            storage.save(rd.getHardState(), entries);
+        } finally {
+            // 落盘线程的忙时：只统计真正在写 + fsync 的时间。
+            // 碎片批次合并用它判断「瓶颈在不在 fsync 上」。
+            persistBusyNanos.addAndGet(System.nanoTime() - t0);
         }
-        storage.save(rd.getHardState(), entries);
     }
 
     /**
@@ -1167,6 +1337,92 @@ public class Node {
             this.error = t;
             this.done = true;
         }
+    }
+
+    /**
+     * 这一批日志要不要推迟落盘（碎片批次合并）。
+     *
+     * <p>leader 刚提交了一批条目，拿到通知的客户端会马上发同样数量的新提案
+     * 过来。如果这时候只攒到零星几条就落盘，一次 fsync（十几毫秒）只覆盖了
+     * 几条条目 —— 吞吐被 fsync 次数卡住，而不是被条目数卡住。
+     * 等新提案到齐再一起落盘，一次 fsync 就能覆盖整批。</p>
+     *
+     * <p>只有 leader 这么做：跟随者的批次由 leader 的复制消息决定，
+     * 推迟落盘只会推迟自己的确认消息，反过来拖慢 leader 的提交。</p>
+     *
+     * <p>还要满足「瓶颈在 fsync 上」这个前提：落盘线程的忙时占比
+     * （见 {@link #currentPersistBusyRatio()}）太低时，合并 fsync 省不出吞吐，
+     * 只会把这一轮的复制消息一起拖住。</p>
+     *
+     * @param rd      这一轮组装出来的 Ready
+     * @param entries 这一轮要落盘的日志条目
+     * @param expect  预计会到来的新提案条数（上一批通知了多少个客户端）
+     * @return true 表示这一轮先不落盘，等更多条目并进来
+     */
+    private boolean shouldDeferPersist(Ready rd, List<Entry> entries, int expect) {
+        if (entries.isEmpty()) {
+            // 空批次的落盘不要钱（没有日志要写），不用等
+            return false;
+        }
+        if (rd.getSnapshot() != null || !rd.getReadStates().isEmpty()) {
+            // 快照必须先进存储；线性一致读的确认也不能拖
+            return false;
+        }
+        Raft r = rn.getRaft();
+        if (r.getLead() != r.getId()) {
+            return false;
+        }
+        if (expect < DEFER_MIN_COMMITTED) {
+            // 刚提交的量太小，等来的新提案也少，不值得
+            return false;
+        }
+        double busy = currentPersistBusyRatio();
+        if (busy >= 0 && busy < DEFER_MIN_BUSY_RATIO) {
+            // 落盘线程有大半时间在闲着 ⇒ 瓶颈不在 fsync 上 ⇒
+            // 少一次 fsync 省下来的时间没有产出，推迟落盘换来的只是延迟。
+            //
+            // 深窗口（提案堆到几千条）就是这种状态：批本来就能攒得很大，
+            // 推迟落盘会把复制消息一起拖住（Ready 里的消息跟条目一起被推迟），
+            // 提交变慢 → 客户端补位不上 → 批更小 → 继续推迟，
+            // 变成反向的自维持正反馈。
+            return false;
+        }
+        // 本批还没攒到预期量：这是一个碎片
+        return entries.size() < expect;
+    }
+
+    /**
+     * 落盘线程最近一个统计窗口内的忙时占比。
+     *
+     * <p>「忙时占比」= 落盘线程花在写 + fsync 上的时间 / 墙钟时间。
+     * 这个比例回答的是：<b>瓶颈在不在 fsync 上</b>。</p>
+     *
+     * <ul>
+     * <li>接近 1：落盘线程一直在 fsync ⇒ 系统被 fsync 卡住 ⇒
+     *     把碎片批次合并掉能直接换来吞吐。</li>
+     * <li>明显小于 1：落盘线程在等网络、等对端确认 ⇒ 合并 fsync 省不出东西，
+     *     只会把这一轮的复制消息一起拖住。</li>
+     * </ul>
+     *
+     * <p>只由状态机线程调用。</p>
+     *
+     * @return 占比（0~1）；负数表示第一个统计窗口还没走完，测不出来
+     */
+    private double currentPersistBusyRatio() {
+        long now = System.nanoTime();
+        if (busyWindowStartNanos == 0) {
+            busyWindowStartNanos = now;
+            busyWindowStartBusyNanos = persistBusyNanos.get();
+            return persistBusyRatio;
+        }
+        long elapsed = now - busyWindowStartNanos;
+        if (elapsed >= TimeUnit.MILLISECONDS.toNanos(DEFER_BUSY_WINDOW_MILLIS)) {
+            long busy = persistBusyNanos.get();
+            persistBusyRatio = (double) (busy - busyWindowStartBusyNanos) / (double) elapsed;
+            busyWindowStartNanos = now;
+            busyWindowStartBusyNanos = busy;
+        }
+        return persistBusyRatio;
     }
 
     /**
@@ -1305,22 +1561,36 @@ public class Node {
      * 提案被提交时完成对应的异步提案。
      *
      * <p>幂等：状态机线程可能重复组装同一个 Ready，第二次
-     * {@code remove} 返回 null，没有副作用。</p>
+     * {@code remove} 返回 null，没有副作用。已经通知过的那一段提交
+     * 直接跳过 —— 碎片批次合并期间同一个 Ready 会被反复重新组装，
+     * 每次都重扫一遍已提交的条目是白白的开销。</p>
+     *
+     * @return 本次实际通知到的客户端数。碎片批次合并用它估算
+     *         「接下来会来多少条新提案」。
      */
-    private void completePendingProposals(List<Entry> committed) {
+    private int completePendingProposals(List<Entry> committed) {
         if (pendingProposals.isEmpty() || committed == null || committed.isEmpty()) {
-            return;
+            return 0;
         }
+        long lastIndex = committed.get(committed.size() - 1).getIndex();
+        if (lastIndex <= lastNotifiedIndex) {
+            // 这一段已经通知过了
+            return 0;
+        }
+        int notified = 0;
         for (Entry e : committed) {
             long requestId = e.getRequestId();
             if (requestId == 0) {
                 continue;
             }
-            CompletableFuture<Void> f = pendingProposals.remove(requestId);
-            if (f != null) {
-                f.complete(null);
+            PendingProposal p = pendingProposals.remove(requestId);
+            if (p != null) {
+                p.future.complete(null);
+                notified++;
             }
         }
+        lastNotifiedIndex = lastIndex;
+        return notified;
     }
 
     /**
@@ -1330,9 +1600,48 @@ public class Node {
         if (requestId == 0) {
             return;
         }
-        CompletableFuture<Void> f = pendingProposals.remove(requestId);
-        if (f != null) {
-            f.completeExceptionally(t);
+        PendingProposal p = pendingProposals.remove(requestId);
+        if (p != null) {
+            p.future.completeExceptionally(t);
+        }
+    }
+
+    /**
+     * 超时清扫线程：把到期的异步提案结束掉。
+     *
+     * <p>这条线程替代 {@link CompletableFuture#orTimeout}：后者在 JVM 全局的
+     * 延迟队列上给每条提案挂一个定时任务，提案正常完成时还要把定时任务取回来，
+     * 取的动作是线性扫描 —— 在途提案越多，扫得越久。</p>
+     *
+     * <p>这里改成定时扫一遍待完成表：扫的代价是 O(在途提案数)，
+     * 但只在这条线程上发生，而且表里只有「还没被提交」的提案 ——
+     * 提案一提交就被摘掉了，比全局延迟队列里堆积的定时任务少得多。</p>
+     */
+    private void runTimeoutSweeper() {
+        while (!stopped.get()) {
+            sweepTimeouts();
+            LockSupport.parkNanos(this, PROPOSAL_TIMEOUT_SWEEP_NANOS);
+        }
+    }
+
+    /**
+     * 扫一遍待完成表，把到期的提案超时结束掉。
+     */
+    private void sweepTimeouts() {
+        if (pendingProposals.isEmpty()) {
+            return;
+        }
+        long now = System.nanoTime();
+        for (Map.Entry<Long, PendingProposal> e : pendingProposals.entrySet()) {
+            PendingProposal p = e.getValue();
+            if (p.deadlineNanos == 0 || p.deadlineNanos > now) {
+                continue;
+            }
+            // 只有还是这一条记录时才超时结束它：
+            // 提案可能刚好在这期间被提交掉了
+            if (pendingProposals.remove(e.getKey(), p)) {
+                p.future.completeExceptionally(new TimeoutException("raft proposal timed out"));
+            }
         }
     }
 
@@ -1387,8 +1696,8 @@ public class Node {
         // 队列腾空了，唤醒等着入队的提案者 —— 它们会看到 stopped 并失败
         notifyProposalSpace();
         // 所有还在等着的异步提案都结束掉
-        for (CompletableFuture<Void> f : pendingProposals.values()) {
-            f.completeExceptionally(new RaftException("raft: stopped"));
+        for (PendingProposal p : pendingProposals.values()) {
+            p.future.completeExceptionally(new RaftException("raft: stopped"));
         }
         pendingProposals.clear();
         for (PendingRequest req : pendingRequests) {
@@ -1458,12 +1767,77 @@ public class Node {
             Integer.getInteger("edap.raft.propBatchLimit", PROPOSAL_DRAIN_LIMIT);
 
     /**
+     * 碎片批次合并：等待新提案到齐的时间上限（毫秒）。
+     *
+     * <p>leader 攒到一批零星条目就落盘时，一次 fsync（十几毫秒）只覆盖了
+     * 几条条目 —— 吞吐被 fsync 次数而不是条目数卡住。等刚被通知的客户端
+     * 把新提案发过来再一起落盘，一次 fsync 就能覆盖整批。</p>
+     *
+     * <p>这个值是兜底：新提案迟迟不来时不能一直等下去。</p>
+     */
+    private static final long DEFER_WAIT_MILLIS =
+            Long.getLong("edap.raft.deferWaitMillis", 10L);
+
+    /**
+     * 碎片批次合并：刚提交（并已通知客户端）的条目数达到这个值才值得等。
+     *
+     * <p>提交量太小的时候等来的新提案也少，不值得为它多花一次等待。</p>
+     */
+    private static final int DEFER_MIN_COMMITTED =
+            Integer.getInteger("edap.raft.deferMinCommitted", 2);
+
+    /**
+     * 碎片批次合并：一轮推迟最多等这么久（毫秒）。
+     *
+     * <p>等待窗口在批次还在增长时会不断往后延（这样才能等到整批），
+     * 这个上限是防止「新提案一直来一点点」时无限期地等下去。</p>
+     */
+    private static final long DEFER_MAX_WAIT_MILLIS =
+            Long.getLong("edap.raft.deferMaxWaitMillis", 50L);
+
+    /**
+     * 碎片批次合并：落盘线程的忙时占比低于这个值就不推迟。
+     *
+     * <p>判据是「瓶颈在不在 fsync 上」：落盘线程有大半时间闲着，
+     * 说明系统在等网络而不是等磁盘，这时候合并 fsync 省不出吞吐，
+     * 只会把这一轮一起推迟。</p>
+     *
+     * <p>取值依据（本机 3 节点真盘实测，16 客户端，窗口 1/16/256/1024）：
+     * 合并有用的三个窗口忙时占比是 0.88 / 0.84 / 0.71，
+     * 合并有害的深窗口是 0.36 —— 0.5 落在中间，两侧都留了余量。</p>
+     */
+    private static final double DEFER_MIN_BUSY_RATIO =
+            Double.parseDouble(System.getProperty("edap.raft.deferMinBusyRatio", "0.5"));
+
+    /**
+     * 忙时占比的统计窗口（毫秒）。
+     *
+     * <p>窗口要够长才能把 fsync 的抖动平均掉：一次 fsync 十几毫秒，
+     * 窗口太短的话测出来的比例会在阈值附近来回跳，
+     * 深窗口里就会有一小部分轮次被误判成「fsync 是瓶颈」而白白推迟。</p>
+     *
+     * <p>实测（本机 3 节点真盘、16 客户端）：500ms 的窗口在窗口 1024 上
+     * 还会残留 6.6% 的推迟，吞吐比完全不推迟低 7%；改成 1000ms 之后
+     * 残留的推迟可以忽略，吞吐与不推迟持平，而窗口 256 的收益（+39%）不变。</p>
+     */
+    private static final long DEFER_BUSY_WINDOW_MILLIS =
+            Long.getLong("edap.raft.deferBusyWindowMillis", 1000L);
+
+    /**
      * 等提案队列腾出位置时的单次等待时长。
      *
      * <p>只是兜底：正常情况下状态机线程排空队列后会 notifyAll，
      * 这里的超时是为了防止丢通知导致提案者永久挂起。</p>
      */
     private static final long PROPOSAL_SPACE_WAIT_MILLIS = 50;
+
+    /**
+     * 异步提案超时的清扫周期。
+     *
+     * <p>超时的精度就是这一个周期：提案到期后最多晚这么久才结束。</p>
+     */
+    private static final long PROPOSAL_TIMEOUT_SWEEP_NANOS =
+            TimeUnit.MILLISECONDS.toNanos(100);
 
     /**
      * 丢弃提案的告警间隔：每丢弃这么多条告警一次。
@@ -1483,6 +1857,42 @@ public class Node {
     private static final long PERSIST_POLL_MILLIS = 100;
 
     /**
+     * 状态机线程空闲时的单次等待时长。
+     *
+     * <p>带超时而不是无限期等待：万一有一次 unpark 没能送到，
+     * 线程最迟在这个时长之后也会醒来重新看一眼 {@code stopped}。
+     * 无限期 park 的线程一旦丢掉唤醒就再也醒不过来，
+     * 停机时 {@code stop()} 会一直等它退出。</p>
+     */
+    private static final long WORKER_PARK_NANOS = TimeUnit.SECONDS.toNanos(1);
+
+    /**
+     * 停机时等待落盘线程退出的时长。落盘线程可能正卡在一次 fsync 上，
+     * 所以给得比别个线程长。
+     */
+    private static final long PERSIST_JOIN_TIMEOUT_MILLIS = 5000;
+
+    /**
+     * 停机时等待 apply 线程退出的时长。
+     */
+    private static final long APPLY_JOIN_TIMEOUT_MILLIS = 2000;
+
+    /**
+     * 停机时等待超时清扫线程退出的时长。
+     */
+    private static final long TIMEOUT_JOIN_TIMEOUT_MILLIS = 1000;
+
+    /**
+     * 停机时等待状态机线程退出的时长。
+     */
+    private static final long WORKER_JOIN_TIMEOUT_MILLIS = 5000;
+
+    /**
+     * 打断线程之后再给它的收尾时间。
+     */
+    private static final long STOP_JOIN_RETRY_MILLIS = 1000;
+
+    /**
      * 等待状态机线程处理的请求。
      */
     private interface PendingRequest {
@@ -1491,6 +1901,29 @@ public class Node {
          * 节点停止时调用，唤醒等待中的调用方。
          */
         void abort();
+    }
+
+    /**
+     * 一条还在等提交的异步提案。
+     *
+     * <p>超时时刻放在这里，而不是用 {@link CompletableFuture#orTimeout}：
+     * {@code orTimeout} 会往 JVM 全局共享的延迟队列里塞一个定时任务，
+     * 提案正常完成时又要把那个任务取回来 —— 取的动作是<b>线性扫描</b>，
+     * 队列里堆积的定时任务越多扫得越久。提案速率一高，
+     * 每条提案都要付一次 O(在途提案数) 的扫描，整体退化成 O(n²)。</p>
+     */
+    private static final class PendingProposal {
+
+        /** 提案完成后的 future */
+        private final CompletableFuture<Void> future;
+
+        /** 到期时刻（{@link System#nanoTime()} 基准），0 表示不限时 */
+        private final long deadlineNanos;
+
+        PendingProposal(CompletableFuture<Void> future, long deadlineNanos) {
+            this.future = future;
+            this.deadlineNanos = deadlineNanos;
+        }
     }
 
     /**

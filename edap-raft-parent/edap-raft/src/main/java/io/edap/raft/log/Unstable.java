@@ -250,6 +250,21 @@ public class Unstable {
     }
 
     /**
+     * 还有没有未落盘的条目 —— 与 {@link #nextEntries()} 判定的是同一批，
+     * 但不复制列表。
+     *
+     * <p>状态机线程每轮都要问一次「还有没有 Ready」，用列表长度判断比
+     * 复制整批条目便宜得多。</p>
+     */
+    public boolean hasNextEntries() {
+        long inProgress = offsetInProgress - offset;
+        if (inProgress < 0) {
+            inProgress = 0;
+        }
+        return entries.size() > inProgress;
+    }
+
+    /**
      * 还没有进入落盘流程的快照，没有或者正在落盘返回 null
      */
     public Snapshot nextSnapshot() {

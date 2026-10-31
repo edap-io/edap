@@ -551,7 +551,7 @@ public class RaftLog {
      * 是否有待落盘的日志条目
      */
     public boolean hasNextUnstableEnts() {
-        return !unstable.nextEntries().isEmpty();
+        return unstable.hasNextEntries();
     }
 
     /**

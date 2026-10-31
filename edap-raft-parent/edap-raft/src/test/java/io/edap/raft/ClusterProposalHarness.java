@@ -51,7 +51,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * <p>跑法：</p>
  * <pre>
  * java -cp ... io.edap.raft.ClusterProposalHarness \
- *      [节点数] [客户端数] [时长秒] [sync|sync-commit|async|async-commit] [每客户端在途上限] [tick毫秒] \
+ *      [节点数] [客户端数] [时长秒] [sync|sync-commit|async|async-commit|async-apply] [每客户端在途上限] [tick毫秒] \
  *      [数据目录] [落盘模式] [传输方式] [提案队列容量] [队列满策略]
  * </pre>
  *
@@ -62,6 +62,9 @@ import java.util.concurrent.atomic.AtomicLong;
  *   <li>{@code async}：异步提案（{@code proposeAsync}），不等提交</li>
  *   <li>{@code async-commit}：异步提案，再等自己的提案被应用。
  *       「每客户端在途上限」是允许的未确认提案条数，窗口=1 时退化成同步语义</li>
+ *   <li>{@code async-apply}：异步提案（{@code proposeAsync}，入队即返回，不阻塞），
+ *       但完成点是「应用」。与 {@code sync-commit} 只差「提案入口是否阻塞」一项，
+ *       用来把「完成点」和「提案入口阻塞与否」两个因素分开</li>
  *   <li>{@code 数据目录}：留空则用临时目录并在结束后删除；非空则保留数据</li>
  *   <li>{@code 传输方式}：
  *     <ul>
@@ -104,6 +107,63 @@ public final class ClusterProposalHarness {
 
     /** nio 传输模式的起始端口 */
     private static final int NIO_BASE_PORT = 9300;
+
+    /**
+     * leader 发出复制消息（MSG_APP）的时刻，按 (客户端 id, 序号) 记。
+     *
+     * <p>用来把「发布 → 提交」的 RTT 拆成两段：发出去之前的一段，
+     * 和发出去之后的一段。与 Go 侧的 {@code /tmp/etcdbench} 用同一个口径，
+     * 两边才能直接比。</p>
+     */
+    private static final java.util.concurrent.ConcurrentHashMap<Long, Long> SEND_MARKS
+            = new java.util.concurrent.ConcurrentHashMap<>();
+
+    /** leader 发出的、带条目的 MSG_APP 次数 */
+    private static final AtomicLong LEADER_APP_SENDS = new AtomicLong();
+
+    /** leader 发出的 MSG_APP 携带的条目总数 */
+    private static final AtomicLong LEADER_APP_ENTRIES = new AtomicLong();
+
+    /** 客户端提交时没找到发送时刻的次数（用来发现采样偏差） */
+    private static final AtomicLong MISSING_MARKS = new AtomicLong();
+
+    /**
+     * 诊断开关：{@code -Dedap.rtt.probe=true} 打开。
+     *
+     * <p>打开后额外记录三样东西，用来定位「发布 → MSG_APP 发出」这一段：
+     * leader 每条复制消息里<b>所有</b>条目的年龄分布（不只客户端等的那条）、
+     * leader 复制消息的发送间隔、每个节点自己的落盘占用率。
+     * 默认关闭 —— 基准跑批用同一个二进制，开着探针会多几次 nanoTime。</p>
+     */
+    private static final boolean RTT_PROBE = Boolean.getBoolean("edap.rtt.probe");
+
+    /** 探针：leader 复制消息里所有条目的年龄（发送时刻 - 发布时刻） */
+    private static final LatencyRecorder PROBE_ENTRY_AGE = new LatencyRecorder(400_000);
+
+    /** 探针：leader 复制消息的发送间隔（按目标节点分开记） */
+    private static final java.util.concurrent.ConcurrentHashMap<Long, LatencyRecorder> PROBE_GAPS =
+            new java.util.concurrent.ConcurrentHashMap<>();
+
+    /** 探针：leader 上一条复制消息的发送时刻（按目标节点分开记） */
+    private static final java.util.concurrent.ConcurrentHashMap<Long, java.util.concurrent.atomic.AtomicLong>
+            PROBE_LAST_SEND = new java.util.concurrent.ConcurrentHashMap<>();
+
+    /** 探针：发布 → 状态机接收的耗时（同步 propose 的往返） */
+    private static final LatencyRecorder PROBE_SM_ACCEPT = new LatencyRecorder(100_000);
+
+    /**
+     * 探针的「同步 propose 线程」单独开关。
+     *
+     * <p>这个线程会在任意时刻唤醒状态机线程，把提案队列提前排空，
+     * 打破「客户端发布 ↔ 状态机组装 Ready」的相位锁定，
+     * 属于对被测系统的主动扰动，默认关掉。</p>
+     */
+    private static final boolean RTT_PROBE_SYNC = Boolean.getBoolean("edap.rtt.probe.sync");
+
+    /** SEND_MARKS 的 key：把 (客户端 id, 序号) 压成一个 long */
+    private static long markKey(int cid, long seq) {
+        return ((long) cid << 40) | (seq & 0xFFFFFFFFFFL);
+    }
 
     /**
      * 一个集群成员。
@@ -169,6 +229,43 @@ public final class ClusterProposalHarness {
         /** leader 上应用的条目总数 */
         final AtomicLong leaderCommitted = new AtomicLong();
 
+        /** 当前在途（已发布未提交）的提案数 —— 用来判断流水线是不是填满了 */
+        final AtomicInteger inFlight = new AtomicInteger();
+
+        /** 在途深度的采样（每 100ms 一个点） */
+        final List<Long> inFlightSamples = Collections.synchronizedList(new ArrayList<>());
+
+        /**
+         * 客户端可见的「发布 → 提交」延迟样本。
+         *
+         * <p>与 {@link #latencies}（发布 → 应用）分开记：应用点受
+         * 「apply 是否等落盘」影响，两边架构不同，不能直接比；
+         * 而「提案被提交」是客户端真正等到的那个点（异步提案的 future
+         * 在提交时完成），口径一致，可以跨系统比。</p>
+         */
+        final long[] commitLatencies;
+
+        /** 「发布 → 提交」延迟样本数 */
+        final AtomicInteger commitLatN = new AtomicInteger();
+
+        /**
+         * RTT 分解：把「发布 → 提交」拆成
+         * ① 发布 → leader 把这批条目发出去（MSG_APP）
+         * ② MSG_APP 发出 → 提案被提交
+         *
+         * <p>用来定位 RTT 到底耗在哪一段 —— 只看总延迟说不清是谁的问题。</p>
+         */
+        final long[] propToSendLatencies;
+
+        /** RTT 分解②的样本数 */
+        final AtomicInteger propToSendN = new AtomicInteger();
+
+        /** RTT 分解②的样本 */
+        final long[] sendToCommitLatencies;
+
+        /** RTT 分解②的样本数 */
+        final AtomicInteger sendToCommitN = new AtomicInteger();
+
         ApplyStats(int clients, int latencyCapacity) {
             committed = new AtomicLong[clients];
             commitLocks = new Object[clients];
@@ -177,6 +274,29 @@ public final class ClusterProposalHarness {
                 commitLocks[i] = new Object();
             }
             latencies = new long[latencyCapacity];
+            commitLatencies = new long[latencyCapacity];
+            propToSendLatencies = new long[latencyCapacity];
+            sendToCommitLatencies = new long[latencyCapacity];
+        }
+
+        /** 记一条「发布 → 提交」的客户端可见延迟 */
+        void recordCommit(long latency) {
+            int i = commitLatN.getAndIncrement();
+            if (i < commitLatencies.length) {
+                commitLatencies[i] = latency;
+            }
+        }
+
+        /** 记一条 RTT 分解样本（两段） */
+        void recordSplit(long propToSend, long sendToCommit) {
+            int i = propToSendN.getAndIncrement();
+            if (i < propToSendLatencies.length) {
+                propToSendLatencies[i] = propToSend;
+            }
+            int j = sendToCommitN.getAndIncrement();
+            if (j < sendToCommitLatencies.length) {
+                sendToCommitLatencies[j] = sendToCommit;
+            }
         }
 
         /**
@@ -245,9 +365,13 @@ public final class ClusterProposalHarness {
         final long                     seq;
         final CompletableFuture<Void> future;
 
-        Pending(long seq, CompletableFuture<Void> future) {
+        /** 发布时刻，用来算客户端可见的「发布 → 提交」延迟 */
+        final long                     publishedAt;
+
+        Pending(long seq, CompletableFuture<Void> future, long publishedAt) {
             this.seq = seq;
             this.future = future;
+            this.publishedAt = publishedAt;
         }
     }
 
@@ -293,8 +417,11 @@ public final class ClusterProposalHarness {
                 ? ProposalFullPolicy.REJECT : ProposalFullPolicy.BLOCK;
 
         // 异步路径：提案走 proposeAsync，不阻塞调用方
-        boolean fireAndForget = mode.startsWith("async");
-        boolean waitCommit = mode.endsWith("-commit");
+        // 「async-apply」是隔离实验用的模式：提案走 proposeAsync（不阻塞），
+        // 但完成点是「应用」—— 与 sync-commit 只差「提案入口是否阻塞」这一项。
+        boolean fireAndForget = mode.startsWith("async") && !mode.endsWith("-apply");
+        boolean waitCommit = mode.endsWith("-commit") || mode.endsWith("-apply");
+        boolean nonBlockingPropose = mode.endsWith("-apply");
         if (!fireAndForget && !waitCommit && !"sync".equals(mode)) {
             throw new IllegalArgumentException("unknown mode: " + mode);
         }
@@ -439,6 +566,21 @@ public final class ClusterProposalHarness {
             leaderTracker.setDaemon(true);
             leaderTracker.start();
 
+            // 在途深度采样：判断流水线是不是被「每客户端在途窗口」填满
+            Thread gauge = new Thread(() -> {
+                while (!stop.get()) {
+                    stats.inFlightSamples.add((long) stats.inFlight.get());
+                    try {
+                        Thread.sleep(100);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        return;
+                    }
+                }
+            }, "raft-inflight-gauge");
+            gauge.setDaemon(true);
+            gauge.start();
+
             // 等选主完成
             long deadline = System.currentTimeMillis() + 15000;
             while (leaderId.get() == Raft.NONE && System.currentTimeMillis() < deadline) {
@@ -449,16 +591,45 @@ public final class ClusterProposalHarness {
             }
 
             CountDownLatch done = new CountDownLatch(clients);
+            if (RTT_PROBE && RTT_PROBE_SYNC) {
+                // 探针线程：用同步 propose 测「发布 → 状态机接收」的耗时。
+                // 同步 propose 返回的时刻就是状态机 step 完的时刻，
+                // 这一点异步接口不暴露，只能用同步接口测。
+                Thread probe = new Thread(() -> {
+                    long seq = 0;
+                    while (!stop.get()) {
+                        long lead = leaderId.get();
+                        Member leader = lead == Raft.NONE ? null : members.get(lead);
+                        if (leader == null) {
+                            sleep(10);
+                            continue;
+                        }
+                        try {
+                            seq++;
+                            byte[] data = payload(-1, seq, System.nanoTime());
+                            long t0 = System.nanoTime();
+                            leader.node.propose(data);
+                            PROBE_SM_ACCEPT.add(System.nanoTime() - t0);
+                        } catch (RaftException e) {
+                            // 节点停了
+                        }
+                        sleep(5);
+                    }
+                }, "rtt-probe");
+                probe.setDaemon(true);
+                probe.start();
+            }
             for (int i = 0; i < clients; i++) {
                 final int cid = i;
                 Thread t = new Thread(() -> {
                     try {
                         if (fireAndForget) {
                             runAsyncClient(cid, maxInflight, members, leaderId, stop,
-                                    published, failed, rejectedBusy, rejectedDropped);
+                                    published, failed, rejectedBusy, rejectedDropped, stats);
                         } else {
                             runSyncClient(cid, waitCommit, maxInflight, members, leaderId, stats,
-                                    stop, published, failed, rejectedBusy, rejectedDropped);
+                                    stop, published, failed, rejectedBusy, rejectedDropped,
+                                    nonBlockingPropose);
                         }
                     } catch (RaftException e) {
                         // 节点停止
@@ -486,7 +657,7 @@ public final class ClusterProposalHarness {
 
             report(members, clients, durationSec, mode, stats.latencies, stats.latN.get(),
                     published.get(), failed.get(), rejectedBusy.get(), rejectedDropped.get(),
-                    stats, root, baseDir != null, transportMode);
+                    stats, root, baseDir != null, transportMode, maxInflight);
             System.out.flush();
             if (sharedEdap != null) {
                 // edap-nio 依赖的 EdapTime 单例有非 daemon 线程，JVM 自己不会退出。
@@ -520,7 +691,7 @@ public final class ClusterProposalHarness {
                     // 1. 先把复制类消息发出去：它们不带任何持久化承诺，
                     //    对端可以立刻开始落盘，与本节点的落盘重叠，
                     //    两个 fsync 不串行，端到端延迟少一个落盘周期。
-                    sendMessages(m, rd, members, false);
+                    sendMessages(m, rd, members, false, leaderId);
                     // 2. 硬状态与日志一次落盘（一次 fsync）
                     if ((persistHardState && rd.getHardState() != null) || !rd.getEntries().isEmpty()) {
                         m.storage.save(persistHardState ? rd.getHardState() : null, rd.getEntries());
@@ -531,11 +702,11 @@ public final class ClusterProposalHarness {
                     }
                     // 4. 确认类消息等落盘之后再发：它们的意思是
                     //    「我已经持久化了这些日志」
-                    sendMessages(m, rd, members, true);
+                    sendMessages(m, rd, members, true, leaderId);
                 } else {
                     // 框架接管落盘：框架保证确认类消息在落盘完成之后才放进
                     // Ready，所以这里一次性全发出去
-                    sendAllMessages(m, rd, members);
+                    sendAllMessages(m, rd, members, leaderId);
                 }
                 // 5. 应用已提交条目（独立 apply 线程模式下由 apply 线程负责）
                 if (!separateApply) {
@@ -565,12 +736,13 @@ public final class ClusterProposalHarness {
      * @param gated true 表示只发确认类消息（投票确认、日志追加确认），
      *              false 表示只发复制类消息。确认类消息必须等日志落盘之后才发。
      */
-    private static void sendMessages(Member m, Ready rd, Map<Long, Member> members, boolean gated) {
+    private static void sendMessages(Member m, Ready rd, Map<Long, Member> members, boolean gated,
+            AtomicLong leaderId) {
         for (Message msg : rd.getMessages()) {
             if (Raft.isPersistGated(msg.getType()) != gated) {
                 continue;
             }
-            deliver(m, msg, members);
+            deliver(m, msg, members, leaderId);
         }
     }
 
@@ -580,9 +752,10 @@ public final class ClusterProposalHarness {
      * <p>框架落盘模式下用这个：框架已经保证确认类消息是在落盘完成之后
      * 才被放进 Ready 的，应用层不用再区分。</p>
      */
-    private static void sendAllMessages(Member m, Ready rd, Map<Long, Member> members) {
+    private static void sendAllMessages(Member m, Ready rd, Map<Long, Member> members,
+            AtomicLong leaderId) {
         for (Message msg : rd.getMessages()) {
-            deliver(m, msg, members);
+            deliver(m, msg, members, leaderId);
         }
     }
 
@@ -591,10 +764,47 @@ public final class ClusterProposalHarness {
      *
      * <p>direct 模式进程内直投；tcp / nio 模式走各自的传输层。</p>
      */
-    private static void deliver(Member m, Message msg, Map<Long, Member> members) {
+    private static void deliver(Member m, Message msg, Map<Long, Member> members,
+            AtomicLong leaderId) {
         Member target = members.get(msg.getTo());
         if (target == null) {
             return;
+        }
+        // leader 发出复制消息的时刻：记下来，用来分解 RTT
+        if (m.id == leaderId.get() && msg.getType() == MessageType.MSG_APP
+                && !msg.getEntries().isEmpty()) {
+            long now = System.nanoTime();
+            LEADER_APP_SENDS.incrementAndGet();
+            LEADER_APP_ENTRIES.addAndGet(msg.getEntries().size());
+            if (RTT_PROBE) {
+                // 复制消息的发送间隔：按目标节点分开记（同一批会发给两个对端，
+                // 不分开的话两条会挨在一起，间隔就成了 0）
+                java.util.concurrent.atomic.AtomicLong last =
+                        PROBE_LAST_SEND.computeIfAbsent(msg.getTo(),
+                                k -> new java.util.concurrent.atomic.AtomicLong());
+                long prev = last.getAndSet(now);
+                if (prev != 0) {
+                    PROBE_GAPS.computeIfAbsent(msg.getTo(),
+                            k -> new LatencyRecorder(100_000)).add(now - prev);
+                }
+            }
+            for (Entry e : msg.getEntries()) {
+                byte[] data = e.getData();
+                if (data == null || data.length != PAYLOAD_LEN) {
+                    continue;
+                }
+                ByteBuffer buf = ByteBuffer.wrap(data);
+                int cid = buf.getInt();
+                long seq = buf.getLong();
+                if (RTT_PROBE) {
+                    // 这一批里所有条目的年龄：发布时刻随载荷一起走
+                    long publishedAt = buf.getLong();
+                    PROBE_ENTRY_AGE.add(now - publishedAt);
+                }
+                // 只记第一次发送的时刻：重发会把时刻推后，
+                // 那样量出来的「发布 → 发出」会被高估
+                SEND_MARKS.putIfAbsent(markKey(cid, seq), now);
+            }
         }
         RaftTransport transport = m.transport;
         if (transport != null) {
@@ -613,7 +823,7 @@ public final class ClusterProposalHarness {
     private static void runSyncClient(int cid, boolean waitCommit, int maxInflight,
             Map<Long, Member> members, AtomicLong leaderId, ApplyStats stats, AtomicBoolean stop,
             AtomicLong published, AtomicLong failed, AtomicLong rejectedBusy,
-            AtomicLong rejectedDropped) {
+            AtomicLong rejectedDropped, boolean nonBlockingPropose) {
         long seq = 0;
         long publishedLocal = 0;
         long failedLocal = 0;
@@ -633,7 +843,23 @@ public final class ClusterProposalHarness {
                 byte[] data = payload(cid, seq, System.nanoTime());
                 try {
                     long t0 = System.nanoTime();
-                    leader.node.propose(data);
+                    if (nonBlockingPropose) {
+                        // 提案入口不阻塞：入队即返回，完成点仍然是「应用」
+                        CompletableFuture<Void> f = leader.node.proposeAsync(data, ASYNC_TIMEOUT_MILLIS);
+                        if (f.isDone() && f.isCompletedExceptionally()) {
+                            // 提案根本没进去（队列满 / 节点已停止）
+                            failedLocal++;
+                            failed.incrementAndGet();
+                            if (causeOf(f) instanceof RaftBusyException) {
+                                rejectedBusy.incrementAndGet();
+                            } else {
+                                rejectedDropped.incrementAndGet();
+                            }
+                            continue;
+                        }
+                    } else {
+                        leader.node.propose(data);
+                    }
                     PROP_RT_NANOS.add(System.nanoTime() - t0);
                     publishedLocal++;
                     published.incrementAndGet();
@@ -670,7 +896,7 @@ public final class ClusterProposalHarness {
      */
     private static void runAsyncClient(int cid, int maxInflight, Map<Long, Member> members,
             AtomicLong leaderId, AtomicBoolean stop, AtomicLong published, AtomicLong failed,
-            AtomicLong rejectedBusy, AtomicLong rejectedDropped) {
+            AtomicLong rejectedBusy, AtomicLong rejectedDropped, ApplyStats stats) {
         long seq = 0;
         ArrayDeque<Pending> inflight = new ArrayDeque<>();
 
@@ -684,7 +910,8 @@ public final class ClusterProposalHarness {
             // 补满窗口
             while (inflight.size() < maxInflight && !stop.get()) {
                 seq++;
-                byte[] data = payload(cid, seq, System.nanoTime());
+                long publishedAt = System.nanoTime();
+                byte[] data = payload(cid, seq, publishedAt);
                 CompletableFuture<Void> future;
                 try {
                     future = leader.node.proposeAsync(data, ASYNC_TIMEOUT_MILLIS);
@@ -703,8 +930,9 @@ public final class ClusterProposalHarness {
                     }
                     break;
                 }
-                inflight.addLast(new Pending(seq, future));
+                inflight.addLast(new Pending(seq, future, publishedAt));
                 published.incrementAndGet();
+                stats.inFlight.incrementAndGet();
             }
             if (inflight.isEmpty()) {
                 sleep(1);
@@ -714,6 +942,16 @@ public final class ClusterProposalHarness {
             Pending p = inflight.peekFirst();
             try {
                 p.future.get(ASYNC_TIMEOUT_MILLIS + 5000, TimeUnit.MILLISECONDS);
+                // 客户端真正等到的点：提案被提交
+                long committedAt = System.nanoTime();
+                stats.recordCommit(committedAt - p.publishedAt);
+                // RTT 分解：① 发布 → MSG_APP 发出，② MSG_APP 发出 → 提交
+                Long sentAt = SEND_MARKS.remove(markKey(cid, p.seq));
+                if (sentAt != null) {
+                    stats.recordSplit(sentAt - p.publishedAt, committedAt - sentAt);
+                } else {
+                    MISSING_MARKS.incrementAndGet();
+                }
             } catch (ExecutionException e) {
                 // 被丢弃或者超时
                 failed.incrementAndGet();
@@ -726,6 +964,7 @@ public final class ClusterProposalHarness {
                 return;
             }
             inflight.pollFirst();
+            stats.inFlight.decrementAndGet();
         }
     }
 
@@ -742,7 +981,7 @@ public final class ClusterProposalHarness {
     private static void report(Map<Long, Member> members, int clients, int durationSec,
             String mode, long[] latencies, int latN, long published, long failed,
             long rejectedBusy, long rejectedDropped, ApplyStats stats, Path root,
-            boolean keepDir, String transportMode) throws IOException {
+            boolean keepDir, String transportMode, int maxInflight) throws IOException {
         double sec = durationSec;
         long persistRounds = 0;
         long persistedEntries = 0;
@@ -800,6 +1039,65 @@ public final class ClusterProposalHarness {
             Arrays.sort(sorted);
             System.out.printf("  端到端延迟(发布→应用) p50=%.2fms p99=%.2fms 均值=%.2fms%n",
                     pct(sorted, 50) / 1e6, pct(sorted, 99) / 1e6, mean(sorted) / 1e6);
+        }
+        // 客户端可见的「发布 → 提交」：异步提案的 future 在提交时完成，
+        // 这是跨系统可比的口径（应用点受架构影响，不能直接比）。
+        int commitLatN = Math.min(stats.commitLatN.get(), stats.commitLatencies.length);
+        if (commitLatN > 0) {
+            long[] sorted = Arrays.copyOf(stats.commitLatencies, commitLatN);
+            Arrays.sort(sorted);
+            System.out.printf("  端到端延迟(发布→提交) p50=%.2fms p99=%.2fms 均值=%.2fms%n",
+                    pct(sorted, 50) / 1e6, pct(sorted, 99) / 1e6, mean(sorted) / 1e6);
+        }
+        if (!stats.inFlightSamples.isEmpty()) {
+            List<Long> s = new ArrayList<>(stats.inFlightSamples);
+            long sum = 0;
+            for (Long v : s) {
+                sum += v;
+            }
+            System.out.printf("  在途深度 平均 %.1f 条（上限 %d）%n",
+                    sum / (double) s.size(), clients * maxInflight);
+        }
+        // RTT 分解打到 stderr —— stdout 的格式要和 Go 侧完全一致，
+        // 同一套解析器才能直接吃。
+        int splitN = Math.min(stats.propToSendN.get(), stats.propToSendLatencies.length);
+        if (splitN > 0) {
+            long[] a = Arrays.copyOf(stats.propToSendLatencies, splitN);
+            Arrays.sort(a);
+            int splitN2 = Math.min(stats.sendToCommitN.get(), stats.sendToCommitLatencies.length);
+            long[] b = Arrays.copyOf(stats.sendToCommitLatencies, splitN2);
+            Arrays.sort(b);
+            System.err.printf("  RTT 分解① 发布→MSG_APP发出 p50=%.2fms p99=%.2fms 均值=%.2fms%n",
+                    pct(a, 50) / 1e6, pct(a, 99) / 1e6, mean(a) / 1e6);
+            System.err.printf("  RTT 分解② MSG_APP发出→提交 p50=%.2fms p99=%.2fms 均值=%.2fms%n",
+                    pct(b, 50) / 1e6, pct(b, 99) / 1e6, mean(b) / 1e6);
+        }
+        System.err.printf("  leader MSG_APP 发出 %d 次（%.1f/s）携带条目 %d（%.1f 条/次）  未找到发送时刻 %d%n",
+                LEADER_APP_SENDS.get(), LEADER_APP_SENDS.get() / (double) sec,
+                LEADER_APP_ENTRIES.get(),
+                LEADER_APP_ENTRIES.get() / (double) Math.max(1, LEADER_APP_SENDS.get()),
+                MISSING_MARKS.get());
+        if (RTT_PROBE) {
+            // 探针：每个节点自己的落盘占用率（落盘耗时 / 运行时间）
+            // —— 用来判断「Ready 组装被落盘闸门卡住」占了多少时间
+            System.err.printf("  [探针] 每个节点落盘占用率：%n");
+            for (Member m : members.values()) {
+                long cnt = m.storage.getPersistCount();
+                long nanos = m.storage.getPersistNanos();
+                long ents = m.storage.getPersistEntries();
+                System.err.printf(
+                        "  [探针] 节点 %d: 落盘 %d 次（%.1f/s）平均 %.2fms/次 累计 %.2fms 占用率 %.1f%% 条/次 %.1f%n",
+                        m.id, cnt, cnt / sec,
+                        cnt == 0 ? 0 : nanos / 1e6 / cnt,
+                        nanos / 1e6,
+                        nanos / 1e9 / sec * 100,
+                        cnt == 0 ? 0 : (double) ents / cnt);
+            }
+            PROBE_ENTRY_AGE.report("[探针] 复制消息里所有条目的年龄(发送-发布)");
+            PROBE_SM_ACCEPT.report("[探针] 发布→状态机接收(sync propose 往返)");
+            for (java.util.Map.Entry<Long, LatencyRecorder> e : PROBE_GAPS.entrySet()) {
+                e.getValue().report("[探针] 到节点 " + e.getKey() + " 的复制消息发送间隔");
+            }
         }
         if (!keepDir) {
             deleteTree(root);

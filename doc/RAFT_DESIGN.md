@@ -136,13 +136,36 @@ Ready {
 驱动层拿到 `Ready` 后按固定顺序处理：
 
 1. **先落盘**（`HardState` → `entries` / `snapshot`），保证回复 RPC 前持久化；
-2. 再**发消息**（etcd 的 Ready 契约：entries 未落盘前不能发出去）；
+2. 再**发消息**（etcd **库**的 Ready 契约不区分消息类型；
+   **etcd server v3.4+ 的接线是 leader 先发后存**，见下方说明与 §10）；
 3. 再**apply** `committedEntries` 到状态机；
 4. 最后 `advance`，让核心层推进 unstable / applied 游标。
 
-> 第 2 步的「entries 未落盘前不能发出去」在 §3.2 被细化：
-> **只有「承诺了持久化」的消息**（投票确认、日志追加确认）受这条约束；
+> 第 2 步的顺序在 §3.2 被细化：
+> **只有「承诺了持久化」的消息**（投票确认、日志追加确认）必须等落盘；
 > 复制类消息（`MSG_APP`）可以先发出去 —— 见 §3.2 与 §9.1。
+>
+> **这里必须区分「库契约」与「server 接线」两层**（2026-10-29 更正，
+> 旧版文档在这里写错了）：
+>
+> | 层 | 约束 | 依据 |
+> |---|---|---|
+> | **etcd 库**（`go.etcd.io/raft/v3`） | Ready 批次里的 `HardState` / `Entries` 要先持久化再 `Advance`；**复制类消息（`MSG_APP`）的发送时机不设约束**，但**确认类消息（`msgsAfterAppend`）由库自己扣住**，要等 `acceptReady`（= `Advance`）之后才进 Ready | `raft/node.go` 的 Ready 契约；`raft/rawnode.go:176-184` |
+> | **etcd server**（v3.4 起） | **leader 先发后存**：`r.applyc <- ap` → `if islead { r.transport.Send(...) }` → `r.storage.Save(...)` | `etcdserver/raft.go:230 / :235 / :240 / :254`（v3.6.0；v3.5.0、v3.4.34 同） |
+>
+> 源码注释原文（`etcdserver/raft.go:235`）：
+>
+> ```
+> // the leader can write to its disk in parallel with replicating to the followers and then
+> // writing to their disks.
+> // For more details, check raft thesis 10.2.1
+> ```
+>
+> 也就是说 **etcd server 从 v3.4 起就是「send → save」**（与 dragonboat 同源），
+> 并不是「save → send」。
+> edap-raft 的 ④（复制消息早发、确认消息等落盘）就是把 **etcd server 层**的这个行为
+> 搬了回来 —— Java 移植只移植了 raft **库**、没有移植 etcd **server** 的接线，
+> 才把这个行为丢掉了（详见 §10「与 etcd 的对照（实测）」与 §9.8 ④）。
 
 ### 3.2 三阶段流水线（框架接管落盘 + 独立 apply 线程）
 
@@ -763,7 +786,7 @@ Intel 900P/P3700 NVMe，见 dragonboat 的 `docs/test.md`），不是一台笔�
 所以下面的对比全部改成本机实测：**同一台机器、同一份磁盘、同一套载荷，
 edap-raft 和 dragonboat 在同一时段内各跑一遍**。
 
-#### 本机同硬件对比：3 节点 + 真盘 + 16B 载荷
+#### 本机同硬件对比：3 节点 + 真盘 + 20B 载荷（edap/etcd 侧）· 16B（dragonboat 侧）
 
 > ⚠️ **2026-10-29 更正：下面第一张表的数字跑的是阻塞路径，异步分支从未执行过。**
 >
@@ -792,7 +815,7 @@ edap-raft 和 dragonboat 在同一时段内各跑一遍**。
 | 硬件 | macOS aarch64 / 10 CPU / 64GB / APFS 内置 SSD（系统盘） |
 | 集群 | 单进程内 3 节点、3 副本 |
 | 客户端 | 16 个客户端线程，各自维护一个「在途窗口」 |
-| 载荷 | 16 字节 |
+| 载荷 | **20 字节**（4B clientId + 8B seq + 8B publishedAt）；dragonboat 侧 16 字节，etcd 侧 20 字节 |
 | 时长 | 每轮 10s，每个配置跑 **9 轮取中位数**（三方交替跑、同一时段内完成，轮次奇偶调换顺序） |
 | 语义 | 客户端发出提案后**等到自己的提案被提交并应用**才算完成 |
 
@@ -824,6 +847,12 @@ dragonboat 侧用自写基准（`/tmp/dragonboat/dbbenchdef/main.go`，master @ 
 
 **结果（2026-10-29 重测）** —— 提交速率 = 客户端观察到自己的提案被提交的速率；
 9 轮取中位数；edap 与 dragonboat 交替跑、同一时段内完成，轮次奇偶调换变体顺序。
+
+> ⚠️ **这一批（campaign A/B/C/D）与 §10 的 campaign G 不是同一批，两批不可混用。**
+> §10 是后来加的 **etcd 对照**（etcd 库 + etcd server 接线 vs edap-raft），
+> 9 轮 × 4 窗口 × 5 变体一起跑；本小节的表只有 edap 与 dragonboat。
+> **edap 与 dragonboat 的相对结论在两批里是稳的**（异步路径 1.27~2.58×），
+> 但**绝对值有 run-to-run 噪声**，引用时必须写清是哪一批。
 
 四个 edap 变体：
 
@@ -1159,9 +1188,24 @@ Pebble 则是整批编码成一个 buffer、一次 write + 一次 sync。
 
 **这是本轮单项收益最大的改动**（窗口 256：66,054 → 104,845/s，**+59%**）。
 
-etcd 的 Ready 契约是「entries 未落盘前不能发出去」，于是
-「本节点落盘 → 发复制消息 → 对端落盘」是**严格串行**的两次 fsync。
-但复制类消息（`MSG_APP`）**不带任何持久化承诺** —— 它只说「我有这些日志」，
+etcd **库**的 Ready 契约是「`HardState` / `Entries` 持久化之后才能 `Advance`」；
+etcd **server v3.4 起的接线是 leader 先发后存**
+（`etcdserver/raft.go:230` `r.applyc <- ap` → `:240` `r.transport.Send(...)`
+→ `:254` `r.storage.Save(...)`）。
+也就是说**同一个 Ready 批次里**，复制消息在落盘之前就发出去了，
+「本节点落盘」与「对端落盘」是**重叠**的，不是严格串行的两次 fsync
+（2026-10-29 更正：旧版文档在这里写的是「etcd 未落盘不发」，那是**库契约**，
+不是 server 的接线，详见 §3.1）。
+
+但 etcd 的**批次之间**仍然是串行的：`Advance` 在 `Save` **之后**才调用
+（`etcdserver/raft.go:329`），而 raft 库在应用层调用 `Advance` 之前不会产出下一个 Ready
+（`raft/node.go:354`：`if advancec == nil && n.rn.HasReady()`）。
+于是**下一批**提案的复制消息要等**本批** fsync 完成后才发得出去 ——
+这才是 etcd 的 Ready 周期被 fsync 占住的原因。
+（§10.6 的 RTT 分解里 etcd 的「发布 → MSG_APP 发出」p50 ≈ 8.7~13ms，正好是一个落盘周期；
+但那个数**不能拿来和 edap 的 ① 直接比** —— §10.6 用探针实测证明了两侧的 ① 不可比。）
+
+复制类消息（`MSG_APP`）**不带任何持久化承诺** —— 它只说「我有这些日志」，
 不说「我已经把它们存好了」。先发出去，对端立刻开始落盘，
 本节点同时落自己的盘，**两个 fsync 重叠而不是排队**，端到端延迟少一个落盘周期。
 
@@ -1178,8 +1222,8 @@ etcd 的 Ready 契约是「entries 未落盘前不能发出去」，于是
 | 源码注释原文 | "see raft thesis section 10.2.1 on details why we send Replicate message before those entries are persisted to disk" |
 | `internal/raft/peer.go:210 setFastApply` + `:228 validateUpdate` | committed entries 与 `EntriesToSave` 重叠时 `FastApply=false` —— 与 edap 的「应用层看到的状态不能比日志更靠前」是同一条不变式 |
 
-etcd 是保守的（save → send），dragonboat 是快的（send → save）。
-**edap-raft 现在跟 dragonboat 一致**：见 §3.2 的消息投递顺序表。
+etcd **server v3.4+ 与 dragonboat 一样是 send → save**（不是「etcd 保守」）；
+**edap-raft 与它们一致**：见 §3.2 的消息投递顺序表。
 
 **改造后的 fsync 账单**（3 节点合计，9 轮中位数，`framework+apply`；dragonboat 侧
 的落盘次数是给 `internal/logdb/db.go:saveRaftState` 加计数器测出来的，
@@ -1526,7 +1570,8 @@ engine 里跑三个独立 worker 池，各有各的 `workReady` 就绪集合：
 // before those entries are persisted to disk
 ```
 
-etcd 也这么干（entries 未落盘不发），但 dragonboat 把它固定在流水线的固定位置上，
+etcd **server v3.4+ 也这么干**（leader 的复制消息在 `Save` 之前发，
+`etcdserver/raft.go:240`），但 dragonboat 把它固定在流水线的固定位置上，
 不再由驱动方自由决定顺序。
 
 **(c) FastApply。** `internal/raft/peer.go:210 setFastApply`：已提交条目可以不等 fsync
@@ -1762,8 +1807,15 @@ fsync=2ms 时从 1,025.1 条涨到 5,629.9 条（2ms 的 fsync 被摊薄到 0.36
 已提交条目交给独立的 apply 线程。两个开关都是**默认关**，etcd 移植基线一行不改。
 
 **④ 复制消息早发、确认消息等落盘** —— **已实现**（§3.2 / §9.1）。
-etcd 的「entries 未落盘前不能发出去」只对**确认类消息**成立；
-复制类消息（`MSG_APP`）不带持久化承诺，可以先发，让对端的 fsync 与本节点的 fsync 重叠。
+**etcd server v3.4+ 的 leader 也是复制消息先发、确认消息等落盘**：
+复制消息在 `Save` 之前发（`etcdserver/raft.go:240`），
+确认类消息由 raft **库**自己扣住 —— `msgsAfterAppend` 要等应用层
+`acceptReady`（= `Advance`）之后才进 Ready
+（`raft/rawnode.go:176-184`：「The Ready struct contract mandates that Messages
+cannot be sent until after Entries are written to stable storage」）。
+这一条 edap-raft 是把 etcd **server 层**的行为搬回来的（Java 移植只移植了 raft **库**）。
+复制类消息（`MSG_APP`）不带持久化承诺，先发出去让对端的 fsync 与本节点的 fsync 重叠；
+确认类消息（`MSG_APP_RESP` / `MSG_VOTE_RESP`）必须等落盘。
 **本轮单项收益最大的一个**：窗口 256 **+59%**（66,054 → 104,845/s）。
 
 **⑤ 背压** —— **已实现**（2026-10-29）。`RaftConfig.maxPendingProposals`
@@ -1821,4 +1873,1645 @@ edap 的**条/次落盘反而更多**（1,352 vs 1,145；3,033 vs 2,153）。
 > 见 §9.8 ② 与 ⑤。§9.1 的表已经按新实现重测过一轮。
 > 剩下的差距是**尾延迟**：窗口 1024 时 edap 的 p50（58.0ms）仍高于 dragonboat（49.1ms），
 > 原因已经从「没有背压」变成「提案批次规模」与「提交语义」的差异。
+
+---
+
+## 10. 与 etcd 的对照（实测）
+
+### 10.1 为什么对照的是 etcd，而不是再测一次 dragonboat
+
+**etcd 才是 edap-raft 的血缘起点。** §2 写得很清楚：edap-raft 是 `go.etcd.io/raft`
+的**逐行 Java 移植**，etcd 的单元测试也逐条移植了一遍。
+
+所以 §9 那个「edap-raft 领先 dragonboat 1.34~2.35×」的结论有个前提问题：
+dragonboat 是 **raft 核心重写 + 自有驱动架构**（`internal/raft/`、free-order 消息、
+独立 apply 流水线），它跟 edap-raft **不共享任何架构前提**。
+「edap-raft 比 dragonboat 快」回答不了「edap-raft 的移植路线选对了吗」。
+
+etcd 本体才回答得了这个问题 —— 因为 edap-raft 就是从它移植来的：
+**edap-raft 相对 etcd 库 + etcd server 接线，多做对了什么、少做对了什么。**
+
+> **这一节测的是「etcd 的驱动架构 vs edap-raft 的驱动架构」，不是 Go vs Java。**
+> 唯一的语言差异（Go / JVM）被更大的架构差异盖住了 ——
+> 读结论时不要把它读成「Java 比 Go 快」或「Go 比 Java 快」。
+
+### 10.2 对照的是什么（不是完整的 etcd server）
+
+| 组件 | 用的什么 | 依据 |
+|---|---|---|
+| raft 核心 | `go.etcd.io/raft/v3` **v3.6.0 原库**（不改一行） | — |
+| 存储 | `go.etcd.io/etcd/server/v3` v3.6.0 的 `storage/wal`（真 WAL，一次 `Save` 一次 fsync） | `storage/wal/wal.go` |
+| Ready 循环 | etcd server 的顺序：`applyc <- ap` → leader 先 `transport.Send` → `storage.Save` → `Advance` | `etcdserver/raft.go:230 / :240 / :254 / :329` |
+| apply | 独立 apply goroutine + `notifyc` 门控 | `etcdserver/server.go:977-997` |
+| 传输 | 进程内直投（每对端一条带缓冲 channel + 一个投递 goroutine 调 `peer.Step`） | 见下 |
+| **不做** | mvcc / backend / grpc / snapshotter / `AsyncStorageWrites` / etcd 客户端 API | — |
+
+**传输为什么是「异步直投」而不是同步 `Step`**：`raft.Node.Step` 是**阻塞**的
+（要等对端 raft run loop 收下消息）。同步调用会让**发送方的 Ready 循环卡在对端的 fsync 上**
+—— 测出来的是「假串行」，不是 etcd 的行为。所以每对端一条带缓冲 channel（cap 65536）
++ 一个投递 goroutine 调 `peer.Step(ctx, m)`。这与 etcd 的 rafthttp 流水线一致
+（`transport.Send` 本身也是异步的），也与 Java 侧 `direct` 模式语义一致
+（`Node.onMessage` 是 `recvc.add(m)`，`recvc` 是无界 `LinkedBlockingQueue`，`recvc.add` 不阻塞
+—— `Node.java:111,451`）。
+
+**基准程序**：`edap-raft-parent/edap-raft/src/test/go/etcdbench/main.go`
+（Go 1.27.3；与 Java 侧的 `ClusterProposalHarness` 并列放在 `src/test/go/` 下，
+不进 Maven 构建）。
+
+### 10.3 两个变体的配置
+
+| 项 | `etcd-aligned` | `etcd`（出厂） |
+|---|---|---|
+| `CheckQuorum` | false | **true** |
+| `PreVote` | false | **true** |
+| `MaxSizePerMsg` | 无限（`NO_LIMIT`） | 1MB |
+| `MaxInflightMsgs` | 256 | 512（`4096/8`） |
+| `ElectionTick` / `HeartbeatTick` | 10 / 1 | 10 / 1 |
+| tick 间隔 | 50ms | 100ms |
+| 依据 | 与 `ClusterProposalHarness` 的 `RaftConfig` **逐项对齐** | etcd server v3.6 出厂（`bootstrap.go:522-533`、`raft.go:37,40`） |
+
+`etcd-aligned` 是**主对比**（消掉配置差异，只留驱动架构差异）；
+`etcd` 是「etcd 按自己默认配置跑是什么样」。
+
+**两个变体的 `MaxUncommittedEntriesSize` 都没设**（= `noLimit`，`etcdserver/raft.go:311-312`），
+Java 侧同样没设（`RaftConfig.maxUncommittedEntriesSize` 默认 `NO_LIMIT`）——
+**两侧的 L2 背压都是关的**，L2 不构成差异。
+
+### 10.4 口径对齐表
+
+| 维度 | Java（`ClusterProposalHarness`） | Go（`etcdbench`） | 对齐？ |
+|---|---|---|---|
+| 集群 | 3 节点、单进程、3 副本 | 同 | ✓ |
+| 客户端 | 16 个线程，各自维护在途窗口 | 同 | ✓ |
+| 载荷 | **20B** = 4B clientId + 8B seq + 8B publishedAt | 同（`binary.BigEndian`） | ✓ |
+| 提案目标 | 当前 leader | 同（`rd.SoftState.Lead`） | ✓ |
+| 「完成」的定义 | 提案**被提交**（future 在 `completePendingProposals` 完成） | 提案**被提交**（leader 在 Ready 循环里看到 `CommittedEntries`） | ✓ |
+| 延迟采样点 | leader **应用**时采样「发布→应用」 | leader 的 apply goroutine 采样 | ✓ |
+| 分位数公式 | `ceil(p/100*n)-1` | 同 | ✓ |
+| 延迟记录器容量 | 400,000 样本 | 400,000 样本 | ✓（但见 §10.4.3） |
+| 传输 | 进程内直投（`recvc` 无界队列） | 进程内直投（每对端 cap 65536 channel） | ✓ |
+| 提案被丢 | `RaftException("raft proposal dropped")` | `Propose` 返回 error | ✓ |
+| 成员变更条目 | 不计入吞吐 | 不计入（Bootstrap 已把 voter 加进 tracker，再 `ApplyConfChange` 会重置 Progress） | ✓ |
+| **背压** | L1 有界队列 2048（异步路径满 → 拒） | **无背压**（`propc` 无缓冲 → `Propose` 阻塞） | ✗ 见 §10.4.1 |
+| **存储引擎** | 裸文件追加（单 `wal.bin`，整批一次 write + 一次 `force(true)`） | `storage/wal`（每条 entry 一次 protobuf 序列化 + 分段文件 + 64MB 预分配 + `fdatasync`） | ✗ 见 §10.4.2 |
+| **RTT 分解的采样对象** | 只对**窗口里最老的那条**记 ①② | 对**每一条**已提交提案记 ①② | ✗ 见 §10.6 |
+
+#### 10.4.1 背压：三种语义，拒绝率不能直接比
+
+| 实现 | 语义 | 窗口 1024 的拒绝率（实测） |
+|---|---|---|
+| edap-raft | L1 队列满 → 异步路径**抛 `RaftBusyException` 拒掉**（同步路径 BLOCK 等位置） | **34.92%** |
+| dragonboat | 提案队列满 → `ErrSystemBusy` | 43.30% |
+| etcd | **没有背压**：`propc` 无缓冲 → `Propose` 阻塞，客户端被顶住 | **0%** |
+
+etcd 的 0% **不是「更健壮」，是「把压力顶回给客户端」**：
+`raft.Node.Propose` 会阻塞到 raft run loop 取走消息，
+而 run loop 取走 propc **不需要等 fsync**（fsync 在 Ready 循环里），
+所以 `Propose` 返回得很快 —— 但整条链路上**没有任何一处会拒绝**。
+所以「拒绝率」这一列在三方之间**不是同口径**，只能看各自内部的语义。
+
+#### 10.4.2 存储引擎：etcd 侧更重
+
+`storage/wal` 的 `saveEntry` 对**每一条** entry 做一次 protobuf 序列化
+（`pbutil.MustMarshal(e)`），**落在「落盘耗时」的计时之内**；
+edap 侧的 `FileRaftStorage.save()` 没有这一层。
+⇒ **两侧的「落盘耗时 / 次」不是完全同口径**：etcd 的 fsync 占比被高估、
+非落盘开销被低估。§10.5.4 的推导受这一条影响。
+
+#### 10.4.3 延迟样本的启动期偏差（两侧都有）
+
+两侧的延迟记录器容量都是 **400,000 样本**。窗口 256 时 10 秒能产生约 115 万条样本，
+窗口 1024 时约 226 万条 —— 所以高窗口下**记录器里只剩启动最初 3.5 秒 / 1.8 秒的样本**。
+**高窗口的 p50/p99 是「启动期」的延迟，不是稳态延迟。**
+这一条对三方同样成立，不影响横向比较，但**不要把高窗口的绝对值当稳态值引用**。
+
+### 10.5 结果
+
+> **数据批次：campaign G**（2026-10-29 晚，9 轮 × 4 窗口 × 5 变体 = 180 次运行，
+> 全部在同一时段内交替完成，轮次奇偶调换变体顺序）。
+> **与 §9.1 的表不是同一批**（§9.1 是 campaign A/B/C/D 批次），**两批不可混用**。
+> 原始结果在 `/tmp/ab_result_g.txt`，脚本 `/tmp/ab_run_g.sh`，解析器 `/tmp/parse_g.py`
+> （`/tmp` 不保证长期保留 —— **下面的表就是完整快照**）。
+
+> **⚠️ 本节的 etcd 基准用的是「异步等提交」的客户端语义，而 etcd server 的真实客户端语义
+> 是「同步等应用」**（核实见 §10.9.1）。⇒ **本节「edap 领先 etcd 1.38~1.91×」只在
+> 两边都用异步完成点时成立**；真实客户端语义下的对比见 **§10.9**。
+
+#### 10.5.1 提交/s（9 轮中位数）
+
+| 在途窗口（每客户端） | edap-direct | edap-tcp | dragonboat | **etcd-aligned** | etcd | edap / etcd-aligned | edap / dragonboat |
+|---|---|---|---|---|---|---|---|
+| 1 | 741 | 731 | 361 | 538 | 500 | **1.38×** | 2.05× |
+| 16 | 14,475 | 12,532 | 5,621 | 7,575 | 6,842 | **1.91×** | 2.58× |
+| 256 | 115,521 | 116,021 | 90,803 | 81,100 | 75,377 | **1.42×** | 1.27× |
+| 1024 | 225,756 | 218,932 | 148,914 | **233,152** | 215,323 | **0.97×** | 1.52× |
+
+**窗口 1024 时 `etcd-aligned` 反超 3.3%**（对 `etcd` 出厂配置仍落后 4.8%）。
+
+#### 10.5.2 端到端延迟（发布→提交）
+
+| 在途窗口 | edap-direct p50/p99 | edap-tcp p50/p99 | dragonboat p50/p99 | etcd-aligned p50/p99 | etcd p50/p99 |
+|---|---|---|---|---|---|
+| 1 | **18.9 / 43.0** | 21.1 / 42.2 | 41.1 / 72.0 | 27.2 / 39.0 | 27.0 / 39.0 |
+| 16 | **13.0 / 42.3** | 14.9 / 41.5 | 42.3 / 78.9 | 30.8 / 50.1 | 32.7 / 46.7 |
+| 256 | **35.7 / 55.7** | 36.0 / 55.8 | 42.0 / 83.0 | 47.3 / 56.4 | 47.4 / 56.9 |
+| 1024 | 64.6 / 96.7 | 66.2 / 106.9 | **48.6 / 101.8** | 61.5 / 70.3 | 63.9 / 72.5 |
+
+（单位 ms。「发布→应用」的 p50：edap-direct 18.9 / 13.6 / 38.4 / 66.2；
+etcd-aligned 27.3 / 30.3 / 44.5 / 46.0。）
+
+**p99 上 etcd 在窗口 1 与 1024 更好**（39.0 vs 43.0、70.3 vs 96.7），
+**p50 上窗口 1024 的 etcd 也更低**（61.5 vs 64.6）—— 与 §10.5.1 的吞吐反超是同一件事。
+
+#### 10.5.3 拒绝率（口径不同，见 §10.4.1）
+
+| 在途窗口 | edap-direct | edap-tcp | dragonboat | etcd-aligned | etcd |
+|---|---|---|---|---|---|
+| 1 | 0 | 0 | 0 | 0 | 0 |
+| 16 | 0.0007% | 0 | 0 | 0 | 0 |
+| 256 | 3.70% | 2.43% | 0 | 0 | 0 |
+| 1024 | **34.92%** | 34.46% | 43.30% | 0 | 0 |
+
+窗口 1024 时 edap 的**发布尝试**是 `226,271 + 121,050 ≈ 347K/s`，
+其中 35% 在 API 边界就被拒掉了（**根本没进 raft 日志**）；
+etcd 的发布是 234K/s、全部进日志并被提交。
+**两边的「客户端实际发出的请求数」差 48%**，只看「提交/s」会看不出这一点。
+
+#### 10.5.4 fsync 账单（3 节点合计，9 轮中位数）
+
+| 在途窗口 | edap-direct | edap-tcp | dragonboat | etcd-aligned | etcd |
+|---|---|---|---|---|---|
+| 1 | 250/s · 9.0 条 · 11.52ms | 253/s · 8.1 条 · 11.24ms | 249/s · 4.3 条 · — | 302/s · 5.4 条 · 9.35ms | 274/s · 5.4 条 · 9.43ms |
+| 16 | 253/s · 174.1 条 · 10.90ms | 254/s · 152.2 条 · 10.75ms | 239/s · 70.6 条 · — | 270/s · 84.1 条 · 10.22ms | 250/s · 82.4 条 · 10.38ms |
+| 256 | 185/s · 1873.4 条 · 10.23ms | 193/s · 1868.1 条 · 9.77ms | 230/s · 1176.7 条 · — | 181/s · 1343.6 条 · 15.12ms | 171/s · 1334.2 条 · 15.04ms |
+| 1024 | 146/s · 4572.4 条 · 9.43ms | 150/s · 4357.9 条 · 9.41ms | 217/s · 2091.7 条 · — | 167/s · 4222.3 条 · 16.12ms | 161/s · 4062.0 条 · 15.74ms |
+
+**模型自查**（`落盘条目/s = fsync/s × 条/次落盘`，`提交/s = 落盘条目/s ÷ 3`）——
+20 个格子全部 **|偏差| ≤ 6.6%**；18 个格子在 ±2.8% 以内，
+两个超出的都在 **edap-tcp** 上（`w=1` 是 **-6.6%**、`w=256` 是 +3.6%）。
+窗口 1 偏差大是因为那一次落盘只带 8.1 条，**fsync/s 与「条/次落盘」两个中位数分开取，
+乘起来不等于中位数的乘积** —— 低窗口下这个模型本来就粗。
+
+**推导出的 leader 落盘周期**（`周期 = 3 / fsync/s`，即每节点的 fsync 间隔；
+并用「落盘耗时」拆出周期里的落盘与非落盘部分）：
+
+| 在途窗口 | edap-direct 周期 | 其中落盘 | **非落盘** | etcd-aligned 周期 | 其中落盘 | **非落盘** |
+|---|---|---|---|---|---|---|
+| 1 | 12.0ms | 11.52ms | 0.5ms | 9.9ms | 9.35ms | 0.6ms |
+| 16 | 11.9ms | 10.90ms | 1.0ms | 11.1ms | 10.22ms | 0.9ms |
+| 256 | 16.2ms | 10.23ms | **6.0ms** | 16.6ms | 15.12ms | 1.5ms |
+| 1024 | **20.5ms** | 9.43ms | **11.1ms** | **18.0ms** | 16.12ms | 1.9ms |
+
+> 口径提醒：etcd 的「落盘耗时」里含每条 entry 的 protobuf 序列化（§10.4.2），
+> 所以 etcd 的 fsync 占比被高估、非落盘开销被低估 —— 上表对 etcd 是**保守**的。
+
+**这张表是本节最有信息量的一张**：
+
+- 窗口 1/16 时两侧的周期是同一个量级（10~12ms），edap 领先 1.38~1.91× **不是因为落盘更快**，
+  而是因为**同样的落盘成本下 edap 装得下更多的在途提案**
+  （w=16 时 edap 的 `条/次落盘` 是 etcd 的 2.07 倍）。
+- 窗口 256/1024 时 **edap 的周期里出现了 6~11ms 的非落盘开销**，
+  而 etcd 的周期几乎全是落盘（89~91%）。**这 11ms 是 edap 在高窗口被反超的直接原因**：
+  20.5ms 的周期 × 4572 条 = 223K/s，18.0ms 的周期 × 4222 条 = 235K/s。
+- **这 11ms 的成因尚未定位**（见 §10.7 的「未定位」条目）。
+
+### 10.6 RTT 分解：① 的绝对值**不可跨实现比较**
+
+| 在途窗口 | ① 发布→MSG_APP发出 p50（edap-direct） | ① p50（etcd-aligned） | ② MSG_APP发出→提交 p50（edap-direct） | ② p50（etcd-aligned） |
+|---|---|---|---|---|
+| 1 | 0.14ms | 8.77ms | 16.12ms | 18.08ms |
+| 16 | 0.55ms | 8.74ms | 12.58ms | 21.07ms |
+| 256 | 9.47ms | 13.13ms | 26.01ms | 31.35ms |
+| 1024 | 20.34ms | 11.48ms | 45.70ms | 34.16ms |
+
+**看起来 edap 的 ① 小一个数量级 —— 但这个数不能这么读。**
+
+**探针实验**（`-Dedap.rtt.probe=true`，加在 `ClusterProposalHarness` 上，只加计数器，
+不改任何行为）：
+
+| 配置 | 提交/s | ① p50 | 探针独立测的「复制消息里所有条目的年龄」p50 | MSG_APP 发送间隔 p50 | 各节点落盘占用率 |
+|---|---|---|---|---|---|
+| w=16，**不**开同步探针 | 13,544/s | 0.62ms | **0.630ms** | 10.76ms | 88.8~94.0% |
+| w=256，**不**开同步探针 | 110,660/s | 10.07ms | **11.140ms** | 8.19~8.33ms | 58.2~71.1% |
+| w=16，**开**同步探针线程 | 7,142/s | **11.64ms** | **11.632ms** | 0.02~0.05ms | 95.7~97.8% |
+
+三点结论：
+
+1. **① 不是采样口径造成的假数**：「复制消息里所有条目的年龄」是**独立于客户端簿记**的
+   第二个度量（发布时刻随载荷一起走），它与 ① 逐项吻合（0.630 vs 0.62、11.632 vs 11.64）。
+2. **同一个 Java 二进制、同一个配置，① 只因为「多了一个用同步 `propose()` 发提案的线程」
+   就从 0.62ms 跳到 11.64ms（18.8×）**，吞吐同时腰斩（13,544 → 7,142/s）。
+   ⇒ **① 强烈依赖「谁在什么时候发布提案」与「leader 什么时候组装下一批」的相位关系**，
+   而这个相位关系是实现细节（何时通知客户端、提案如何合批、组装是否被 fsync 挡住）决定的。
+   edap 的 ① 小，是因为**异步客户端被通知后立刻重发**，而下一轮 Ready 的组装又不受
+   正在进行的 fsync 阻塞（落盘在独立线程上）；etcd 的 Ready 循环是**单 goroutine**，
+   `Save`（含 fsync）就在这个 goroutine 上，下一轮 Ready 必须等 fsync 结束
+   （`raft/node.go:354`）—— 所以 ① 天然就是「一个落盘周期」。
+3. ⇒ **跨实现只有「端到端总延迟」可比，① / ② 的绝对值不可比。**
+   上表里的 ① / ② 只用于**同一实现内部**做归因。
+
+（探针线程用同步 `propose()`，是因为异步接口不暴露「状态机接收提案」的时刻；
+它会打乱相位、扰动吞吐，所以**默认关闭**，只在诊断时开。）
+
+### 10.7 归因
+
+#### 实测（campaign G，9 轮中位数）
+
+| # | 结论 | 证据 |
+|---|---|---|
+| 1 | **窗口 1/16/256 时 edap 领先 etcd-aligned 1.38× / 1.91× / 1.42×** | §10.5.1 |
+| 2 | **窗口 1024 时 etcd-aligned 反超 3.3%**（对 etcd 出厂配置仍落后 4.8%） | §10.5.1 |
+| 3 | **低/中窗口的领先不是「落盘更快」**：两侧落盘周期是同一个量级（10~12ms），差在**同一个落盘周期里装多少条**（w=16：edap 174 条/次 vs etcd 84 条/次） | §10.5.4 |
+| 4 | **高窗口 edap 的落盘周期里多出 6~11ms 的非落盘开销**（etcd 只有 1.5~1.9ms），这是被反超的直接原因 | §10.5.4 |
+| 5 | **etcd 的 p99 在窗口 1 与 1024 更好**（39.0 vs 43.0、70.3 vs 96.7） | §10.5.2 |
+| 6 | **背压语义是三种**：edap 拒（34.92%）、dragonboat 拒（43.30%）、etcd 阻塞（0%） | §10.4.1、§10.5.3 |
+| 7 | **窗口 1024 时 edap 的「客户端请求数」比 etcd 多 48%**（347K/s vs 234K/s），因为它拒掉了 35%；只看「提交/s」看不出来 | §10.5.3 |
+| 8 | **①/② 不可跨实现比较**（探针实测：同一二进制 ① 可差 18×） | §10.6 |
+
+#### 推演（**未验证**，与上面的实测分开）
+
+- **推演 A**：etcd 的 Ready 循环把 `Save`（fsync）放在同一个 goroutine 上，
+  批次之间必然串行；edap 把落盘挪到独立线程后，**组装与落盘解耦**。
+  如果 edap 能在保持解耦的同时把「下一轮组装」也做得更快，
+  高窗口应该能重新拉开 —— **本轮没有验证这一点**。
+- **推演 B**：etcd v3.6 有实验性的 `AsyncStorageWrites`（默认关，Ready/Advance 契约不同）。
+  打开它之后 etcd 的周期大概会像 edap 一样 —— **本轮没测**。
+- **推演 C**：edap 高窗口那 11ms 的非落盘开销，如果来自「提案合批等待」，
+  那它应该随窗口增大而线性增长；实测 w=1/16 时只有 0.5~1.0ms、w=256 时 6.0ms、
+  w=1024 时 11.1ms —— **形状像但没有直接证据**。
+
+#### 未定位（明确标出来）
+
+- **edap 在窗口 256/1024 的 Ready 周期里那 6~11ms 非落盘开销，具体花在哪，
+  本轮没有定位。** 候选：提案合批的等待、apply 线程的交接、`Advance` 的时序、
+  或者「组装闸门被上一次 fsync 挡住」。需要单独做一次分阶段计时才能定论。
+- **两侧「落盘耗时」的 fsync / 序列化拆分**没有分别计时（etcd 侧 protobuf 序列化混在里面），
+  所以 §10.5.4 的推导对 etcd 是保守估计。
+
+### 10.8 小结
+
+1. **etcd 的移植路线没有走错**：把 etcd server 的接线（leader 先发后存）搬回 Java 之后，
+   edap-raft 在**低/中窗口**（在途 1/16/256）比 etcd 本体快 **1.38~1.91×**，
+   延迟 p50 也更低（w=16：13.0ms vs 30.8ms）。
+   （**前提**：两边都用「异步等提交」的客户端语义 —— 换成 etcd server 的真实语义
+   「同步等应用」后这个领先基本消失，见 §10.9。）
+2. **高窗口（1024）edap 反而落后 3.3%**，原因定位到「edap 的落盘周期里有 6~11ms
+   非落盘开销，而 etcd 的周期几乎全是落盘」—— **具体成因未定位**。
+3. **edap 独有的背压在两侧都不是免费的**：它让窗口 1024 时 edap 能扛住 48% 更多的客户端请求，
+   代价是 35% 的提案被拒（etcd 是阻塞、dragonboat 是拒 43%）。
+4. **这一节测的是架构差异，不是语言差异。** Java / Go 的差异在这套对比里被架构差异盖住了，
+   不要拿它去论证「Java 比 Go 快」。
+
+> **⚠️ §10.5 的 etcd 数字用的是「异步等提交」的客户端语义，
+> 而 etcd server 的真实客户端语义是「同步等应用」** —— 两者的差别见 §10.9。
+> 读 §10.5 的结论前先看 §10.9.1。
+
+---
+
+### 10.9 追问：如果 edap-raft 也采用「同步提交」语义呢（campaign H2）
+
+#### 10.9.1 为什么这个问题必须问
+
+**§10.5 的 etcd 基准用的是「异步等提交」的客户端语义 —— 但 etcd server 的真实客户端语义本来就是同步的。**
+
+代码依据（etcd server v3.6.0，**这是核实代码，不是推测**）：
+
+| 环节 | 位置 | 事实 |
+|---|---|---|
+| 客户端写请求 | `etcdserver/v3_server.go:739-798` `processInternalRaftRequestOnce` | `s.r.Propose(cctx, data)` 之后 `select { case x := <-ch: ... }` —— 等的是 `ch` |
+| `ch` 何时被触发 | `etcdserver/server.go:1988` / `:2007` `s.w.Trigger(id, ar)` | 在 **apply 路径**里（`applyEntryNormal`），即**条目已写进 backend** 才唤醒客户端 |
+| apply 与 fsync 的先后 | `etcdserver/server.go:977-990` `applyAll` | `applyEntries` → `s.applyWait.Trigger(ep.appliedi)`（:983）→ **`<-apply.notifyc`（:988，等 fsync）在 Trigger 之后** |
+| apply 与 fsync 并行 | `etcdserver/raft.go:230` / `:240` / `:254` | Ready 循环里 `r.applyc <- ap`（:230，投递 apply）→ `r.transport.Send(...)`（:240）→ `r.storage.Save(...)`（:254，fsync）：**投递 apply 在 fsync 之前** |
+
+⇒ **etcd 的「应用」不等 fsync**（apply 与 fsync 并行，`applyWait.Trigger` 早于 `<-apply.notifyc`）。
+⇒ 所以在 etcd 里，**「等应用」≈「等提交」**（只差一个 apply 协程的调度时间）。
+
+**这条更正的影响**：§10.5 测的「edap-raft 领先 etcd 1.38~1.91×」是**两边都用异步语义**得到的，
+而**真实客户端语义（同步等应用）下的对比，§10 缺一块**。本节补上。
+
+#### 10.9.2 实验设计：把「完成点」和「提案入口是否阻塞」拆成两轴
+
+只看「异步等提交」和「同步等应用」两个变体的话，**「完成点变了」和「提案入口阻塞了」两个因素同时变**，
+结论无法归因。所以本节做**正交两轴**：
+
+| 变体 | 实现 | 提案入口 | 完成点 | 提案队列满时 |
+|---|---|---|---|---|
+| `edap-async` | Java `async-commit` | `proposeAsync`（**不阻塞**，入队即返回） | **被提交** | REJECT（抛 `RaftBusyException`） |
+| `edap-asyncapply` | Java `async-apply`（**本轮新增**） | `proposeAsync`（**不阻塞**） | **被应用** | REJECT |
+| `edap-sync` | Java `sync-commit` | `propose()`（**阻塞**，等 raft 核心收下） | **被应用** | SYNC（阻塞等位置） |
+| `etcd-aligned-async` | Go `async` | `raft.Node.Propose`（阻塞到 run loop 取走） | **被提交** | 无背压（阻塞） |
+| `etcd-aligned-sync` | Go `sync`（**本轮新增**） | 同上 | **被应用** | 无背压（阻塞） |
+| `etcd-async` | Go `async` | 同上 | **被提交** | 无背压（阻塞） |
+| `etcd-sync` | Go `sync` | 同上 | **被应用** | 无背压（阻塞） |
+
+`edap-asyncapply` 是**只为了隔离一个变量**而加的：
+它和 `edap-sync` 只差「提案入口是否阻塞」这一项（完成点都是「被应用」）；
+它和 `edap-async` 只差「完成点」这一项（提案入口都不阻塞）。
+
+**代码改动（只动测试代码，生产代码零改动）**：
+
+- Java `ClusterProposalHarness`：新增 `async-apply` 模式
+  （模式解析 `ClusterProposalHarness.java:420-425`，`runSyncClient` 增加 `nonBlockingPropose` 分支 `:846`）。
+- Go `etcdbench/main.go`：新增 `sync` 模式
+  （`cluster` 增加 `notifyApply []chan notice` + `syncMode`，apply 协程在 sync 分支发通知，
+  客户端循环改读 `notifyApply`；CLI 接受 `async` / `sync`）。
+
+**其余口径全部沿用 §10.4**（3 节点 / 16 客户端 / 20B 载荷 / 每客户端在途窗口 1/16/256/1024 /
+进程内直投 / `framework+apply` 落盘模式 / etcd-aligned 与 etcd 两套配置）。
+
+#### 10.9.3 结果
+
+> **数据批次：campaign H2**（2026-10-30 早，9 轮 × 4 窗口 × 7 变体 = **252 次运行**，
+> 全部在同一时段内交替完成，轮次奇偶调换变体顺序）。
+> **与 §10.5 的 campaign G 不是同一批，两批不可混用**。
+> 脚本 `/tmp/ab_run_h2.sh`，结果 `/tmp/ab_result_h2.txt`，解析器 `/tmp/parse_h2.py`
+> （`/tmp` 不保证长期保留 —— **下面的表就是完整快照**）。
+
+##### 10.9.3.1 提交/s（9 轮中位数）
+
+| 在途窗口 | edap-async | edap-asyncapply | edap-sync | etcd-aligned-async | etcd-aligned-sync | etcd-async | etcd-sync |
+|---|---|---|---|---|---|---|---|
+| 1 | **822** | 451 | 462 | 558 | 560 | 531 | 537 |
+| 16 | **14,561** | 6,630 | 6,605 | 6,508 | 6,050 | 5,829 | 6,601 |
+| 256 | **118,696** | 104,127 | 102,321 | 80,970 | 83,101 | 81,985 | 80,855 |
+| 1024 | 225,197 | 167,191 | 187,169 | **241,411** | **241,657** | 228,813 | 238,670 |
+
+**同步语义下 edap 相对 etcd 的优势基本消失**（比值，edap 提交/s ÷ etcd 提交/s）：
+
+| 在途窗口 | 异步语义 edap-async / etcd-aligned-async | **同步语义 edap-sync / etcd-aligned-sync** | 同步语义 edap-sync / etcd-sync |
+|---|---|---|---|
+| 1 | **1.47×** | 0.83× | 0.86× |
+| 16 | **2.24×** | 1.09× | 1.00× |
+| 256 | **1.47×** | 1.23× | **1.27×** |
+| 1024 | 0.93× | 0.78× | 0.78× |
+
+⇒ 异步语义下 edap 的领先是 **1.47~2.24×**；同步语义下变成 **0.78~1.23×**（只有 w=256 还领先）。
+
+##### 10.9.3.2 端到端延迟（发布→应用，ms，9 轮中位数）
+
+| 在途窗口 | edap-async | edap-asyncapply | edap-sync | etcd-aligned-async | etcd-aligned-sync | etcd-async | etcd-sync |
+|---|---|---|---|---|---|---|---|
+| 1 | **14.77** / 41.40 | 36.76 / 43.62 | 36.10 / 47.04 | 26.39 / 38.36 | 25.79 / 37.13 | 27.28 / 43.26 | 26.57 / 39.09 |
+| 16 | **13.85** / 46.07 | 37.37 / 59.44 | 34.41 / 53.78 | 35.49 / 62.09 | 36.59 / 66.48 | 38.34 / 67.72 | 33.92 / 59.69 |
+| 256 | **38.05** / 56.04 | 201.74 / 938.71 | 33.70 / 45.25 | 44.58 / 54.69 | 43.84 / 52.05 | 44.56 / 55.11 | 44.48 / 53.12 |
+| 1024 | 64.85 / 101.72 | 256.15 / 1068.69 | **42.41** / 63.90 | 46.00 / 59.64 | 44.86 / 57.34 | 44.61 / 57.82 | 44.20 / 57.53 |
+
+（每格 `p50 / p99`。`edap-asyncapply` 在 w=256/1024 的 p99 是 938/1068ms —— 病态配置，见 §10.9.3.3。）
+
+##### 10.9.3.3 拒绝率（%，9 轮中位数）
+
+| 在途窗口 | edap-async | edap-asyncapply | edap-sync | etcd（4 个变体） |
+|---|---|---|---|---|
+| 1 | 0 | 0 | 0 | 0 |
+| 16 | 0 | 0 | 0 | 0 |
+| 256 | 2.93 | **83.19** | 0 | 0 |
+| 1024 | 35.06 | **83.15** | 0 | 0 |
+
+**`edap-asyncapply` 在 w≥256 是病态配置**：`proposeAsync` 走 REJECT 策略，
+而「等应用」让客户端补位变慢 → 队列被打爆 → 83% 的提案在 API 边界被拒
+（w=1024 的失败数中位数是 **1,300 万次**）→ fsync 频率塌到 39/s、批次退化。
+**这一列的两个 83% 不能当成「async-apply 的正常表现」**，
+它说明的是「**异步提案入口 + 慢完成点**」这个组合会把队列打爆。
+
+##### 10.9.3.4 fsync 账单（3 节点合计，9 轮中位数）
+
+| 在途窗口 | edap-async | edap-asyncapply | edap-sync | etcd-aligned-async | etcd-aligned-sync | etcd-async | etcd-sync |
+|---|---|---|---|---|---|---|---|
+| 1 | 256/s · 9.7 条 · 11.19ms | 249/s · 5.5 条 · 12.00ms | 249/s · 5.6 条 · 11.98ms | 314/s · 5.4 条 · 9.00ms | 315/s · 5.4 条 · 8.78ms | 297/s · 5.4 条 · 9.37ms | 301/s · 5.4 条 · 9.13ms |
+| 16 | 243/s · **174.1** 条 · 10.91ms | 225/s · 88.6 条 · 12.68ms | 226/s · 87.7 条 · 12.80ms | 231/s · 83.5 条 · 11.76ms | 220/s · 84.9 条 · 12.51ms | 211/s · 82.9 条 · 12.75ms | 235/s · 84.1 条 · 11.62ms |
+| 256 | 185/s · **1,922.0** 条 · 10.10ms | 45/s · 11,433.9 条 · 12.52ms | 230/s · 1,349.4 条 · 11.39ms | 183/s · 1,347.2 条 · 15.06ms | 186/s · 1,349.1 条 · 14.92ms | 184/s · 1,342.0 条 · 15.14ms | 180/s · 1,344.0 条 · 15.38ms |
+| 1024 | 150/s · **4,454.4** 条 · 9.38ms | 39/s · 15,110.1 条 · 14.11ms | 195/s · 2,891.1 条 · 11.07ms | 169/s · 4,315.0 条 · 16.04ms | 167/s · 4,346.3 条 · 15.97ms | 168/s · 4,143.3 条 · 15.88ms | 170/s · 4,169.6 条 · 15.91ms |
+
+（`fsync/s · 条/次落盘 · 落盘耗时 ms/次`。）
+
+**这张表是本节最有信息量的一张**：w=16 时 7 个变体的 fsync 频率都在 211~243/s
+（**同一个量级**），但 `edap-async` 的批次是 **174.1 条**，
+其余 6 个变体全部落在 **82.9~88.6 条** —— **批次小一半，吞吐就小一半**（14,561 vs 6,630）。
+
+##### 10.9.3.5 模型自查
+
+（`落盘条目/s = fsync/s × 条/次落盘`，`提交/s = 落盘条目/s ÷ 3`）
+
+**28 个格子中 26 个 |偏差| ≤ 3.2%**；两个超出的都在 `edap-asyncapply`：
+w=256 是 **+64.7%**、w=1024 是 **+17.5%** —— 这正是 §10.9.3.3 说的病态配置
+（83% 拒绝让批次与 fsync 频率同时退化，两个中位数分开取、乘起来不等于中位数的乘积）。
+
+#### 10.9.4 归因
+
+##### 实测（campaign H2）
+
+| # | 结论 | 证据 |
+|---|---|---|
+| 1 | **决定性因素是「完成点」，不是「提案入口是否阻塞」**：`edap-asyncapply`（不阻塞 + 等应用）6,630 vs `edap-sync`（阻塞 + 等应用）6,605 @w=16 → **差 0.4%** | §10.9.3.1 |
+| 2 | **但完成点的差别是 2.2×**：`edap-async`（不阻塞 + 等提交）14,561 vs `edap-asyncapply`（不阻塞 + 等应用）6,630 @w=16 | §10.9.3.1 |
+| 3 | **直接机理是「批次大小」**：fsync 频率几乎相同（243 vs 225/s），批次 174.1 vs 88.6 条 → 吞吐 14,561 vs 6,630 | §10.9.3.4 |
+| 4 | **etcd 侧完成点几乎无影响**：`etcd-aligned-async` 6,508 vs `etcd-aligned-sync` 6,050 @w=16（-7%）；w=1/256/1024 的比值是 0.996 / 0.974 / 0.999 | §10.9.3.1 |
+| 5 | **这是多客户端效应**：1 客户端时同步与异步**完全一样**（86/s vs 85/s，延迟 11.61ms vs 11.86ms）；2/4/8/16 客户端差距依次 +4.3 / +8.7 / +10.8 / +13.5ms | 诊断实验（下表） |
+| 6 | **etcd 的 apply 不等 fsync**：`applyWait.Trigger`（`server.go:983`）早于 `<-apply.notifyc`（`:988`）；`applyc` 投递（`raft.go:230`）早于 `Save`（`:254`） | §10.9.1 |
+| 7 | **第三根轴是「提案队列溢出策略」**：`proposeAsync` → REJECT（深窗口 83% 拒绝）；`propose()` → SYNC（0% 拒绝）；etcd `Propose` → 阻塞（0% 拒绝） | §10.9.3.3 |
+| 8 | **edap 相对 etcd 的优势在同步语义下基本消失**（异步 1.47~2.24× → 同步 0.78~1.23×） | §10.9.3.1 |
+
+**诊断实验（1/2/4/8/16 客户端，w=1，Java `async-commit` vs `sync-commit`）**：
+
+| 客户端数 | async 提交/s | async 延迟均值 | sync 提交/s | sync 延迟均值 | 延迟差 | async 条/次落盘 | sync 条/次落盘 |
+|---|---|---|---|---|---|---|---|
+| 1 | 85 | 11.86ms | 86 | 11.61ms | **~0** | 1.0 | 1.0 |
+| 2 | 130 | 15.50ms | 101 | 19.84ms | +4.3ms | 1.6 | 1.3 |
+| 4 | 183 | 21.93ms | 131 | 30.60ms | +8.7ms | 2.2 | 1.5 |
+| 8 | 369 | 21.80ms | 245 | 32.62ms | +10.8ms | 4.6 | 2.9 |
+| 16 | 734 | 21.90ms | 452 | 35.44ms | +13.5ms | 8.8 | 5.7 |
+
+**1 客户端时完全没有差别**（吞吐 85 vs 86、延迟 11.86 vs 11.61ms），
+**差别随客户端数单调增长**，而同步态的批次始终是异步态的 ~2/3。
+⇒ 效应发生在「多客户端的补位」环节，不是「单条提案的路径延迟」。
+
+##### 推演（**未验证**，与上面的实测分开）
+
+- **推演 A**：edap 的「提交」完成点在**组装块内部**（`Node.java:976` `completePendingProposals(rdCommitted)`
+  在 `persistq.add`（:1001）与 `applyq.add`（:995）**之前**），客户端被唤醒后立刻补位，
+  新提案在**下一个组装块**开始前就落进 `propc` → 聚成一大批。
+  而「应用」完成点在组装块**之外**（apply 线程 → `applyHandler.apply` → `notifyAll`），
+  补位时刻相对组装边界**错开** → 提案摊到更多批次。
+  这与 §10.6 的探针实验一致（同一个二进制、只加一个探针线程，① 就能差 18.8×，
+  因为「谁在什么时候发布提案」与「leader 什么时候组装下一批」的相位关系是实现细节）。
+  **本轮没有直接验证这个相位关系。**
+- **推演 B**：etcd 侧没有这个效应，是因为 **Go 的 `Propose` 阻塞到 raft run loop 取走消息**，
+  而 **run loop 与 Ready 循环是分离的**（run loop 不等 fsync，fsync 在 Ready 循环的 `Save` 里）
+  ⇒ 释放→补位的时间窗口总是落在「下一批组装之前」，批次不会裂开。
+  Java 的 `proposeAsync` 只是入队（`propc.add`），由**同一个** raft 线程在下一轮迭代顶部排空
+  ⇒ 是否能进同一批取决于客户端唤醒时刻与组装边界的相对位置。
+  **本轮没有直接验证这一点。**
+- **推演 C**：edap 的「应用」点对**本批日志**是要等 fsync 的
+  （`Node.java:1182-1194` `splitCommitted`：本批日志里的条目等落盘完成才应用），
+  而 etcd 的 apply 与 fsync 并行。⇒ 在 edap 里「等应用」天然比「等提交」多一个 fsync 周期。
+  **但本轮没有把这个因素单独隔离出来**（`async-apply` 与 `sync-commit` 的完成点都是「应用」，
+  两者都含这个代价，所以 §10.9.4 的 #1 依然成立；
+  只是「edap-async vs etcd-async」的比较里它被混在完成点这个大因素里了）。
+
+##### 未定位（明确标出来）
+
+- **Java 侧「提交 → 应用」的真实间隔没有测出来。** harness 里
+  「发布→提交」样本是**每个客户端在途队列里最老的那条提案**（`ClusterProposalHarness.java:944-947`
+  在 future 完成时采一次），「发布→应用」样本是 **leader 上每一条被应用的普通条目**
+  （`:308-330` `ApplyStats.record`）—— **两个总体不同，不能相减**。
+  §10.9.4 推演 C 里说的「多一个 fsync 周期」因此**只是代码推断，没有实测支撑**。
+- **edap 的「应用」完成点为什么在 Go 侧没有同样的批次退化**（etcd 的完成点换了，吞吐几乎不变），
+  本轮没有钉死。§10.9.4 推演 B 是候选解释，但未验证。
+- **Go 基准的 `sync` 模式没有「发布→提交」这一行输出**（完成点就是应用，没有第二个采样点），
+  Java 侧同理 —— 所以**两个同步变体之间无法比较「提交点延迟」**。
+
+##### 口径警告
+
+1. **延迟记录器 400,000 样本上限**（两侧同）：w=256/1024 时 10 秒产生的样本远超上限，
+   记录器里只剩**启动最初 3.5s / 1.8s** 的样本 → **高窗口的 p50/p99 是「启动期」的延迟，不是稳态延迟**。
+   （§10.4.3 已说明，此处同样成立。）
+2. **`edap-asyncapply` 的 w=256/1024 是病态配置**（83% 拒绝），这一格的吞吐、延迟、
+   fsync 账单都带病态特征，**不要拿来当「async-apply 的正常表现」引用**。
+3. **拒绝率不是同口径**（§10.4.1）：edap 是「拒」，etcd 是「阻塞」。
+   本节 `edap-sync` 与 etcd 各变体的拒绝率都是 0%，
+   但含义不同 —— edap-sync 是「阻塞等位置」，etcd 是「阻塞在 `Propose`」。
+4. **`edap-asyncapply` 用的是 REJECT 策略**（`proposeAsync` 的默认策略），
+   这也是它在深窗口爆掉的原因之一；**本轮没有跑「async-apply + SYNC/BLOCK 策略」的对照组**，
+   所以「async-apply 的病态是完成点造成的还是队列策略造成的」**没有完全分离**。
+
+#### 10.9.5 小结
+
+1. **用户的答案：换成同步提交语义，edap-raft 相对 etcd 的优势基本消失。**
+   异步语义下 edap/etcd 是 1.47× / 2.24× / 1.47× / 0.93×（w=1/16/256/1024）；
+   同步语义下 edap-sync/etcd-sync 是 **0.86× / 1.00× / 1.27× / 0.78×**。
+2. **原因不是「同步本身慢」，而是 edap 的「完成点=应用」把批次打散了**：
+   同样 fsync 频率（243 vs 225/s）下批次从 174.1 条掉到 88.6 条，
+   同样的落盘预算被摊薄 → 吞吐减半、延迟翻倍。
+3. **etcd 换不换完成点几乎无所谓**（±7%）—— 因为 **etcd 的 apply 不等 fsync**
+   （`applyWait.Trigger` 在 `<-apply.notifyc` 之前），「等应用」在 etcd 里
+   几乎等同于「等提交」。
+4. **这修正了 §10 的结论范围**：§10 的「edap-raft 领先 etcd 1.38~1.91×」只在
+   **两边都用异步完成点**时成立；**在 etcd server 的真实客户端语义（同步等应用）下，
+   edap-raft 不再领先**。
+   ⇒ **edap-raft 的异步提案 API 不是「锦上添花」，而是它当前能打赢 etcd 的前提条件**。
+5. **推论（未实测）**：如果 edap-raft 要在同步语义下追平 etcd，
+   要动的不是「提案入口」，而是「**应用完成点的释放时机与批次边界的对齐**」。
+   §10.9.4 的推演 A/B 给出了两个候选方向，需要单独做一次相位对齐实验来验证。
+
+---
+
+## 10.10 性能排查：edap-raft 慢在哪里（campaign I / J，2026-10-30）
+
+### 10.10.0 起因与结论摘要
+
+§10.9 的结论是：edap-raft 在 etcd 的真实客户端语义（同步等应用）下不再领先，
+而且「完成点=应用」会把落盘批次打散（174.1 条 → 88.6 条，同等 fsync 频率下吞吐减半）。
+§10.9.5 的第 5 条把方向写清楚了：**要动的不是「提案入口」，
+而是「应用完成点的释放时机与批次边界的对齐」**。
+
+本节就是去做这件事，同时回答「**edap-raft 慢的原因在哪、还有哪里需要优化**」。
+
+**结论（先说结果，每一条后面都有实测数据）**：
+
+| # | 结论 | 证据 |
+|---|---|---|
+| 1 | leader 状态机线程上 **31.5% 的 CPU 样本花在 JVM 全局延迟队列的线性删除上** —— 根子是 `CompletableFuture.orTimeout` 注册的 `Canceller` 回调 | §10.10.2 |
+| 2 | leader 线程另有 **20.5% 花在 `notifyProposalSpace`**（每次提交通知都 `notifyAll`）、**12.5% 在 `completePendingProposals`** | §10.10.2 |
+| 3 | 去掉这三项开销后，**w=16 反而慢了 2.26×**（17,079 → 7,560 提交/s） | §10.10.3 |
+| 4 | 慢的原因不是「CPU 不够」，而是**批次碎片化**：三个变体的 fsync 频率几乎一样（80.1 / 80.1 / 91.5 次/s），吞吐完全由「条/次落盘」决定（155.0 / 93.8 / 253.2） | §10.10.4 |
+| 5 | 批大小是**自维持的正反馈**（上一批通知多少客户端 → 客户端补位 → 下一批多少条），**补位时刻与 leader 排空 `propc` 的相位关系**决定这一批是满批还是碎片批 | §10.10.4 |
+| 6 | 修法是**碎片批次合并**（leader 把碎片批的落盘推迟，等客户端补位到齐）：w=1 **+85.4%**、w=16 **+54.0%**、w=256 **+10.9%**、w=1024 −5.3%（噪声内） | §10.10.6 |
+| 7 | w=1024 没有提升 —— 那里批次本来就接近满（4,500~5,158 条/次），碎片不是瓶颈，限流的是提案队列满导致的 29~36% 拒绝 | §10.10.6 |
+| 8 | 过程中撞上一次**停机挂起**（1/约 100 次运行）：`stop()` 无限期 `join()`，状态机线程停在 `park` 上没醒。根因未定位，已加保险 | §10.10.7 |
+| 9 | **剩余可优化项**（按 JFR 占比排序）：`pendingProposals` 的逐条 map 删除（4.8%）、`handleProposals` 的数组拷贝（1.9%）、`Raft.payloadsSize` 每批重算（3.3%） | §10.10.8 |
+
+**一句话**：**edap-raft 的瓶颈不在 raft 协议路径，而在「落盘批次的大小」与「提案完成点的相位」**。
+§10.9 说「完成点=应用会把批次打散」，本节找到了这个效应的**机理**
+（自维持正反馈 + 相位关系），并给出了修法（碎片批次合并）。
+
+### 10.10.1 方法与变体定义
+
+三个工具，三类证据：
+
+| 工具 | 用途 | 产物 |
+|---|---|---|
+| **JFR**（`-XX:StartFlightRecording`） | 归因：leader 状态机线程的 CPU 到底花在哪 | `/tmp/raft_async1024.jfr`（1.4MB，2026-10-30 09:48） |
+| **leader 侧插桩时间线** | 机理：每一批组装了多少条、什么时候落的盘 | `/tmp/tl_{base,opt,opt2}_16_node*.txt` |
+| **campaign A/B**（同批交替、轮次奇偶对调） | 效果：改前改后的吞吐/延迟/拒绝率 | `/tmp/ab_result_i.txt`（campaign I）、`/tmp/campaign_J.txt`（campaign J） |
+
+**变体定义（三个名字在两批 campaign 里都用到，先对齐）**：
+
+| 名字 | 内容 | campaign I | campaign J |
+|---|---|---|---|
+| **base** | HEAD（未改） | `side=base` | `side=base` |
+| **t1** | base + 去掉 `CompletableFuture.orTimeout`（改自维护超时清扫）+ 去掉冗余 `whenComplete` | `side=t1` | —— |
+| **t1′** | t1 + `notifyProposalSpace` 只在有等待者时才 `notifyAll` | `side=opt` | —— |
+| **t2** | t1′ + `Unstable.hasNextEntries()`（不复制列表判空）+ **碎片批次合并** | —— | `side=opt`（= 工作区） |
+
+> 本节后面统一用 **base / t1 / t1′ / t2** 这四个名字。
+> campaign I 的 `side=opt` 就是 t1′，campaign J 的 `side=opt` 就是 t2 —— **不要混**。
+
+### 10.10.2 JFR 归因（实测，不是推测）
+
+录制：3 节点真盘、16 客户端、w=1024、`framework+apply`、`direct` 传输，**改动前（base）的代码**。
+被录的线程是 **leader 的状态机线程 `edap-raft-1`**（leader 是单线程，
+提案的提交与应用都要经过它，所以它的 CPU 就是整个集群的瓶颈）。
+
+样本数：**1,344 个 `jdk.ExecutionSample`**
+（录制窗口 09:48:42.6 ~ 09:49:07.7，约 25s）。
+
+**叶子帧分布（top 16）**：
+
+| 占比 | 样本 | 叶子帧 |
+|---|---|---|
+| **28.6%** | 384 | `ScheduledThreadPoolExecutor$DelayedWorkQueue.siftDown` |
+| **20.5%** | 276 | `io.edap.raft.Node.notifyProposalSpace` |
+| **11.7%** | 157 | `io.edap.raft.Node$$Lambda$92.accept`（= `future.whenComplete(...)` 回调） |
+| 4.8% | 65 | `ConcurrentHashMap.replaceNode` |
+| 4.0% | 54 | `Unsafe.getAndBitwiseAndInt`（AQS 释放） |
+| 2.9% | 39 | `ScheduledThreadPoolExecutor$DelayedWorkQueue.remove` |
+| 2.9% | 39 | `CompletableFuture.postComplete` |
+| 2.4% | 32 | `CompletableFuture.postFire` |
+| 2.2% | 29 | `CompletableFuture.complete` |
+| 2.0% | 27 | `ConcurrentHashMap.addCount` |
+| 1.9% | 25 | `AbstractCollection.toArray` |
+| 1.8% | 24 | `io.edap.raft.Raft.payloadsSize` |
+| 1.5% | 20 | `io.edap.raft.RaftUtil.limitSize` |
+
+**`io.edap.raft` 锚点（栈里任意位置出现即计入）**：
+
+| 占比 | 帧 |
+|---|---|
+| 37.9% | `Node.run` |
+| 26.3% | `Node.handleProposals` |
+| **20.5%** | `Node.notifyProposalSpace` |
+| 12.5% | `Node.completePendingProposals` |
+| 1.9% | `Node.lambda$proposeAsync$0`（= `whenComplete` 回调） |
+
+#### 10.10.2.1 第一热点：`orTimeout` 的 `Canceller`（31.5%）
+
+**实测调用链（384 个 `siftDown` 样本中 384 个都命中这条链，100%）**：
+
+```
+0 java.util.concurrent.ScheduledThreadPoolExecutor$DelayedWorkQueue.siftDown
+1 java.util.concurrent.ScheduledThreadPoolExecutor$DelayedWorkQueue.remove
+2 java.util.concurrent.ThreadPoolExecutor.remove
+3 java.util.concurrent.ScheduledThreadPoolExecutor$ScheduledFutureTask.cancel
+4 java.util.concurrent.CompletableFuture$Canceller.accept
+```
+
+**机理**：
+
+- `CompletableFuture.orTimeout(t, unit)` 会往 **JVM 全局共享**的
+  `ScheduledThreadPoolExecutor` 延迟队列里注册一个定时任务；
+- 提案**正常完成**时（leader 在 `completePendingProposals` 里 `future.complete(null)`），
+  JDK 会执行 `Canceller` 回调 → `ScheduledFutureTask.cancel()` →
+  `ThreadPoolExecutor.remove()` → **从延迟队列里线性扫描删除这个任务**；
+- 延迟队列里堆积的定时任务越多，扫得越久 ⇒ **每条提案付一次 O(在途提案数) 的扫描**，
+  整体退化成 **O(n²)**（n = 在途提案数 = 窗口深度）。
+
+**为什么这一项会拖垮 leader**：延迟队列是 **JVM 全局**的，
+所有节点、所有 future 的超时任务都在里面；leader 每提交一条提案就要在**自己的状态机线程上**
+扫一遍全局队列。**在途窗口 1024 时，leader 一半的 CPU 花在这上面。**
+
+⇒ **修法**：不用 `orTimeout`。改成自维护的超时 —— `PendingProposal` 里记 `deadlineNanos`，
+一条守护线程（`edap-raft-timeout-<id>`）每 100ms 扫一遍待完成表
+（表里只有「还没提交」的提案，提案一提交就被摘掉，比全局延迟队列短得多）。
+**这次改动把全局 O(n²) 变成了本地 O(n)。**
+
+#### 10.10.2.2 第二热点：`notifyProposalSpace`（20.5%）
+
+调用点：`Node.completePendingProposals` → 每提交一条提案就 `notifyProposalSpace()`。
+这个方法原来无条件 `notifyAll()`，即使**一个等待者都没有**也要走一遍 AQS 的释放路径
+（JFR 里 `Unsafe.getAndBitwiseAndInt` ← `AQS.signalNext` ← `AQS.release` ← `ReentrantLock.unlock`
+就是它，4.0%）。
+
+⇒ **修法**：只在 `proposalSpaceWaiters.get() != 0` 时才 `notifyAll`。
+
+#### 10.10.2.3 第三热点：冗余的 `whenComplete`（11.7% + 2.9% + 2.4% + 2.2% ≈ 17.2%）
+
+`proposeAsync` 原来给每个 future 挂了一个 `whenComplete` 回调，
+回调里做两件事：把提案从 `pendingProposals` 里摘掉、通知提案空间。
+回调本身是 JDK 的 `CompletableFuture` 内部机制（`postComplete` → `postFire` → `accept`），
+**每条提案都要付一次**；而且回调在**完成线程**上跑，也就是 leader 的状态机线程。
+
+⇒ **修法**：`completePendingProposals` 里直接摘表，去掉 `whenComplete`。
+
+### 10.10.3 第一轮改动之后：w=16 反而慢了 2.26×（campaign I）
+
+**campaign I**（2026-10-30 10:28~10:45，10s/轮，变体顺序按轮次奇偶对调；
+base/t1/opt 每格实际跑了 3~4 轮，etcd 两个参照点跑了 4 轮）：
+
+| w | base 提交/s | t1 提交/s | t1′ 提交/s | t1′/base | base 条/次落盘 | t1′ 条/次落盘 | base p50 | t1′ p50 |
+|---|---|---|---|---|---|---|---|---|
+| 1 | 719 | 681 | 709 | 0.99 | 8.6 | 8.6 | 20.8ms | 21.2ms |
+| 16 | **17,079** | 7,590 | **7,560** | **0.44** | **207.1** | **95.0** | **12.8ms** | **34.8ms** |
+| 256 | 119,398 | 103,249 | 101,193 | 0.85 | 1,917.0 | 1,358.6 | 37.5ms | 40.5ms |
+| 1024 | 217,900 | 249,710 | **250,209** | **1.15** | 4,632.3 | 5,435.4 | 65.3ms | 63.1ms |
+
+（同一批的 Go 参照点：etcd-aligned-async 在 w=1/16/256/1024 是
+554 / 8,205 / 81,726 / 234,930 提交/s。）
+
+**w=16 慢了 2.26×，延迟从 12.8ms 涨到 34.8ms** —— 一次「去掉开销」的优化，
+在最重要的中等窗口上是**净负收益**。w=1024 反而快了 14.8%
+（那里开销本身就是瓶颈，批次本来就大）。
+
+**这个反常结果就是本节的核心线索**：去掉 CPU 开销怎么会变慢？
+
+### 10.10.4 根因：批次碎片化
+
+#### 10.10.4.1 吞吐由「条/次落盘」决定，不是由 fsync 频率决定
+
+恒等式（3 节点合计口径）：
+
+```
+落盘条目/s = 落盘次数/s × 条/次落盘
+提交/s     = 落盘条目/s ÷ 3        （3 个节点各落一份同样的日志）
+```
+
+**leader 侧插桩（w=16，15.5~15.6s 窗口）**：
+
+| 变体 | 组装轮次 | 非空落盘次数/s | 条/次落盘（非空均值） | 非空批分位 p10/p50/p90 | 落盘条目/s（leader 自己） |
+|---|---|---|---|---|---|
+| **base**（HEAD，node2） | 2,130 | **80.1** | **155.0** | **3 / 242 / 256** | 12,408 |
+| **t1′**（去超时/回调，无碎片合并，node1） | 1,463 | **80.1** | **93.8** | **43 / 83 / 142** | 7,508 |
+| **t2**（+碎片批次合并，node3） | 6,568 | **91.5** | **253.2** | **256 / 256 / 256** | 23,178 |
+
+**⇒ fsync 频率在三个变体里几乎一样（80.1 / 80.1 / 91.5 次/s），
+吞吐完全由「条/次落盘」决定（155.0 / 93.8 / 253.2）。**
+leader 的 CPU 开销不直接决定吞吐 —— 它通过**批次大小**间接决定。
+
+**批大小的分位形状是三种截然不同的分布**：
+
+- **base：双稳态**（3 / 242 / 256）—— 要么只有零星几条，要么就是满批 256；
+  中位数 242 意味着**一半以上的批次是满的**。
+- **t1′：均匀碎片**（43 / 83 / 142）—— 中位数掉到 83，**批被打散了**。
+- **t2：恒满批**（256 / 256 / 256）—— 最小的一批也是满的。
+
+#### 10.10.4.2 批大小是自维持的正反馈
+
+机制（**代码级**）：
+
+1. leader 提交一批条目 → `completePendingProposals` 通知了 **N 个客户端**；
+2. 这 N 个客户端各自补一条新提案（窗口模式：提交一条就补一条）；
+3. 下一轮 leader 排空 `propc` 时，**能凑到多少条取决于这 N 条新提案
+   在 leader 排空 `propc` 之前到了多少**；
+4. 凑到得多 → 这一批大 → 这一批提交后通知的客户端更多 → 下一批更大。**正反馈。**
+
+**所以「批大小」不是由系统能力决定的，是由「补位时刻 vs leader 排空 `propc` 的时刻」
+这个相位关系决定的。**
+
+- **base 的相位恰好对**：leader 每轮更慢（`orTimeout` 的 Canceller 扫描 + 冗余 `whenComplete`
+  + 无条件 `notifyAll` 让它每轮多花几十微秒到几毫秒），
+  客户端的补位**来得及在下一轮排空之前到齐** ⇒ 攒出满批。
+- **t1′ 把这些开销都去掉之后**：leader 每轮更快，**排空 `propc` 的时刻提前了**，
+  客户端的补位**来不及** ⇒ 这一批只拿到零星几条 ⇒ 下一批更小 ⇒ **恶性循环**。
+
+⇒ **「让 leader 更快」这件事，本身会把批次打碎。**
+
+#### 10.10.4.3 修正一条旧结论
+
+上一轮排查（§10.9 之前）里曾经有过一个判断：
+
+> 「base 更快是因为它 CPU 慢、错过补发反而攒出满批」—— 被判为**错误推演**并作废。
+
+**本轮的证据表明：这个方向是对的，只是当时的表述把「因果」讲反了，而且它不稳定。**
+准确的说法是：
+
+- **它是一个真实的相位锁效应**，不是错觉：base 的额外开销确实起到了
+  「拖慢 leader、给客户端补位留出时间窗」的作用；
+- **但它是一个有害的巧合**：base 靠「意外的 CPU 开销」维持满批，
+  意味着**批大小不受控**——同一份 base 代码，w=16 五轮分别是
+  13,407 / 14,519 / 14,809 / 20,253 / 21,111 提交/s（**±23% 的抖动**），
+  批次在「满批」和「碎片」两个稳态之间跳变（p10=3 vs p50=242）。
+
+⇒ **正确做法不是「把开销加回去」，而是显式地控制相位**（下一节）。
+
+### 10.10.5 修复：碎片批次合并
+
+**思路**：既然「批大小」由相位决定，那就**显式地等**——
+leader 提交一批之后，如果下一批只攒到零星几条，
+**先不落盘**，等客户端把新提案补上来（或者等到一个时间上限），攒够一批再落盘。
+
+**实现**（`Node.java`）：
+
+| 位置 | 改动 |
+|---|---|
+| `completePendingProposals`（`:1489`） | 改成返回「本次实际通知到的客户端数」 |
+| 主循环（`:1058` 附近） | 收到通知数记进 `expectBatchSize`（= 预计会到来的新提案条数） |
+| `shouldDeferPersist`（`:1325`） | 判据：**本批条目数 < 上一批通知的客户端数** ⇒ 这是碎片批，推迟落盘 |
+| 推迟的实现 | **丢弃这个 Ready**（`readyWithoutAccept()` 是只读的，下一轮重新组装，条目会更多）；消息还在状态机里（`acceptReady` 才会清空它们），下一轮的 Ready 会带上 |
+| 参数 | 等待窗口 `DEFER_WAIT_MILLIS`=10ms；总上限 `DEFER_MAX_WAIT_MILLIS`=50ms；`DEFER_MIN_COMMITTED`=2 |
+
+**安全性**（为什么丢弃 Ready 是安全的）：
+
+- `readyWithoutAccept()` **不改动状态机**（只读地组装一份 Ready），
+  丢弃它等于「这一轮先不交付」；
+- 状态机里的条目、消息都还在（`acceptReady` 才会把它们摘走），
+  下一轮重新组装的 Ready 会带上，而且**条目只会更多**；
+- 只在 **leader** 上做（跟随者的批次由 leader 的复制消息决定，
+  推迟落盘只会推迟自己的确认消息，反过来拖慢 leader 的提交）；
+- 带**快照**或**线性一致读状态**的 Ready 不推迟（快照必须先进存储，读确认不能拖）；
+- 空批次不推迟（没有日志要写，落盘不要钱）；
+- 总等待有 50ms 上限 ⇒ 即使客户端不来补位，也不会一直拖。
+
+**实测效果（leader 侧插桩，t2）**：非空批的分位变成 **256 / 256 / 256** ——
+**每一批都是满批**；fsync 频率还从 80.1 涨到 91.5（批次大了，落盘次数自然多一点）。
+
+#### 10.10.5.1 一条被丢弃的中间尝试（记录下来，因为它比不改还差）
+
+碎片合并并不是一次写对的，中间还试过别的路子。
+**2026-10-30 12:29 的中间构建（源码已丢失，只剩 `/tmp/classes_fix` 的字节码）
+与最终版（`/tmp/classes_opt`，13:45）语义不同** ——
+用 `javap -p -c` **归一化常量池索引后逐方法比对**才能看出来：
+
+| | 中间版（`classes_fix`，12:29） | 最终版（`classes_opt`，13:45） |
+|---|---|---|
+| 主循环 `run` 里多出来的动作 | `rn.getRaft().getCommittedEntries()` → `completePendingProposals(List)`（**把提案的完成点提前到「raft 已提交」，不等 Ready 交付**） | 无此调用 |
+| 碎片合并 | **没有**（无 `shouldDeferPersist`、无 `DEFER_*`） | `shouldDeferPersist(Ready, List, List)` + `LockSupport.parkNanos(DEFER_WAIT_MILLIS)` |
+| 其余方法 | 与最终版**逐字节相同**（44 个方法里只有 `run` / `join` 不同） | — |
+
+**同一批里的单次实测**（12:29，`base` / `opt` / `fix` 各跑 w=16、w=1024 一次）：
+
+| 变体 | w | 提交/s | 条/次落盘 | 拒绝率 | 在途深度（上限 16,384） |
+|---|---|---|---|---|---|
+| base | 1024 | 226,562 | 4,742.8 | 35.44% | 13,061 |
+| opt（=t1′，无合并） | 1024 | 253,910 | 5,788.8 | 12.96% | 15,297 |
+| **fix（完成点提前版）** | 1024 | **122,148** | 2,388.1 | **47.06%** | **3,876** |
+| opt（=t1′） | 16 | 7,862 | 95.7 | 0.0008% | 246 |
+| **fix（完成点提前版）** | 16 | 10,956 | 148.0 | 0.0000% | 246 |
+| base | 16 | 18,244 | 213.4 | 0.0000% | 244 |
+
+⇒ **这条路子被丢弃**：深窗口吞吐只有 base 的 54%（低 46%），
+47% 的提案被 REJECT，在途深度从 15,297 掉到 3,876。
+
+**机制未定位（推演，不是实测）**：完成点提前 ⇒ 客户端更早收到完成、更早补位
+⇒ L1 提案队列（`maxPendingProposals`=2048）先满 ⇒ 大量提案被 REJECT；
+被拒的提案不计入在途，在途深度随之塌陷。
+**但「为什么条/次落盘也从 4,742 掉到 2,388」这一步没有实测支撑，不要当成结论引用。**
+
+这条记录与 §10.10 的主结论方向一致：**决定吞吐的是「完成点」和「相位」，
+不是「省掉多少 CPU」**——完成点往哪个方向挪，结果可以差 2 倍以上。
+
+（这一批是**单次实测**、机器负载未知，只作为「这条路不行」的证据，不进任何中位数表。）
+
+### 10.10.6 效果：campaign J（base vs t2）
+
+**campaign J**（2026-10-30 18:00~19:00，5 轮 × 4 窗口，
+每个窗口内两个变体的顺序按轮次奇偶对调；共 40 格，完成 39 格）：
+
+| w | base 提交/s | **t2 提交/s** | 变化 | base 条/次落盘 | t2 条/次落盘 | base 拒绝% | t2 拒绝% | base p50 | t2 p50 |
+|---|---|---|---|---|---|---|---|---|---|
+| 1 | 727 | **1,348** | **+85.4%** | 8.6 | 15.8 | 0.01 | 0.00 | 20.24ms | **11.96ms** |
+| 16 | 14,809 | **22,812** | **+54.0%** | 173.9 | 249.3 | 0.00 | 0.00 | 12.78ms | **11.70ms** |
+| 256 | 118,196 | **131,067** | **+10.9%** | 1,968.2 | 1,934.8 | 2.02 | **0.88** | 36.64ms | **30.66ms** |
+| 1024 | 220,347 | 208,714 ⚠ | **−5.3%** | 4,500.9 | 5,158.3 | 35.72 | **28.98** | 64.00ms | 62.64ms |
+
+（⚠ w=1024 的 t2 只有 **4 轮**有效数据：第 5 轮那次运行撞上了 §10.10.7 的停机挂起。）
+
+**w=1024 的 −5.3% 是噪声内的**：同一格 base 的五轮是
+212,418 / 216,658 / 220,347 / 222,479 / 223,092（±2.4%），
+t2 的四轮是 191,298 / 208,441 / 208,987 / 228,029（±9%，样本少）。
+**这一格真正的变化是「条/次落盘 +14.6%」和「拒绝率 −19%」**，
+吞吐没跟上是因为**深窗口的限流点不在落盘上**：
+w=1024 时提案队列（`maxPendingProposals`）先满，
+29~36% 的提案被直接拒绝（`proposeAsync` 的 REJECT 策略）。
+
+#### 10.10.6.1 模型自查
+
+（`落盘条目/s = 落盘次数/s × 条/次落盘`，`提交/s = 落盘条目/s ÷ 3`；
+`落盘次数/s` 是 3 节点非空 fsync 合计，`条/次落盘` 是 3 节点平均）
+
+| w | 变体 | 落盘/s × 条/次 ÷ 3 | 实测提交/s | 偏差 |
+|---|---|---|---|---|
+| 1 | base | 254 × 8.6 ÷ 3 = 728 | 727 | +0.1% |
+| 1 | t2 | 256 × 15.8 ÷ 3 = 1,348 | 1,348 | 0.0% |
+| 16 | base | 256 × 173.9 ÷ 3 = 14,839 | 14,809 | +0.2% |
+| 16 | t2 | 274 × 249.3 ÷ 3 = 22,769 | 22,812 | −0.2% |
+| 256 | base | 185 × 1,968.2 ÷ 3 = 121,372 | 118,196 | +2.7% |
+| 256 | t2 | 206 × 1,934.8 ÷ 3 = 132,856 | 131,067 | +1.4% |
+| 1024 | base | 146 × 4,500.9 ÷ 3 = 219,043 | 220,347 | −0.6% |
+| 1024 | t2 | 120.5 × 5,158.3 ÷ 3 = 207,258 | 208,714 | −0.7% |
+
+**8 格全部自洽（|偏差| ≤ 2.7%）** ⇒ 三个数（落盘频率、条/次落盘、提交/s）互相印证。
+
+#### 10.10.6.2 交叉验证（两批独立数据互相对照）
+
+| w | campaign H2 的 `edap-async`（§10.9.3.1） | campaign J 的 base | 相对差 |
+|---|---|---|---|
+| 1 | 822 | 727 | −11.6% |
+| 16 | 14,561 | 14,809 | +1.7% |
+| 256 | 118,696 | 118,196 | −0.4% |
+| 1024 | 225,197 | 220,347 | −2.2% |
+
+**两批完全独立的实验（不同日期、不同脚本）测同一份 base 代码，w=16/256/1024 吻合在 2.2% 以内**
+⇒ base 的基准数据可信，campaign J 的 t2 提升不是「跑分漂移」。
+
+### 10.10.7 事故：一次停机挂起（根因未定位，已加保险）
+
+#### 现象
+
+campaign J 的最后一格（`rep5 opt w=1024`）跑完 15s 基准后**不退出**，
+主线程卡在 `Node.stop()` → `worker.join()`。
+`jstack` 现场（`/tmp/stack_hang.txt`，2026-10-30 19:30，进程已跑 2,527s）：
+
+```
+"main" ... at io.edap.raft.Node.stop(Node.java:664)      ← worker.join()
+"edap-raft-1" ... WAITING (parking) at io.edap.raft.Node.run(Node.java:1136)   ← LockSupport.park(this)
+"edap-raft-apply-1" / "edap-raft-persist-1" / "edap-raft-timeout-1" —— 已消失
+"edap-raft-2" / "-3" 及其 apply/persist/timeout 线程 —— 都还在
+```
+
+- 停机是**按节点顺序**做的（`ClusterProposalHarness.java:646-653`），
+  所以现场是：node1 已经停了一半（apply/persist/timeout 线程都退了，说明 `stopped` 已是 true），
+  **但它的状态机线程还停在 `park` 上**；
+- node2/node3 还没轮到停，它们的线程都还活着 —— 说明卡住的是**第一个** `m.node.stop()`。
+
+#### 已排除
+
+| 假设 | 排除依据 |
+|---|---|
+| 卡在推迟落盘的 `parkNanos` 分支 | 栈上是 `Node.java:1136` = `LockSupport.park(this)`（无限期 park），不是 `parkNanos` |
+| `deferUntilNanos` 死等 | 同上；且推迟有 50ms 总上限 |
+| `stop()` 提前返回（那样就进不到 `join`） | 栈上就是 `join()` |
+| 节点与线程错配 | harness 每个 peer 一个 `Node`，线程名带 raft id，`edap-raft-1` 就是 node1 的 |
+| 源码与运行代码不一致 | 反编译运行时的 `Node.class`：`stop()` 的 `unpark(worker)`（offset 74-78）与 `join()`（offset 116-120）都在；`run()` 的循环顶检查 `stopped.get()`（offset 55-62）与 `park`（offset 1144）行号与源码一致 |
+
+#### 静态分析的结论（与现场矛盾）
+
+按源码，**这个挂起不可能发生**：
+
+- `stop()` 先 `stopped.compareAndSet(false, true)`，再无条件 `LockSupport.unpark(worker)`；
+- 状态机线程的 `park` 之后一定回到循环顶（字节码 offset 1148 → `goto 55` → `stopped.get()`），
+  `stopped` 是 volatile 语义 ⇒ **线程一定会看到 true 并退出**；
+- `unpark` 的许可（permit）不会丢：许可是一次性的「信号」，
+  `unpark` 在线程未 park 时会置位许可，随后的 `park` 立刻返回。
+
+**⇒ 现场说明有一次 `unpark` 没能让线程醒过来**（JVM 层面的许可丢失/唤醒丢失），
+**但根因没有定位**。
+
+#### 复现尝试（未成功）
+
+- 加埋点重编译（`stop()` 进出、`run()` 循环退出、park 醒来处打点，
+  外加 3s 看门狗打 worker 栈），**跑 60 次（opt 30 + base 30）全部未复现**；
+- `jdb` 附着被 macOS 拒（Connection refused）；`jhsdb clhsdb` 能连上但取不到字段值。
+
+#### 已加的保险（这一轮随性能改动一起落地）
+
+| 改动 | 位置 | 作用 |
+|---|---|---|
+| 状态机线程的 `park` 改成**带超时**（1s） | `Node.java:1179` | 即使一次 `unpark` 丢了，线程最迟 1s 后也会自己醒来重新看一眼 `stopped` ⇒ **挂起变成最多 1s 的延迟** |
+| `stop()` 改成**有界等待**：落盘 5s / apply 2s / 超时清扫 1s / 状态机 5s | `Node.java:638` | 停机**永远不会被一个线程拖死**；超时会打印告警**并带上那个线程的栈**，下次再遇到能直接定位 |
+| 停机时**先等落盘线程退出** | `Node.java:665` | 调用方 `stop()` 之后就可以安全地 `storage.close()` —— 原来落盘线程还可能在写盘，`close()` 会和一次 fsync 撞上 |
+| 回归测试 `nodeStopIsBounded` | `RaftNodeTest.java` | 断言 `stop()` 有界返回，且返回后节点的所有线程都已退出 |
+
+> **代价**：状态机线程从「无限期 park」变成「每秒醒一次」。
+> 每秒多一次空转（一轮循环 ≈ 几微秒），对吞吐无可测影响
+> （campaign J 之后的复测：w=16 是 20,103~22,381 提交/s，w=1024 是 198,473~207,599，
+> 与 campaign J 的 t2 中位数同量级）。
+
+### 10.10.8 剩下的可优化项（按 JFR 占比排序）
+
+**已经做掉的**（本节）：`orTimeout` 的 `Canceller`（31.5%）、无条件 `notifyAll`（20.5%）、
+冗余 `whenComplete`（11.7%）、`Unstable.hasNextEntries()` 的整批复制（省一次列表拷贝）。
+
+**还剩下的**（JFR 实测占比，leader 状态机线程）：
+
+| 占比 | 热点 | 位置（实测调用链） | 想法 | 状态 |
+|---|---|---|---|---|
+| **4.8%** | `ConcurrentHashMap.replaceNode` | `completePendingProposals` → `pendingProposals.remove(...)`（48 样本）；`lambda$proposeAsync$0` → `pendingProposals.remove(...)`（17 样本） | 每提交一条提案就做一次 map 删除。可以改成「一轮结束时按序批量摘除」或用 long 序号 + ring buffer 替代 map | **未做**（收益 ~5%，但会动到提案完成路径，风险要评估） |
+| **3.3%** | `Raft.payloadsSize`（24）+ `RaftUtil.limitSize`（20） | 载荷大小在**三个地方各算一遍**：`appendEntry`→`increaseUncommittedSize`（8）、`maybeSendAppend`→`sendAppend`（10）、`Raft.step`（6）；`RaftLog.slice`→`RaftLog.limitSize`（14）、`FileRaftStorage.entries`（5） | 载荷大小可以随 entry 一起带下来，算一次就够 | **未做** |
+| **1.9%** | `AbstractCollection.toArray` ← `ArrayList.addAll` | `Node.handleProposals` | 提案排空时每轮新建 `ArrayList` 并 `addAll`；可以改成复用缓冲区 | **未做** |
+| **~2.1%** | `RaftLog.slice` / `RaftLog.entries` | 复制日志切片 | 已有 `Unstable.hasNextEntries()` 的先例（不复制列表判空），同样的思路可以推广 | **部分** |
+
+**方向性的两条**（不是「热点」，是结构性的）：
+
+1. **w=1024 的限流点不在落盘上**（§10.10.6）：29~36% 的提案被 `proposeAsync` 的
+   REJECT 策略直接拒掉。要提升深窗口，得动**背压策略**（比如改成 BLOCK 或分级拒绝），
+   而不是继续优化落盘。
+2. **同步语义（`async-apply`）下碎片合并的效果还没测**：
+   §10.9 指出「完成点=应用」会把批次打散（174.1 → 88.6 条），
+   本节的碎片合并正是冲着这个去的 —— **但只在 `async-commit`（完成点=提交）下测过**。
+   `async-apply` 模式下客户端要等应用点才补位，补位更慢，碎片应该更严重，
+   **合并的收益可能更大** —— 这是下一步最该做的实验。
+
+### 10.10.9 小结
+
+1. **「慢」的第一个来源是提案 future 的超时/回调机制**，而且是 O(n²) 的：
+   `orTimeout` 在 JVM 全局延迟队列里注册定时任务，提案完成时逐条线性删除。
+   **leader 线程 31.5% 的 CPU 花在这上面**。已改为自维护的超时清扫。
+2. **去掉开销之后 w=16 反而慢了 2.26×**，这才是本轮真正的发现：
+   **批大小是自维持的正反馈**，而它由「补位时刻 vs leader 排空 `propc` 的相位关系」决定；
+   **让 leader 更快，会把批次打碎**。
+   ⇒ **性能优化不能只看 CPU**：在「补位—攒批」这种自维持系统里，
+   **变快会改变系统的稳定态**。
+3. **正确的修法是显式控制相位**，不是把开销加回去：
+   碎片批次合并让非空批从「43 / 83 / 142」变成「256 / 256 / 256」，
+   吞吐 w=1 +85.4%、w=16 +54.0%、w=256 +10.9%、w=1024 −5.3%（噪声内）。
+4. **§10.9.5 的推论得到验证**：要动的确实是「完成点释放时机与批次边界的对齐」。
+   本节把它落成了「leader 等客户端补位到齐再落盘」的具体实现，
+   并给出了它的收益曲线。
+5. **w=1024 没有提升**，那里的限流点是提案队列满导致的拒绝（29~36%），
+   不是落盘批次 —— **下一步该动背压策略，不是落盘**。
+6. **一次停机挂起事故已如实记录**（§10.10.7）：根因未定位，
+   但已从「可能挂死整个进程」降级为「最多 1s 的延迟」，
+   并且下一次再遇到时会把那个线程的栈打进告警日志。
+
+## 10.11 碎片批次合并的判据重做（campaign K → L，2026-10-30）
+
+### 10.11.0 起因与结论摘要
+
+**起因**：§10.10.5 的碎片批次合并在 **campaign J** 里表现很好
+（w=1 +85.4%、w=16 +54.0%、w=256 +10.9%），
+但 §10.10.5 的判据本身有个**没被验证过的前提**：
+「本批条目数 < 上一批通知的客户端数 ⇒ 这是碎片批」。
+
+**campaign K**（三方同批复测，见 §10.11.1）把这个前提证伪了：
+在**深窗口（w=1024）**上，新代码（`edap-t2`）比 HEAD（`edap-base`）**慢 6.1%**，
+并且**被 etcd-aligned 反超 15%** —— 即「优化后」比「优化前」还差。
+
+本节记录：怎么定位的（§10.11.2）、机理（§10.11.3）、
+被否决的修法（§10.11.4）、怎么找信号（§10.11.5）、
+最终修法（§10.11.6）、判据 A/B（§10.11.7）、
+三方复测（§10.11.8）、模型自查（§10.11.9）、小结（§10.11.10）。
+
+**一句话结论**：碎片合并的判据必须回答「**瓶颈在不在 fsync 上**」，
+而不是「批大不大」。判据改成「落盘线程忙时占比」之后，
+深窗口的回归**消失**（§10.11.8）：
+
+| 窗口 | campaign K：t2 / base | campaign L：t2 / base | campaign L：t2 / etcd-aligned |
+|---|---|---|---|
+| 1 | +31.6% | **+70%** | **2.40×** |
+| 16 | +41.8% | **+31%** | **2.64×** |
+| 256 | +18.0% | **+19%** | **1.68×** |
+| 1024 | **−6.1%** | **+13%** | **1.08×**（从 0.87× 反超） |
+
+**但要说清楚「修好了」的边界**（§10.11.10）：
+w=1024 的忙时占比落在 **0.32~0.50**，正好跨在阈值 0.5 上，
+推迟率在 **3.0%~56.5%** 之间摆动 ⇒ **回归没了，但摆动还在**。
+把阈值提到 0.7 也许能一次解决，**这一步尚未实测**（§10.11.10.1）。
+
+### 10.11.1 campaign K：三方同批复测，暴露深窗口回归
+
+**campaign K**（2026-10-30 21:00~22:10，5 轮 × 4 窗口 × 5 变体，
+每格 15s，每个窗口内变体顺序按轮次奇偶对调；共 100 格，全部成功）：
+
+变体定义：
+
+| 变体 | 含义 |
+|---|---|
+| `edap-t2` | 工作区代码（碎片批次合并 + 旧判据） |
+| `edap-base` | HEAD 代码（`/tmp/classes_base2` 前置到 classpath），其余配置与 `edap-t2` 完全一致 |
+| `dragonboat` | `/tmp/dbbenchdef`，默认 LogDB 配置 |
+| `etcd-aligned` | Go，raft v3.6 + etcd server v3.6 接线，配置与 edap 对齐 |
+| `etcd` | 同上，但用 etcd server 出厂配置 |
+
+**提交/s（5 轮中位数）**：
+
+| 窗口 | edap-t2 | edap-base | dragonboat | etcd-aligned | etcd | t2/etcd-aligned | t2/dragonboat | t2/base |
+|---|---|---|---|---|---|---|---|---|
+| 1 | 1,195 | 908 | 330 | 466 | 504 | **2.56×** | 3.62× | **+31.6%** |
+| 16 | 21,746 | 15,334 | 5,306 | 6,673 | 6,606 | **3.26×** | 4.10× | **+41.8%** |
+| 256 | 140,697 | 119,207 | 86,823 | 83,888 | 78,374 | **1.68×** | 1.62× | **+18.0%** |
+| 1024 | 216,529 | **230,647** | 154,035 | **249,778** | 226,248 | **0.87×** | 1.41× | **−6.1%** |
+
+**其它指标（base → t2）**：
+
+| 窗口 | 条/次落盘 | 拒绝率 | p50 |
+|---|---|---|---|
+| 1 | 12.0 → 15.7 | 0.00 → 0.00 | 13.94 → 12.93ms |
+| 16 | 188.5 → 249.6 | 0.00 → 0.00 | 13.58 → 11.97ms |
+| 256 | 1,992 → 2,030 | 0.12 → 0.53% | 35.74 → 31.05ms |
+| 1024 | 4,551 → 5,677 | 34.88 → **26.85%** | 62.54 → 62.00ms |
+
+**读法（注意口径）**：
+
+- w=1/16/256 上 `edap-t2` 相对 `edap-base` 是**真实提升**（+31.6% / +41.8% / +18.0%），
+  与 campaign J 的方向一致。
+- w=1024 上 `edap-t2` **低于** `edap-base` 6.1%，也**低于** `etcd-aligned` 15%。
+  ⇒ 「碎片合并在深窗口有害」这件事在同批三方对比里第一次被看到。
+- 注意别把「拒绝率降了」当成好事：**t2 的拒绝率确实更低**
+  （26.85% vs 34.88%），**但它发布的提案总数也更少**
+  （217,622/s vs 230,935/s）——
+  ⇒ t2 是「**拒绝得少，但也只接得少**」，吞吐反而低 6.1%。
+  这正是 §10.11.3 那条「推迟 ⇒ 复制消息被拖住 ⇒ 提交变慢 ⇒ 客户端补位不上」
+  的机理在数据上的样子。
+
+### 10.11.2 定位：旧判据在深窗口退化成「几乎每轮都推迟」
+
+**旧判据**（§10.10.5）：`本批条目数 < expect` ⇒ 碎片 ⇒ 推迟落盘。
+其中 `expect` = **上一批通知到的客户端数**（通知一个客户端，它就会补一条新提案）。
+
+**探针 6 的做法**（`/private/tmp/classes_probe6`，
+在 `Node.run` 的推迟分支里挂计数器，**只加计数器不改行为**）：
+统计每个窗口里 —— 组装了多少轮 Ready、其中多少轮被判成「推迟」、
+**多少轮真的丢弃了 Ready**、丢弃时那一批有多少条、`expect` 是多少。
+
+**旧判据**（用 `-Dedap.raft.deferMinBusyRatio=0` 复现 ——
+阈值取 0 时 `busy < 0` 恒不成立，忙时判据整个失效，等价于旧行为）：
+
+| 窗口 | 组装轮次 | 判成「推迟」 | **真的丢弃 Ready** | 丢弃时平均批 | 丢弃时平均 `expect` |
+|---|---|---|---|---|---|
+| 16 | 18,146 | 9,431 (52.0%) | 9,431 (52.0%) | 210.0 | 254.6 |
+| 256 | 66,028 | 60,433 (91.5%) | **60,427 (91.5%)** | 1,889.9 | 2,820.2 |
+| 1024 | 24,008 | 21,245 (88.5%) | **21,183 (88.2%)** | **4,676.5** | **8,292.4** |
+
+**读数**：
+
+1. **深窗口下几乎每一轮组装都被丢弃**：w=1024 是 24,008 轮里丢了 21,183 轮
+   （**88.2%**），w=256 是 91.5%。
+   ⇒ leader 的组装工作有 **9/10 白做了**。
+2. **丢弃时那一批始终不到期望的一半**：w=1024 平均攒到 4,676 条，
+   而 `expect` 是 8,292 条 ⇒ **每次都判成「碎片」**。
+   这就是判据退化的直接证据：**期望值和实际批量的量级根本不匹配**。
+3. **w=16 只有 52% 被丢弃** —— 浅窗口下这个判据大体成立，
+   所以浅窗口是净收益（campaign L：t2/off = 2.83×）。
+
+**同一套探针在新判据下**（默认参数）：
+
+| 窗口 | 组装轮次 | 真的丢弃 Ready | 丢弃率 |
+|---|---|---|---|
+| 16 | 19,365 | 10,176 | 52.5% |
+| 256 | 90,613 | 85,817 | 94.7% |
+| 1024 | **4,209** | **1,564** | **37.2%** |
+
+⇒ 深窗口的丢弃率从 88.2% 降到 37.2%，
+且组装轮次从 24,008 降到 4,209（批攒大了，不必反复重组）。
+**浅窗口的丢弃率基本不变**（52.0% → 52.5%，w=256 反而更高，
+因为批攒得更大 ⇒ 组装轮次更多）。
+
+**旧判据 vs 新判据的最终对照**（性能用同批三方对比的 5 轮中位数，
+推迟率用探针 6）：
+
+| 窗口 | 旧判据丢弃率 | 旧判据吞吐（campaign K，5 轮） | 新判据丢弃率 | 新判据吞吐（campaign L，5 轮） |
+|---|---|---|---|---|
+| 16 | 52.0% | 21,746 | 52.5% | 21,406（持平） |
+| 256 | 91.5% | 140,697 | 94.7% | 141,094（持平） |
+| 1024 | **88.2%** | **216,529（回归）** | **37.2%** | **258,109（修复）** |
+
+⇒ **浅窗口两个判据几乎没差别**（丢弃率与吞吐都对得上），
+**深窗口差别巨大**。旧判据无法区分这两种情况，所以必须换判据。
+
+### 10.11.3 机理：推迟落盘会把复制消息一起拖住（推演 + 探针佐证）
+
+**推演**（不是实测，标注清楚）：
+
+§10.10.5 的推迟实现是「**丢弃整个 Ready**」。
+而 Ready 里除了待落盘的条目，还带着**这一轮要发出去的复制消息**。
+于是深窗口下形成这样的正反馈：
+
+```
+判成碎片 → 丢弃 Ready → 复制消息被一起拖住（不早发）
+        → 对端收不到 → leader 提交变慢 → 客户端补位不上
+        → 下一批更少 → 更容易判成碎片 → 继续推迟
+```
+
+注意这是**反向**的正反馈：不是「越合并越好」，
+而是「推迟 → 提交慢 → 批更小 → 推迟更多」。
+§10.10.8 的「消息投递顺序：复制早发」那条优化（MSG_APP 落盘前发）
+在深窗口被这个推迟逻辑**部分抵消**掉了。
+
+**探针佐证**（探针 6，§10.11.2）：旧判据在 w=1024 上
+**24,008 轮组装里丢弃了 21,183 轮（88.2%）** ——
+leader 的组装工作有近 9/10 白做了。
+**丢弃时那一批平均只有 4,676 条，而期望值是 8,292 条** ——
+**每轮都判成「碎片」，每轮都丢**。
+⇒ 代价不在「等了多久」，而在「**拖住了多少条复制消息**」。
+
+### 10.11.4 被否决的修法：绝对条目阈值
+
+**思路（直觉）**：批大到某个程度就别再等了 ——
+加一个绝对上限，比如「本批条目数超过 N 就不推迟」。
+
+**实现**（探针 7 构建 `/private/tmp/classes_probe7`，
+`edap.raft.deferMaxEntries` 属性，**只加这一条判据，其余不变**）：
+变体 = {`none`（当前代码，无绝对阈值）, `off`（`-Dedap.raft.deferWaitMillis=0`，完全关闭合并）,
+`n2048`, `n4096`, `n8192`}；
+3 轮 × 2 窗口 × 15s，变体顺序按轮次奇偶对调。
+
+**提交/s（3 轮中位数；逐轮原值见括号）**：
+
+| 变体 | w=256 | w=1024 |
+|---|---|---|
+| `none`（当前代码） | 130,534（130,534 / 133,895 / 126,585） | 247,144（247,144 / 247,544 / 233,433） |
+| `off`（关闭合并） | 96,172（97,194 / 95,796 / 96,172） | **252,053**（253,377 / 252,053 / 245,240） |
+| `n2048` | 119,051（119,051 / 118,379 / 123,309） | 245,733（245,733 / 245,129 / 246,323） |
+| `n4096` | **142,247**（145,126 / 136,295 / 142,247） | 236,116（232,352 / 245,938 / 236,116） |
+| `n8192` | 130,975（130,975 / 127,277 / 136,940） | 247,797（247,797 / 243,150 / 250,876） |
+
+**结论**：
+
+1. **在 w=256，绝对阈值最多换来 +9%**（`n4096` 142,247 vs `none` 130,534），
+   而**关闭合并是灾难**（96,172，−26%）——
+   ⇒ 合并在 w=256 是**必须的**，绝对阈值只是微调。
+2. **在 w=1024，任何阈值都不如「不合并」**（最好的 `n8192` 247,797 仍略低于
+   `off` 的 252,053），而且**没有单调性**：
+   `n4096` 在 w=256 最好、在 w=1024 最差。
+3. ⇒ **绝对阈值表达不了「瓶颈在不在 fsync 上」** ——
+   它只能表达「批够不够大」，而「批够大」在深窗口恰恰是**常态**
+   （丢弃时平均批 4,676 条），所以阈值在深窗口要么不起作用、
+   要么作用方向相反。**这正是 §10.11.5 要换信号的理由。**
+
+**一条被显式作废的旧数据**：这一节最初写过一版
+「关闭 = 103,070 / 252,331；2048 = 124,495 / 237,551；4096 = 137,120 / 233,546；
+8192 = 151,090 / 203,540」。
+那批数据来自**一个源码已删除的临时构建**（当时的 `DEFER_MAX_ENTRIES` 实现），
+**重跑没有复现**（现在 `n8192` 在 w=1024 是 247,797，不是 203,540）。
+⇒ **那组数字作废，以本节表格为准。**
+（差别很可能来自当时那个实现把阈值用在了不同的位置；
+本轮的结论 —— 「绝对阈值表达不了瓶颈在哪」—— 两版都指向同一个方向。）
+
+### 10.11.5 探针找信号：哪个量能干净地分开深浅窗口
+
+**「落盘忙时占比」的定义**：落盘线程花在「写 + fsync」上的时间 ÷ 墙钟时间。
+
+- 接近 1 ⇒ 落盘线程一直在 fsync ⇒ **系统被 fsync 卡住** ⇒ 合并 fsync 能直接换吞吐；
+- 明显小于 1 ⇒ 落盘线程在等网络/等对端 ⇒ 合并 fsync **省不出东西**，
+  只会把这一轮的复制消息一起拖住（§10.11.3）。
+
+**探针做法**：在 `shouldDeferPersist` 的判定点采样多个候选信号
+（`entries` 本批条目数、`expect` 上一批通知数、`propc` 提案队列长度、
+`pending` 在途提案数、`lag` 提交滞后、`busy` 忙时占比）。
+
+**第一次采样（`/tmp/pb_*.log`）有一处必须记下来的坑**：
+那版探针把忙时计数器写成了 **`static`**，而窗口起点是**每节点实例**的
+—— 3 个节点共享一个累计计数、单节点用自己的窗口去除，
+算出来的「占比」最大可以到 3（实测 1.08~2.75）。
+⇒ **那批日志里的 `busy` 列全部作废**，只有其它信号可用。
+
+**修正后重采（`/tmp/p5_*/`，同一个构建，4 个窗口各跑一次）**：
+
+| 候选信号 | w=1 | w=16 | w=256 | w=1024 | 能否分开 |
+|---|---|---|---|---|---|
+| 本批条目数 p50 | 0 | 177 | 2,384 | 4,096 | ✗（见下） |
+| `expect`（上一批通知数）p50 | 16 | 256 | 4,096 | 9,697 | ✗（单调变化，但它是**结果**不是**原因**） |
+| 提案队列长度 p50 | 0 | 7 | 40 | 25 | ✗ |
+| 在途提案数 p50 | 16 | 256 | 3,022 | 10,711 | ✗（同上） |
+| 提交滞后 p50 | 16 | 244 | 2,896 | 10,426 | ✗（同上） |
+| **落盘忙时占比 p50** | **0.711** | **0.766** | **0.812** | **0.502** | **✓（唯一二值可分的）** |
+
+**读表要点**：
+
+1. 「本批条目数」这一行**不能用新判据下的数**做论据 ——
+   新判据在 w=1024 上**不再推迟**，批次自然变大（4,096 > 2,384），
+   这是**结果**不是**原因**。要看旧判据下的分布，得看**旧判据那批探针**
+   （`/tmp/pb_*.log`）：w=16 / 256 / 1024 的本批条目数 p50 是
+   **178 / 1,339 / 1,304** —— **w=256 与 w=1024 几乎一样**，
+   这才是「批大小分不开深浅窗口」的原始证据。
+2. `expect` / 在途提案数 / 提交滞后都是**深浅窗口连续变化**的量，
+   就算能当阈值用，也是「深窗口 ⇒ 队列深」这种**同义反复**，不是因果信号。
+3. 只有忙时占比是**二值可分**的，而且分得开的位置（0.71~0.81 vs 0.50）
+   正好在 0.5 附近。
+
+**忙时占比可以不用探针、只用已有的 fsync 账单交叉验证**：
+harness 报的 `落盘/s` 与 `落盘耗时ms/次` 都是**3 个节点求和**
+（`ClusterProposalHarness.java:991-996` 逐节点累加 `getPersistCount()` /
+`getPersistNanos()`），所以单节点的忙时占比 ≈
+
+```
+(落盘/s ÷ 3) × 落盘耗时ms/次 ÷ 1000
+```
+
+用 campaign L 的 `edap-t2` 那一行算：
+
+| 窗口 | 落盘/s | 落盘耗时ms/次 | 账单推出的单节点 busy | 探针实测 busy p50 |
+|---|---|---|---|---|
+| 1 | 256 | 10.38 | 0.89 | 0.711 |
+| 16 | 262 | 9.94 | 0.87 | 0.766 |
+| 256 | 202 | 10.36 | 0.70 | 0.812 |
+| 1024 | 116 | 9.41 | **0.36** | **0.502** |
+
+⇒ 两条完全不同的路径（探针测量 / fsync 账单反推）**给出一致的结论**：
+**w≤256 的落盘线程忙时占比在 0.7~0.9（fsync 是瓶颈），
+w=1024 只有 0.36~0.50（瓶颈不在 fsync 上）**。
+
+### 10.11.6 修法：忙时占比判据
+
+**代码改动**（全部在 `edap-raft-parent/edap-raft/src/main/java/io/edap/raft/Node.java`）：
+
+| 位置 | 改动 |
+|---|---|
+| 新字段 `persistBusyNanos`（`:210`） | `AtomicLong`，落盘线程累加「真正落盘耗时」 |
+| 新字段 `busyWindowStartNanos` / `busyWindowStartBusyNanos` / `persistBusyRatio`（`:215`/`:220`/`:228`） | 滑动窗口的起点与占比结果（只有状态机线程读写） |
+| `persist(Ready, List<Entry>)`（`:1221`） | 用 `System.nanoTime()` 量出写 + fsync 的真实耗时，累加进 `persistBusyNanos` |
+| 新方法 `currentPersistBusyRatio()`（`:1411`） | 1 秒滑动窗口的忙时占比；负数 = 第一个窗口没走完（未知） |
+| `shouldDeferPersist`（`:1379`） | 新增判据：`busy >= 0 && busy < DEFER_MIN_BUSY_RATIO` ⇒ **不推迟** |
+| 常量 `DEFER_MIN_BUSY_RATIO`（`:1809`） | 系统属性 `edap.raft.deferMinBusyRatio`，默认 **0.5** |
+| 常量 `DEFER_BUSY_WINDOW_MILLIS`（`:1823`） | 系统属性 `edap.raft.deferBusyWindowMillis`，默认 **1000** |
+
+**关键点**：`busy < 0`（还没测出来）时**不跳过**推迟 ——
+启动首秒属于「未知」，保守起见按旧行为处理。
+
+**探针实测判据分离度**（新判据构建，1000ms 统计窗口）：
+
+| 窗口 | 判定点里仍判「推迟」的比例 | busy p50 | busy < 0.5 的比例 |
+|---|---|---|---|
+| 256（4 次） | 81.0% / 81.0% / 84.2% / 83.9% | 0.72~0.84 | 3.5%~9.1% |
+| 1024（4 次） | **56.0% / 30.2% / 56.5% / 3.0%** | **0.32~0.50** | 35.8%~100% |
+
+**读法（很重要，不要只挑好看的数）**：
+
+- **w=256 上判据工作得很好**：busy 稳定在 0.72~0.84（远高于 0.5），
+  推迟率稳定在 81~84% ⇒ **该合并的照合并**。
+- **w=1024 上判据在阈值附近摆动**：busy p50 落在 **0.32~0.50**，
+  也就是**跨过了 0.5 这条线**；于是推迟率在 **3.0%~56.5%** 之间大幅波动。
+  这不是测量噪声掩盖了规律，而是**规律本身就是双峰的**：
+  系统在 w=1024 上会落进两个稳定态之一 —— 要么 fsync 忙时占比压在 0.5 以下
+  （不推迟），要么压不住（推迟），而**初始条件决定落进哪个**。
+  （早期那批探针只采到过其中一个峰：2.73% / 6.63%，都是「不推迟」那一侧。）
+- 换句话说：**判据把「该不该合并」从一个连续量变成了一个开关，
+  但这个开关在深窗口上并不总是落在同一侧**。
+  这也解释了为什么 w=1024 的吞吐在同一批里有 235K~262K 的散布
+  （campaign L 的逐轮明细）。
+
+**统计窗口为什么是 1 秒**：500ms 窗口那版探针（`/tmp/p3_1024.log`）
+在 w=1024 上残留 **6.63%** 的推迟；改成 1000ms 之后推迟率明显下降，
+而 w=256 的收益不变（那批探针里 w=256 的推迟率 83.11% vs 85.30%）。
+原因是一次 fsync 十几毫秒，窗口太短测出来的比例会在阈值附近来回跳。
+**注意**：这只是把摆动幅度压小，**并没有消除摆动**（见上面的 4 次采样）。
+
+### 10.11.7 判据 A/B（busy 判据 vs 完全关闭推迟）
+
+**5 轮交错同批**（`/tmp/defer_busy2.sh` → `/tmp/defer_busy_ab.txt`，
+每轮内两个变体顺序按轮次奇偶对调）：
+
+| 窗口 | busy 判据 | 关闭推迟 | 倍数 | busy 批 | off 批 |
+|---|---|---|---|---|---|
+| 1 | 1,346 | 750 | **1.79×** | 16 | 9 |
+| 16 | 22,697 | 7,787 | **2.91×** | 254 | 95 |
+| 256 | 146,579 | 103,374 | **1.42×** | 2,133 | 1,366 |
+| 1024 | 235,647 | 247,189 | **0.95×** | 5,226 | 5,780 |
+
+**w=1024 这一格当时判为「噪声」**（不是「修好了」），当时的理由：
+
+- busy 判据在 w=1024 上**已经几乎不推迟**（那一轮探针采到 2.73%，且都在启动首秒），
+  此时的 busy 与 off 两种配置的**实际行为几乎相同**，
+  0.95× 的差值理应来自噪声；
+- 该格逐轮散布 223,557~247,457（±10%），0.95× 落在散布内；
+  （off 那一侧同样散布 236,609~265,731，**两边的散布幅度一样大**。）
+
+> **⚠️ 这个理由后来被证伪了**（探针 5 的 4 次重采，§10.11.6）：
+> 「2.73%、且都在启动首秒」是**早期那版只采到单个峰的探针**的结果，
+> 4 次重采的推迟率是 **56.0% / 30.2% / 56.5% / 3.0%** ——
+> **4 次里有 3 次推迟率在 30%~57%**，远不是「几乎不推迟」。
+> ⇒ 当时的「行为几乎相同」这个前提**不成立**，
+> 0.95× 那一格**不能当作噪声了事**。
+> **这一格的最终判定以 campaign L 的同批复测为准**（§10.11.8），
+> 不在这里提前下结论。
+
+**参数扫描**（3 轮，`/tmp/defer_tune.sh`）：
+
+| 变体 | w=256 | w=1024 |
+|---|---|---|
+| A：统计窗口 1000ms | 142,042 | 248,709 |
+| B：阈值 0.6 | 132,209 | 239,972 |
+| 关闭推迟 | 102,158 | 247,716 |
+
+⇒ 选 A（窗口 1000ms + 阈值 0.5）。
+（这批扫描只有 3 轮，且与 §10.11.6 的探针不是同一批构建，
+**只能当作粗筛，不能当结论**。）
+
+**回归**：`mvn -o -f pom.xml -pl edap-raft-parent/edap-raft test`
+→ **Tests run: 351, Failures: 0, Errors: 0, BUILD SUCCESS**。
+
+### 10.11.8 campaign L：三方同批复测
+
+**campaign L**（2026-10-30 23:00~2026-10-31 00:20，5 轮 × 4 窗口 × 6 变体 = 120 格，全部成功；
+每格 15s，每个窗口内变体顺序按轮次奇偶对调）。
+脚本 `/tmp/campaign_L.sh` → `/tmp/ab_result_l.txt`，解析器 `/tmp/parse_l.py`。
+
+变体定义：
+
+| 变体 | 含义 |
+|---|---|
+| `edap-t2` | 工作区代码（碎片批次合并 + **忙时占比判据**） |
+| `edap-off` | 同上，但 `-Dedap.raft.deferWaitMillis=0` ⇒ **碎片批次合并整体关闭**（消融） |
+| `edap-base` | HEAD 代码（`/tmp/classes_base2` 前置 classpath），其余配置与 `edap-t2` 一致 |
+| `dragonboat` | `/tmp/dbbenchdef`，默认 LogDB 配置 |
+| `etcd-aligned` | Go，raft v3.6 + etcd server v3.6 接线，配置与 edap 对齐 |
+| `etcd` | 同上，但用 etcd server 出厂配置 |
+
+**提交/s（5 轮中位数）**：
+
+| 窗口 | **edap-t2** | edap-off | edap-base | dragonboat | etcd-aligned | etcd | t2/etcd-aligned | t2/dragonboat | t2/base | t2/off |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 1 | **1,352** | 771 | 793 | 372 | 563 | 572 | **2.40×** | 3.63× | **1.70×** | **1.75×** |
+| 16 | **21,406** | 7,560 | 16,334 | 5,765 | 8,098 | 7,712 | **2.64×** | 3.71× | **1.31×** | **2.83×** |
+| 256 | **141,094** | 104,210 | 118,922 | 90,641 | 84,100 | 80,921 | **1.68×** | 1.56× | **1.19×** | **1.35×** |
+| 1024 | **258,109** | 248,113 | 228,637 | 154,201 | 239,253 | 220,713 | **1.08×** | 1.67× | **1.13×** | 1.04× |
+
+**其它指标**：
+
+| 窗口 | 变体 | 条/次落盘 | 拒绝率% | p50(ms) | p99(ms) | 落盘/s | 落盘耗时ms/次 |
+|---|---|---|---|---|---|---|---|
+| 1 | edap-t2 | 15.8 | 0.00 | 12.02 | 25.41 | 256 | 10.38 |
+| 1 | edap-base | 9.2 | 0.01 | 16.02 | 43.59 | 245 | 11.75 |
+| 16 | edap-t2 | 245.2 | 0.00 | 12.29 | 25.81 | 262 | 9.94 |
+| 16 | edap-base | 186.3 | 0.00 | 12.79 | 40.22 | 256 | 10.49 |
+| 256 | edap-t2 | 2,099.5 | 0.35 | 29.81 | 53.28 | 202 | 10.36 |
+| 256 | edap-base | 2,020.4 | 1.64 | 34.75 | 51.10 | 177 | 10.05 |
+| 1024 | edap-t2 | 6,773.0 | 12.96 | 60.05 | 106.65 | 116 | 9.41 |
+| 1024 | edap-base | 4,691.8 | 34.36 | 64.02 | 94.45 | 146 | 9.26 |
+
+**结论（对照 campaign K）**：
+
+1. **深窗口的回归被修掉了**。campaign K 里 w=1024 是
+   `edap-t2` 216,529 < `edap-base` 230,647 < `etcd-aligned` 249,778（**0.87×**）；
+   campaign L 里变成 **258,109 > 248,113 > 239,253**，
+   `edap-t2` 在 w=1024 **反超 etcd-aligned 8%**。
+   ⇒ §10.11.2~§10.11.6 的定位与修法**在同批三方对比里被验证**。
+2. **`edap-t2` 在四个窗口上全面优于 `edap-base`（HEAD）**：
+   **+70% / +31% / +19% / +13%**（campaign K 里是 +31.6% / +41.8% / +18.0% / **−6.1%**）。
+3. **碎片批次合并的收益在浅窗口最大、向深窗口收敛**：
+   `edap-t2 / edap-off` = **1.75× / 2.83× / 1.35× / 1.04×**。
+   w=1024 只剩 4% —— 与 §10.11.6 的探针一致（那里 w=1024 的推迟率本身就在
+   3%~56% 之间摆动，开关有时关有时开）。
+   **注意 `edap-off` 只是关掉「推迟」，不是回到 HEAD** ——
+   它仍然带着超时清扫、去冗余 `whenComplete` 等其它改动，
+   所以 `edap-off / edap-base` 在 w=16 是 0.46×（**比 HEAD 还慢**），
+   这正是 §10.10.3 那个「去掉开销反而更慢」的现象在同批复现。
+4. **拒绝率在深窗口大幅下降**：w=1024 从 base 的 **34.36%** 降到 **12.96%**，
+   在途深度从 12,842 升到 14,826。
+   ⇒ 合并让提交点更密 ⇒ 客户端补位更及时 ⇒ 提案队列不容易满。
+   （campaign K 里 t2 的拒绝率是 26.85% —— 那是**旧判据**下的数。）
+5. **p99 在深窗口变差，但**「变差的是合并」这个归因是错的**（消融数据）**：
+   t2 的 p99 是 106.65ms、base 是 94.45ms，但**关掉合并的 `edap-off` 是 107.98ms
+   —— 比开着合并还差**。⇒ 深窗口的 p99 差异**不是碎片批次合并造成的**，
+   合并甚至略微改善了 p99（106.65 vs 107.98）。
+   真正的差异在别处：见 §10.11.11 的「落盘周期开销」分析 ——
+   **edap 在 w=1024 的落盘周期里只有 36% 是 fsync，剩下 16.45ms 是非落盘开销；
+   etcd 的周期有 90% 是 fsync，只剩 1.71ms。**
+   （顺带修正：p50 的差异主要由 **Little's Law** 决定 ——
+   在途深度被基准固定成 16×1024，吞吐越高、平均延迟就越低。
+   t2 的 p50 优势（60.05 vs 64.02）**不是「延迟变好」，是「同样深度下干得更快」。**）
+
+### 10.11.9 模型自查
+
+模型（§10.11 沿用）：`落盘条目/s = fsync/s × 条/次落盘`，
+`提交/s = 落盘条目/s ÷ 3`（三个副本各存一份）。
+
+**campaign L 全部 24 格（6 变体 × 4 窗口）的偏差**：
+
+| 窗口 | edap-t2 | edap-off | edap-base | dragonboat | etcd-aligned | etcd |
+|---|---|---|---|---|---|---|
+| 1 | −0.28% | +0.72% | **−5.25%** | −0.59% | +0.71% | +0.70% |
+| 16 | +0.04% | **+4.54%** | −2.67% | −1.14% | −0.19% | −0.99% |
+| 256 | +0.19% | +0.03% | +0.24% | −0.10% | +0.08% | +0.55% |
+| 1024 | +1.46% | −1.37% | −0.13% | **+3.07%** | +0.38% | **+2.99%** |
+
+⇒ **20/24 格 |偏差| ≤ 1.5%**；4 个超过 2% 的格子分别是：
+w=1 的 `edap-base`（−5.25%，批只有 9.2 条，中位数相乘的相对误差被放大）、
+w=16 的 `edap-off`（+4.54%，同上，批 95.6 条）、
+w=1024 的 `dragonboat`（+3.07%）与 `etcd`（+2.99%，批 2,260/4,035 条，
+中位数分别取自不同轮次）。**四个格子都能用「中位数相乘」解释，不是账目错误。**
+
+### 10.11.10 小结
+
+1. **campaign K 的深窗口回归是真的，不是噪声**：
+   `edap-t2` 在 w=1024 比 HEAD 慢 6.1%、比 etcd-aligned 低 15%。
+   同批三方对比才暴露得出来 —— 只跟自己的旧版本比，看到的是「+18%」这类好看的数。
+2. **根因是判据退化，不是实现有 bug**（探针 6 实测）：旧判据「本批 < 上一批通知数」
+   在深窗口的量级下**几乎恒真** —— w=1024 时 **24,008 个组装轮次里 21,183 轮被判推迟
+   （丢弃率 88.2%）**；丢弃时的平均批只有 **4,676 条**，而同一时刻的期望值是 **8,292 条**
+   ⇒ 每轮都被判成「碎片」。推迟会**连带拖住 Ready 里的复制消息**，
+   提交变慢 → 补位不上 → 批更小 ⇒ **反向自维持正反馈**。
+   换成忙时判据后，w=1024 的组装轮次从 **24,008 降到 4,209**（丢弃率 37.2%）。
+   （w=16 / w=256 的丢弃率在换判据前后基本不变：52.0%→52.5%、91.5%→94.7%。）
+3. **修法是换判据，不是加阈值**：绝对阈值（§10.11.4）分不开深浅窗口；
+   换成「**落盘线程忙时占比**」之后，判据回答的是「**瓶颈在不在 fsync 上**」，
+   而不是一个和结果相关的量。
+4. **忙时占比可以用已有账单交叉验证**：
+   `(落盘/s ÷ 3) × 落盘耗时ms/次 ÷ 1000` 与探针实测一致（0.70~0.89 vs 0.36~0.50），
+   ⇒ 这个信号**不是只能靠插桩拿到**，以后可以直接从 harness 的输出推。
+5. **修好了，但没有修得干净**（探针 5）：w=1024 的忙时占比落在 **0.32~0.50**，
+   正好跨在阈值 0.5 上，推迟率在 **3.0%~56.5%** 之间摆动（双峰）。
+   ⇒ 阈值 0.5 是一个**「差不多够用但不够稳」**的选择；
+   §10.11.6 的 4 次采样显示 w=256 稳定在 0.72~0.84（余量充足），
+   于是提出「**把阈值提到 0.7**」的假设 —— **已实测，不采纳**（§10.11.10.1）。
+6. **吞吐与尾延迟是对立的，但归因要分开**：
+   - **p50 的差异主要是 Little's Law**（在途深度被基准固定成 16×1024，
+     吞吐越高平均延迟越低）—— t2 的 p50 优势（w=16：12.79 → 12.29ms）
+     **不是「延迟变好」，是「同样队列深度下干得更快」**。
+   - **p99 的差异才是真的尾延迟**，而且**不是合并造成的**（消融：off 107.98 ≥ t2 106.65）；
+     机制是 edap 的**落盘周期开销**（§10.11.11）。
+   **本节的所有数字都是「提交/s 优先」的取舍**；
+   如果业务对长尾敏感，要动的是**落盘周期的非落盘开销**，不是合并策略。
+7. **未做的**：`async-apply`（完成点=应用）语义下本轮修法**没测过**；
+   §10.10.8 已经指出那是下一步该做的实验，现在优先级更高了
+   （因为 §10.9.5 说「完成点=应用会把批次打散」，碎片合并正应该在那里收益更大）。
+8. **方法论教训：轮数不够会把噪声读成收益。** 探针 8 用 **3 轮**测出
+   「thr070 在两个窗口同时白赚（w=256 +3.1%、w=1024 +3.4%）」，
+   探针 9 用 **5 轮**复测，w=256 变成 **−10.5%**。
+   ⇒ **3 轮不足以分辨 10% 量级差异**；凡是「改一个阈值/一个参数」类的实验，
+   至少 5 轮，且**轮次奇偶对调变体顺序**（消顺序偏差）。
+   同一条纪律在 campaign L 里也用上了：K → L 的深窗口结论
+   （回归被修复）就是靠 5 轮 + 三方同批才定下来的。
+
+#### 10.11.10.1 阈值 0.7：实测了，**不采纳**（探针 8 / 9）
+
+**依据（实测，探针 5）**：w=256 的 busy p50 是 0.72~0.84，w=1024 是 0.32~0.50。
+阈值取 0.7 ⇒ w=256 稳定在阈值之上（照合并），w=1024 稳定在阈值之下（一律不合并）。
+**预期**：w=1024 的吞吐应该等于或高于 `edap-off` 的 248,113，且**散布收敛**
+（不再有 3%~56% 的推迟率摆动）。
+
+**实测（3 轮，探针 8，`/tmp/probe8.txt`）**：
+
+| 窗口 | thr050 | thr070 | off | thr070/thr050 |
+|---|---|---|---|---|
+| 256 | 125,883 | 129,782 | 95,229 | **1.031×** |
+| 1024 | 232,177 | 240,020 | 236,818 | **1.034×** |
+
+⇒ 两个窗口**同时**「白赚」，看起来是个好结果。
+
+**实测（5 轮，探针 9，`/tmp/probe9.txt`，轮次奇偶对调变体顺序）**：
+
+| 窗口 | thr050 | thr070 | off | thr070/thr050 | thr070/off |
+|---|---|---|---|---|---|
+| 256 | **135,552** | 121,301 | 95,722 | **0.895×（−10.5%）** | 1.267× |
+| 1024 | 224,662 | **241,891** | **250,200** | **1.077×（+7.7%）** | 0.967× |
+
+**w=1024 的 thr070 逐轮原值**（看散布）：
+234,894 / 241,891 / 244,219 / 241,460 / 244,344
+⇒ 中位数 241,891，**极差 3.9%**，确实比 thr050 收敛。
+
+**4 条结论**：
+
+1. **3 轮与 5 轮的结论相反**（w=256：+3.1% → −10.5%）。
+   ⇒ 「3 轮白赚」是**轮数不够**，不是收益。
+2. **w=256 上 thr070 是净负收益（−10.5%）**：阈值 0.7 把一部分「本该合并」的样本
+   判成不合并（§10.11.6 实测 w=256 有 9.1% 的采样 busy < 0.5，
+   其中一部分落在 0.5~0.7 之间）⇒ 这一档的收益本来就是靠 0.5 这个阈值吃到的。
+3. **w=1024 上 thr070 的 +7.7% 是「搬收益」不是「消摆动」**：
+   `thr070/off = 0.967×` —— 阈值 0.7 只是把吞吐从 thr050 挪到接近 off，
+   **并没有超过 `edap-off`**（250,200）。
+   即阈值 0.7 修掉了一部分「thr050 的合并误判」，代价是 w=256 少了 10.5%；
+   **它没有消除判据本身的问题，只是把问题挪到了另一档**。
+4. **结论：不采纳阈值 0.7，默认值保持 0.5 不动。**
+   campaign L 的默认配置（thr050）结果：w=256 **141,094**、w=1024 **258,109**，
+   已经**同时**优于 `edap-off`（104,210 / 248,113）与
+   `etcd-aligned`（84,100 / 239,253）。
+
+**下一步该做什么（本轮均未实测）**：真正的问题不是「阈值取多少」，
+而是「**判据本身是二值的**」—— 同一时刻要么合并要么不合并，
+深窗口在阈值两侧摆动 ⇒ 摆动是**结构性**的，调参只能搬收益。
+三个候选方向：
+
+- **迟滞（hysteresis）**：进入合并与退出的阈值不同（如进 0.5 / 出 0.4），消除边界抖动；
+- **把判据变成连续量**：不只问「合并/不合并」，而是按 busy 占比**决定合并多少**；
+- **换信号**：找一个在深浅窗口**量级差一个数量级**的信号
+  （而不是跨在同一区间里），使阈值不那么敏感。
+
+### 10.11.11 w=1024 的尾延迟：真正的差距在「落盘周期的非落盘开销」
+
+**触发**：看 campaign L 的结果时发现「窗口 1024 变慢了」——
+吞吐是赢的（258,109，四窗口里最高），但**延迟输了**。
+本节把「变慢」拆成三问：**哪一段慢了？是合并造成的吗？机制是什么？**
+
+#### 问一：慢的是哪一段？（拆成 p50 / p99）
+
+| w=1024 | 提交/s | p50 | p99 | p99/p50 |
+|---|---|---|---|---|
+| edap-t2 | **258,109** | **60.05** | 106.65 | 1.78 |
+| edap-off（合并关） | 248,113 | 62.90 | 107.98 | 1.72 |
+| edap-base（HEAD） | 228,637 | 64.02 | **94.45** | 1.48 |
+| dragonboat | 154,201 | **49.41** | 102.75 | 2.08 |
+| etcd-aligned | 239,253 | 61.84 | **70.94** | **1.15** |
+
+- **p50 不是「延迟变好」**：基准把在途深度固定成 16 客户端 × 1024，
+  Little's Law ⇒ 平均延迟 ≈ 深度 ÷ 吞吐。
+  t2 的 p50 优势（60.05 vs base 64.02）**只是「同样队列深度下干得更快」**，
+  不是延迟质量改善。（用实测在途深度校验：14,826 ÷ 258,109 = 57.4ms ≈ 实测 60.05 ✓）
+- **p99 是真的尾延迟**，差距很大且**跨实现**：
+  **etcd-aligned 70.94ms 比 edap-t2 106.65ms 好 1.50×**，
+  而且 **5 轮全稳**（etcd 68.24~74.50，edap-t2 95.10~113.70）。
+  ⇒ **etcd 的延迟分布比 edap 紧得多**（p99/p50 = 1.15 vs 1.78）。
+
+> **⚠️ 读上面这两个延迟数之前必须知道：w≥256 的 p50/p99 只覆盖「运行开头」，
+> 不是稳态。**
+> 延迟记录器是**首 N 采样**（`ClusterProposalHarness.java:457` 容量 **400,000**，
+> `ApplyStats.record` 里 `if (i < latencies.length)` 满了就**不再记**，
+> 不是环形缓冲），而样本是**每应用一条条目记一个** ⇒
+> 覆盖时长 = 400,000 ÷ 提交/s：
+>
+> | w | edap-t2 | edap-base | etcd-aligned | 覆盖的是 |
+> |---|---|---|---|---|
+> | 1 | 295.9s | 504.4s | 710.5s | 整轮（15s）✓ |
+> | 16 | 18.7s | 24.5s | 49.4s | 整轮 ✓ |
+> | 256 | **2.83s** | **3.36s** | **4.76s** | 启动爬坡期 |
+> | 1024 | **1.55s** | **1.75s** | **1.67s** | 启动爬坡期 |
+>
+> ⇒ **w=1024 的 p50/p99 描述的是「选主 + 队列填满 + 批次预热」那 1.5 秒**，
+> 不是 15 秒稳态。**本节对 p99 的所有比较都只在这一口径下成立。**
+> （**落盘周期开销那组数不受影响** —— `落盘/s` 与 `落盘耗时ms/次` 是整轮 15s 的平均，
+> 见 `ClusterProposalHarness.java:990-997`。）
+> ⇒ 要测稳态尾延迟，得先把采样器改成环形缓冲或蓄水池抽样（**本轮未做**）。
+
+#### 问二：是合并造成的吗？—— **不是**
+
+消融数据直接否掉这个归因：
+
+| | 合并 | 提交/s | p50 | p99 | p99/p50 |
+|---|---|---|---|---|---|
+| edap-t2 | 开 | 258,109 | 60.05 | **106.65** | 1.78 |
+| edap-off | 关 | 248,113 | 62.90 | **107.98** | 1.72 |
+
+⇒ **关掉合并，p99 反而略差**（107.98 > 106.65）。
+深窗口 p99 的差异来自 t2/off 与 HEAD 之间的**其它改动**
+（超时清扫 / `notifyProposalSpace` 条件化 / 去冗余 `whenComplete` / 有界 stop），
+**不是碎片批次合并**。（§10.11.8 结论 5 已按此更正。）
+
+#### 问三：机制是什么？—— **落盘周期里的非落盘开销**
+
+「落盘周期」= 单节点两次 fsync 之间的间隔 = `3000 ÷ 落盘/s` ms
+（`落盘/s` 是 3 个节点求和，见 `ClusterProposalHarness.java:990-997`）。
+减去真正的写+fsync 耗时（`落盘耗时ms/次`），剩下的就是**周期里的非落盘开销**：
+
+| w | 变体 | 落盘/s | 周期 | fsync | **非落盘开销** | 占比 | 条/次 | p99/p50 |
+|---|---|---|---|---|---|---|---|---|
+| 256 | edap-t2 | 202 | 14.85ms | 10.36ms | 4.49ms | 30.2% | 2,099.5 | 1.79 |
+| 256 | etcd-aligned | 187 | 16.04ms | 15.11ms | 0.93ms | 5.8% | 1,350.3 | 1.15 |
+| **1024** | **edap-t2** | **116** | **25.86ms** | **9.41ms** | **16.45ms** | **63.6%** | 6,773.0 | 1.78 |
+| 1024 | edap-off | 135 | 22.22ms | 9.26ms | 12.96ms | 58.3% | 5,438.0 | 1.72 |
+| 1024 | edap-base | 146 | 20.55ms | 9.26ms | 11.29ms | 54.9% | 4,691.8 | 1.48 |
+| 1024 | dragonboat | 211 | 14.22ms | — | — | — | 2,259.8 | 2.08 |
+| **1024** | **etcd-aligned** | **171** | **17.54ms** | **15.83ms** | **1.71ms** | **9.8%** | 4,213.4 | 1.15 |
+| 1024 | etcd | 169 | 17.75ms | 15.71ms | 2.04ms | 11.5% | 4,035.3 | 1.16 |
+
+**读表要点**：
+
+1. **etcd 的落盘周期 90% 是 fsync，edap 在 w=1024 只有 36%** ——
+   也就是说 **etcd 是被 fsync 卡住的，edap 不是**。
+   这与 §10.11.5 的忙时占比探针完全一致（w=1024 edap 的 busy 只有 0.36~0.50，
+   所以「合并省不出东西」这个判断是对的）。
+2. **edap 的周期开销随窗口深度暴涨**：1.34ms（w=1）→ 1.51（w=16）→ 4.49（w=256）
+   → **16.45ms（w=1024）**；同期 etcd 是 0.45 → 0.50 → 0.93 → **1.71ms**。
+   **w=1024 这一档 edap 的周期比 etcd 长 8.3ms，而其中 14.7ms 的差距全是「非落盘」部分。**
+3. **周期开销与尾延迟同向**（在 edap/etcd 这一族里是单调的）：
+   开销 1.71ms → p99/p50 1.15；1.48/1.72/1.78 ↔ 开销 11.29/12.96/16.45ms。
+   **这是相关性，不是因果**（三个 edap 变体来自三个不同的构建，彼此有其它差异），
+   但方向明确、量级够大，值得当成下一步的靶子。
+4. **edap 在 w=1024 用「周期 25.86ms / 批 6,773 条」换到了比 etcd 高 8% 的吞吐**
+   （258,109 vs 239,253）—— **但这条吞吐是用尾延迟换的**：
+   p99 106.65 vs 70.94。**这个取舍是有意的，不是 bug**；
+   但如果业务对长尾敏感，就得反过来。
+
+#### 这不是新问题：§10（campaign G）已经量到过，但一直没定位
+
+§10 里有一条结论：「**高窗口 edap 的落盘周期里多出 6~11ms 非落盘开销
+（etcd 只有 1.5~1.9ms），这是被反超的直接原因。成因未定位**
+（候选：提案合批等待 / apply 线程交接 / Advance 时序 / 组装闸门被上一次 fsync 挡住）」。
+
+**campaign L 把它量化成了 w=1024 的 16.45ms（占周期 63.6%）**，
+并且给出了一个新的、之前没有的判据：**周期开销可以直接从 harness 的
+`落盘/s` 和 `落盘耗时ms/次` 算出来**（`3000 ÷ 落盘/s − 落盘耗时ms/次`），
+不需要插桩。
+
+#### 下一步（未实测，按性价比排序）
+
+1. **先定位那 16.45ms**：在 `Node.run` 里给「组装 Ready → 交付落盘 → 落盘完成通知」
+   这三段各加一个时间戳（探针覆盖层，不动生产代码），
+   看 16.45ms 落在哪一段。**候选（沿用 §10 的清单）**：
+   提案合批等待 / apply 线程交接 / Advance 时序 / 组装闸门被上一次 fsync 挡住。
+   ⇒ 这一步能直接回答「w=1024 为什么慢」。
+2. **再做 p99 目标的取舍实验**：既然 p99 由周期开销主导，
+   可以试「**减小批次以缩短周期**」（把 `DEFER_MIN_BUSY_RATIO` 调低 / 关掉合并）
+   在 w=1024 的 p99 表现 —— **但这会把吞吐换回去**，
+   属于**明确的取舍**，不是优化。
+3. **不要去调合并的阈值**：§10.11.10.1 已经证明阈值只搬收益，
+   而消融已经证明合并不是 p99 的原因。
 
