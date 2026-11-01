@@ -23,6 +23,7 @@ import io.edap.container.mw.DeployManager;
 import io.edap.http.server.HttpServerBuilder;
 import io.edap.log.Logger;
 import io.edap.log.LoggerManager;
+import io.edap.props.Props;
 
 import java.io.File;
 import java.io.IOException;
@@ -45,7 +46,9 @@ public class Bootstrap {
         HttpServerBuilder builder = new HttpServerBuilder();
         DeployManager deployManager = new DeployManager();
         deployManager.setEdap(edap);
-        builder.listen(1111);
+        Props props = edap.getProps();
+        int managerPort = props.getInt("container.manager.port", 1111);
+        builder.listen(managerPort);
         builder.get("/query_app_list", createGetHandler(
                 getClassMethod(DeployManager.class, "queryAppList"),
                 deployManager));
@@ -78,4 +81,6 @@ public class Bootstrap {
             log.error("Edap container start fault!", e);
         }
     }
+
+
 }

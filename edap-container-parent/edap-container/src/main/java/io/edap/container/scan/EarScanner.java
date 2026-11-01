@@ -52,7 +52,6 @@ public class EarScanner {
                 clazzCount.addAndGet(1);
                 dmd.setMavenInfo(scanMavenInfo(ear, name));
             }
-            System.out.println("#####name=" + name + ",MANIFEST_NAME=" + MANIFEST_NAME);
             if (name.equals(MANIFEST_NAME)) {
                 try (InputStream inputStream = ear.getInputStream(name)) {
                     manifest = new Manifest(inputStream);
