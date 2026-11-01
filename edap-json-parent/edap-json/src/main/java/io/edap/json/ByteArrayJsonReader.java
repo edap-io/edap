@@ -105,6 +105,7 @@ public class ByteArrayJsonReader implements JsonReader {
         c = firstNotSpaceChar();
         while (true) {
             if (c == '}') {
+                pos++;
                 break;
             } else if (c == ',') {
                 pos++;
