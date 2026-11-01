@@ -18,28 +18,28 @@ public class EdapDataSourceFactory {
     static Logger log = LoggerManager.getLogger(EdapDataSourceFactory.class);
 
     public EdapDataSource createDataSource(String dataSourceId) {
-        String defaultJdbcUrl = "jdbc:postgresql://pg.test:5432/estylr?sslmode=disable";
-        String jdbcUrl = System.getProperty("jdbcUrl");
+        String defaultJdbcUrl = "jdbc:postgresql://localhost:5432/estylr?sslmode=disable";
+        String jdbcUrl = System.getProperty("ds.default.jdbc.url");
         if (jdbcUrl == null || jdbcUrl.isEmpty()) {
-            jdbcUrl = System.getenv("jdbcUrl");
+            jdbcUrl = System.getenv("ds.default.jdbc.url");
         }
         if (jdbcUrl == null || jdbcUrl.isEmpty()) {
             jdbcUrl = defaultJdbcUrl;
         }
         String fJdbcUrl = jdbcUrl;
         log.info("datasource jdbcurl:{}", l -> l.arg(fJdbcUrl));
-        String defaultUsername = "estylr";
-        String username = System.getProperty("jdbcUserName");
+        String defaultUsername = "postgres";
+        String username = System.getProperty("ds.default.username");
         if (username == null || username.isEmpty()) {
-            username = System.getenv("jdbcUserName");
+            username = System.getenv("ds.default.username");
         }
         if (username == null || username.isEmpty()) {
             username = defaultUsername;
         }
-        String defaultPassword = "estylr@Pass";
-        String password = System.getProperty("jdbcPassword");
+        String defaultPassword = "";
+        String password = System.getProperty("ds.default.password");
         if (password == null || password.isEmpty()) {
-            password = System.getenv("jdbcPassword");
+            password = System.getenv("ds.default.password");
         }
         if (password == null || password.isEmpty()) {
             password = defaultPassword;
