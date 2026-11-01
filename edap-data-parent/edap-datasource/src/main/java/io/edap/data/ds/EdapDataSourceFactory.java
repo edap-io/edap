@@ -18,10 +18,32 @@ public class EdapDataSourceFactory {
     static Logger log = LoggerManager.getLogger(EdapDataSourceFactory.class);
 
     public EdapDataSource createDataSource(String dataSourceId) {
-        String jdbcUrl = "jdbc:postgresql://pg.test:5432/estylr?sslmode=disable";
-        log.info("datasource jdbcurl:{}", l -> l.arg(jdbcUrl));
-        String username = "estylr";
-        String password = "estylr@Pass";
+        String defaultJdbcUrl = "jdbc:postgresql://pg.test:5432/estylr?sslmode=disable";
+        String jdbcUrl = System.getProperty("jdbcUrl");
+        if (jdbcUrl == null || jdbcUrl.isEmpty()) {
+            jdbcUrl = System.getenv("jdbcUrl");
+        }
+        if (jdbcUrl == null || jdbcUrl.isEmpty()) {
+            jdbcUrl = defaultJdbcUrl;
+        }
+        String fJdbcUrl = jdbcUrl;
+        log.info("datasource jdbcurl:{}", l -> l.arg(fJdbcUrl));
+        String defaultUsername = "estylr";
+        String username = System.getProperty("jdbcUserName");
+        if (username == null || username.isEmpty()) {
+            username = System.getenv("jdbcUserName");
+        }
+        if (username == null || username.isEmpty()) {
+            username = defaultUsername;
+        }
+        String defaultPassword = "estylr@Pass";
+        String password = System.getProperty("jdbcPassword");
+        if (password == null || password.isEmpty()) {
+            password = System.getenv("jdbcPassword");
+        }
+        if (password == null || password.isEmpty()) {
+            password = defaultPassword;
+        }
         int maxPoolSize = 100;
         int minIdle = 10;
 
