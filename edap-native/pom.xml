@@ -22,10 +22,9 @@
     </description>
 
     <dependencies>
-        <dependency>
-            <groupId>io.edap</groupId>
-            <artifactId>edap-common</artifactId>
-        </dependency>
+        <!-- 注意：这里刻意不依赖 edap-common。
+             edap-common → edap-crypto →(test scope)→ edap-native → edap-common 会形成 Maven reactor 环。
+             Native.java 原本只用到 io.edap.util.FileUtil.inputStreamToFile，已改为内联实现。 -->
         <dependency>
             <groupId>io.edap</groupId>
             <artifactId>edap-log-api</artifactId>
