@@ -12,6 +12,7 @@ package io.edap.s3.store.disk;
 import io.edap.s3.error.S3ErrorCode;
 import io.edap.s3.error.S3Exception;
 import io.edap.s3.model.GetStream;
+import io.edap.s3.model.ListOptions;
 import io.edap.s3.model.ObjectMeta;
 import io.edap.s3.model.PutStream;
 import org.junit.jupiter.api.BeforeEach;
@@ -25,6 +26,7 @@ import java.nio.file.Path;
 import java.util.Collections;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -42,6 +44,11 @@ public class DiskObjectStoreTest {
         bucketStore = new DiskBucketStore(tmp);
         bucketStore.create("bucket1");
         objectStore = new DiskObjectStore(bucketStore);
+    }
+
+    /** maxKeys=0 在 S3 规范里是「返回 0 条」,「不限」要用这个常量。 */
+    private static ListOptions unlimited() {
+        return ListOptions.of("", "", ListOptions.MAX_KEYS_UNLIMITED);
     }
 
     private PutStream putStream(String content) {
@@ -62,12 +69,15 @@ public class DiskObjectStoreTest {
     }
 
     @Test
-    void dataAndMetaFilesExist() throws Exception {
+    void dataFileAndIndexLogExistButNoMetaSidecar() throws Exception {
         objectStore.put("bucket1", "k", putStream("v"));
         Path data = tmp.resolve("bucket1/k");
         Path meta = tmp.resolve("bucket1/k.meta");
+        Path indexLog = tmp.resolve("bucket1/.index/log");
         assertTrue(Files.exists(data));
-        assertTrue(Files.exists(meta));
+        // 元数据唯一真源 = per-bucket 索引 log,不再有 per-object .meta sidecar
+        assertTrue(Files.exists(indexLog));
+        assertFalse(Files.exists(meta));
     }
 
     @Test
@@ -128,7 +138,7 @@ public class DiskObjectStoreTest {
         objectStore.put("bucket1", "a", putStream("a"));
         objectStore.put("bucket1", "b", putStream("b"));
         objectStore.put("bucket1", "c", putStream("c"));
-        assertEquals(3, objectStore.list("bucket1", "", null, 0, null).size());
+        assertEquals(3, objectStore.list("bucket1", unlimited()).contents().size());
     }
 
     @Test
@@ -137,7 +147,7 @@ public class DiskObjectStoreTest {
         // 模拟残留 .tmp —— 不应出现在 list 结果里
         Files.createFile(tmp.resolve("bucket1/orphan.tmp"));
         Files.createFile(tmp.resolve("bucket1/orphan.meta"));
-        assertEquals(1, objectStore.list("bucket1", "", null, 0, null).size());
+        assertEquals(1, objectStore.list("bucket1", unlimited()).contents().size());
     }
 
     @Test

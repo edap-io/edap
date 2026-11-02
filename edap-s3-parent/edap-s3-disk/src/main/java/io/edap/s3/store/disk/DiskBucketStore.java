@@ -63,8 +63,9 @@ public final class DiskBucketStore implements BucketStore {
             throw new S3Exception(S3ErrorCode.NO_SUCH_BUCKET,
                     "No such bucket: " + bucket, "/" + bucket);
         }
-        // 非空检查交给 DeleteBucketHandler(它会调 ObjectStore.isEmpty)
-        Files.delete(dir);
+        // 非空检查交给 DeleteBucketHandler(它会调 ObjectStore.isEmpty);
+        // 桶目录里可能还留着 .acl / .index / .multipart / 空子目录 ⇒ 必须递归删。
+        DiskMultipartStore.deleteRecursive(dir);
     }
 
     @Override

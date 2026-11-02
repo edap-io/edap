@@ -46,6 +46,8 @@ public final class DeleteBucketHandler extends AbstractS3Handler {
                         "Bucket is not empty: " + name, "/" + name);
             }
             bucketStore.delete(name);
+            // 释放该桶的内存索引(否则删桶后内存不回收)
+            objectStore.forgetBucket(name);
             return S3Response.empty(204);
         } catch (IOException e) {
             throw new S3Exception(S3ErrorCode.INTERNAL_ERROR,

@@ -104,6 +104,16 @@ public interface MultipartStore extends AutoCloseable {
      */
     List<MultipartPart> listParts(String uploadId) throws IOException;
 
+    /**
+     * 启动期钩子 —— 恢复崩溃残留的 upload 状态(磁盘实现扫 {@code .multipart/}
+     * 目录,内存实现不需要)。
+     *
+     * <p>与 {@link ObjectStore#init()} 对称:由服务启动流程调用一次,
+     * 失败不应阻断启动(实现方自行决定是抛异常还是 log 跳过)。
+     */
+    default void startupRecovery() throws IOException {
+    }
+
     @Override
     void close() throws IOException;
 }

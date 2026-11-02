@@ -11,6 +11,7 @@ package io.edap.s3.xml;
 
 import io.edap.s3.error.S3ErrorCode;
 import io.edap.s3.error.S3Exception;
+import io.edap.s3.model.ListResult;
 import io.edap.s3.model.ObjectMeta;
 import org.junit.jupiter.api.Test;
 
@@ -18,9 +19,6 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -44,14 +42,11 @@ public class XmlResponseBuilderTest {
     @Test
     void listBucketResultV2ContainsContentsAndCommonPrefixes() {
         Instant lm = Instant.parse("2026-09-06T10:30:00Z");
-        Map<String, String> meta = new LinkedHashMap<>();
-        meta.put("source", "test");
         ObjectMeta a = new ObjectMeta("a.txt", 100, "abc", "text/plain", lm, Collections.emptyMap());
         ObjectMeta b = new ObjectMeta("b.txt", 200, "def", "application/json", lm, Collections.emptyMap());
-        List<ObjectMeta> contents = Arrays.asList(a, b);
-        List<String> cps = Arrays.asList("docs/");
+        ListResult result = new ListResult(Arrays.asList(a, b), Arrays.asList("docs/"), false, null);
         byte[] body = XmlResponseBuilder.listBucketResultV2(
-                "mybucket", "", 1000, false, null, contents, cps);
+                "mybucket", "", "", 1000, null, null, result);
         String xml = new String(body, StandardCharsets.UTF_8);
         assertTrue(xml.contains("<ListBucketResult"));
         assertTrue(xml.contains("<Name>mybucket</Name>"));
@@ -61,6 +56,23 @@ public class XmlResponseBuilderTest {
         assertTrue(xml.contains("<CommonPrefixes><Prefix>docs/</Prefix></CommonPrefixes>"));
         assertTrue(xml.contains("<MaxKeys>1000</MaxKeys>"));
         assertTrue(xml.contains("<IsTruncated>false</IsTruncated>"));
+        // KeyCount = contents + commonPrefixes
+        assertTrue(xml.contains("<KeyCount>3</KeyCount>"));
+    }
+
+    @Test
+    void listBucketResultV2EchoesDelimiterAndTokens() {
+        ListResult result = new ListResult(Collections.emptyList(), Collections.emptyList(),
+                true, "NEXT-TOKEN");
+        byte[] body = XmlResponseBuilder.listBucketResultV2(
+                "mybucket", "p/", "/", 10, "CUR-TOKEN", "start-key", result);
+        String xml = new String(body, StandardCharsets.UTF_8);
+        assertTrue(xml.contains("<Prefix>p/</Prefix>"));
+        assertTrue(xml.contains("<Delimiter>/</Delimiter>"));
+        assertTrue(xml.contains("<ContinuationToken>CUR-TOKEN</ContinuationToken>"));
+        assertTrue(xml.contains("<NextContinuationToken>NEXT-TOKEN</NextContinuationToken>"));
+        assertTrue(xml.contains("<StartAfter>start-key</StartAfter>"));
+        assertTrue(xml.contains("<IsTruncated>true</IsTruncated>"));
     }
 
     @Test
@@ -88,28 +100,6 @@ public class XmlResponseBuilderTest {
     void escapeStripsControlChars() {
         // 0x01 等不可打印 → '?'
         assertEquals("?", XmlResponseBuilder.escape("\u0001"));
-    }
-
-    @Test
-    void computeCommonPrefixesGroupsByDelimiter() {
-        Instant lm = Instant.now();
-        ObjectMeta a = new ObjectMeta("docs/a.txt", 1, "e1", "text/plain", lm, Collections.emptyMap());
-        ObjectMeta b = new ObjectMeta("docs/b.txt", 2, "e2", "text/plain", lm, Collections.emptyMap());
-        ObjectMeta c = new ObjectMeta("images/x.png", 3, "e3", "image/png", lm, Collections.emptyMap());
-        List<String> cps = XmlResponseBuilder.computeCommonPrefixes(
-                Arrays.asList(a, b, c), "", "/");
-        assertEquals(2, cps.size());
-        assertTrue(cps.contains("docs/"));
-        assertTrue(cps.contains("images/"));
-    }
-
-    @Test
-    void computeCommonPrefixesEmptyWhenNoDelimiter() {
-        ObjectMeta a = new ObjectMeta("a", 1, "e", "text/plain", Instant.now(), Collections.emptyMap());
-        assertTrue(XmlResponseBuilder.computeCommonPrefixes(
-                Arrays.asList(a), "", null).isEmpty());
-        assertTrue(XmlResponseBuilder.computeCommonPrefixes(
-                Arrays.asList(a), "", "").isEmpty());
     }
 
     @Test

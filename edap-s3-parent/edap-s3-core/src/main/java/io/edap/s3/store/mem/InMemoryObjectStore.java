@@ -12,28 +12,32 @@ package io.edap.s3.store.mem;
 import io.edap.s3.error.S3ErrorCode;
 import io.edap.s3.error.S3Exception;
 import io.edap.s3.model.GetStream;
+import io.edap.s3.model.ListOptions;
+import io.edap.s3.model.ListResult;
 import io.edap.s3.model.ObjectMeta;
 import io.edap.s3.model.PutStream;
 import io.edap.s3.store.BucketStore;
+import io.edap.s3.store.ListPaging;
 import io.edap.s3.store.ObjectStore;
+import io.edap.s3.store.Utf8KeyOrder;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ConcurrentSkipListMap;
 
 /**
  * 内存 {@link ObjectStore} —— body 用 {@code byte[]} 缓存,元数据用
- * {@link ConcurrentMap} 存。桶维度由 {@link BucketStore} 单独管,
- * 这里只检查"对象所在桶是否存在",防止凭空在 bucket=null 写入。
+ * {@link ConcurrentSkipListMap} 存(比较器 {@link Utf8KeyOrder},键序 = UTF-8 字节序)。
+ * 桶维度由 {@link BucketStore} 单独管,这里只检查"对象所在桶是否存在",
+ * 防止凭空在 bucket=null 写入。
  *
- * <p>线程安全:每个桶一把 ConcurrentMap,put/get/delete 各自无锁。
+ * <p>线程安全:每个桶一把跳表,put/get/delete 各自无锁;list 走
+ * {@link ListPaging} 的共享分页算法(与磁盘实现同一份代码)。
  *
  * <p>仅用于单测 / 本地开发;生产用 {@code DiskObjectStore}。
  *
@@ -45,7 +49,7 @@ public class InMemoryObjectStore implements ObjectStore {
     private static final char[] HEX_CHARS = "0123456789abcdef".toCharArray();
 
     private final BucketStore bucketStore;
-    private final ConcurrentMap<String, ConcurrentMap<String, StoredObject>> store
+    private final ConcurrentMap<String, ConcurrentSkipListMap<String, StoredObject>> store
             = new ConcurrentHashMap<>();
 
     public InMemoryObjectStore(BucketStore bucketStore) {
@@ -137,35 +141,21 @@ public class InMemoryObjectStore implements ObjectStore {
     }
 
     @Override
-    public List<ObjectMeta> list(String bucket,
-                                 String prefix,
-                                 String delimiter,
-                                 int maxKeys,
-                                 String continuationToken) throws IOException {
+    public ListResult list(String bucket, ListOptions options) throws IOException {
         requireBucket(bucket);
-        if (delimiter != null && !delimiter.isEmpty()) {
-            // Phase 1 简化:不支持 CommonPrefixes 分组,按 prefix 全量返回
-        }
-        List<ObjectMeta> result = new ArrayList<>();
-        ConcurrentMap<String, StoredObject> map = storeForBucket(bucket);
-        for (Map.Entry<String, StoredObject> e : map.entrySet()) {
-            if (prefix != null && !prefix.isEmpty() && !e.getKey().startsWith(prefix)) {
-                continue;
-            }
-            result.add(e.getValue().meta);
-            if (maxKeys > 0 && result.size() >= maxKeys) {
-                break;
-            }
-        }
-        // S3 列表按 key 字典序
-        result.sort((a, b) -> a.key().compareTo(b.key()));
-        return result;
+        ConcurrentSkipListMap<String, StoredObject> map = storeForBucket(bucket);
+        return ListPaging.paginate(map, options, k -> map.get(k).meta);
     }
 
     @Override
     public boolean isEmpty(String bucket) throws IOException {
         requireBucket(bucket);
         return storeForBucket(bucket).isEmpty();
+    }
+
+    @Override
+    public void forgetBucket(String bucket) {
+        store.remove(bucket);
     }
 
     @Override
@@ -180,8 +170,8 @@ public class InMemoryObjectStore implements ObjectStore {
         }
     }
 
-    private ConcurrentMap<String, StoredObject> storeForBucket(String bucket) {
-        return store.computeIfAbsent(bucket, k -> new ConcurrentHashMap<>());
+    private ConcurrentSkipListMap<String, StoredObject> storeForBucket(String bucket) {
+        return store.computeIfAbsent(bucket, k -> new ConcurrentSkipListMap<>(Utf8KeyOrder.INSTANCE));
     }
 
     private static String toHex(byte[] data) {

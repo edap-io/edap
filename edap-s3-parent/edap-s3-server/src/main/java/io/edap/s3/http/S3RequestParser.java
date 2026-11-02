@@ -213,7 +213,7 @@ public final class S3RequestParser {
         }
         // fallback: 逐个常见 query 名查
         String[] common = {"list-type", "prefix", "delimiter", "max-keys",
-                "continuation-token", "encoding-type", "fetch-owner",
+                "continuation-token", "start-after", "encoding-type", "fetch-owner",
                 "uploads", "uploadId", "partNumber"};
         for (String n : common) {
             String v = req.getParameter(n);

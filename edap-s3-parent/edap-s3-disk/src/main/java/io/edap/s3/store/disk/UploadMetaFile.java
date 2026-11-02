@@ -16,7 +16,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.time.Instant;
-import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -50,8 +49,15 @@ import java.util.Map;
  */
 final class UploadMetaFile {
 
-    private static final DateTimeFormatter ISO_FMT =
-            DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'").withZone(ZoneOffset.UTC);
+    /**
+     * 时间戳精度 —— 纳秒级(ISO-8601 instant,秒级时刻不带小数秒)。
+     *
+     * <p>原先用 {@code "yyyy-MM-dd'T'HH:mm:ss'Z'"}(秒级):同一秒内发起的两个 multipart
+     * upload 落盘后 {@code initiated} 完全相同 ⇒ {@code listUploads} 按 initiated 排序时
+     * 两者并列,顺序退化成目录遍历序 ⇒ 随机。纳秒精度消掉这个并列。
+     * 老文件(秒级、无小数秒)仍是合法的 ISO instant,照样能读。</p>
+     */
+    private static final DateTimeFormatter ISO_FMT = DateTimeFormatter.ISO_INSTANT;
 
     static final String META_FILE = "meta.json";
     static final String COMPLETING_MARKER = "meta.json.completing";

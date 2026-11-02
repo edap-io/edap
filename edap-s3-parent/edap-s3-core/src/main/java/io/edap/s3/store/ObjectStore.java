@@ -10,11 +10,12 @@
 package io.edap.s3.store;
 
 import io.edap.s3.model.GetStream;
+import io.edap.s3.model.ListOptions;
+import io.edap.s3.model.ListResult;
 import io.edap.s3.model.ObjectMeta;
 import io.edap.s3.model.PutStream;
 
 import java.io.IOException;
-import java.util.List;
 
 /**
  * S3 对象存储 SPI —— 桶级和对象级的元数据 / 内容操作分离:
@@ -57,22 +58,32 @@ public interface ObjectStore extends AutoCloseable {
     void delete(String bucket, String key) throws IOException;
 
     /**
-     * 列出桶内对象。{@code prefix} 可选,null/"" 表示全部;{@code delimiter}
-     * 常见为 "/",用于 CommonPrefixes 聚合;{@code maxKeys} 客户端建议值,
-     * backend 可自行截断;{@code continuationToken} 用于分页续传。
+     * 列出桶内对象 —— 语义全部由 {@link ListOptions} 描述
+     * (prefix / delimiter / maxKeys / continuationToken / startAfter),
+     * 返回 {@link ListResult}(contents + commonPrefixes + 是否截断 + 下页 token)。
      *
-     * <p>Phase 1 简化:不实现 CommonPrefixes 分组,按 prefix 全量返回。
+     * <p>实现方<b>必须</b>走 {@link io.edap.s3.store.ListPaging} 的共享算法,
+     * 保证内存实现和磁盘实现的分页结果完全一致。
      */
-    List<ObjectMeta> list(String bucket,
-                          String prefix,
-                          String delimiter,
-                          int maxKeys,
-                          String continuationToken) throws IOException;
+    ListResult list(String bucket, ListOptions options) throws IOException;
 
     /**
      * 桶是否为空。DeleteBucketHandler 用此判断 BucketNotEmpty 错误。
      */
     boolean isEmpty(String bucket) throws IOException;
+
+    /**
+     * 启动期钩子 —— 加载索引 / 迁移老数据 / 修复索引 log 尾巴。
+     * 无状态实现(内存)不需要,默认空实现。
+     */
+    default void init() throws IOException {
+    }
+
+    /**
+     * 桶被删除后释放该桶占用的内存索引(否则删桶后内存不回收)。
+     */
+    default void forgetBucket(String bucket) {
+    }
 
     @Override
     void close() throws IOException;

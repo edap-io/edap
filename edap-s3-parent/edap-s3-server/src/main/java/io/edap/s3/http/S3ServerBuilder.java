@@ -28,6 +28,8 @@ import io.edap.s3.store.BucketStore;
 import io.edap.s3.store.MultipartStore;
 import io.edap.s3.store.ObjectStore;
 
+import java.io.IOException;
+
 /**
  * S3 服务端启动 builder —— 把 edap 的 {@link HttpServerBuilder} 包一层:
  * <ol>
@@ -54,6 +56,10 @@ import io.edap.s3.store.ObjectStore;
  * build() 会自动用 {@link BucketPolicyAwareVerifier} 包装底层 SigV4 verifier,
  * 使桶 ACL = public-read / public-read-write 时允许匿名读。如果调用方自己
  * 注入了 {@code authVerifier},就以调用方为准(可禁用 ACL 自动放行)。
+ *
+ * <p>build() 在返回 server 之前会调用 {@link ObjectStore#init()} 和
+ * {@link MultipartStore#startupRecovery()} —— 索引加载 / 老布局迁移 /
+ * multipart 崩溃恢复都在启动期做完,不等第一个请求。
  */
 public final class S3ServerBuilder {
 
@@ -162,6 +168,30 @@ public final class S3ServerBuilder {
         httpBuilder.post("/*", handler);
         httpBuilder.delete("/*", handler);
         httpBuilder.head("/*", handler);
+        startupStores();
         return httpBuilder.build();
+    }
+
+    /**
+     * 启动期钩子 —— 在开始服务之前把 store 拉起来:
+     * <ul>
+     *   <li>{@link ObjectStore#init()} —— 加载索引 / 迁移老布局 / 修索引 log 尾巴</li>
+     *   <li>{@link MultipartStore#startupRecovery()} —— 恢复崩溃残留的 upload</li>
+     * </ul>
+     *
+     * <p>磁盘实现这两步都要读盘(老桶首次迁移尤其慢),所以放在 build() 里
+     * 而不是每个请求路径的懒加载里 —— 迁移只做一次,失败也要在启动期暴露。
+     */
+    private void startupStores() {
+        try {
+            if (objectStore != null) {
+                objectStore.init();
+            }
+            if (multipartStore != null) {
+                multipartStore.startupRecovery();
+            }
+        } catch (IOException e) {
+            throw new RuntimeException("S3 store startup failed", e);
+        }
     }
 }

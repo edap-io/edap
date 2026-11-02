@@ -12,6 +12,8 @@ package io.edap.s3.store.mem;
 import io.edap.s3.error.S3ErrorCode;
 import io.edap.s3.error.S3Exception;
 import io.edap.s3.model.GetStream;
+import io.edap.s3.model.ListOptions;
+import io.edap.s3.model.ListResult;
 import io.edap.s3.model.ObjectMeta;
 import io.edap.s3.model.PutStream;
 import org.junit.jupiter.api.BeforeEach;
@@ -40,6 +42,15 @@ public class InMemoryObjectStoreTest {
         bucketStore = new InMemoryBucketStore();
         bucketStore.create("bucket1");
         objectStore = new InMemoryObjectStore(bucketStore);
+    }
+
+    /** maxKeys=0 在 S3 规范里是「返回 0 条」,「不限」要用这个常量。 */
+    private static ListOptions unlimited() {
+        return unlimited("");
+    }
+
+    private static ListOptions unlimited(String prefix) {
+        return ListOptions.of(prefix, "", ListOptions.MAX_KEYS_UNLIMITED);
     }
 
     private PutStream putStream(String content) {
@@ -108,7 +119,7 @@ public class InMemoryObjectStoreTest {
         objectStore.put("bucket1", "a", putStream("a"));
         objectStore.put("bucket1", "b", putStream("b"));
         objectStore.put("bucket1", "c", putStream("c"));
-        List<ObjectMeta> all = objectStore.list("bucket1", "", null, 0, null);
+        List<ObjectMeta> all = objectStore.list("bucket1", unlimited()).contents();
         assertEquals(3, all.size());
         // 字典序
         assertEquals("a", all.get(0).key());
@@ -121,7 +132,7 @@ public class InMemoryObjectStoreTest {
         objectStore.put("bucket1", "docs/a.txt", putStream("a"));
         objectStore.put("bucket1", "docs/b.txt", putStream("b"));
         objectStore.put("bucket1", "images/x.png", putStream("x"));
-        List<ObjectMeta> docs = objectStore.list("bucket1", "docs/", null, 0, null);
+        List<ObjectMeta> docs = objectStore.list("bucket1", unlimited("docs/")).contents();
         assertEquals(2, docs.size());
         for (ObjectMeta m : docs) {
             assertTrue(m.key().startsWith("docs/"));
@@ -133,8 +144,11 @@ public class InMemoryObjectStoreTest {
         for (int i = 0; i < 5; i++) {
             objectStore.put("bucket1", "k" + i, putStream("v"));
         }
-        List<ObjectMeta> truncated = objectStore.list("bucket1", "", null, 2, null);
-        assertEquals(2, truncated.size());
+        ListResult truncated = objectStore.list("bucket1",
+                ListOptions.of("", "", 2));
+        assertEquals(2, truncated.contents().size());
+        assertTrue(truncated.truncated());
+        assertNotNull(truncated.nextContinuationToken());
     }
 
     @Test

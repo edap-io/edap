@@ -58,6 +58,13 @@ public class S3UrlMapping implements UrlMapping {
 
             MultipartStore multipartStore = new DiskMultipartStore(Path.of("./"), bucketStore, objectStore);
 
+            // ===== 启动期钩子 =====
+            // objectStore.init():加载 per-bucket 索引 log + 迁移老布局(有 .meta 无 .index/log 的桶)
+            // multipartStore.startupRecovery():恢复崩溃残留的 multipart upload
+            // 都在开始服务之前做完 —— 迁移只做一次,失败要在启动期暴露而不是首个请求。
+            objectStore.init();
+            multipartStore.startupRecovery();
+
             // ===== 桶级 =====
             dispatcher.register(new ListBucketsHandler(bucketStore));
             dispatcher.register(new CreateBucketHandler(bucketStore));

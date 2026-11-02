@@ -87,6 +87,7 @@ public final class DiskMultipartStore implements MultipartStore {
      * 启动期恢复 —— 见设计文档 §9。
      * 失败 log warn 跳过,不阻断启动。
      */
+    @Override
     public void startupRecovery() throws IOException {
         if (!Files.isDirectory(root)) return;
         try (DirectoryStream<Path> buckets = Files.newDirectoryStream(root)) {
@@ -458,7 +459,8 @@ public final class DiskMultipartStore implements MultipartStore {
         }
     }
 
-    private void deleteRecursive(Path dir) throws IOException {
+    /** 递归删目录(先删文件、再删目录)。删桶时也复用它。 */
+    static void deleteRecursive(Path dir) throws IOException {
         if (!Files.exists(dir)) return;
         List<Path> all = new ArrayList<>();
         try (java.util.stream.Stream<Path> walk = Files.walk(dir)) {

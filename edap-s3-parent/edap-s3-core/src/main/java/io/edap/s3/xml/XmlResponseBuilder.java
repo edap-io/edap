@@ -10,6 +10,7 @@
 package io.edap.s3.xml;
 
 import io.edap.s3.error.S3Exception;
+import io.edap.s3.model.ListResult;
 import io.edap.s3.model.MultipartPart;
 import io.edap.s3.model.MultipartUpload;
 import io.edap.s3.model.ObjectMeta;
@@ -59,25 +60,42 @@ public final class XmlResponseBuilder {
 
     // ===================== ListObjectsV2 =====================
 
+    /**
+     * ListObjectsV2 响应 —— 内容全部来自 {@link ListResult}(分页算法在
+     * {@code io.edap.s3.store.ListPaging} 里,和后端实现无关)。
+     *
+     * @param continuationToken 请求里带的 token(回显;null 表示首页)
+     * @param startAfter        请求里带的 start-after(回显)
+     */
     public static byte[] listBucketResultV2(String bucket,
                                             String prefix,
+                                            String delimiter,
                                             int maxKeys,
-                                            boolean isTruncated,
-                                            String nextContinuationToken,
-                                            List<ObjectMeta> contents,
-                                            List<String> commonPrefixes) {
+                                            String continuationToken,
+                                            String startAfter,
+                                            ListResult result) {
+        List<ObjectMeta> contents = result.contents();
         StringBuilder sb = new StringBuilder(512 + contents.size() * 200);
         sb.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
         sb.append("<ListBucketResult xmlns=\"http://s3.amazonaws.com/doc/2006-03-01/\">");
         appendEscaped(sb, "<Name>", bucket, "</Name>");
-        if (prefix != null && !prefix.isEmpty()) {
-            appendEscaped(sb, "<Prefix>", prefix, "</Prefix>");
-        } else {
-            sb.append("<Prefix></Prefix>");
-        }
-        sb.append("<KeyCount>").append(contents.size()).append("</KeyCount>");
+        appendEscaped(sb, "<Prefix>", prefix == null ? "" : prefix, "</Prefix>");
+        sb.append("<KeyCount>").append(result.keyCount()).append("</KeyCount>");
         sb.append("<MaxKeys>").append(maxKeys).append("</MaxKeys>");
-        sb.append("<IsTruncated>").append(isTruncated).append("</IsTruncated>");
+        if (delimiter != null && !delimiter.isEmpty()) {
+            appendEscaped(sb, "<Delimiter>", delimiter, "</Delimiter>");
+        }
+        sb.append("<IsTruncated>").append(result.truncated()).append("</IsTruncated>");
+        if (continuationToken != null) {
+            appendEscaped(sb, "<ContinuationToken>", continuationToken, "</ContinuationToken>");
+        }
+        if (result.nextContinuationToken() != null) {
+            appendEscaped(sb, "<NextContinuationToken>",
+                    result.nextContinuationToken(), "</NextContinuationToken>");
+        }
+        if (startAfter != null) {
+            appendEscaped(sb, "<StartAfter>", startAfter, "</StartAfter>");
+        }
         for (ObjectMeta m : contents) {
             sb.append("<Contents>");
             appendEscaped(sb, "<Key>", m.key(), "</Key>");
@@ -87,13 +105,8 @@ public final class XmlResponseBuilder {
             sb.append("<StorageClass>STANDARD</StorageClass>");
             sb.append("</Contents>");
         }
-        if (commonPrefixes != null) {
-            for (String cp : commonPrefixes) {
-                appendEscaped(sb, "<CommonPrefixes><Prefix>", cp, "</Prefix></CommonPrefixes>");
-            }
-        }
-        if (nextContinuationToken != null) {
-            appendEscaped(sb, "<NextContinuationToken>", nextContinuationToken, "</NextContinuationToken>");
+        for (String cp : result.commonPrefixes()) {
+            appendEscaped(sb, "<CommonPrefixes><Prefix>", cp, "</Prefix></CommonPrefixes>");
         }
         sb.append("</ListBucketResult>");
         return sb.toString().getBytes(StandardCharsets.UTF_8);
@@ -196,26 +209,6 @@ public final class XmlResponseBuilder {
         sb.append("<RequestId>").append("0000000000000000").append("</RequestId>");
         sb.append("</Error>");
         return sb.toString().getBytes(StandardCharsets.UTF_8);
-    }
-
-    // ===================== CommonPrefixes utilities =====================
-
-    /**
-     * Phase 1 简化版:从已排序的 object 列表里抽出 commonPrefixes。
-     * 若 {@code delimiter} 为 null/"" 返回空列表。
-     */
-    public static java.util.List<String> computeCommonPrefixes(List<ObjectMeta> contents, String prefix, String delimiter) {
-        if (delimiter == null || delimiter.isEmpty()) return java.util.Collections.emptyList();
-        java.util.Set<String> set = new java.util.TreeSet<>();
-        String filter = prefix == null ? "" : prefix;
-        for (ObjectMeta m : contents) {
-            if (!m.key().startsWith(filter)) continue;
-            int idx = m.key().indexOf(delimiter, filter.length());
-            if (idx >= 0) {
-                set.add(m.key().substring(0, idx + delimiter.length()));
-            }
-        }
-        return new java.util.ArrayList<>(set);
     }
 
     // ===================== XML escape + datetime =====================

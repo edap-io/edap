@@ -14,6 +14,8 @@ import io.edap.s3.error.S3Exception;
 import io.edap.s3.model.CompletedObject;
 import io.edap.s3.model.CompletedPart;
 import io.edap.s3.model.GetStream;
+import io.edap.s3.model.ListOptions;
+import io.edap.s3.model.ListResult;
 import io.edap.s3.model.MultipartPart;
 import io.edap.s3.model.ObjectMeta;
 import io.edap.s3.model.PutStream;
@@ -238,9 +240,11 @@ public class DiskMultipartStoreIT {
         assertFalse(Files.exists(uploadDir));
 
         // ObjectStore 的对象仍然在 —— 启动恢复不会清 ObjectStore 数据
+        // (元数据在索引 log 里,不再是每对象一个 .meta sidecar)
         Path bucketDir = tmp.resolve(BUCKET);
         assertTrue(Files.exists(bucketDir.resolve(key)));
-        assertTrue(Files.exists(bucketDir.resolve(key + ".meta")));
+        assertTrue(Files.exists(bucketDir.resolve(".index/log")));
+        assertFalse(Files.exists(bucketDir.resolve(key + ".meta")));
 
         fresh.close();
     }
@@ -396,13 +400,15 @@ public class DiskMultipartStoreIT {
 
     // ===================== helpers =====================
 
-    /** 递归算目录下所有 regular file 字节数。 */
+    /** 递归算目录下所有 regular file 字节数(排除 {@code .index/} 索引 log)。 */
     private static long diskUsage(Path root) throws IOException {
         if (!Files.isDirectory(root)) return 0;
         long total = 0;
         try (var walk = Files.walk(root)) {
             for (Path p : (Iterable<Path>) walk::iterator) {
-                if (Files.isRegularFile(p)) total += Files.size(p);
+                if (!Files.isRegularFile(p)) continue;
+                if (p.toString().contains("/.index/")) continue;   // 索引 log 不算 body
+                total += Files.size(p);
             }
         }
         return total;
@@ -518,8 +524,8 @@ public class DiskMultipartStoreIT {
         }
 
         @Override
-        public List<ObjectMeta> list(String bucket, String prefix, String delimiter, int maxKeys, String continuationToken) throws IOException {
-            return delegate.list(bucket, prefix, delimiter, maxKeys, continuationToken);
+        public ListResult list(String bucket, ListOptions options) throws IOException {
+            return delegate.list(bucket, options);
         }
 
         @Override
