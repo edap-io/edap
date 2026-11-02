@@ -339,6 +339,98 @@ multipart 拼装场景(`SequenceInputStream` 整个对象可达 5GB):Files.copy 
 
 按路径约定实现,这里不展开;与 InMemory 行为对齐即可(handler 拿到的 S3Exception 错误码相同)。
 
+> ⚠️ 上面 §8.2 的伪码描述的是**改造前**的 `.meta` sidecar 方案,已过时。
+> 当前实现见 [S3_INDEX_DESIGN.md](S3_INDEX_DESIGN.md):对象元数据不再写
+> `<key>.meta`,而是 append 到 per-bucket 的索引 log `<bucket>/.index/log`。
+> §8.1 的 **body 路径约定不变**(`<root>/<bucket>/<key>`)—— multipart 拼装出来的
+> 大对象仍然落在同一个位置。
+
+---
+
+## 八·五、multipart 与对象索引的关系
+
+索引化改造(edap-s3 的「元数据收敛成 per-bucket 有序索引」)之后,
+multipart 与普通对象在磁盘上的关系如下:
+
+### 8.5.1 两套元数据,两套存储
+
+| | 普通对象 | multipart upload(未完成) |
+|---|---|---|
+| body | `<bucket>/<key>` | `<bucket>/.multipart/<uploadId>/part-<n>` |
+| 元数据 | `<bucket>/.index/log`(append-only,索引) | `<bucket>/.multipart/<uploadId>/meta.json`(独立文件) |
+| 谁是唯一真源 | 索引 log | `meta.json` |
+| 生命周期 | 随对象 | 随 uploadId,`complete`/`abort` 后整目录删 |
+
+**multipart 的元数据没有进索引**,原因有三:
+
+1. **生命周期不同**:upload 是**临时**状态(可能几分钟内被 abort),
+   对象是**持久**状态。放进同一个 append-only log 意味着 abort 要写一条 DELETE 记录,
+   而 abort 的记录量可能远超最终对象的量(用户分 1000 个 part 传 1 个对象)。
+2. **删除语义不同**:对象删除是「改索引 + 删 body」两步(索引是提交点);
+   upload 删除是「整个目录递归删」—— 没有「提交点」语义需要维护。
+3. **恢复算法不同**:`startupRecovery()` 扫的是 `.multipart/**/meta.json`,
+   索引 log 回放扫的是 `.index/log`。两条路径互不干扰。
+
+### 8.5.2 交互点只有三处
+
+```
+1. complete(uploadId, parts)
+      → 拼装各 part → 调 objectStore.put(bucket, key, body)
+      → ★ put 会 append 一条 PUT 记录到 <bucket>/.index/log
+      → 删掉 .multipart/<uploadId>/ 整个目录
+
+2. DiskObjectStore.delete(bucket, key)
+      → 删 body + pruneEmptyParents
+      → ★ 不会去碰 .multipart/(multipart 目录不归对象索引管)
+
+3. DiskBucketStore.delete(bucket)
+      → 递归删整个桶目录(含 .index/ 和 .multipart/)
+      → ★ 之前是 Files.delete(dir),目录非空会抛 DirectoryNotEmptyException
+        → 现在改成递归删;且 DeleteBucketHandler 删完调 objectStore.forgetBucket(name)
+          释放该桶的内存索引
+```
+
+**没有别的地方** —— multipart 不读索引、索引不认 multipart。
+
+### 8.5.3 保留名
+
+`.index` / `.multipart` / `.acl` 是桶目录里的保留名(连同 `.index/`、`.multipart/`、
+`.acl/` 三个保留前缀):
+
+- `put` / `delete` 用这些名字 ⇒ `INVALID_ARGUMENT`
+- `get` / `head` 用这些名字 ⇒ `NO_SUCH_KEY`
+  (⚠️ 否则 `GET /bucket/.index/log` 会把整个索引泄露出去)
+
+### 8.5.4 `diskUsage()` 的口径
+
+`DiskMultipartStoreIT` 里算「桶占多少磁盘」用 `Files.walk` 递归求和。
+索引化之后必须**排除 `.index/`** —— 索引 log 不是 body:
+
+```java
+if (p.toString().contains("/.index/")) continue;   // 索引 log 不算 body
+```
+
+同理,`.multipart/` 在 upload 已完成时会被删掉,所以统计时天然不含它。
+
+### 8.5.5 `startupRecovery()` 现在真的被调用了
+
+索引化改造顺带补上了一个**一直缺失的调用**:生产代码里
+`DiskMultipartStore.startupRecovery()` 有实现,但**从来没有调用方**
+(`S3UrlMapping` / `S3ServerBuilder` 都没调)⇒ 崩溃残留的 multipart upload
+从来不会被清理。
+
+现在两处启动期钩子都调了:
+
+```java
+// S3ServerBuilder.build() 和 S3UrlMapping.urlMappings() 里
+objectStore.init();                // 加载索引 log + 迁移老 .meta 布局
+multipartStore.startupRecovery();   // 恢复/清理崩溃残留的 multipart upload
+```
+
+`MultipartStore` 接口上这个方法是 `default void startupRecovery() throws IOException {}`
+—— 用 `default` 是因为 `edap-s3-server` 不依赖 `edap-s3-disk`,
+没法用 `instanceof DiskMultipartStore` 判断。
+
 ---
 
 ## 九、启动恢复
@@ -346,6 +438,11 @@ multipart 拼装场景(`SequenceInputStream` 整个对象可达 5GB):Files.copy 
 ### 9.1 触发时机
 
 `DiskMultipartStore` 构造时跑一次(同步,启动期),跑完才让 S3ServerBuilder 接受请求。
+
+> ⚠️ 这句在**索引化改造之前是不成立的** —— 构造器里根本没跑,也没有任何调用方
+> 调 `startupRecovery()`。现在由启动期钩子显式调用(见 §8.5.5):
+> `S3ServerBuilder.build()` / `S3UrlMapping.urlMappings()` 里
+> `objectStore.init()` 之后紧跟 `multipartStore.startupRecovery()`。
 
 ### 9.2 扫盘算法
 
