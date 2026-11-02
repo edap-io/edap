@@ -3,6 +3,8 @@ package io.edap.s3.starter;
 import io.edap.http.WSHandler;
 import io.edap.http.server.UrlMapping;
 import io.edap.http.server.UrlMappingItem;
+import io.edap.log.Logger;
+import io.edap.log.LoggerManager;
 import io.edap.s3.auth.*;
 import io.edap.s3.http.S3Dispatcher;
 import io.edap.s3.http.S3HttpHandler;
@@ -21,6 +23,8 @@ import java.util.Map;
 import java.util.Properties;
 
 public class S3UrlMapping implements UrlMapping {
+
+    static Logger log = LoggerManager.getLogger(S3UrlMapping.class);
 
     private static final String AKID = "AKIDEXAMPLE";
     private static final String SECRET = "wJalrXUtnFEMI/K7MDENG+bPxRfiCYEXAMPLEKEY";
@@ -45,7 +49,16 @@ public class S3UrlMapping implements UrlMapping {
         authVerifier = new BucketPolicyAwareVerifier(new SigV4Verifier(resolver), bucketStoreForVerifier());
         S3Dispatcher dispatcher = new S3Dispatcher();
 
-        Path root = Path.of("./");
+        String rootPath = System.getProperty("s3.root.path");
+        if (rootPath == null || rootPath.isEmpty()) {
+            rootPath = System.getenv("s3.root.path");
+        }
+        if (rootPath == null || rootPath.isEmpty()) {
+            rootPath = "./";
+        }
+        String frootPath = rootPath;
+        log.info("s3.root.path:[{}]", l-> l.arg(frootPath));
+        Path root = Path.of(rootPath);
 
         try {
             DiskBucketStore bucketStore = new DiskBucketStore(root);
@@ -53,10 +66,10 @@ public class S3UrlMapping implements UrlMapping {
             try {
                 bucketStore.create("user-uploads");
             } catch (Throwable e) {
-                e.printStackTrace();
+                log.info("Try create bucket exists", e);
             }
 
-            MultipartStore multipartStore = new DiskMultipartStore(Path.of("./"), bucketStore, objectStore);
+            MultipartStore multipartStore = new DiskMultipartStore(root, bucketStore, objectStore);
 
             // ===== 启动期钩子 =====
             // objectStore.init():加载 per-bucket 索引 log + 迁移老布局(有 .meta 无 .index/log 的桶)
