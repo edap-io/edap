@@ -203,46 +203,52 @@ public class HttpServerBuilder {
         return decoderType;
     }
 
+    /**
+     * path → 已注册的 PathInfo（同一个 path 多次注册不同 method 时合并到同一个 PathInfo）。
+     *
+     * <p>wildcard 路由（prefix/postfix）在 {@link PathInfoMatcher} 里按 path 字符串去重，
+     * 后注册的会被丢弃；而精确路径走 {@link #mapping}，后注册的会整体覆盖前一个。
+     * 两种情况下「同一个 path 注册多个 method」都会丢掉先前注册的 handler。
+     * 这里按 path 缓存 PathInfo，重复注册时只往里补 method → handler 的槽位。</p>
+     */
+    private final Map<String, PathInfo> pathInfos = new HashMap<>();
+
     private void addPathHandler(String path, HttpHandler handler, HttpHandleOption option, String... methods) {
         MethodCache methodCache = MethodCache.instance();
-        if (path.startsWith("*")) {
-            PathInfo pathInfo = new PathInfo();
+        PathInfo pathInfo = pathInfos.get(path);
+        if (pathInfo == null) {
+            pathInfo = new PathInfo();
             pathInfo.setMatchPath(path);
             pathInfo.setPath(path);
-            List<HttpHandler> handlers = new ArrayList<>();
-            for (String method : methods) {
-                int methodIndex = methodCache.getMethodIndex(method);
-                handlers.add(methodIndex, handler);
+            pathInfos.put(path, pathInfo);
+            if (path.startsWith("*")) {
+                pathInfoMatcher.registerPrefixMatcher(pathInfo);
+            } else if (path.endsWith("*")) {
+                pathInfoMatcher.registerPostfixMatcher(pathInfo);
+            } else {
+                pathInfo.setFound(true);
+                mapping.put(path, pathInfo);
             }
-            pathInfo.setHttpHandlers(handlers.toArray(new HttpHandler[0]));
-            pathInfo.setHandlerOption(option);
-            pathInfoMatcher.registerPrefixMatcher(pathInfo);
-        } else if (path.endsWith("*")) {
-            PathInfo pathInfo = new PathInfo();
-            pathInfo.setMatchPath(path);
-            pathInfo.setPath(path);
-            List<HttpHandler> handlers = new ArrayList<>();
-            for (String method : methods) {
-                int methodIndex = methodCache.getMethodIndex(method);
-                handlers.add(methodIndex, handler);
-            }
-            pathInfo.setHttpHandlers(handlers.toArray(new HttpHandler[0]));
-            pathInfo.setHandlerOption(option);
-            pathInfoMatcher.registerPostfixMatcher(pathInfo);
-        } else {
-            PathInfo pathInfo = new PathInfo();
-            pathInfo.setMatchPath(path);
-            pathInfo.setPath(path);
-            List<HttpHandler> handlers = new ArrayList<>();
-            for (String method : methods) {
-                int methodIndex = methodCache.getMethodIndex(method);
-                handlers.add(methodIndex, handler);
-            }
-            pathInfo.setHttpHandlers(handlers.toArray(new HttpHandler[0]));
-            pathInfo.setHandlerOption(option);
-            pathInfo.setFound(true);
-            mapping.put(path, pathInfo);
         }
+        // httpHandlers[] 按 MethodCache 的全局 method index 索引（dispatch 时用它选 handler），
+        // 所以数组长度必须 ≥ methodIndex+1，中间空槽留 null（该 method 没有 handler）。
+        HttpHandler[] handlers = pathInfo.getHttpHandlers();
+        if (handlers == null) {
+            handlers = new HttpHandler[0];
+        }
+        for (String method : methods) {
+            int methodIndex = methodCache.getMethodIndex(method);
+            if (handlers.length > methodIndex) {
+                handlers[methodIndex] = handler;
+            } else {
+                HttpHandler[] tmp = new HttpHandler[methodIndex + 1];
+                System.arraycopy(handlers, 0, tmp, 0, handlers.length);
+                tmp[methodIndex] = handler;
+                handlers = tmp;
+            }
+        }
+        pathInfo.setHttpHandlers(handlers);
+        pathInfo.setHandlerOption(option);
     }
 
     public HttpServer build() {
