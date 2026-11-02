@@ -1,0 +1,3 @@
+# golden 文件保存的是 HTTP 响应的原始字节（含 CRLF），必须逐字节保留，
+# 不能做行尾转换 —— 否则新克隆的仓库里 golden 是 LF，与实际响应（CRLF）对不上。
+*.golden -text
