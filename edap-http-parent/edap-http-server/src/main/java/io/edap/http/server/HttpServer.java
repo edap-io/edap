@@ -119,7 +119,7 @@ public class HttpServer extends Server {
     public void init() {
         super.init();
         setDecoder(requestDecoder);
-        System.out.println("HttpDecoder's type: " + decoderType);
+        log.info("HttpDecoder's type: {}", l -> l.arg(decoderType));
     }
 
     @Override
