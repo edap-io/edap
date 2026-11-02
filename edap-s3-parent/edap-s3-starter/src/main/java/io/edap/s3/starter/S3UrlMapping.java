@@ -45,23 +45,19 @@ public class S3UrlMapping implements UrlMapping {
 
     @Override
     public Map<String, UrlMappingItem> urlMappings() {
-        S3AuthVerifier authVerifier;
-        authVerifier = new BucketPolicyAwareVerifier(new SigV4Verifier(resolver), bucketStoreForVerifier());
         S3Dispatcher dispatcher = new S3Dispatcher();
 
-        String rootPath = System.getProperty("s3.root.path");
-        if (rootPath == null || rootPath.isEmpty()) {
-            rootPath = System.getenv("s3.root.path");
+        Path root = resolveRoot();
+
+        final DiskBucketStore bucketStore;
+        try {
+            bucketStore = new DiskBucketStore(root);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
         }
-        if (rootPath == null || rootPath.isEmpty()) {
-            rootPath = "./";
-        }
-        String frootPath = rootPath;
-        log.info("s3.root.path:[{}]", l-> l.arg(frootPath));
-        Path root = Path.of(rootPath);
+        S3AuthVerifier authVerifier = buildAuthVerifier(bucketStore);
 
         try {
-            DiskBucketStore bucketStore = new DiskBucketStore(root);
             ObjectStore objectStore = new DiskObjectStore(bucketStore);
             try {
                 bucketStore.create("user-uploads");
@@ -114,15 +110,35 @@ public class S3UrlMapping implements UrlMapping {
     }
 
     /**
-     * 给 BucketPolicyAwareVerifier 准备一份 bucketStore —— 不能直接复用 urlMappings()
-     * 里 create 出来的实例(那个在 try 块里),所以单独开一个轻量字段。
+     * 解析 S3 数据根 —— 系统属性 {@code s3.root.path} &gt; 环境变量同名项 &gt;
+     * 工作目录。
      */
-    private BucketStore bucketStoreForVerifier() {
-        try {
-            return new DiskBucketStore(Path.of("./"));
-        } catch (IOException e) {
-            throw new RuntimeException(e);
+    static Path resolveRoot() {
+        String rootPath = System.getProperty("s3.root.path");
+        if (rootPath == null || rootPath.isEmpty()) {
+            rootPath = System.getenv("s3.root.path");
         }
+        if (rootPath == null || rootPath.isEmpty()) {
+            rootPath = "./";
+        }
+        String frootPath = rootPath;
+        log.info("s3.root.path:[{}]", l-> l.arg(frootPath));
+        return Path.of(rootPath);
+    }
+
+    /**
+     * 构造鉴权链 —— <b>必须传入主 store 用的那个 bucketStore</b>。
+     *
+     * <p>桶 ACL 存在 {@code <root>/<bucket>/.acl}。root 不一致 ⇒ 读不到那个文件:
+     * <ul>
+     *   <li>桶目录不存在 ⇒ {@code getCannedAcl} 抛 NoSuchBucket ⇒ 404</li>
+     *   <li>桶目录存在但没有 {@code .acl} ⇒ 默认 PRIVATE ⇒ 匿名读被 403 拒掉</li>
+     * </ul>
+     * 线上踩过:ACL 校验器曾硬编码工作目录 {@code ./},而主 store 用
+     * {@code s3.root.path} ⇒ 数据根与工作目录分开时匿名读全线 403。
+     */
+    S3AuthVerifier buildAuthVerifier(BucketStore bucketStore) {
+        return new BucketPolicyAwareVerifier(new SigV4Verifier(resolver), bucketStore);
     }
 
     @Override
