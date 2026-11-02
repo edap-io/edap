@@ -27,6 +27,7 @@ import io.edap.raft.protocol.HardState;
 import io.edap.raft.protocol.Message;
 import io.edap.raft.protocol.MessageType;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -156,6 +157,19 @@ public class Node {
     private final ConcurrentHashMap<Long, PendingProposal> pendingProposals = new ConcurrentHashMap<>();
 
     /**
+     * 已经分配了日志索引、等着被提交通知的提案，按追加顺序排队。
+     *
+     * <p>只有「提交即通知」打开时才有内容。提案在 raft 日志里的索引按追加顺序
+     * 单调递增，而 raft 的提交也是按序发生的，所以「已提交到 C」就是
+     * 「队头那些索引 ≤ C 的提案」。用 FIFO 队列而不是按索引排序的 map：
+     * 每条提案只做一次入队一次出队，摊销 O(1)，不给状态机线程添开销
+     * —— 状态机线程是提案消费速率的瓶颈，每条提案多花几十纳秒都是全局代价。</p>
+     *
+     * <p>只由状态机线程读写，不需要并发容器。</p>
+     */
+    private final ArrayDeque<PendingProposal> pendingByOrder = new ArrayDeque<>();
+
+    /**
      * 已经通知过客户端的最大提交索引。
      *
      * <p>只由状态机线程读写。碎片批次合并期间同一个 Ready 会被反复
@@ -163,8 +177,26 @@ public class Node {
      */
     private long lastNotifiedIndex;
 
+    /**
+     * 「提交即通知」模式下，提前通知了多少个客户端。
+     *
+     * <p>这些通知发生在两次 Ready 组装之间。碎片批次合并要用「刚通知了多少个
+     * 客户端」来估算下一批的预期条数，所以这里记一份，等 Ready 组装时用掉。</p>
+     */
+    private int earlyNotified;
+
     /** 异步提案的请求 id 序号 */
     private final AtomicLong requestSeq = new AtomicLong();
+
+    /**
+     * 诊断开关：{@code -Dedap.raft.diag=true} 时才记录分段计时。
+     *
+     * <p>默认关闭，关掉时除了几个布尔判断没有任何额外开销。</p>
+     */
+    private static final boolean DIAG = Boolean.getBoolean("edap.raft.diag");
+
+    /** 诊断数据：状态机线程的分段计时 */
+    private final Diag diag = new Diag();
 
     /** 底层状态机 */
     private final RawNode rn;
@@ -244,6 +276,8 @@ public class Node {
         this.maxPendingProposals = cfg.maxPendingProposals;
         this.proposalFullPolicy = cfg.proposalFullPolicy == null
                 ? ProposalFullPolicy.BLOCK : cfg.proposalFullPolicy;
+        this.notifyOnCommit = Boolean.parseBoolean(
+                System.getProperty("edap.raft.notifyOnCommit", "false"));
         this.propc = this.maxPendingProposals > 0
                 ? new LinkedBlockingQueue<>(this.maxPendingProposals)
                 : new LinkedBlockingQueue<>();
@@ -409,7 +443,7 @@ public class Node {
         long deadlineNanos = timeoutMillis > 0
                 ? System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMillis)
                 : 0L;
-        pendingProposals.put(requestId, new PendingProposal(future, deadlineNanos));
+        pendingProposals.put(requestId, new PendingProposal(future, deadlineNanos, requestId));
         Message m = new Message().setType(MessageType.MSG_PROP)
                 .setEntries(Collections.singletonList(
                         new Entry(0, 0, EntryType.NORMAL, data, requestId)));
@@ -958,9 +992,19 @@ public class Node {
         // 碎片批次合并：上一次判断时本批的条目数（用来发现「批还在长」）
         int deferSeenEntries = -1;
         long lead = Raft.NONE;
+        // 诊断：commit 指针推进的次数（两种模式用同一个口径）
+        long lastCommittedSeen = 0;
 
         try {
             while (!stopped.get()) {
+                if (DIAG) {
+                    diag.onLoop();
+                    long committedNow = r.getRaftLog().committed();
+                    if (committedNow > lastCommittedSeen) {
+                        lastCommittedSeen = committedNow;
+                        diag.commitAdvances++;
+                    }
+                }
                 // leader 变化时重新武装提案通道
                 long currentLead = r.getLead();
                 if (lead != currentLead) {
@@ -1034,6 +1078,9 @@ public class Node {
                 while ((m = recvc.poll()) != null) {
                     handleMessage(m);
                     dirty = true;
+                    if (DIAG) {
+                        diag.netMessages++;
+                    }
                 }
 
                 // 落盘完成通知（框架落盘模式）
@@ -1060,6 +1107,25 @@ public class Node {
                     }
                 }
 
+                // 提交即通知
+                // 上面两段（网络消息、落盘完成）都可能让 raft 的 commit 指针前进。
+                // 正常路径下提交通知要等下一次 Ready 组装顺带完成，而 Ready 的组装
+                // 被「上一个 Ready 还在落盘 / 应用层还没 advance」卡住 ——
+                // 实测这一段要占「MSG_APP 发出 → 提交」的 34%（p50 15.5ms）。
+                // 这里在 commit 指针推进之后立刻通知，不等 Ready。
+                if (notifyOnCommit) {
+                    long committed = r.getRaftLog().committed();
+                    if (committed > lastNotifiedIndex) {
+                        long tn = DIAG ? System.nanoTime() : 0L;
+                        int n = notifyCommitted(committed);
+                        if (DIAG) {
+                            diag.onNotify(System.nanoTime() - tn, n);
+                        }
+                        earlyNotified += n;
+                        lastNotifiedIndex = committed;
+                    }
+                }
+
                 // 组装 Ready
                 // 与 etcd 一致：应用层还没把上一个 Ready 取走之前，每一轮都重新
                 // 组装一次，这样应用层拿到的 Ready 总是当前能凑出来的最大一批。
@@ -1072,6 +1138,9 @@ public class Node {
                     rd = rn.readyWithoutAccept();
                     rdEntries = rd.getEntries();
                     rdCommitted = rd.getCommittedEntries();
+                    if (DIAG) {
+                        diag.onAssembly();
+                    }
                     if (frameworkPersist) {
                         // 日志由框架落盘，Ready 里不再带
                         rd.setEntries(Collections.emptyList());
@@ -1081,12 +1150,21 @@ public class Node {
                         rd.setCommittedEntries(Collections.emptyList());
                     }
                     // 提案被提交：结束对应的异步提案
+                    long tc = DIAG ? System.nanoTime() : 0L;
                     int notified = completePendingProposals(rdCommitted);
+                    if (DIAG) {
+                        diag.onNotify(System.nanoTime() - tc, notified);
+                    }
                     if (notified > 0) {
                         // 通知了多少个客户端，就预计会回来同样数量的新提案。
                         // 下一批攒到这个量再落盘，一次 fsync 就能覆盖整批。
                         expectBatchSize = notified;
+                    } else if (earlyNotified > 0) {
+                        // 提交即通知：这些客户端在 Ready 组装之前就被通知过了，
+                        // 用同一份计数维持碎片批次合并的预期批大小。
+                        expectBatchSize = earlyNotified;
                     }
+                    earlyNotified = 0;
                     rdPersisted = false;
                     dirty = false;
                     // 碎片批次合并：这一批只有零星几条，而刚刚提交了更多条目 ——
@@ -1112,6 +1190,9 @@ public class Node {
                             // 下一轮重新组装，条目会更多。
                             // 消息也还在状态机里（acceptReady 才会清空它们），
                             // 下一轮的 Ready 会带上。
+                            if (DIAG) {
+                                diag.onDeferral(System.nanoTime());
+                            }
                             rd = null;
                             rdEntries = Collections.emptyList();
                             rdCommitted = Collections.emptyList();
@@ -1144,6 +1225,10 @@ public class Node {
                             }
                             // 交给落盘线程：一次 write + 一次 fsync。
                             persistTask = new PersistTask(rd, rdEntries, gated, committedPending);
+                            if (DIAG) {
+                                diag.onPersist(System.nanoTime(), rdEntries.size(),
+                                        expectBatchSize, diag.deferralStartNanos);
+                            }
                             persistq.add(persistTask);
                             // 有独立 apply 线程时，Ready 可以立刻交付：
                             // 复制消息早发出去，对端可以立刻开始落盘，
@@ -1377,6 +1462,7 @@ public class Node {
             return false;
         }
         double busy = currentPersistBusyRatio();
+        diag.onBusyDecision(busy);
         if (busy >= 0 && busy < DEFER_MIN_BUSY_RATIO) {
             // 落盘线程有大半时间在闲着 ⇒ 瓶颈不在 fsync 上 ⇒
             // 少一次 fsync 省下来的时间没有产出，推迟落盘换来的只是延迟。
@@ -1507,6 +1593,7 @@ public class Node {
     private boolean handleProposals() {
         List<MsgWithResult> batch = new ArrayList<>();
         long deadline = System.nanoTime() + PROPOSAL_DRAIN_BUDGET_NANOS;
+        int queueDepth = DIAG ? propc.size() : 0;
         MsgWithResult pm;
         while (batch.size() < PROPOSAL_BATCH_LIMIT && (pm = propc.poll()) != null) {
             batch.add(pm);
@@ -1516,6 +1603,9 @@ public class Node {
         }
         if (batch.isEmpty()) {
             return false;
+        }
+        if (DIAG) {
+            diag.onDrain(batch.size(), queueDepth, System.nanoTime());
         }
         // 队列腾出了位置，唤醒等着入队的提案者
         notifyProposalSpace();
@@ -1537,10 +1627,18 @@ public class Node {
             }
             return true;
         }
+        long before = rn.getRaft().getRaftLog().lastIndex();
         boolean accepted = stepProposal(new Message()
                 .setType(MessageType.MSG_PROP)
                 .setEntries(entries));
         if (accepted) {
+            // 提案进了本节点的日志：记下每条提案的日志索引，
+            // 「提交即通知」要靠它把「已提交到 C」翻译成「通知哪些客户端」。
+            // follower 只是把提案转发给 leader，本节点的日志没变，lastIndex 不动，
+            // 这里自然就跳过了。
+            if (notifyOnCommit) {
+                recordProposalIndexes(entries, before);
+            }
             for (MsgWithResult p : batch) {
                 p.complete(true);
             }
@@ -1589,8 +1687,135 @@ public class Node {
                 notified++;
             }
         }
-        lastNotifiedIndex = lastIndex;
+        if (lastIndex > lastNotifiedIndex) {
+            // 「提交即通知」可能已经把指针推得更远了，不能往回退
+            lastNotifiedIndex = lastIndex;
+        }
         return notified;
+    }
+
+    /**
+     * 记下刚被追加的提案在 raft 日志里的索引。
+     *
+     * <p>raft 追加条目时给每条条目分配的索引是连续的：
+     * {@code before + 1 ... before + entries.size()}。
+     * 「提交即通知」要靠这个索引把「已提交到 C」翻译成「该通知哪些客户端」，
+     * 免得为了拿请求 id 再把日志读一遍。</p>
+     *
+     * <p>只由状态机线程调用。</p>
+     *
+     * @param entries 刚被追加的条目（顺序与 raft 里的顺序一致）
+     * @param before  追加之前的日志最后一条索引
+     */
+    private void recordProposalIndexes(List<Entry> entries, long before) {
+        long after = rn.getRaft().getRaftLog().lastIndex();
+        if (after <= before) {
+            // 没有追加到本节点（日志没变）：follower 转发提案时就是这种情况
+            return;
+        }
+        int n = (int) Math.min(after - before, entries.size());
+        // 追加时的任期：只有「同一个任期的同一个 leader」才能安全地
+        // 靠索引来通知（见 {@link #notifyCommitted} 的说明）
+        long term = rn.getRaft().getTerm();
+        for (int i = 0; i < n; i++) {
+            long requestId = entries.get(i).getRequestId();
+            if (requestId == 0) {
+                continue;
+            }
+            PendingProposal p = pendingProposals.get(requestId);
+            if (p == null) {
+                // 不是本节点发起的提案（或者是别的节点转过来的）
+                continue;
+            }
+            long index = before + 1 + i;
+            p.index = index;
+            p.term = term;
+            // 入队顺序就是索引顺序：FIFO 队列的队头永远是索引最小的那条
+            pendingByOrder.addLast(p);
+        }
+    }
+
+    /**
+     * 通知所有「日志索引不超过 {@code committedIndex}」的提案。
+     *
+     * <p>「提交即通知」用：commit 指针一推进就通知客户端，
+     * 不等下一次 Ready 组装（那要等一个落盘周期）。</p>
+     *
+     * <p>索引按提案顺序单调递增，所以「已提交到 C」就是队列里队首那些
+     * 索引 ≤ C 的提案。已经超时或已被别的路径摘掉的提案会被跳过
+     * （{@code pendingProposals} 里已经没有它了）。</p>
+     *
+     * <p>只由状态机线程调用。</p>
+     *
+     * @return 本次实际通知到的客户端数
+     */
+    private int notifyCommitted(long committedIndex) {
+        if (pendingByOrder.isEmpty()) {
+            return 0;
+        }
+        // 通知的前提：本节点还是「当初追加这条提案时」的那个 leader。
+        //
+        // 索引会被复用：节点 A 在任期 T 当 leader 时把提案 P 追加到索引 100，
+        // 随后 A 失去领导权，新 leader 的日志在索引 100 上是另一条内容。
+        // 这时 commit 指针推过 100，如果只看索引就通知 P，
+        // 客户端会拿到一个「提交成功」，而 P 其实已经被覆盖丢掉了 ——
+        // 这是丢数据。
+        //
+        // leader 不会截断自己的日志（leader 收到 MSG_APP 直接忽略），
+        // 而失去领导权必然伴随任期变化，所以「还是同一个任期的 leader」
+        // 就足以保证「索引 100 上仍然是当初那条提案」。
+        // 不满足时就不通知，让它走超时 —— 提案确实丢了，超时才是对的答案。
+        long nowTerm = rn.getRaft().getTerm();
+        boolean stillLeader = rn.getRaft().getLead() == rn.getRaft().getId();
+        int notified = 0;
+        // 队头的索引 > commit 就说明后面的都还没提交，停。
+        // 队列按索引递增排列，所以只需要看队头。
+        while (!pendingByOrder.isEmpty()) {
+            PendingProposal p = pendingByOrder.peekFirst();
+            if (p.index > committedIndex) {
+                break;
+            }
+            pendingByOrder.pollFirst();
+            if (!stillLeader || nowTerm != p.term) {
+                // 慢路径：任期对不上不代表提案丢了，先读一格日志确认
+                if (!isProposalCommittedAnyway(p)) {
+                    // 这条提案确实不可信了：不通知，超时清扫会把它结束掉
+                    continue;
+                }
+            }
+            PendingProposal cur = pendingProposals.remove(p.requestId);
+            if (cur != null) {
+                cur.future.complete(null);
+                notified++;
+            }
+        }
+        return notified;
+    }
+
+    /**
+     * 慢路径：任期对不上时，确认这条提案是不是其实提交了。
+     *
+     * <p>场景：节点 A 在任期 T 当 leader 时把提案 P 追加到索引 i 并复制给了多数派，
+     * 随后 A 失去领导权。新 leader B 的日志里索引 i 上还是 P，B 提交了 P ——
+     * 提案其实成功了，只是 A 不再用得上「同一个任期的同一个 leader」这条捷径。
+     * 这时如果一律当成「丢了」，客户端会拿到一个假失败。</p>
+     *
+     * <p>反过来，B 的日志在索引 i 上是别的内容（任期 T' &gt; T），那 P 就是真的
+     * 被覆盖丢了，不该通知。</p>
+     *
+     * <p>判据是「索引 i 处的任期还是不是 T」：一个任期里同一个索引只可能有一条条目
+     * —— 每个任期只有一个 leader，它在索引 i 上只写一条 —— 所以 (i, T) 唯一确定
+     * 那条条目，它只可能是 P。而已提交的条目永不被覆盖，commit ≥ i ⇒ P 确实提交了。</p>
+     *
+     * <p>只有任期变化时才会走到这条路径，正常路径零开销。</p>
+     */
+    private boolean isProposalCommittedAnyway(PendingProposal p) {
+        try {
+            return rn.getRaft().getRaftLog().term(p.index) == p.term;
+        } catch (RuntimeException e) {
+            // 日志被压缩掉了或者读不到：查不到就不通知，走超时
+            return false;
+        }
     }
 
     /**
@@ -1640,6 +1865,9 @@ public class Node {
             // 只有还是这一条记录时才超时结束它：
             // 提案可能刚好在这期间被提交掉了
             if (pendingProposals.remove(e.getKey(), p)) {
+                // 「提交即通知」的排队表里不用摘它：那条队列只由状态机线程碰。
+                // 它会被弹出（弹出时发现 pendingProposals 里已经没有它，跳过），
+                // 或者留到 leader 换人之后由任期校验丢掉。
                 p.future.completeExceptionally(new TimeoutException("raft proposal timed out"));
             }
         }
@@ -1824,6 +2052,27 @@ public class Node {
             Long.getLong("edap.raft.deferBusyWindowMillis", 1000L);
 
     /**
+     * 提交即通知：commit 指针一推进就通知客户端，不等下一次 Ready 组装。
+     *
+     * <p>默认关闭。开着的时候，异步提案的完成点从「下一次 Ready 组装」
+     * 提前到「commit 指针推进」那一刻。</p>
+     *
+     * <p>为什么值得单独做：提交通知原本搭在 Ready 组装的顺风车上，
+     * 而 Ready 的组装被「上一个 Ready 还在落盘 / 应用层还没 advance」卡住。
+     * 实测（本机 3 节点真盘、16 客户端、窗口 1024）这一步要占
+     * 「MSG_APP 发出 → 提交」的 34%（p50 15.5ms）——
+     * 而协议路径本身（收到 ACK → 推进 commit）只要 0.03ms。</p>
+     *
+     * <p>安全性：commit 指针只会在「leader 自己的日志落盘完成」之后才推进
+     * （leader 确认自己的日志要等落盘），所以提前通知不会让客户端
+     * 看到比日志更靠前的状态。</p>
+     *
+     * <p>按实例读，不是按类读：这样单元测试可以在建节点之前打开开关，
+     * 不受「Node 类什么时候被加载」的影响。</p>
+     */
+    private final boolean notifyOnCommit;
+
+    /**
      * 等提案队列腾出位置时的单次等待时长。
      *
      * <p>只是兜底：正常情况下状态机线程排空队列后会 notifyAll，
@@ -1920,9 +2169,29 @@ public class Node {
         /** 到期时刻（{@link System#nanoTime()} 基准），0 表示不限时 */
         private final long deadlineNanos;
 
-        PendingProposal(CompletableFuture<Void> future, long deadlineNanos) {
+        /** 提案的请求 id */
+        private final long requestId;
+
+        /**
+         * 提案在 raft 日志里的索引，0 表示还没分配。
+         *
+         * <p>由状态机线程在提案被追加之后写入；超时清扫线程会读它，
+         * 所以要可见。</p>
+         */
+        private volatile long index;
+
+        /**
+         * 提案被追加时的 raft 任期，0 表示还没分配。
+         *
+         * <p>「提交即通知」靠它确认「当初追加这条提案的 leader 还在」，
+         * 否则日志索引可能被复用，通知到一条已经被覆盖掉的提案。</p>
+         */
+        private volatile long term;
+
+        PendingProposal(CompletableFuture<Void> future, long deadlineNanos, long requestId) {
             this.future = future;
             this.deadlineNanos = deadlineNanos;
+            this.requestId = requestId;
         }
     }
 
@@ -2064,6 +2333,414 @@ public class Node {
         Status await() {
             return join(future);
         }
+    }
+
+    /**
+     * 诊断数据：状态机线程的分段计时。
+     *
+     * <p>用来回答「一个持久化周期（Ready 组装 → 下一次 Ready 组装）里，
+     * 时间分别花在哪」：是花在 fsync 上，还是花在「把 future 完成掉、
+     * 把客户端唤醒」上。</p>
+     *
+     * <p>只有状态机线程写（{@link #onAssembly}、{@link #onNotify}、
+     * {@link #onDrain}），读取走 {@link #diagSnapshot()} 的快照。</p>
+     */
+    static final class Diag {
+
+        /** Ready 组装次数（含被推迟后重新组装的） */
+        volatile long assemblies;
+
+        /** 其中「碎片批次合并」推迟掉的次数 */
+        volatile long deferrals;
+
+        /** 真正交给落盘线程的批次数 */
+        volatile long persistTasks;
+
+        /** 落盘批的条目数之和 */
+        volatile long persistEntriesSum;
+
+        /** 「预期批大小」之和（推迟落盘的判据） */
+        volatile long expectSum;
+
+        /** 相邻两次落盘批之间的时间之和 */
+        volatile long cycleNanosSum;
+
+        /** 推迟落盘累计等待的时间 */
+        volatile long deferWaitNanosSum;
+
+        /** 提交通知（完成 future）花掉的时间之和 */
+        volatile long notifyNanosSum;
+
+        /** 通知出去的客户端数 */
+        volatile long notifyCountSum;
+
+        /** 真正通知到客户端的次数（每一轮算一次） */
+        volatile long notifyEvents;
+
+        /** 提案排空的次数 */
+        volatile long drainCallsSum;
+
+        /** 排空掉的提案条数 */
+        volatile long drainEntriesSum;
+
+        /** 真正写了盘（非空）的批次数 */
+        volatile long realTasks;
+
+        /** 空批（有任务但没条目可写）次数 */
+        volatile long emptyTasks;
+
+        /** 相邻两次「真落盘批」之间的时间之和 */
+        volatile long realCycleNanosSum;
+
+        /** 「这一批之前攒了多少次排空」之和 */
+        volatile long drainsPerRealSum;
+
+        /** 从最后一条提案到达、到这一批真落盘，中间隔的时间之和 */
+        volatile long drainGapSum;
+
+        /** 上面那个间隔的样本数 */
+        volatile long drainGapCount;
+
+        /** 主循环迭代次数 */
+        volatile long loopIterations;
+
+        /** 主循环处理的网络消息数 */
+        volatile long netMessages;
+
+        /** 状态机推进 commit 的次数 */
+        volatile long commitAdvances;
+
+        /** 排空提案时，队列里已有的条目数之和（排空前采样） */
+        volatile long queueDepthSum;
+
+        /** 排空提案时，距上一次客户端通知的时间之和 */
+        volatile long sinceNotifySum;
+
+        /**
+         * 「碎片批次合并」每次做忙时占比判据时采到的占比之和（放大 1000 倍存整数）。
+         *
+         * <p>这个量回答的是「瓶颈在不在 fsync 上」——判据只写在
+         * {@link #shouldDeferPersist} 里，而那个判据自己从没被量过。</p>
+         */
+        volatile long busyRatioMilliSum;
+
+        /** 忙时占比的采样次数（占比测得出来的那几次） */
+        volatile long busyRatioSamples;
+
+        /** 判据时忙时占比 ≥ 阈值的次数（⇒ 允许推迟落盘） */
+        volatile long busyAboveThreshold;
+
+        /** 判据时忙时占比 < 阈值的次数（⇒ 不许推迟落盘） */
+        volatile long busyBelowThreshold;
+
+        /** 判据时忙时占比还测不出来的次数（第一个统计窗口没走完） */
+        volatile long busyUnknown;
+
+        /** 测量窗口起点时落盘线程的累计忙时（纳秒） */
+        volatile long persistBusyNanosAtStart;
+
+        /**
+         * 测量窗口起点（纳秒）。所有「相对时刻」都以它为基准。
+         */
+        long windowStartNanos;
+
+        /**
+         * 最近一次判据读到的忙时占比（负数 = 还测不出来）。
+         *
+         * <p>用来给「推迟」分类：判据读不出占比时（第一个统计窗口没走完）
+         * 那个判据是不拦人的，推迟照样会发生 —— 这两种推迟必须分开数。</p>
+         */
+        double lastBusyAtDecision = -1.0;
+
+        /** 推迟时「忙时占比还测不出来」的次数 */
+        volatile long deferralsUnknownBusy;
+
+        /** 推迟时「忙时占比已测出且过阈值」的次数 */
+        volatile long deferralsMeasuredBusy;
+
+        /** 第一次做忙时占比判据的时刻（相对测量窗口起点，毫秒；0 = 没有） */
+        volatile long firstBusyDecisionOffsetMillis;
+
+        /** 忙时占比第一次测得出来的时刻（相对测量窗口起点，毫秒；0 = 没有） */
+        volatile long firstValidBusyOffsetMillis;
+
+        /** 第一次推迟落盘的时刻（相对测量窗口起点，毫秒；0 = 没有） */
+        volatile long firstDeferralOffsetMillis;
+
+        /** 最后一次推迟落盘的时刻（相对测量窗口起点，毫秒；0 = 没有） */
+        volatile long lastDeferralOffsetMillis;
+
+        /** 上一次客户端通知的时刻 */
+        long lastNotifyNanos;
+
+        /** 周期长度的样本（取中位数用） */
+        long[] cycleSamples = new long[4096];
+
+        /** 周期长度的样本个数（先写样本再写这个，读的人先读这个才安全） */
+        volatile int cycleSampleCount;
+
+        /** 真落盘周期的样本 */
+        long[] realCycleSamples = new long[4096];
+
+        /** 真落盘周期的样本个数 */
+        volatile int realCycleSampleCount;
+
+        /** 上一次落盘批的时刻 */
+        long lastPersistNanos;
+
+        /** 上一次「真落盘批」的时刻 */
+        long lastRealPersistNanos;
+
+        /** 上一次排空提案的时刻 */
+        long lastDrainNanos;
+
+        /** 这一轮推迟落盘开始的时刻，0 表示没推迟过 */
+        long deferralStartNanos;
+
+        /** 距离上一次真落盘，期间攒下的排空次数 */
+        long drainsSinceReal;
+
+        /**
+         * 组装了一次 Ready。
+         */
+        void onAssembly() {
+            assemblies++;
+        }
+
+        /**
+         * 这一轮被「碎片批次合并」推迟了。
+         */
+        void onDeferral(long now) {
+            deferrals++;
+            if (deferralStartNanos == 0) {
+                deferralStartNanos = now;
+            }
+            if (lastBusyAtDecision < 0) {
+                deferralsUnknownBusy++;
+            } else {
+                deferralsMeasuredBusy++;
+            }
+            long off = now - windowStartNanos;
+            if (firstDeferralOffsetMillis == 0) {
+                firstDeferralOffsetMillis = TimeUnit.NANOSECONDS.toMillis(off);
+            }
+            lastDeferralOffsetMillis = TimeUnit.NANOSECONDS.toMillis(off);
+        }
+
+        /**
+         * 真正落盘了一批。
+         *
+         * @param now             这一刻
+         * @param entries        这一批的条目数
+         * @param expect         预期批大小（判据）
+         * @param deferStarted   这一轮推迟开始的时刻，0 表示没推迟过
+         */
+        void onPersist(long now, int entries, int expect, long deferStarted) {
+            persistTasks++;
+            persistEntriesSum += entries;
+            expectSum += expect;
+            if (deferStarted != 0) {
+                deferWaitNanosSum += now - deferStarted;
+            }
+            deferralStartNanos = 0;
+            if (entries > 0) {
+                // 真正写了盘的一批
+                realTasks++;
+                if (lastRealPersistNanos != 0) {
+                    long cycle = now - lastRealPersistNanos;
+                    realCycleNanosSum += cycle;
+                    if (realCycleSampleCount < realCycleSamples.length) {
+                        realCycleSamples[realCycleSampleCount] = cycle;
+                        realCycleSampleCount = realCycleSampleCount + 1;
+                    }
+                }
+                lastRealPersistNanos = now;
+                // 这一批之前攒了多少次排空
+                drainsPerRealSum += drainsSinceReal;
+                drainsSinceReal = 0;
+                // 从最后一条提案到达，到这一批真的落盘，中间隔了多久
+                if (lastDrainNanos != 0) {
+                    drainGapSum += now - lastDrainNanos;
+                    drainGapCount++;
+                }
+            } else {
+                emptyTasks++;
+            }
+            if (lastPersistNanos != 0) {
+                long cycle = now - lastPersistNanos;
+                cycleNanosSum += cycle;
+                if (cycleSampleCount < cycleSamples.length) {
+                    cycleSamples[cycleSampleCount] = cycle;
+                    cycleSampleCount = cycleSampleCount + 1;
+                }
+            }
+            lastPersistNanos = now;
+        }
+
+        /**
+         * 完成了一批提交通知。
+         */
+        void onNotify(long nanos, int count) {
+            notifyNanosSum += nanos;
+            notifyCountSum += count;
+            if (count > 0) {
+                // 只有真的通知到了客户端才算一次「通知时刻」：
+                // count = 0 的调用（这一轮没有新提交）不能刷新这个时刻，
+                // 否则「排空距上次通知」会量到「距上次 Ready 组装」。
+                lastNotifyNanos = System.nanoTime();
+                notifyEvents++;
+            }
+        }
+
+        /**
+         * 排空了一批提案。
+         *
+         * @param entries      这一批取出来的条数
+         * @param queueDepth   排空前队列里已有的条数
+         * @param now          这一刻
+         */
+        void onDrain(int entries, int queueDepth, long now) {
+            drainCallsSum++;
+            drainEntriesSum += entries;
+            queueDepthSum += queueDepth;
+            if (lastNotifyNanos != 0) {
+                sinceNotifySum += now - lastNotifyNanos;
+            }
+            lastDrainNanos = now;
+            drainsSinceReal++;
+        }
+
+        /**
+         * 主循环转了一圈。
+         */
+        void onLoop() {
+            loopIterations++;
+        }
+
+        /**
+         * 记录一次「碎片批次合并」的忙时占比判据。
+         *
+         * @param busy 落盘线程的忙时占比；负数表示第一个统计窗口没走完、还测不出来
+         */
+        void onBusyDecision(double busy) {
+            long now = System.nanoTime();
+            lastBusyAtDecision = busy;
+            if (firstBusyDecisionOffsetMillis == 0) {
+                firstBusyDecisionOffsetMillis = TimeUnit.NANOSECONDS.toMillis(now - windowStartNanos);
+            }
+            if (busy < 0) {
+                busyUnknown++;
+                return;
+            }
+            if (firstValidBusyOffsetMillis == 0) {
+                firstValidBusyOffsetMillis = TimeUnit.NANOSECONDS.toMillis(now - windowStartNanos);
+            }
+            busyRatioSamples++;
+            busyRatioMilliSum += Math.round(busy * 1000.0);
+            if (busy >= DEFER_MIN_BUSY_RATIO) {
+                busyAboveThreshold++;
+            } else {
+                busyBelowThreshold++;
+            }
+        }
+
+        /**
+         * 清零（测量窗口开始时调用）。
+         */
+        void reset() {
+            windowStartNanos = System.nanoTime();
+            assemblies = 0;
+            deferrals = 0;
+            persistTasks = 0;
+            persistEntriesSum = 0;
+            expectSum = 0;
+            cycleNanosSum = 0;
+            deferWaitNanosSum = 0;
+            notifyNanosSum = 0;
+            notifyCountSum = 0;
+            notifyEvents = 0;
+            drainCallsSum = 0;
+            drainEntriesSum = 0;
+            loopIterations = 0;
+            netMessages = 0;
+            commitAdvances = 0;
+            queueDepthSum = 0;
+            sinceNotifySum = 0;
+            busyRatioMilliSum = 0;
+            busyRatioSamples = 0;
+            busyAboveThreshold = 0;
+            busyBelowThreshold = 0;
+            busyUnknown = 0;
+            deferralsUnknownBusy = 0;
+            deferralsMeasuredBusy = 0;
+            lastBusyAtDecision = -1.0;
+            firstBusyDecisionOffsetMillis = 0;
+            firstValidBusyOffsetMillis = 0;
+            firstDeferralOffsetMillis = 0;
+            lastDeferralOffsetMillis = 0;
+            lastNotifyNanos = 0;
+            realTasks = 0;
+            emptyTasks = 0;
+            realCycleNanosSum = 0;
+            drainsPerRealSum = 0;
+            drainGapSum = 0;
+            drainGapCount = 0;
+            cycleSampleCount = 0;
+            realCycleSampleCount = 0;
+            lastPersistNanos = 0;
+            lastRealPersistNanos = 0;
+            lastDrainNanos = 0;
+            deferralStartNanos = 0;
+            drainsSinceReal = 0;
+        }
+    }
+
+    /**
+     * 诊断：清零分段计时（测量窗口开始时调用）。
+     */
+    void diagReset() {
+        diag.reset();
+        diag.persistBusyNanosAtStart = persistBusyNanos.get();
+    }
+
+    /**
+     * 诊断：落盘线程累计的忙时（纳秒）。
+     *
+     * <p>用来算测量窗口内「落盘线程有多少比例的时间在真的写 + fsync」——
+     * 这是「瓶颈在不在 fsync 上」最直接的答案（不经过任何判据）。</p>
+     */
+    long diagPersistBusyNanos() {
+        return persistBusyNanos.get();
+    }
+
+    /**
+     * 诊断数据的快照。
+     *
+     * <p>只在 {@code edap.raft.diag=true} 时有意义。</p>
+     */
+    synchronized Diag diagSnapshot() {
+        return diag;
+    }
+
+    /**
+     * 状态机线程的 id：诊断用（量这个线程的 CPU 占用率）。
+     */
+    long workerThreadId() {
+        return worker.getId();
+    }
+
+    /**
+     * 落盘线程的 id：诊断用。没有落盘线程时返回 -1。
+     */
+    long persistThreadId() {
+        return persistThread == null ? -1L : persistThread.getId();
+    }
+
+    /**
+     * apply 线程的 id：诊断用。没有 apply 线程时返回 -1。
+     */
+    long applyThreadId() {
+        return applyThread == null ? -1L : applyThread.getId();
     }
 
     /**

@@ -12,6 +12,8 @@ import io.edap.raft.transport.RaftTransport;
 import io.edap.raft.transport.TransportStats;
 
 import java.io.IOException;
+import java.lang.management.ManagementFactory;
+import java.lang.management.ThreadMXBean;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -25,11 +27,13 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicLongArray;
 
 /**
  * 多节点集群 + 真实磁盘的吞吐基线。
@@ -99,6 +103,21 @@ public final class ClusterProposalHarness {
     /** 载荷：4 字节客户端 id + 8 字节序号 + 8 字节发布时间，共 20 字节 */
     private static final int PAYLOAD_LEN = 20;
 
+    /**
+     * 延迟样本容量。
+     *
+     * <p><b>不要为了「覆盖整轮」而调大容量</b> —— 实测（4 模式 A/B，w=1024）：
+     * 把数组从 400,000 涨到 4,000,000（3.2MB → 32MB），
+     * 提交/s 从 245,118 掉到 233,407（−4.8%），而且<b>批次变碎</b>
+     * （落盘 116/s、6,386 条/次 → 130/s、5,200 条/次）——
+     * 原因是采样数组的内存占用把 raft 的工作集挤出 L2，
+     * 落盘闸门里的「忙时占比」判据因此变了。</p>
+     *
+     * <p>所以容量保持 400,000，靠<b>蓄水池抽样</b>而不是加大数组来覆盖整轮：
+     * 两者内存占用完全一样（都是 400,000 × 8B），行为也就一样。</p>
+     */
+    private static final int LATENCY_CAPACITY = 400_000;
+
     /** propose() 的往返耗时采样（发布到状态机 step 完） */
     private static final LatencyRecorder PROP_RT_NANOS = new LatencyRecorder(200_000);
 
@@ -160,6 +179,39 @@ public final class ClusterProposalHarness {
      */
     private static final boolean RTT_PROBE_SYNC = Boolean.getBoolean("edap.rtt.probe.sync");
 
+    /**
+     * 诊断开关：{@code -Dedap.raft.diag=true} 打开。
+     *
+     * <p>打开后额外做两件事：
+     * ① {@link Node} 的主循环记录分段计时（持久化周期、提交通知耗时、提案排空批大小）；
+     * ② 测量窗口两端采样各 raft 线程的 CPU 时间。</p>
+     *
+     * <p>用来回答「一个持久化周期里时间花在哪」——
+     * 是花在 fsync 上，还是花在「把 future 完成掉、把客户端唤醒」上。</p>
+     */
+    private static final boolean DIAG = Boolean.getBoolean("edap.raft.diag");
+
+    /** 诊断：测量窗口开始时各节点线程的 CPU 时间（纳秒），{状态机, 落盘, apply} */
+    private static final Map<Long, long[]> CPU_BEFORE = new LinkedHashMap<>();
+
+    /** 诊断：测量窗口结束时各节点线程的 CPU 时间（纳秒），{状态机, 落盘, apply} */
+    private static final Map<Long, long[]> CPU_AFTER = new LinkedHashMap<>();
+
+    /**
+     * 诊断：采样各节点三个线程的累计 CPU 时间。
+     *
+     * @param out 采样结果，按节点 id 存
+     */
+    private static void sampleRaftCpu(Map<Long, Member> members, Map<Long, long[]> out) {
+        ThreadMXBean tb = ManagementFactory.getThreadMXBean();
+        for (Member m : members.values()) {
+            long w = tb.getThreadCpuTime(m.node.workerThreadId());
+            long p = m.node.persistThreadId() < 0 ? -1L : tb.getThreadCpuTime(m.node.persistThreadId());
+            long a = m.node.applyThreadId() < 0 ? -1L : tb.getThreadCpuTime(m.node.applyThreadId());
+            out.put(m.id, new long[] {w, p, a});
+        }
+    }
+
     /** SEND_MARKS 的 key：把 (客户端 id, 序号) 压成一个 long */
     private static long markKey(int cid, long seq) {
         return ((long) cid << 40) | (seq & 0xFFFFFFFFFFL);
@@ -220,11 +272,8 @@ public final class ClusterProposalHarness {
         /** 每个客户端的锁 */
         final Object[] commitLocks;
 
-        /** 延迟样本 */
-        final long[] latencies;
-
-        /** 延迟样本数 */
-        final AtomicInteger latN = new AtomicInteger();
+        /** 延迟样本（发布 → 应用） */
+        final LatencyRecorder latencies;
 
         /** leader 上应用的条目总数 */
         final AtomicLong leaderCommitted = new AtomicLong();
@@ -243,10 +292,7 @@ public final class ClusterProposalHarness {
          * 而「提案被提交」是客户端真正等到的那个点（异步提案的 future
          * 在提交时完成），口径一致，可以跨系统比。</p>
          */
-        final long[] commitLatencies;
-
-        /** 「发布 → 提交」延迟样本数 */
-        final AtomicInteger commitLatN = new AtomicInteger();
+        final LatencyRecorder commitLatencies;
 
         /**
          * RTT 分解：把「发布 → 提交」拆成
@@ -255,16 +301,10 @@ public final class ClusterProposalHarness {
          *
          * <p>用来定位 RTT 到底耗在哪一段 —— 只看总延迟说不清是谁的问题。</p>
          */
-        final long[] propToSendLatencies;
-
-        /** RTT 分解②的样本数 */
-        final AtomicInteger propToSendN = new AtomicInteger();
+        final LatencyRecorder propToSendLatencies;
 
         /** RTT 分解②的样本 */
-        final long[] sendToCommitLatencies;
-
-        /** RTT 分解②的样本数 */
-        final AtomicInteger sendToCommitN = new AtomicInteger();
+        final LatencyRecorder sendToCommitLatencies;
 
         ApplyStats(int clients, int latencyCapacity) {
             committed = new AtomicLong[clients];
@@ -273,30 +313,21 @@ public final class ClusterProposalHarness {
                 committed[i] = new AtomicLong();
                 commitLocks[i] = new Object();
             }
-            latencies = new long[latencyCapacity];
-            commitLatencies = new long[latencyCapacity];
-            propToSendLatencies = new long[latencyCapacity];
-            sendToCommitLatencies = new long[latencyCapacity];
+            latencies = new LatencyRecorder(latencyCapacity);
+            commitLatencies = new LatencyRecorder(latencyCapacity);
+            propToSendLatencies = new LatencyRecorder(latencyCapacity);
+            sendToCommitLatencies = new LatencyRecorder(latencyCapacity);
         }
 
         /** 记一条「发布 → 提交」的客户端可见延迟 */
         void recordCommit(long latency) {
-            int i = commitLatN.getAndIncrement();
-            if (i < commitLatencies.length) {
-                commitLatencies[i] = latency;
-            }
+            commitLatencies.add(latency);
         }
 
         /** 记一条 RTT 分解样本（两段） */
         void recordSplit(long propToSend, long sendToCommit) {
-            int i = propToSendN.getAndIncrement();
-            if (i < propToSendLatencies.length) {
-                propToSendLatencies[i] = propToSend;
-            }
-            int j = sendToCommitN.getAndIncrement();
-            if (j < sendToCommitLatencies.length) {
-                sendToCommitLatencies[j] = sendToCommit;
-            }
+            propToSendLatencies.add(propToSend);
+            sendToCommitLatencies.add(sendToCommit);
         }
 
         /**
@@ -321,10 +352,7 @@ public final class ClusterProposalHarness {
                 return;
             }
             long latency = System.nanoTime() - publishedAt;
-            int i = latN.getAndIncrement();
-            if (i < latencies.length) {
-                latencies[i] = latency;
-            }
+            latencies.add(latency);
             leaderCommitted.incrementAndGet();
             synchronized (commitLocks[cid]) {
                 committed[cid].incrementAndGet();
@@ -454,7 +482,7 @@ public final class ClusterProposalHarness {
         }
 
         AtomicBoolean stop = new AtomicBoolean();
-        ApplyStats stats = new ApplyStats(clients, 400_000);
+        ApplyStats stats = new ApplyStats(clients, LATENCY_CAPACITY);
         AtomicLong[] committed = stats.committed;
         Object[] commitLocks = stats.commitLocks;
         // 当前 leader，由追踪线程维护
@@ -641,7 +669,19 @@ public final class ClusterProposalHarness {
                 t.start();
             }
 
+            // 诊断：测量窗口开始前把分段计时清零，并在窗口两端采样各线程的 CPU 时间
+            if (DIAG) {
+                for (Member m : members.values()) {
+                    m.node.diagReset();
+                }
+                CPU_BEFORE.clear();
+                CPU_AFTER.clear();
+                sampleRaftCpu(members, CPU_BEFORE);
+            }
             Thread.sleep(durationSec * 1000L);
+            if (DIAG) {
+                sampleRaftCpu(members, CPU_AFTER);
+            }
             stop.set(true);
             done.await(10, TimeUnit.SECONDS);
             for (Member m : members.values()) {
@@ -655,9 +695,9 @@ public final class ClusterProposalHarness {
                 sharedEdap.stop();
             }
 
-            report(members, clients, durationSec, mode, stats.latencies, stats.latN.get(),
+            report(members, clients, durationSec, mode,
                     published.get(), failed.get(), rejectedBusy.get(), rejectedDropped.get(),
-                    stats, root, baseDir != null, transportMode, maxInflight);
+                    stats, root, baseDir != null, transportMode, maxInflight, leaderId.get());
             System.out.flush();
             if (sharedEdap != null) {
                 // edap-nio 依赖的 EdapTime 单例有非 daemon 线程，JVM 自己不会退出。
@@ -979,9 +1019,10 @@ public final class ClusterProposalHarness {
     }
 
     private static void report(Map<Long, Member> members, int clients, int durationSec,
-            String mode, long[] latencies, int latN, long published, long failed,
+            String mode, long published, long failed,
             long rejectedBusy, long rejectedDropped, ApplyStats stats, Path root,
-            boolean keepDir, String transportMode, int maxInflight) throws IOException {
+            boolean keepDir, String transportMode, int maxInflight, long leaderId)
+            throws IOException {
         double sec = durationSec;
         long persistRounds = 0;
         long persistedEntries = 0;
@@ -1034,20 +1075,22 @@ public final class ClusterProposalHarness {
                     framesSent, bytesSent / 1024.0 / 1024.0, framesRecv, framesDropped, criticalDropped);
         }
         PROP_RT_NANOS.report("propose 往返");
-        if (latN > 0) {
-            long[] sorted = Arrays.copyOf(latencies, Math.min(latN, latencies.length));
+        // 蓄水池样本：覆盖整轮（抽中数 = 容量，总数 = 整轮见到的样本数）
+        long[] sorted = stats.latencies.snapshot();
+        if (sorted.length > 0) {
             Arrays.sort(sorted);
-            System.out.printf("  端到端延迟(发布→应用) p50=%.2fms p99=%.2fms 均值=%.2fms%n",
-                    pct(sorted, 50) / 1e6, pct(sorted, 99) / 1e6, mean(sorted) / 1e6);
+            System.out.printf("  端到端延迟(发布→应用) p50=%.2fms p99=%.2fms 均值=%.2fms (样本 %d/%d)%n",
+                    pct(sorted, 50) / 1e6, pct(sorted, 99) / 1e6, mean(sorted) / 1e6,
+                    sorted.length, stats.latencies.total());
         }
         // 客户端可见的「发布 → 提交」：异步提案的 future 在提交时完成，
         // 这是跨系统可比的口径（应用点受架构影响，不能直接比）。
-        int commitLatN = Math.min(stats.commitLatN.get(), stats.commitLatencies.length);
-        if (commitLatN > 0) {
-            long[] sorted = Arrays.copyOf(stats.commitLatencies, commitLatN);
-            Arrays.sort(sorted);
-            System.out.printf("  端到端延迟(发布→提交) p50=%.2fms p99=%.2fms 均值=%.2fms%n",
-                    pct(sorted, 50) / 1e6, pct(sorted, 99) / 1e6, mean(sorted) / 1e6);
+        long[] commitSorted = stats.commitLatencies.snapshot();
+        if (commitSorted.length > 0) {
+            Arrays.sort(commitSorted);
+            System.out.printf("  端到端延迟(发布→提交) p50=%.2fms p99=%.2fms 均值=%.2fms (样本 %d/%d)%n",
+                    pct(commitSorted, 50) / 1e6, pct(commitSorted, 99) / 1e6, mean(commitSorted) / 1e6,
+                    commitSorted.length, stats.commitLatencies.total());
         }
         if (!stats.inFlightSamples.isEmpty()) {
             List<Long> s = new ArrayList<>(stats.inFlightSamples);
@@ -1060,12 +1103,10 @@ public final class ClusterProposalHarness {
         }
         // RTT 分解打到 stderr —— stdout 的格式要和 Go 侧完全一致，
         // 同一套解析器才能直接吃。
-        int splitN = Math.min(stats.propToSendN.get(), stats.propToSendLatencies.length);
-        if (splitN > 0) {
-            long[] a = Arrays.copyOf(stats.propToSendLatencies, splitN);
+        long[] a = stats.propToSendLatencies.snapshot();
+        if (a.length > 0) {
             Arrays.sort(a);
-            int splitN2 = Math.min(stats.sendToCommitN.get(), stats.sendToCommitLatencies.length);
-            long[] b = Arrays.copyOf(stats.sendToCommitLatencies, splitN2);
+            long[] b = stats.sendToCommitLatencies.snapshot();
             Arrays.sort(b);
             System.err.printf("  RTT 分解① 发布→MSG_APP发出 p50=%.2fms p99=%.2fms 均值=%.2fms%n",
                     pct(a, 50) / 1e6, pct(a, 99) / 1e6, mean(a) / 1e6);
@@ -1104,7 +1145,156 @@ public final class ClusterProposalHarness {
         } else {
             System.out.println("  数据目录: " + root);
         }
+        if (DIAG) {
+            printDiag(members, leaderId, sec);
+        }
         System.out.println();
+    }
+
+    /**
+     * 诊断输出：持久化周期的时间去向 + 各线程 CPU 占用。
+     *
+     * <p>回答的问题：「条/次落盘翻倍、fsync 次数腰斩」到底是因为
+     * ① 通知提前让提案赶上下一轮 Ready 组装（批更大），
+     * 还是 ② 持久化周期本身变长了（周期更长 ⇒ 攒的条目更多）。</p>
+     */
+    private static void printDiag(Map<Long, Member> members, long lead, double sec) {
+        System.err.printf("  [诊断] 持久化周期与通知开销（窗口 %.1fs）：%n", sec);
+        for (Member m : members.values()) {
+            Node.Diag d = m.node.diagSnapshot();
+            String tag = m.id == lead ? " (leader)" : "";
+            long tasks = d.persistTasks;
+            if (tasks <= 0) {
+                System.err.printf("  [诊断] 节点 %d%s: 没有采样到落盘批次%n", m.id, tag);
+                continue;
+            }
+            double cycleMean = d.cycleNanosSum / (double) tasks / 1e6;
+            double notifyPerCycle = d.notifyNanosSum / (double) tasks / 1e6;
+            double notifyPerNotice = d.notifyCountSum == 0 ? 0
+                    : d.notifyNanosSum / (double) d.notifyCountSum / 1e3;
+            double batchMean = d.persistEntriesSum / (double) tasks;
+            double expectMean = d.expectSum / (double) tasks;
+            double deferWait = d.deferWaitNanosSum / (double) tasks / 1e6;
+            double drainMean = d.drainCallsSum == 0 ? 0
+                    : d.drainEntriesSum / (double) d.drainCallsSum;
+            System.err.printf(
+                    "  [诊断] 节点 %d%s: 落盘 %d 批 均值 %.0f 条（预期 %.0f）| 周期 均值 %.2fms"
+                            + " 中位 %.2fms | 推迟 %d 次 累计等待 %.2fms/批 | 通知 %.2fms/批"
+                            + "（占 %4.1f%%）每次 %.1fµs 共 %d 次 | 组装 %d 次 排空 %d 次每次 %.0f 条%n",
+                    m.id, tag, tasks, batchMean, expectMean, cycleMean, medianCycle(d),
+                    d.deferrals, deferWait, notifyPerCycle,
+                    notifyPerCycle / cycleMean * 100, notifyPerNotice, d.notifyCountSum,
+                    d.assemblies, d.drainCallsSum, drainMean);
+            // 真落盘批（非空）的口径：区分「空 Ready 只带消息」和「真的写了盘」
+            long real = d.realTasks;
+            if (real > 0) {
+                double realCycleMean = d.realCycleNanosSum / (double) real / 1e6;
+                double drainsPerReal = d.drainsPerRealSum / (double) real;
+                double drainGap = d.drainGapCount == 0 ? 0
+                        : d.drainGapSum / (double) d.drainGapCount / 1e6;
+                System.err.printf(
+                        "  [诊断] 节点 %d%s: 真落盘 %d 批 均值 %.0f 条 | 真周期 均值 %.2fms"
+                                + " 中位 %.2fms | 每真批攒 %.1f 次排空 | 提案到达→落盘 间隔 %.2fms"
+                                + " | 空批 %d 次%n",
+                        m.id, tag, real, d.persistEntriesSum / (double) real, realCycleMean,
+                        medianRealCycle(d), drainsPerReal, drainGap, d.emptyTasks);
+            }
+            // 主循环节奏与「提案到达 vs 通知」的相位
+            System.err.printf(
+                    "  [诊断] 节点 %d%s: 主循环 %d 次（%.0f 次/s）| 网络消息 %d 条（%.0f 条/s）"
+                            + " | commit 推进 %d 次 | 每轮消息 %.1f 条 | 通知事件 %d 次 每次 %.0f 个"
+                            + " | 排空时队列已有 均值 %.0f 条 | 排空距上次通知 均值 %.2fms%n",
+                    m.id, tag, d.loopIterations, d.loopIterations / sec,
+                    d.netMessages, d.netMessages / sec, d.commitAdvances,
+                    d.loopIterations == 0 ? 0 : d.netMessages / (double) d.loopIterations,
+                    d.notifyEvents, d.notifyEvents == 0 ? 0
+                            : d.notifyCountSum / (double) d.notifyEvents,
+                    d.drainCallsSum == 0 ? 0 : d.queueDepthSum / (double) d.drainCallsSum,
+                    d.drainCallsSum == 0 ? 0 : d.sinceNotifySum / (double) d.drainCallsSum / 1e6);
+            // 「瓶颈在不在 fsync 上」：两个独立口径
+            //   ① 窗口实测 = 落盘线程真的写+fsync 的时间 / 墙钟（不经过任何判据）
+            //   ② 判据采样 = 碎片批次合并每次做判据时读到的忙时占比的均值
+            long busyDelta = m.node.diagPersistBusyNanos() - d.persistBusyNanosAtStart;
+            double busyWindow = busyDelta / (double) (long) (sec * 1e9);
+            double busyAtDecision = d.busyRatioSamples == 0 ? -1
+                    : d.busyRatioMilliSum / (double) d.busyRatioSamples / 1000.0;
+            System.err.printf(
+                    "  [诊断] 节点 %d%s: 落盘忙时占比 窗口实测 %.3f | 判据采样 %.3f"
+                            + "（%d 次：≥阈值 %d / <阈值 %d / 未测出 %d）| 推迟 %d 次"
+                            + "（判据未测出 %d / 已测出过阈值 %d）| 首次判据 @%.1fs"
+                            + " 占比可测 @%.1fs 首次推迟 @%.1fs 末次推迟 @%.1fs%n",
+                    m.id, tag, busyWindow, busyAtDecision, d.busyRatioSamples,
+                    d.busyAboveThreshold, d.busyBelowThreshold, d.busyUnknown,
+                    d.deferrals, d.deferralsUnknownBusy, d.deferralsMeasuredBusy,
+                    d.firstBusyDecisionOffsetMillis / 1000.0,
+                    d.firstValidBusyOffsetMillis / 1000.0,
+                    d.firstDeferralOffsetMillis / 1000.0,
+                    d.lastDeferralOffsetMillis / 1000.0);
+            long[] before = CPU_BEFORE.get(m.id);
+            long[] after = CPU_AFTER.get(m.id);
+            if (before != null && after != null) {
+                System.err.printf(
+                        "  [诊断] 节点 %d%s: CPU 状态机 %.1f%% 落盘 %.1f%% apply %.1f%%%n",
+                        m.id, tag, cpuPct(before[0], after[0], sec), cpuPct(before[1], after[1], sec),
+                        cpuPct(before[2], after[2], sec));
+            }
+        }
+        System.err.printf("  [诊断] 机器：%d 核  loadavg %.1f%n",
+                Runtime.getRuntime().availableProcessors(),
+                ManagementFactory.getOperatingSystemMXBean().getSystemLoadAverage());
+    }
+
+    /**
+     * 整个进程的 CPU 占用率（百分比）。
+     */
+    private static double processCpuPct(double sec) {
+        java.lang.management.OperatingSystemMXBean os = ManagementFactory.getOperatingSystemMXBean();
+        try {
+            java.lang.reflect.Method m = os.getClass().getMethod("getProcessCpuLoad");
+            Object v = m.invoke(os);
+            if (v instanceof Number) {
+                return ((Number) v).doubleValue() * 100;
+            }
+        } catch (ReflectiveOperationException | RuntimeException e) {
+            // 取不到就算了
+        }
+        return -1;
+    }
+
+    /**
+     * 周期长度的中位数（毫秒）。
+     */
+    private static double medianCycle(Node.Diag d) {
+        int n = d.cycleSampleCount;
+        if (n == 0) {
+            return 0;
+        }
+        long[] copy = Arrays.copyOf(d.cycleSamples, n);
+        Arrays.sort(copy);
+        return copy[n / 2] / 1e6;
+    }
+
+    /**
+     * 「真落盘批」周期长度的中位数（毫秒）。
+     */
+    private static double medianRealCycle(Node.Diag d) {
+        int n = d.realCycleSampleCount;
+        if (n == 0) {
+            return 0;
+        }
+        long[] copy = Arrays.copyOf(d.realCycleSamples, n);
+        Arrays.sort(copy);
+        return copy[n / 2] / 1e6;
+    }
+
+    /**
+     * 线程的 CPU 占用率（百分比）。
+     */
+    private static double cpuPct(long before, long after, double sec) {
+        if (before < 0 || after < 0) {
+            return -1;
+        }
+        return (after - before) / 1e9 / sec * 100;
     }
 
     private static void deleteTree(Path dir) throws IOException {
@@ -1185,34 +1375,134 @@ public final class ClusterProposalHarness {
     }
 
     /**
-     * 延迟采样器：固定容量的数组，满了就丢掉后面的采样。
+     * 延迟采样器：<b>蓄水池抽样</b>（Algorithm R），抽的是整条流的等概率样本。
+     *
+     * <p>旧版是「固定容量的数组，满了就丢掉后面的采样」，
+     * 于是采样只覆盖<b>运行开头</b>：容量 400,000、每应用一条条目记一个
+     * ⇒ 覆盖时长 = 400,000 ÷ 提交/s，w=1024 时只有约 1.5s
+     * —— 测到的是<b>启动爬坡期</b>，不是稳态，尾延迟因此完全失真。</p>
+     *
+     * <p>改成蓄水池之后：池子里的 capacity 个样本是整轮的等概率无偏抽样，
+     * p50/p99 反映的是<b>整轮</b>分布（含尾延迟）。
+     * 打印时会带上 {@code (样本 抽中数/总数)}，让覆盖口径可见。</p>
      */
     static final class LatencyRecorder {
 
-        private final long[] samples;
-
-        private final AtomicInteger n = new AtomicInteger();
-
-        LatencyRecorder(int capacity) {
-            this.samples = new long[capacity];
+        /** 采样策略 */
+        enum Mode {
+            /** 首 N 采样：容量满了就丢弃后面的（旧实现，只能覆盖运行开头） */
+            FIRST_N,
+            /** 蓄水池抽样（Algorithm R）：整轮的等概率无偏样本 */
+            RESERVOIR
         }
 
-        void add(long v) {
-            int i = n.getAndIncrement();
-            if (i < samples.length) {
-                samples[i] = v;
+        /** 全局采样策略，由系统属性 {@code edap.bench.latencyMode} 决定 */
+        static final Mode MODE = parseMode(System.getProperty("edap.bench.latencyMode", "reservoir"));
+
+        /** 解析采样策略属性名（容忍 {@code firstN} / {@code first_n} 这类写法） */
+        private static Mode parseMode(String v) {
+            String k = v.replace("_", "").toUpperCase(java.util.Locale.ROOT);
+            for (Mode m : Mode.values()) {
+                if (m.name().replace("_", "").equals(k)) {
+                    return m;
+                }
             }
+            throw new IllegalArgumentException("未知的采样策略：" + v);
+        }
+
+        /**
+         * 样本值里的「已写好」标记位。
+         *
+         * <p>用最高位当标记，而不是另开一个 {@code written[]} 数组：
+         * 多线程下槽位的写入顺序和索引顺序不一致（线程 A 拿到索引 5、
+         * 线程 B 拿到索引 6，B 可能先写完 6），按计数去读槽位会读到还没写的槽
+         * （= 0 纳秒），0 纳秒的样本会把 p50/p99 直接拉低，看起来「延迟很好」—— 假数据。</p>
+         *
+         * <p>纳秒级延迟远小于 2^62（≈146 年），所以最高位可以安全地当标记用。
+         * 标记<b>不额外占内存</b>，这点很重要 —— 见 {@link #LATENCY_CAPACITY}。</p>
+         */
+        private static final long MARK = 1L << 62;
+
+        /** 蓄水池里的样本（值的最高位是「已写好」标记） */
+        private final AtomicLongArray samples;
+
+        /** 总共见过的样本数（可能远大于容量） */
+        private final AtomicLong seen = new AtomicLong();
+
+        /** 蓄水池容量 */
+        private final int capacity;
+
+        LatencyRecorder(int capacity) {
+            this.capacity = capacity;
+            this.samples = new AtomicLongArray(capacity);
+        }
+
+        /**
+         * 记一个样本。
+         *
+         * <p>两种策略的取舍（见 {@link Mode}）：</p>
+         * <ul>
+         * <li>{@link Mode#FIRST_N}：容量满了之后<b>什么都不做</b> —— 最便宜，
+         *     但只覆盖运行开头（w=1024 时只有 1.5s）。</li>
+         * <li>{@link Mode#RESERVOIR}：整轮的等概率无偏样本，
+         *     但每次采样都要<b>随机写</b>一次（3.2MB 的数组 ⇒ 缓存缺失）。</li>
+         * </ul>
+         *
+         * <p>用 {@link AtomicLongArray} 而不是 {@code long[]}：
+         * JLS 不保证非 volatile long 的读写是原子的（64 位写可能撕裂）。</p>
+         */
+        void add(long v) {
+            long n = seen.getAndIncrement();
+            if (MODE == Mode.FIRST_N) {
+                if (n < capacity) {
+                    samples.set((int) n, v | MARK);
+                }
+                return;
+            }
+            // 蓄水池抽样（Algorithm R）：前 capacity 个直接填满，
+            // 之后每个样本以 capacity/(n+1) 的概率替换掉池子里随机一个槽位
+            if (n < capacity) {
+                samples.set((int) n, v | MARK);
+                return;
+            }
+            long j = ThreadLocalRandom.current().nextLong(n + 1);
+            if (j < capacity) {
+                samples.set((int) j, v | MARK);
+            }
+        }
+
+        /** 总共见过的样本数 */
+        long total() {
+            return seen.get();
+        }
+
+        /**
+         * 抽中的样本（未排序）。
+         *
+         * <p>扫全池子、只收带标记的槽位 —— 不能按计数取前 N 个，
+         * 因为多线程下槽位的写入顺序和索引顺序不一致（见 {@link #MARK}）。</p>
+         */
+        long[] snapshot() {
+            long[] out = new long[capacity];
+            int cnt = 0;
+            for (int i = 0; i < capacity; i++) {
+                long raw = samples.get(i);
+                if ((raw & MARK) != 0) {
+                    out[cnt++] = raw & ~MARK;
+                }
+            }
+            return Arrays.copyOf(out, cnt);
         }
 
         void report(String name) {
-            int cnt = Math.min(n.get(), samples.length);
-            if (cnt == 0) {
+            long[] copy = snapshot();
+            if (copy.length == 0) {
                 return;
             }
-            long[] copy = Arrays.copyOf(samples, cnt);
             Arrays.sort(copy);
-            System.out.printf("  %s p50=%.3fms p99=%.3fms max=%.3fms (采样 %d)%n",
-                    name, pct(copy, 50) / 1e6, pct(copy, 99) / 1e6, copy[copy.length - 1] / 1e6, cnt);
+            System.out.printf("  %s p50=%.3fms p99=%.3fms max=%.3fms (样本 %d/%d)%n",
+                    name, pct(copy, 50) / 1e6, pct(copy, 99) / 1e6, copy[copy.length - 1] / 1e6,
+                    copy.length, total());
         }
     }
 }
