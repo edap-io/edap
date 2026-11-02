@@ -38,7 +38,10 @@ public class HttpFastBufDataRange extends FastBufDataRange {
         byte[] bytes = v.getBytes(DEFAULT_CHARSET);
         long hashCode = FNV_1a_INIT_VAL;
         FastBuf buf = new FastBuf(bytes.length);
-        buf.byteBuffer().put(bytes,0, bytes.length);
+        // 必须走 FastBuf.write：它会推进 writePos。直接用 byteBuffer().put 绕过了 FastBuf 的
+        // 写位置记账，get(pos,bs) 里的 "pos + len > writePos" 钳位会把读取长度截成 0，
+        // 导致 getString() 返回空串。
+        buf.write(bytes, 0, bytes.length);
         dr.start(buf.address());
         dr.first(bytes[0]);
         dr.last(bytes[bytes.length-1]);

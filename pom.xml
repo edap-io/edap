@@ -46,6 +46,10 @@
         <classgraph.version>4.8.186</classgraph.version>
         <postgresql.driver.version>42.7.10</postgresql.driver.version>
         <okhttp.version>4.12.0</okhttp.version>
+        <!-- 默认跳过测试（保持既有发布行为）。跑测试时用 -DskipTests=false 覆盖：
+             surefire 的 <skipTests> 是 POM 显式配置，优先级高于命令行 -D，
+             所以必须在这里属性化才能被 -D 覆盖。 -->
+        <skipTests>true</skipTests>
     </properties>
 
     <modules>
@@ -451,8 +455,8 @@
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>3.5.0</version>
                 <configuration>
-                    <skipTests>true</skipTests>
-                    <argLine>--add-opens java.base/java.lang=ALL-UNNAMED --add-opens java.base/java.nio=ALL-UNNAMED --add-opens java.base/sun.nio.ch=ALL-UNNAMED</argLine>
+                    <skipTests>${skipTests}</skipTests>
+                    <argLine>--add-opens java.base/java.lang=ALL-UNNAMED --add-opens java.base/java.nio=ALL-UNNAMED --add-opens java.base/sun.nio.ch=ALL-UNNAMED --add-opens java.base/java.util=ALL-UNNAMED</argLine>
                 </configuration>
             </plugin>
             <!--   central发布插件    -->

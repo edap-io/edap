@@ -40,6 +40,11 @@ public class PathDecoder implements RangeTokenDecoder<PathInfo> {
     private volatile PathInfoMatcher pathInfoMatcher;
 
     public PathDecoder() {
+        // 自建一个空 matcher：PathDecoder 早期直接用静态单例 PathInfoMatcher.instance()，
+        // 改成 per-HttpServer 注入后这里曾经留成 null，导致 decode() 走到 match() 时 NPE。
+        // 生产路径由 HttpServer.setPathInfoMatcher() 覆盖成真正的 dispatch 表；
+        // 这里保证 decode() 在任何情况下都不会 NPE（纯解析场景全部走 NOT_FOUND）。
+        this.pathInfoMatcher = new PathInfoMatcher();
     }
 
     public void setPathInfoMatcher(PathInfoMatcher pathInfoMatcher) {

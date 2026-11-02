@@ -155,6 +155,9 @@ public class WebsocketDecoder {
                         if (data.getLength() > 0) {
                             payloadLength = (data.getBytes()[0] & 0xff) << 8 | buf.get() & 0xff;
                             frame.setPayloadLength(payloadLength);
+                            // 长度扩展字节已经消费掉，payload 累积缓冲必须从 0 开始，
+                            // 否则这些长度字节会被当成 payload 的头部（帧内容错乱）。
+                            data.setLength(0);
                             if (frame.isMasked()) {
                                 wsState = HttpDecoder.WSState.MASK_KEY;
                             } else {
@@ -182,6 +185,13 @@ public class WebsocketDecoder {
                         int len = data.getLength();
                         if (len > 0) {
                             if (remain + len > 7) {
+                                // 8 字节扩展长度需要写入 [len, 8) 区间，缓冲不足 8 字节时先扩容，
+                                // 否则 FastBuf.get(byte[],start,len) 越界写会破坏堆。
+                                if (data.getBytes().length < 8) {
+                                    byte[] tmp = new byte[8];
+                                    System.arraycopy(data.getBytes(), 0, tmp, 0, len);
+                                    data.setBytes(tmp);
+                                }
                                 buf.get(data.getBytes(), len, 8 - len);
                                 payloadLength =
                                         (data.getBytes()[0] & 0xffl) << 56 |
@@ -193,11 +203,16 @@ public class WebsocketDecoder {
                                         (data.getBytes()[6] & 0xffl) <<  8 |
                                         (data.getBytes()[7] & 0xffl);
                                 frame.setPayloadLength(payloadLength);
+                                // 长度扩展字节已消费，payload 累积缓冲从 0 开始（见 126 分支的说明）
+                                data.setLength(0);
                                 if (frame.isMasked()) {
                                     wsState = HttpDecoder.WSState.MASK_KEY;
                                 } else {
                                     wsState = HttpDecoder.WSState.PAYLOAD;
                                 }
+                                // 必须写回 session：状态机跨 decode() 调用推进，
+                                // 只改局部变量的话下一次 decode() 会退回 PAYLOAD_LENGTH_EXTEND 重新解析长度。
+                                session.setWsState(wsState);
                             } else {
                                 len += buf.get(data.getBytes(), len, 8);
                                 data.setLength(len);
@@ -220,7 +235,8 @@ public class WebsocketDecoder {
                                 } else {
                                     wsState = HttpDecoder.WSState.PAYLOAD;
                                 }
-
+                                // 同上：状态必须写回 session，否则跨 decode() 调用会退回长度扩展状态
+                                session.setWsState(wsState);
                             } else {
                                 if (data.getBytes().length < 8) {
                                     data.setBytes(new byte[8]);
@@ -240,6 +256,8 @@ public class WebsocketDecoder {
                             System.arraycopy(data.getBytes(), 0, maskKey, 0, len);
                             buf.get(maskKey, len, 4 -len);
                             frame.setMaskingKey(maskKey);
+                            // mask 字节已消费完，payload 累积缓冲从 0 开始，否则 mask 字节会污染 payload
+                            data.setLength(0);
                             wsState = HttpDecoder.WSState.PAYLOAD;
                             session.setWsState(wsState);
                         } else {
@@ -254,6 +272,10 @@ public class WebsocketDecoder {
                             wsState = HttpDecoder.WSState.PAYLOAD;
                             session.setWsState(wsState);
                         } else {
+                            // mask key 需要 4 字节空间，缓冲不足时先扩容，避免越界写
+                            if (data.getBytes().length < 4) {
+                                data.setBytes(new byte[4]);
+                            }
                             len += buf.get(data.getBytes(),  len, 4);
                             data.setLength(len);
                         }

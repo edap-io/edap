@@ -668,14 +668,7 @@ public class WebsocketDecoderTest {
         payloadLenStr = Integer.toString(127, 2);
         payloadLenStr = getRightStr(payloadLenStr, 7);
         data[1] = (byte) Integer.parseInt("1" + payloadLenStr, 2);
-        data[2] = (byte)((payloadLen & 0xff) << 56);
-        data[3] = (byte)((payloadLen & 0xff) << 48);
-        data[4] = (byte)((payloadLen & 0xff) << 40);
-        data[5] = (byte)((payloadLen & 0xff) << 32);
-        data[6] = (byte)((payloadLen & 0xff) << 24);
-        data[7] = (byte)((payloadLen & 0xff) << 16);
-        data[8] = (byte)((payloadLen & 0xff) << 8);
-        data[9] = (byte)(payloadLen & 0xff);
+        encodeEightBytesLen(data, 2, payloadLen);
         System.arraycopy(payload, 0, data, 10, payload.length);
         buf.write(data, 0, 1);
         session.getTmpData().setBytes(new byte[4]);
@@ -707,14 +700,7 @@ public class WebsocketDecoderTest {
         payloadLenStr = Integer.toString(127, 2);
         payloadLenStr = getRightStr(payloadLenStr, 7);
         data[1] = (byte) Integer.parseInt("0" + payloadLenStr, 2);
-        data[2] = (byte)((payloadLen & 0xff) << 56);
-        data[3] = (byte)((payloadLen & 0xff) << 48);
-        data[4] = (byte)((payloadLen & 0xff) << 40);
-        data[5] = (byte)((payloadLen & 0xff) << 32);
-        data[6] = (byte)((payloadLen & 0xff) << 24);
-        data[7] = (byte)((payloadLen & 0xff) << 16);
-        data[8] = (byte)((payloadLen & 0xff) << 8);
-        data[9] = (byte)(payloadLen & 0xff);
+        encodeEightBytesLen(data, 2, payloadLen);
         System.arraycopy(payload, 0, data, 10, payload.length);
         buf.write(data, 0, 1);
         session.getTmpData().setBytes(new byte[4]);
@@ -746,14 +732,7 @@ public class WebsocketDecoderTest {
         payloadLenStr = Integer.toString(127, 2);
         payloadLenStr = getRightStr(payloadLenStr, 7);
         data[1] = (byte) Integer.parseInt("0" + payloadLenStr, 2);
-        data[2] = (byte)((payloadLen & 0xff) << 56);
-        data[3] = (byte)((payloadLen & 0xff) << 48);
-        data[4] = (byte)((payloadLen & 0xff) << 40);
-        data[5] = (byte)((payloadLen & 0xff) << 32);
-        data[6] = (byte)((payloadLen & 0xff) << 24);
-        data[7] = (byte)((payloadLen & 0xff) << 16);
-        data[8] = (byte)((payloadLen & 0xff) << 8);
-        data[9] = (byte)(payloadLen & 0xff);
+        encodeEightBytesLen(data, 2, payloadLen);
         System.arraycopy(payload, 0, data, 10, payload.length);
         buf.write(data, 0, 1);
         session.getTmpData().setBytes(new byte[4]);
@@ -790,14 +769,7 @@ public class WebsocketDecoderTest {
         payloadLenStr = Integer.toString(127, 2);
         payloadLenStr = getRightStr(payloadLenStr, 7);
         data[1] = (byte) Integer.parseInt("1" + payloadLenStr, 2);
-        data[2] = (byte)((payloadLen & 0xff) << 56);
-        data[3] = (byte)((payloadLen & 0xff) << 48);
-        data[4] = (byte)((payloadLen & 0xff) << 40);
-        data[5] = (byte)((payloadLen & 0xff) << 32);
-        data[6] = (byte)((payloadLen & 0xff) << 24);
-        data[7] = (byte)((payloadLen & 0xff) << 16);
-        data[8] = (byte)((payloadLen & 0xff) << 8);
-        data[9] = (byte)(payloadLen & 0xff);
+        encodeEightBytesLen(data, 2, payloadLen);
         System.arraycopy(payload, 0, data, 10, payload.length);
         buf.write(data, 0, 1);
         session.getTmpData().setBytes(new byte[4]);
@@ -819,6 +791,74 @@ public class WebsocketDecoderTest {
         frame = decoder.decode(buf, session);
         assertNull(frame);
 
+    }
+
+    /**
+     * 8 字节扩展长度的帧，分多次喂入：长度扩展在一次 decode() 里结束，payload 在后续的 decode() 里到达。
+     * <p>覆盖两个回归点：
+     * <ul>
+     *   <li>长度扩展结束时必须把状态写回 session（否则下一次 decode() 退回 PAYLOAD_LENGTH_EXTEND 重新解析长度）</li>
+     *   <li>长度扩展字节不能被当成 payload 的头部（payload 内容必须逐字节一致）</li>
+     * </ul>
+     */
+    @Test
+    public void testDecodeEightBytesLenSplitAcrossCalls() {
+        WebsocketDecoder decoder = new WebsocketDecoder();
+        FastBuf buf = new FastBuf(4096);
+        HttpServerNioSession session = new HttpServerNioSession();
+
+        int payloadLen = 300;
+        byte[] payload = new byte[payloadLen];
+        for (int i = 0; i < payloadLen; i++) {
+            payload[i] = (byte)(i & 0xff);
+        }
+        byte[] data = new byte[10 + payloadLen];
+        data[0] = (byte) 0x81;   // fin=1, opcode=1(TEXT)
+        data[1] = (byte) 0x7f;   // mask=0, len=127 => 8 字节扩展长度
+        encodeEightBytesLen(data, 2, payloadLen);
+        System.arraycopy(payload, 0, data, 10, payload.length);
+
+        // 1) opcode 字节
+        buf.write(data, 0, 1);
+        assertNull(decoder.decode(buf, session));
+
+        // 2) 长度字节
+        buf.clear();
+        buf.write(data, 1, 1);
+        assertNull(decoder.decode(buf, session));
+
+        // 3) 8 字节扩展长度：本次调用结束后状态必须已经是 PAYLOAD
+        buf.clear();
+        buf.write(data, 2, 8);
+        assertNull(decoder.decode(buf, session));
+        assertEquals(HttpDecoder.WSState.PAYLOAD, session.getWsState());
+
+        // 4) payload 分两段喂入，第二段到达时帧才算完整
+        buf.clear();
+        buf.write(data, 10, 100);
+        assertNull(decoder.decode(buf, session));
+
+        buf.clear();
+        buf.write(data, 110, payloadLen - 100);
+        AbstractFrame frame = decoder.decode(buf, session);
+        assertNotNull(frame);
+        assertTrue(frame instanceof TextFrame);
+        assertArrayEquals(payload, frame.getPayload());
+        assertEquals(HttpDecoder.WSState.OPCODE, session.getWsState());
+    }
+
+    /**
+     * 按 RFC 6455 的大端序把长度编码进 8 字节扩展长度字段（data[offset..offset+7]）。
+     * <p>旧写法是 {@code data[2] = (byte)((payloadLen & 0xff) << 56)}：先取低 8 位再左移，
+     * 左移 56 位后低 8 位恒为 0，于是 8 个字节里只有最后一个有效，
+     * 实际声明长度变成 {@code payloadLen & 0xff}（0~126）。
+     * 帧只要在喂进去的字节数内"装得下"就会被判为完整，assertNull 随机失败（约 11%）。
+     */
+    private void encodeEightBytesLen(byte[] data, int offset, int payloadLen) {
+        long len = payloadLen & 0xffffffffL;
+        for (int i = 0; i < 8; i++) {
+            data[offset + i] = (byte)(len >>> (8 * (7 - i)));
+        }
     }
 
     private String getRightStr(String text, int len) {
