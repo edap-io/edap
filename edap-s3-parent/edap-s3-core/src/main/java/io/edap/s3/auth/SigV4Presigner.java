@@ -15,7 +15,9 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashMap;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.TreeMap;
 
 /**
@@ -29,8 +31,8 @@ import java.util.TreeMap;
  *   PresignedUrl u = presigner.presignPutObject(
  *           accessKeyId, secretKey, "us-east-1",
  *           "my-bucket", "uploads/photo.jpg",
- *           "s3.internal", 9000,
- *           Instant.now().plus(Duration.ofMinutes(15)));
+ *           SigV4Presigner.Endpoint.https("s3.example.com"),
+ *           Duration.ofMinutes(15));
  *   return u.url();   // 把这个 URL 给手机端
  * }</pre>
  *
@@ -38,6 +40,22 @@ import java.util.TreeMap;
  * <pre>{@code
  *   curl -X PUT --upload-file photo.jpg "<presigned-url>"
  * }</pre>
+ *
+ * <h2>http / https</h2>
+ * 目标端点用 {@link Endpoint} 描述 —— scheme 决定 URL 前缀({@code http://} / {@code https://}),
+ * 也决定<b>哪个端口算默认端口</b>(http=80、https=443)。默认端口在 URL authority 与
+ * canonical host 里都不出现,非默认端口两处都带 {@code :port}。
+ *
+ * <p>服务端验签只认 wire 上的 {@code Host} header,与 scheme 无关 —— 所以切 https
+ * <b>不需要改服务端</b>。前提是 TLS 在 edap-s3 之外终结(前置 nginx / LB),
+ * 且转发时保留原始 {@code Host}:
+ * <pre>{@code
+ *   client ──https──> nginx ──http──> S3 (127.0.0.1:9000)
+ * }</pre>
+ * nginx 默认把 {@code Host} 改写成上游地址({@code $proxy_host}),必须显式
+ * {@code proxy_set_header Host $host;}(公网 URL 带非默认端口时用 {@code $http_host}),
+ * 否则 S3 端重建的 canonical host 与签名对不上 → {@code SIGNATURE_DOES_NOT_MATCH}。
+ * 签名要签<b>公网</b> authority,不是 S3 的内网地址。
  *
  * <h2>与 header 模式 SigV4 的差异(写在这里强调)</h2>
  * <ul>
@@ -50,8 +68,8 @@ import java.util.TreeMap;
  *   <li><b>{@code X-Amz-Expires}</b>:相对 signedAt 的秒数,服务端验签时是<b>绝对窗口</b>,
  *       <b>不</b>叠加 15 分钟 clock skew。</li>
  *   <li><b>host</b>:canonical 形式必须与 wire 上的 {@code Host} header 逐字节相等,
- *       包括端口(80/443 除外)。presigner 接收 host + port 拆开的形式就是为了避免调用方
- *       把端口拼错。</li>
+ *       包括端口。<b>端口是否省略取决于 scheme</b>(http 默认 80、https 默认 443)——
+ *       用 {@link Endpoint} 描述端点就是让这两个地方不可能对不上。</li>
  * </ul>
  *
  * <h2>STS / Security-Token</h2>
@@ -78,44 +96,90 @@ public final class SigV4Presigner {
 
     /**
      * 预签 PUT object URL。手机端可直接 {@code PUT <url> --data-binary @file}。
+     *
+     * @param endpoint 预签目标端点(scheme + host + port)
+     */
+    public PresignedUrl presignPutObject(String accessKeyId, String secretKey, String region,
+                                         String bucket, String key, Endpoint endpoint,
+                                         Duration expires) throws Exception {
+        return build("PUT", bucket, key, endpoint, accessKeyId, secretKey, region,
+                new LinkedHashMap<>(), expires);
+    }
+
+    /**
+     * 预签 PUT object URL(http)。等价于
+     * {@code presignPutObject(..., Endpoint.http(host, port), ...)}。
      */
     public PresignedUrl presignPutObject(String accessKeyId, String secretKey, String region,
                                          String bucket, String key, String host, int port,
                                          Duration expires) throws Exception {
-        return build("PUT", bucket, key, host, port, accessKeyId, secretKey, region,
-                new LinkedHashMap<>(), expires);
+        return presignPutObject(accessKeyId, secretKey, region, bucket, key,
+                Endpoint.http(host, port), expires);
     }
 
     /**
      * 预签 GET object URL。手机端可直接 {@code GET <url>} 下载/预览。
      */
     public PresignedUrl presignGetObject(String accessKeyId, String secretKey, String region,
+                                         String bucket, String key, Endpoint endpoint,
+                                         Duration expires) throws Exception {
+        return build("GET", bucket, key, endpoint, accessKeyId, secretKey, region,
+                new LinkedHashMap<>(), expires);
+    }
+
+    /**
+     * 预签 GET object URL(http)。等价于
+     * {@code presignGetObject(..., Endpoint.http(host, port), ...)}。
+     */
+    public PresignedUrl presignGetObject(String accessKeyId, String secretKey, String region,
                                          String bucket, String key, String host, int port,
                                          Duration expires) throws Exception {
-        return build("GET", bucket, key, host, port, accessKeyId, secretKey, region,
-                new LinkedHashMap<>(), expires);
+        return presignGetObject(accessKeyId, secretKey, region, bucket, key,
+                Endpoint.http(host, port), expires);
     }
 
     /**
      * 预签 HEAD object URL。手机端可直接 {@code HEAD <url>} 检查元数据。
      */
     public PresignedUrl presignHeadObject(String accessKeyId, String secretKey, String region,
+                                          String bucket, String key, Endpoint endpoint,
+                                          Duration expires) throws Exception {
+        return build("HEAD", bucket, key, endpoint, accessKeyId, secretKey, region,
+                new LinkedHashMap<>(), expires);
+    }
+
+    /**
+     * 预签 HEAD object URL(http)。等价于
+     * {@code presignHeadObject(..., Endpoint.http(host, port), ...)}。
+     */
+    public PresignedUrl presignHeadObject(String accessKeyId, String secretKey, String region,
                                           String bucket, String key, String host, int port,
                                           Duration expires) throws Exception {
-        return build("HEAD", bucket, key, host, port, accessKeyId, secretKey, region,
-                new LinkedHashMap<>(), expires);
+        return presignHeadObject(accessKeyId, secretKey, region, bucket, key,
+                Endpoint.http(host, port), expires);
     }
 
     /**
      * 预签 Initiate Multipart Upload —— {@code POST /bucket/key?uploads}。
      */
     public PresignedUrl presignInitiateMultipart(String accessKeyId, String secretKey, String region,
-                                                  String bucket, String key, String host, int port,
+                                                  String bucket, String key, Endpoint endpoint,
                                                   Duration expires) throws Exception {
         Map<String, String> extra = new LinkedHashMap<>();
         extra.put("uploads", "");
-        return build("POST", bucket, key, host, port, accessKeyId, secretKey, region,
+        return build("POST", bucket, key, endpoint, accessKeyId, secretKey, region,
                 extra, expires);
+    }
+
+    /**
+     * 预签 Initiate Multipart Upload(http)。等价于
+     * {@code presignInitiateMultipart(..., Endpoint.http(host, port), ...)}。
+     */
+    public PresignedUrl presignInitiateMultipart(String accessKeyId, String secretKey, String region,
+                                                  String bucket, String key, String host, int port,
+                                                  Duration expires) throws Exception {
+        return presignInitiateMultipart(accessKeyId, secretKey, region, bucket, key,
+                Endpoint.http(host, port), expires);
     }
 
     /**
@@ -123,13 +187,25 @@ public final class SigV4Presigner {
      */
     public PresignedUrl presignUploadPart(String accessKeyId, String secretKey, String region,
                                            String bucket, String key, String uploadId,
-                                           int partNumber, String host, int port,
+                                           int partNumber, Endpoint endpoint,
                                            Duration expires) throws Exception {
         Map<String, String> extra = new LinkedHashMap<>();
         extra.put("partNumber", Integer.toString(partNumber));
         extra.put("uploadId", uploadId);
-        return build("PUT", bucket, key, host, port, accessKeyId, secretKey, region,
+        return build("PUT", bucket, key, endpoint, accessKeyId, secretKey, region,
                 extra, expires);
+    }
+
+    /**
+     * 预签 Upload Part(http)。等价于
+     * {@code presignUploadPart(..., Endpoint.http(host, port), ...)}。
+     */
+    public PresignedUrl presignUploadPart(String accessKeyId, String secretKey, String region,
+                                           String bucket, String key, String uploadId,
+                                           int partNumber, String host, int port,
+                                           Duration expires) throws Exception {
+        return presignUploadPart(accessKeyId, secretKey, region, bucket, key, uploadId,
+                partNumber, Endpoint.http(host, port), expires);
     }
 
     /**
@@ -137,12 +213,24 @@ public final class SigV4Presigner {
      */
     public PresignedUrl presignCompleteMultipart(String accessKeyId, String secretKey, String region,
                                                   String bucket, String key, String uploadId,
-                                                  String host, int port,
+                                                  Endpoint endpoint,
                                                   Duration expires) throws Exception {
         Map<String, String> extra = new LinkedHashMap<>();
         extra.put("uploadId", uploadId);
-        return build("POST", bucket, key, host, port, accessKeyId, secretKey, region,
+        return build("POST", bucket, key, endpoint, accessKeyId, secretKey, region,
                 extra, expires);
+    }
+
+    /**
+     * 预签 Complete Multipart Upload(http)。等价于
+     * {@code presignCompleteMultipart(..., Endpoint.http(host, port), ...)}。
+     */
+    public PresignedUrl presignCompleteMultipart(String accessKeyId, String secretKey, String region,
+                                                  String bucket, String key, String uploadId,
+                                                  String host, int port,
+                                                  Duration expires) throws Exception {
+        return presignCompleteMultipart(accessKeyId, secretKey, region, bucket, key, uploadId,
+                Endpoint.http(host, port), expires);
     }
 
     /**
@@ -150,31 +238,157 @@ public final class SigV4Presigner {
      */
     public PresignedUrl presignAbortMultipart(String accessKeyId, String secretKey, String region,
                                                String bucket, String key, String uploadId,
-                                               String host, int port,
+                                               Endpoint endpoint,
                                                Duration expires) throws Exception {
         Map<String, String> extra = new LinkedHashMap<>();
         extra.put("uploadId", uploadId);
-        return build("DELETE", bucket, key, host, port, accessKeyId, secretKey, region,
+        return build("DELETE", bucket, key, endpoint, accessKeyId, secretKey, region,
                 extra, expires);
     }
 
     /**
-     * canonical host 形式:80/443 端口省略,其余拼 {@code :port},lowercase。
+     * 预签 Abort Multipart Upload(http)。等价于
+     * {@code presignAbortMultipart(..., Endpoint.http(host, port), ...)}。
+     */
+    public PresignedUrl presignAbortMultipart(String accessKeyId, String secretKey, String region,
+                                               String bucket, String key, String uploadId,
+                                               String host, int port,
+                                               Duration expires) throws Exception {
+        return presignAbortMultipart(accessKeyId, secretKey, region, bucket, key, uploadId,
+                Endpoint.http(host, port), expires);
+    }
+
+    /**
+     * canonical host 形式(http 语义):端口为 http 默认端口(80)时省略,否则拼 {@code :port},lowercase。
      * 与 wire 上 {@code Host} header 严格一致 —— 服务端验签时拿到 {@code headers["host"]}
      * 直接喂 canonical,任何字符差异都会触发 SIGNATURE_DOES_NOT_MATCH。
+     *
+     * @deprecated 端口是否省略取决于 scheme(http=80 / https=443),请改用
+     *             {@link Endpoint#canonicalHost()}。
      */
+    @Deprecated
     public static String canonicalHost(String host, int port) {
-        String lower = host == null ? "" : host.toLowerCase();
-        if (port == 80 || port == 443) {
-            return lower;
+        return Endpoint.http(host, port).canonicalHost();
+    }
+
+    // ===================== 端点 =====================
+
+    /**
+     * 预签目标端点 —— scheme + host + port 三元组。
+     *
+     * <p>scheme 不只是 URL 前缀,它还决定<b>哪个端口算默认端口</b>:http 是 80、https 是 443。
+     * 默认端口在 URL authority 与 canonical host 里都不出现,非默认端口两处都带 {@code :port}
+     * —— 两处必须严格一致,否则 wire 上的 {@code Host} header 与签名算出来的 canonical host
+     * 对不上,服务端直接 {@code SIGNATURE_DOES_NOT_MATCH}。
+     *
+     * <p>用法:
+     * <pre>{@code
+     *   Endpoint.https("s3.example.com")        // https://s3.example.com/...(443 省略)
+     *   Endpoint.https("s3.example.com", 8443)  // https://s3.example.com:8443/...
+     *   Endpoint.http("s3.internal", 9000)      // http://s3.internal:9000/...
+     * }</pre>
+     */
+    public static final class Endpoint {
+        /** http scheme。 */
+        public static final String HTTP = "http";
+        /** https scheme。 */
+        public static final String HTTPS = "https";
+
+        private final String scheme;
+        private final String host;
+        private final int port;
+
+        private Endpoint(String scheme, String host, int port) {
+            if (host == null || host.isEmpty()) {
+                throw new IllegalArgumentException("host must not be empty");
+            }
+            if (port < 1 || port > 65535) {
+                throw new IllegalArgumentException("port out of range [1, 65535]: " + port);
+            }
+            this.scheme = scheme;
+            this.host = host;
+            this.port = port;
         }
-        return lower + ":" + port;
+
+        /** http 端点,显式端口。 */
+        public static Endpoint http(String host, int port) {
+            return new Endpoint(HTTP, host, port);
+        }
+
+        /** http 端点,默认端口 80。 */
+        public static Endpoint http(String host) {
+            return new Endpoint(HTTP, host, 80);
+        }
+
+        /** https 端点,显式端口。 */
+        public static Endpoint https(String host, int port) {
+            return new Endpoint(HTTPS, host, port);
+        }
+
+        /** https 端点,默认端口 443。 */
+        public static Endpoint https(String host) {
+            return new Endpoint(HTTPS, host, 443);
+        }
+
+        /** scheme —— {@code http} 或 {@code https}。 */
+        public String scheme() {
+            return scheme;
+        }
+
+        /** host(原样,未 lowercase)。 */
+        public String host() {
+            return host;
+        }
+
+        /** 端口。 */
+        public int port() {
+            return port;
+        }
+
+        /** 是否 https。 */
+        public boolean secure() {
+            return HTTPS.equals(scheme);
+        }
+
+        /** 该 scheme 的默认端口(http=80、https=443)。 */
+        public int defaultPort() {
+            return secure() ? 443 : 80;
+        }
+
+        /**
+         * canonical host 形式 —— 与 wire 上 {@code Host} header 逐字节相等的形式:
+         * lowercase + 端口为 scheme 默认端口时省略,否则拼 {@code :port}。
+         */
+        public String canonicalHost() {
+            String lower = host.toLowerCase(Locale.ROOT);
+            return port == defaultPort() ? lower : lower + ":" + port;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (!(o instanceof Endpoint)) return false;
+            Endpoint other = (Endpoint) o;
+            return port == other.port
+                    && scheme.equals(other.scheme)
+                    && host.equalsIgnoreCase(other.host);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(scheme, host.toLowerCase(Locale.ROOT), port);
+        }
+
+        @Override
+        public String toString() {
+            return scheme + "://" + canonicalHost();
+        }
     }
 
     // ===================== 核心构建 =====================
 
     private PresignedUrl build(String method, String bucket, String key,
-                                String host, int port,
+                                Endpoint endpoint,
                                 String accessKeyId, String secretKey, String region,
                                 Map<String, String> extraSignedQuery,
                                 Duration expires) throws Exception {
@@ -210,7 +424,8 @@ public final class SigV4Presigner {
         }
 
         // canonical request —— payload hash 用 UNSIGNED-PAYLOAD, signed headers 只有 host
-        String canonicalHost = canonicalHost(host, port);
+        // canonical host 同时也是 URL 的 authority —— 两处同源,不可能对不上
+        String canonicalHost = endpoint.canonicalHost();
         Map<String, String> signedHeadersMap = new LinkedHashMap<>();
         signedHeadersMap.put("host", canonicalHost);
 
@@ -237,9 +452,9 @@ public final class SigV4Presigner {
         Map<String, String> finalQuery = new TreeMap<>(signedQuery);
         finalQuery.put("X-Amz-Signature", signature);
 
-        // path-style URL
+        // path-style URL —— authority 与 canonical host 同形(scheme 默认端口省略)
         StringBuilder url = new StringBuilder(128);
-        url.append("http://").append(host.toLowerCase()).append(":").append(port);
+        url.append(endpoint.scheme()).append("://").append(canonicalHost);
         url.append('/').append(bucket).append('/').append(key);
         url.append('?');
         boolean first = true;
@@ -270,7 +485,7 @@ public final class SigV4Presigner {
             this.queryParams = queryParams;
         }
 
-        /** 完整 path-style URL,例如 {@code http://s3.internal:9000/photo/1.jpg?X-Amz-...&X-Amz-Signature=...} */
+        /** 完整 path-style URL,例如 {@code https://s3.example.com/photo/1.jpg?X-Amz-...&X-Amz-Signature=...} */
         public String url() {
             return url;
         }

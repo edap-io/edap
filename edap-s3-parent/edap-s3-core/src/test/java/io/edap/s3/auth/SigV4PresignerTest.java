@@ -9,6 +9,7 @@
  */
 package io.edap.s3.auth;
 
+import io.edap.s3.error.S3ErrorCode;
 import io.edap.s3.error.S3Exception;
 import io.edap.s3.model.S3Request;
 import io.edap.s3.op.S3Operation;
@@ -33,7 +34,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * SigV4Presigner 单元测试 —— 覆盖 URL shape / 签名确定性 / expires 边界 /
- * 端口处理 / 多段参数 / 与 {@link SigV4Verifier} 的 roundtrip。
+ * 端口处理 / http-https scheme 感知 / 多段参数 / 与 {@link SigV4Verifier} 的 roundtrip。
  */
 public class SigV4PresignerTest {
 
@@ -139,21 +140,185 @@ public class SigV4PresignerTest {
                 AKID, SECRET, REGION, "b", "k", HOST, 8080,
                 Duration.ofMinutes(5));
         assertTrue(u.url().contains(":8080"), "非默认端口必须在 URL 里出现: " + u.url());
-        assertEquals("s3.internal:8080", SigV4Presigner.canonicalHost(HOST, 8080));
+        assertEquals("s3.internal:8080", SigV4Presigner.Endpoint.http(HOST, 8080).canonicalHost());
     }
 
     @Test
     void presignPutObject_hostPortDefault_omittedFromCanonical() {
-        // 80 / 443 → canonical host 不带端口
+        // 端口是否省略取决于 scheme:http 默认 80、https 默认 443
+        assertEquals("s3.internal", SigV4Presigner.Endpoint.http(HOST, 80).canonicalHost());
+        assertEquals("s3.internal:443", SigV4Presigner.Endpoint.http(HOST, 443).canonicalHost());
+        assertEquals("s3.internal", SigV4Presigner.Endpoint.https(HOST, 443).canonicalHost());
+        assertEquals("s3.internal:80", SigV4Presigner.Endpoint.https(HOST, 80).canonicalHost());
+    }
+
+    @Test
+    @SuppressWarnings("deprecation")
+    void presignPutObject_legacyCanonicalHost_isHttpSemantics() {
+        // 老 API(canonicalHost(host, port))按 http 语义:只有 80 省略
         assertEquals("s3.internal", SigV4Presigner.canonicalHost(HOST, 80));
-        assertEquals("s3.internal", SigV4Presigner.canonicalHost(HOST, 443));
+        assertEquals("s3.internal:443", SigV4Presigner.canonicalHost(HOST, 443));
+        assertEquals("s3.internal:8080", SigV4Presigner.canonicalHost(HOST, 8080));
     }
 
     @Test
     void presignPutObject_canonicalHost_lowercaseAndPort() {
         // 大写 host → lowercase
-        assertEquals("s3.internal", SigV4Presigner.canonicalHost("S3.Internal", 443));
-        assertEquals("s3.internal:8080", SigV4Presigner.canonicalHost("S3.INTERNAL", 8080));
+        assertEquals("s3.internal", SigV4Presigner.Endpoint.https("S3.Internal", 443).canonicalHost());
+        assertEquals("s3.internal:8080", SigV4Presigner.Endpoint.http("S3.INTERNAL", 8080).canonicalHost());
+    }
+
+    // ===================== https / scheme 感知 =====================
+
+    @Test
+    void presignPutObject_https_urlShape() throws Exception {
+        SigV4Presigner.PresignedUrl u = presigner.presignPutObject(
+                AKID, SECRET, REGION, "my-bucket", "photos/cat.jpg",
+                SigV4Presigner.Endpoint.https("s3.example.com"),
+                Duration.ofMinutes(15));
+
+        assertTrue(u.url().startsWith("https://s3.example.com/my-bucket/photos/cat.jpg?"),
+                "https URL 必须是 path-style: " + u.url());
+        assertFalse(u.url().contains(":443"), "https 默认端口不出现在 URL 里: " + u.url());
+        assertEquals("s3.example.com",
+                SigV4Presigner.Endpoint.https("s3.example.com").canonicalHost());
+    }
+
+    @Test
+    void presignPutObject_httpsNonDefaultPort_appearsInUrl() throws Exception {
+        SigV4Presigner.PresignedUrl u = presigner.presignPutObject(
+                AKID, SECRET, REGION, "b", "k",
+                SigV4Presigner.Endpoint.https("s3.example.com", 8443),
+                Duration.ofMinutes(5));
+        assertTrue(u.url().startsWith("https://s3.example.com:8443/b/k?"),
+                "https 非默认端口必须在 URL 里: " + u.url());
+        assertEquals("s3.example.com:8443",
+                SigV4Presigner.Endpoint.https("s3.example.com", 8443).canonicalHost());
+    }
+
+    @Test
+    void presignPutObject_httpDefaultPort_omittedFromUrl() throws Exception {
+        SigV4Presigner.PresignedUrl u = presigner.presignPutObject(
+                AKID, SECRET, REGION, "b", "k",
+                SigV4Presigner.Endpoint.http("s3.internal"),
+                Duration.ofMinutes(5));
+        assertTrue(u.url().startsWith("http://s3.internal/b/k?"),
+                "http 默认端口不出现在 URL 里: " + u.url());
+    }
+
+    @Test
+    void endpoint_validation() {
+        assertThrows(IllegalArgumentException.class, () -> SigV4Presigner.Endpoint.https(null));
+        assertThrows(IllegalArgumentException.class, () -> SigV4Presigner.Endpoint.https(""));
+        assertThrows(IllegalArgumentException.class, () -> SigV4Presigner.Endpoint.https("h", 0));
+        assertThrows(IllegalArgumentException.class, () -> SigV4Presigner.Endpoint.https("h", 65536));
+    }
+
+    @Test
+    void endpoint_equalsAndHashCode() {
+        assertEquals(SigV4Presigner.Endpoint.https("s3.example.com"),
+                SigV4Presigner.Endpoint.https("S3.EXAMPLE.COM"));
+        assertEquals(SigV4Presigner.Endpoint.https("s3.example.com").hashCode(),
+                SigV4Presigner.Endpoint.https("S3.EXAMPLE.COM").hashCode());
+        assertNotEquals(SigV4Presigner.Endpoint.https("s3.example.com"),
+                SigV4Presigner.Endpoint.http("s3.example.com"));
+        assertNotEquals(SigV4Presigner.Endpoint.https("s3.example.com"),
+                SigV4Presigner.Endpoint.https("s3.example.com", 8443));
+    }
+
+    @Test
+    void presignRoundtripWithVerifier_https_defaultPort() throws Exception {
+        SigV4Presigner.PresignedUrl u = presigner.presignPutObject(
+                AKID, SECRET, REGION, "my-bucket", "uploads/x.bin",
+                SigV4Presigner.Endpoint.https("s3.example.com"),
+                Duration.ofMinutes(10));
+
+        ParsedUrl parsed = ParsedUrl.parse(u.url());
+        Map<String, String> headers = new LinkedHashMap<>();
+        // wire 上 Host header 不带默认端口
+        headers.put("host", "s3.example.com");
+
+        S3Request req = new S3Request(S3Operation.PUT_OBJECT, "my-bucket", "uploads/x.bin",
+                parsed.queryParams, headers, null, null, parsed.path);
+        verifier.verify("PUT", parsed.path, parsed.queryParams, headers, req);
+    }
+
+    @Test
+    void presignRoundtripWithVerifier_https_nonDefaultPort() throws Exception {
+        SigV4Presigner.PresignedUrl u = presigner.presignGetObject(
+                AKID, SECRET, REGION, "my-bucket", "uploads/x.bin",
+                SigV4Presigner.Endpoint.https("s3.example.com", 8443),
+                Duration.ofMinutes(10));
+
+        ParsedUrl parsed = ParsedUrl.parse(u.url());
+        Map<String, String> headers = new LinkedHashMap<>();
+        headers.put("host", "s3.example.com:8443");
+
+        S3Request req = new S3Request(S3Operation.GET_OBJECT, "my-bucket", "uploads/x.bin",
+                parsed.queryParams, headers, null, null, parsed.path);
+        verifier.verify("GET", parsed.path, parsed.queryParams, headers, req);
+    }
+
+    @Test
+    void presignRoundtripWithVerifier_httpDefaultPort() throws Exception {
+        SigV4Presigner.PresignedUrl u = presigner.presignPutObject(
+                AKID, SECRET, REGION, "my-bucket", "uploads/x.bin",
+                SigV4Presigner.Endpoint.http("s3.internal"),
+                Duration.ofMinutes(10));
+
+        ParsedUrl parsed = ParsedUrl.parse(u.url());
+        Map<String, String> headers = new LinkedHashMap<>();
+        headers.put("host", "s3.internal");
+
+        S3Request req = new S3Request(S3Operation.PUT_OBJECT, "my-bucket", "uploads/x.bin",
+                parsed.queryParams, headers, null, null, parsed.path);
+        verifier.verify("PUT", parsed.path, parsed.queryParams, headers, req);
+    }
+
+    // ===================== nginx 反代(外网 https → 内网 http) =====================
+
+    /**
+     * 拓扑:{@code client --https--> nginx --http--> S3(127.0.0.1:9000)}。
+     * <p>签名用的是<b>公网</b> authority(s3.example.com),S3 端验签看的是 nginx 转发的
+     * {@code Host} header —— 两者必须逐字节相同。nginx 侧需
+     * {@code proxy_set_header Host $host;}。
+     */
+    @Test
+    void presignBehindProxy_publicHost_verifiesAgainstForwardedHost() throws Exception {
+        SigV4Presigner.PresignedUrl u = presigner.presignPutObject(
+                AKID, SECRET, REGION, "my-bucket", "uploads/x.bin",
+                SigV4Presigner.Endpoint.https("s3.example.com"),
+                Duration.ofMinutes(10));
+
+        ParsedUrl parsed = ParsedUrl.parse(u.url());
+        Map<String, String> headers = new LinkedHashMap<>();
+        headers.put("host", "s3.example.com");   // nginx: proxy_set_header Host $host;
+
+        S3Request req = new S3Request(S3Operation.PUT_OBJECT, "my-bucket", "uploads/x.bin",
+                parsed.queryParams, headers, null, null, parsed.path);
+        verifier.verify("PUT", parsed.path, parsed.queryParams, headers, req);
+    }
+
+    /**
+     * 失败模式:nginx 没配 {@code proxy_set_header Host},后端收到的是上游地址
+     * (nginx 默认 {@code Host → $proxy_host})—— 与签名里的公网 host 对不上,403。
+     */
+    @Test
+    void presignBehindProxy_upstreamHostAsForwardedHost_fails() throws Exception {
+        SigV4Presigner.PresignedUrl u = presigner.presignPutObject(
+                AKID, SECRET, REGION, "my-bucket", "uploads/x.bin",
+                SigV4Presigner.Endpoint.https("s3.example.com"),
+                Duration.ofMinutes(10));
+
+        ParsedUrl parsed = ParsedUrl.parse(u.url());
+        Map<String, String> headers = new LinkedHashMap<>();
+        headers.put("host", "127.0.0.1:9000");   // nginx 默认 $proxy_host
+
+        S3Request req = new S3Request(S3Operation.PUT_OBJECT, "my-bucket", "uploads/x.bin",
+                parsed.queryParams, headers, null, null, parsed.path);
+        S3Exception e = assertThrows(S3Exception.class,
+                () -> verifier.verify("PUT", parsed.path, parsed.queryParams, headers, req));
+        assertEquals(S3ErrorCode.SIGNATURE_DOES_NOT_MATCH, e.code());
     }
 
     // ===================== Multipart query params =====================

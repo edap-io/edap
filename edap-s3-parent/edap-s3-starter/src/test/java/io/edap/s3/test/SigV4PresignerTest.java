@@ -27,9 +27,17 @@ public class SigV4PresignerTest {
 
         SigV4Presigner.PresignedUrl u = presigner.presignPutObject(
                 AKID, SECRET, REGION, "my-bucket", "photos/cat.jpg",
-                HOST, PORT, Duration.ofMinutes(15));
+                SigV4Presigner.Endpoint.http(HOST, PORT), Duration.ofMinutes(15));
 
         System.out.println(u.url());
         System.out.println(u.queryParams());
+
+        // https 端点:默认端口 443 在 URL 与 canonical host 里都不出现
+        SigV4Presigner.PresignedUrl s = presigner.presignPutObject(
+                AKID, SECRET, REGION, "my-bucket", "photos/cat.jpg",
+                SigV4Presigner.Endpoint.https("s3.example.com"), Duration.ofMinutes(15));
+
+        System.out.println(s.url());
+        System.out.println(s.queryParams());
     }
 }
