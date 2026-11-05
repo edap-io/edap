@@ -17,6 +17,10 @@
 package io.edap.http;
 
 import io.edap.util.ByteData;
+import io.edap.util.CollectionUtils;
+
+import java.util.Collections;
+import java.util.Map;
 
 /**
  */
@@ -31,6 +35,10 @@ public interface HttpRequest {
     HttpBody getBody();
 
 	ByteData getHeaderData();
+
+    default Map<String, String> getHeaderMap() {
+        return Collections.EMPTY_MAP;
+    }
 
     String getMethod();
 

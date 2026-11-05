@@ -7,9 +7,7 @@ import io.edap.util.CollectionUtils;
 import io.edap.util.StringUtil;
 
 import java.io.InputStream;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
  */
@@ -46,6 +44,15 @@ public class ValueHttpRequest implements HttpRequest {
      * HTTP请求的header列表
      */
     private Map<String, HeaderValue> headers = new HashMap<>();
+
+    /**
+     * header 的大小写不敏感查找表。
+     *
+     * <p>HTTP/2 强制 header 名全小写（RFC 9113 §8.2.1），而 HTTP/1.1 的调用方
+     * 用的是 {@code "Content-Type"}、{@code "X-Forwarded-For"} 这类混合大小写。
+     * 没有这张表，h2 下的 {@code getHeaderValue("Content-Type")} 永远取不到值。</p>
+     */
+    private final Map<String, HeaderValue> headersCI = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
     /**
      * 整个header数据区的数据
      */
@@ -98,6 +105,16 @@ public class ValueHttpRequest implements HttpRequest {
 
     public void putHeader(String name, HeaderValue value) {
         headers.put(name, value);
+        headersCI.put(name, value);
+    }
+
+    @Override
+    public Map<String, String> getHeaderMap() {
+        Map<String, String> hs = new HashMap<>();
+        for (Map.Entry<String, HeaderValue> entry : headers.entrySet()) {
+            hs.put(entry.getKey(), entry.getValue().getValue());
+        }
+        return hs;
     }
 
     @Override
@@ -149,7 +166,8 @@ public class ValueHttpRequest implements HttpRequest {
 
     @Override
     public HeaderValue getHeaderValue(String name) {
-        return headers.get(name);
+        HeaderValue v = headersCI.get(name);
+        return v != null ? v : headers.get(name);
     }
 
     public String getHeader(String name) {
@@ -195,7 +213,34 @@ public class ValueHttpRequest implements HttpRequest {
     public void reset() {
         contentLength = -2;
         headers.clear();
+        headersCI.clear();
         parameters.clear();
+        // HttpResponse 在 HTTP/1.1 路径下是线程级单例（见 RangeHttpRequestDecoder 的 ThreadLocal），
+        // 不重置的话上一个请求设置的状态码/响应头会漏进下一个响应。
+        if (response != null) {
+            response.reset();
+        }
+    }
+
+    /**
+     * 主机名。HTTP/1.1 来自 {@code Host} 头，HTTP/2 来自 {@code :authority} 伪头。
+     */
+    public String getHost() {
+        return host;
+    }
+
+    public void setHost(String host) {
+        this.host = host;
+    }
+
+    /**
+     * 所有请求头（只读视图）。
+     *
+     * <p>h2c 升级时要把 HTTP/1.1 请求的头搬到 HTTP/2 流上（RFC 7540 §3.2），
+     * 所以需要一个能枚举全部头的入口。</p>
+     */
+    public Map<String, HeaderValue> getHeaders() {
+        return headers;
     }
 
     /**

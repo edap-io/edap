@@ -89,6 +89,17 @@ public class HttpServer extends Server {
     }
 
     /**
+     * per-HttpServer 的 {@link PathDecoder}。
+     *
+     * <p>HTTP/2 的 {@code :path} 伪头要复用它（配合 {@code ' '} 哨兵），
+     * 这样 h2 与 HTTP/1.1 的路由语义（URL 解码、精确 cache 命中、通配符回退）
+     * 完全一致。</p>
+     */
+    public PathDecoder getPathDecoder() {
+        return pathDecoder;
+    }
+
+    /**
      * 整张替换 path → handler 映射。调用方：Container.rebuildHttpMapping()。
      * 写路径在 appLock 内串行；无需再加锁。
      *
@@ -124,11 +135,28 @@ public class HttpServer extends Server {
 
     @Override
     public NioServerSession createNioSession() {
+        return createHttpSession();
+    }
+
+    /**
+     * 创建 HTTP 会话对象（每个连接一个）。
+     *
+     * <p>抽成 protected 钩子是为了让 TLS 版（{@code TlsHttpServer}）复用同一套
+     * decoder / wsDecoder / bufPool 装配，只替换会话类型本身。</p>
+     */
+    protected HttpServerNioSession createHttpSession() {
         HttpServerNioSession nioSession = new HttpServerNioSession();
+        initHttpSession(nioSession);
+        return nioSession;
+    }
+
+    /**
+     * 装配会话的公共部分（server 引用、请求解码器、WS 解码器、缓冲池）。
+     */
+    protected final void initHttpSession(HttpServerNioSession nioSession) {
         nioSession.setServer(this);
         nioSession.setDecoder(requestDecoder);
         nioSession.setWsDecoder(WEBSOCKET_DECODER);
         nioSession.setBufPool(getBufPool());
-        return nioSession;
     }
 }

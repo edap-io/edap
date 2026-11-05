@@ -28,11 +28,15 @@ import io.edap.http.ws.WSAuthenticator;
 import io.edap.log.Logger;
 import io.edap.log.LoggerManager;
 import io.edap.nio.ParseResult;
+import io.edap.pool.Pool;
 import io.edap.util.ByteArrayBuilder;
 import io.edap.util.CollectionUtils;
 import io.edap.util.CryptUtil;
 
 import java.io.IOException;
+import java.nio.channels.SelectionKey;
+import java.nio.channels.Selector;
+import java.nio.channels.SocketChannel;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 
@@ -40,6 +44,7 @@ import static io.edap.http.header.UpgradeHeader.UPGRADE_WEBSOCKET;
 import static io.edap.http.server.HttpServer.NOT_FOUND_HANDLER;
 import static io.edap.http.server.HttpServer.NOT_SUPPORT_METHO_HANDLER;
 import static io.edap.http.ws.AbstractFrame.*;
+import static io.edap.nio.NioSession.THREAD_WRITE_BUF;
 
 public class HttpServerNioSession extends HttpNioSession implements WSConnection {
 
@@ -55,6 +60,19 @@ public class HttpServerNioSession extends HttpNioSession implements WSConnection
 	 * 是否已经升级到WebSocket
 	 */
 	private boolean upgraded;
+
+	/**
+	 * 协议连接策略对象（HTTP/1.1 或 HTTP/2）。
+	 *
+	 * <p>首次 decode 时由 {@link HttpConnectionFactory} 嗅探协议后创建；
+	 * 之后本 session 的解码与 flush 全部委派给它。</p>
+	 */
+	private HttpConnection connection;
+
+	/**
+	 * 协议嗅探 + 分派（跨 read 保存暂存字节），per-session。
+	 */
+	private HttpConnectionFactory connectionFactory;
 
 	private WSHandler wsHandler;
 
@@ -137,17 +155,187 @@ public class HttpServerNioSession extends HttpNioSession implements WSConnection
 			}
 			return true;
 		} else {
-			Decoder _decoder = decoder;
-			while (fastBuf.remain() > 0) {
-				ParseResult pr = _decoder.decode(fastBuf, this);
-				if (!pr.isFinished()) {
-					break;
+			// ★ 协议嗅探 + 委派：HTTP/1.1 与 HTTP/2 的差异全部收敛在 HttpConnection 里。
+			//   嗅探需要至少 3 个字节（"PRI" vs 其它 method），数据不足时返回 false 等下一次 read。
+			if (connection == null) {
+				connection = createConnection(fastBuf);
+				if (connection == null) {
+					return false;
 				}
-				hasMsg = true;
-				handle((HttpRequest) pr.getMessage());
 			}
+			return connection.decode(fastBuf);
 		}
-		return hasMsg;
+	}
+
+	/**
+	 * 创建协议连接对象（首次 decode 时调用一次）。
+	 *
+	 * <p>默认实现是「嗅探 + 分派」：看前 3 个字节是不是 {@code "PRI"}
+	 * （HTTP/2 连接前言的开头），是则建 {@code Http2Connection}，否则建 {@code Http1Connection}。</p>
+	 *
+	 * <p>★ 抽成 protected 钩子是为了让 TLS 会话能<b>跳过嗅探</b>：
+	 * TLS 握手的 ALPN 已经明确协商出协议（{@code h2} / {@code http/1.1}），
+	 * 没有必要再靠字节猜。</p>
+	 *
+	 * @param buf 本次 read 的缓冲
+	 * @return 连接对象；{@code null} 表示数据不足，等下一次 read
+	 */
+	protected HttpConnection createConnection(FastBuf buf) throws IOException {
+		if (connectionFactory == null) {
+			connectionFactory = new HttpConnectionFactory(this);
+		}
+		return connectionFactory.detect(buf);
+	}
+
+	/**
+	 * 把待写缓冲刷到 socket。
+	 *
+	 * <p>这是「协议无关」的入口：委派给当前的协议连接对象。
+	 * HTTP/1.1 路径最终会走到 {@link #flushSessionBuffer(Pool)}，
+	 * HTTP/2 路径自己管帧的原子写出。</p>
+	 */
+	@Override
+	public void flush(Pool<FastBuf> bbPool) throws IOException {
+		if (connection == null) {
+			super.flush(bbPool);
+			return;
+		}
+		connection.flush(bbPool);
+	}
+
+	/**
+	 * 真正把待写缓冲写到 socket（HTTP/1.1 路径用）。
+	 *
+	 * <p>与 {@link #flush(Pool)} 分开是为了避免死循环：{@code flush} 委派给协议连接，
+	 * 而 HTTP/1.1 的连接对象又需要把缓冲刷出去 —— 两者必须指向不同的方法。</p>
+	 */
+	public void flushSessionBuffer(Pool<FastBuf> bbPool) throws IOException {
+		super.flush(bbPool);
+	}
+
+	/**
+	 * NIO 层把写队列头写完之后回调 —— 协议连接据此继续发剩下的数据。
+	 *
+	 * <p><b>★ 这是 HTTP/2 大响应能发完的关键</b>：socket 的发送缓冲默认只有 16KB
+	 * （{@code AcceptEventHandler} 里 {@code setSendBufferSize(16 * 1024)}），
+	 * 而 HTTP/2 的发送窗口是 64KB。大响应第一次写必然写不完，残余字节挂在 session 的
+	 * 写队列上，等 {@code OP_WRITE} 事件；队列头写完时 NIO 层回调
+	 * {@code removeWriteBuf}，协议连接必须在这里把剩下的帧继续发出去，
+	 * 否则那些帧永远卡在队列里（对端表现为「响应只发了一半就停住」）。</p>
+	 */
+	@Override
+	public void removeWriteBuf(FastBuf wbuf) {
+		super.removeWriteBuf(wbuf);
+		// ★ 顺序要紧：先把「协议层自己挂着的残余数据」排空，再让 HTTP/2 发新帧。
+		//   TLS 的密文 backlog 比新帧旧 —— 顺序反了会把 TLS 记录写乱（对端直接报解密失败）。
+		onWriteBufRemoved(wbuf);
+		HttpConnection c = this.connection;
+		if (c != null) {
+			c.onWriteBufDrained();
+		}
+	}
+
+	/**
+	 * NIO 写队列头被摘掉之后的钩子。
+	 *
+	 * <p>默认什么都不做。TLS 会话覆写它：把还没写出去的密文排进 socket，
+	 * 保证「旧字节先于新字节」发出去。</p>
+	 *
+	 * @param wbuf 刚被摘掉的写队列头
+	 */
+	protected void onWriteBufRemoved(FastBuf wbuf) {
+	}
+
+	/**
+	 * 拿到本 session 的 {@link SelectionKey}。
+	 *
+	 * <p>NIO 层只在「首次部分写」时才缓存 selectionKey（见 {@code NioServerSession.flush}），
+	 * 而 HTTP/2 需要在第一次写之前就拿到它来注册 {@code OP_WRITE}，
+	 * 所以这里从 channel 反查一次并缓存下来。</p>
+	 */
+	public SelectionKey obtainSelectionKey() {
+		SelectionKey key = getSelectionKey();
+		if (key != null) {
+			return key;
+		}
+		SocketChannel ch = getSocketChannel();
+		Selector sel = getSelector();
+		if (ch == null || sel == null) {
+			return null;
+		}
+		key = ch.keyFor(sel);
+		if (key != null) {
+			setSelectionKey(key);
+		}
+		return key;
+	}
+
+	/**
+	 * 切换协议连接对象（h2c 升级时从 HTTP/1.1 切到 HTTP/2）。
+	 */
+	void setConnection(HttpConnection connection) {
+		this.connection = connection;
+	}
+
+	/**
+	 * 注册 {@code OP_WRITE}（<b>保留</b> {@code OP_READ}）。
+	 *
+	 * <p>★ 不能用 {@code channel.register(selector, OP_WRITE, this)} ——
+	 * 那会把 interestOps 整个替换掉，{@code OP_READ} 丢失后服务端再也读不到
+	 * 对端的 WINDOW_UPDATE，双方死锁。</p>
+	 */
+	public void enableWriteInterest() {
+		SelectionKey key = obtainSelectionKey();
+		if (key == null || !key.isValid()) {
+			return;
+		}
+		int ops = key.interestOps();
+		if ((ops & SelectionKey.OP_WRITE) == 0) {
+			key.interestOps(ops | SelectionKey.OP_WRITE);
+		}
+	}
+
+	/**
+	 * 撤销 {@code OP_WRITE}。
+	 *
+	 * <p>不撤销的话 selector 会一直被「socket 可写」唤醒，空转烧 CPU。</p>
+	 */
+	public void disableWriteInterest() {
+		SelectionKey key = obtainSelectionKey();
+		if (key == null || !key.isValid()) {
+			return;
+		}
+		int ops = key.interestOps();
+		if ((ops & SelectionKey.OP_WRITE) != 0) {
+			key.interestOps(ops & ~SelectionKey.OP_WRITE);
+		}
+	}
+
+	/**
+	 * 把线程写缓冲里的字节直接刷到 socket。
+	 *
+	 * <p><b>为什么不能直接用 {@code NioServerSession.flush}</b>：它在部分写时会
+	 * {@code channel.register(selector, OP_WRITE, this)}，把 interestOps 整个替换掉，
+	 * {@code OP_READ} 被丢弃 —— socket 一旦写满，服务端再也读不到对端的
+	 * WINDOW_UPDATE，HTTP/2 双方死锁。</p>
+	 *
+	 * <p>h2c 升级用它把 101 响应先发出去：101 必须<b>先于</b>任何 HTTP/2 帧到达客户端，
+	 * 而 HTTP/2 的帧写出器是直接写 socket 的（不经过线程写缓冲），
+	 * 所以 101 必须在这里同步刷出去。</p>
+	 */
+	public void flushThreadWriteBuf() throws IOException {
+		FastBuf writeBuf = THREAD_WRITE_BUF.get();
+		if (writeBuf.remain() <= 0) {
+			return;
+		}
+		if (writeToChannel(writeBuf)) {
+			// writeToChannel 内部已把缓冲 clear 掉
+			return;
+		}
+		// socket 写不动 —— 残余字节挂到 NIO 写队列，等 OP_WRITE 事件继续写
+		putToWriteQueue(writeBuf);
+		THREAD_WRITE_BUF.set(new FastBuf(32768));
+		enableWriteInterest();
 	}
 
 	private void handeshake(HttpRequest request, HttpResponse resp, WSAuthenticator wsAuthenticator) throws IOException {
@@ -211,6 +399,14 @@ public class HttpServerNioSession extends HttpNioSession implements WSConnection
 		resp.setRequest(request);
 		if (pathInfo.isFound()) {
 			if (pathInfo.getWsHandler() != null) {
+				// WebSocket over HTTP/2 需要 RFC 8441（extended CONNECT），本次不实现：
+				// 服务端不广告 SETTINGS_ENABLE_CONNECT_PROTOCOL，收到 CONNECT 一律 RST_STREAM。
+				// 所以 h2 下命中 WS 路径直接回 501，不走握手。
+				HttpVersion version = request.getVersion();
+				if (version != null && version.isHttp2()) {
+					resp.setSimpleResponse(501, null);
+					return;
+				}
 				wsHandler = pathInfo.getWsHandler();
 				handeshake(request, resp, pathInfo.getWsAuthenticator());
 				return;

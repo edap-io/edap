@@ -98,6 +98,11 @@ public class ResponseStatusCode {
 
     private static final byte[][] RESPONSES = new byte[600][];
 
+    /**
+     * 只有状态码数字（3 字节，无尾随 CRLF）—— HTTP/2 的 {@code :status} 伪头用这个。
+     */
+    private static final byte[][] CODE_BYTES = new byte[600][];
+
     static {
         for (String sc : STATUS_CODES) {
             initStatusCode(sc);
@@ -109,6 +114,7 @@ public class ResponseStatusCode {
         String resp = sc + "\r\n";
         int code = FastNum.num(vs[0]);
         RESPONSES[code] = resp.getBytes();
+        CODE_BYTES[code] = vs[0].getBytes();
     }
 
     /** `
@@ -119,6 +125,18 @@ public class ResponseStatusCode {
     public static byte[] get(int code) {
         if (RESPONSES[code] != null) {
             return RESPONSES[code];
+        }
+        throw E.rtEx("Invalid HTTP response code: " + code);
+    }
+
+    /**
+     * 只返回状态码本身的字节（"200"，3 字节，无 CRLF）。
+     *
+     * <p>HTTP/2 的 {@code :status} 伪头就是这个（RFC 9113 §8.3）。</p>
+     */
+    public static byte[] getCodeBytes(int code) {
+        if (CODE_BYTES[code] != null) {
+            return CODE_BYTES[code];
         }
         throw E.rtEx("Invalid HTTP response code: " + code);
     }

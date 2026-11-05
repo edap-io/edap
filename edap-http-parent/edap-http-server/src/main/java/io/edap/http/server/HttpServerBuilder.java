@@ -24,6 +24,9 @@ import io.edap.http.WSHandler;
 import io.edap.http.cache.MethodCache;
 import io.edap.http.codec.HttpFastBufDataRange;
 import io.edap.http.server.handler.FaviconHandler;
+import io.edap.http.server.tls.TlsConfig;
+import io.edap.http.server.tls.TlsContext;
+import io.edap.http.server.tls.TlsHttpServer;
 import io.edap.nio.codec.FastBufDataRange;
 import io.edap.pool.SimpleFastBufPool;
 import io.edap.util.CollectionUtils;
@@ -41,6 +44,16 @@ import static io.edap.http.HttpHandleOption.defaultHttpHandleOption;
 public class HttpServerBuilder {
 
     List<String> addrs = new ArrayList<>();
+
+    /**
+     * TLS 监听的地址列表（{@code "host:port"}）。
+     */
+    List<String> tlsAddrs = new ArrayList<>();
+
+    /**
+     * TLS 配置（null ⇒ 从系统属性装配）。
+     */
+    private TlsConfig tlsConfig;
 
     /**
      * HttpServerBuilder 自己持有的 PathInfoMatcher —— wildcard 注册（prefix/postfix *）
@@ -69,6 +82,40 @@ public class HttpServerBuilder {
         if (!addrs.contains(addr) && !addrs.contains(":" + port)) {
             addrs.add(addr);
         }
+        return this;
+    }
+
+    /**
+     * 监听一个 TLS 端口。
+     *
+     * <p>★ 明文与 TLS <b>分端口</b>：不做同端口 mux。</p>
+     *
+     * @see #buildTls()
+     * @see #buildAll()
+     */
+    public HttpServerBuilder listenTls(int port) {
+        return listenTls("", port);
+    }
+
+    /**
+     * 监听一个 TLS 端口（指定地址）。
+     */
+    public HttpServerBuilder listenTls(String address, int port) {
+        String addr = address + ":" + port;
+        if (!tlsAddrs.contains(addr) && !tlsAddrs.contains(":" + port)) {
+            tlsAddrs.add(addr);
+        }
+        return this;
+    }
+
+    /**
+     * 设置 TLS 配置（keystore / 协议 / ALPN）。
+     *
+     * <p>不设置时 {@link #buildTls()} 会用 {@link TlsConfig#fromSystemProperties()}
+     * 从系统属性装配。</p>
+     */
+    public HttpServerBuilder tls(TlsConfig config) {
+        this.tlsConfig = config;
         return this;
     }
 
@@ -252,6 +299,65 @@ public class HttpServerBuilder {
     }
 
     public HttpServer build() {
+        registerBuiltinHandlers();
+        HttpServer server = new HttpServer();
+        server.setPathInfoMatcher(pathInfoMatcher);
+        applyDecoderType(server);
+        applyPathCache();
+        BufPool bufPool = new SimpleFastBufPool();
+        server.setBufPool(bufPool);
+        listenAll(server, addrs);
+        return server;
+    }
+
+    /**
+     * 构建 TLS 版 server（明文/TLS 分端口，两个 server 共享同一张路由表）。
+     *
+     * <p>没有配置任何 TLS 端口时返回 null。</p>
+     */
+    public HttpServer buildTls() {
+        if (tlsAddrs.isEmpty()) {
+            return null;
+        }
+        registerBuiltinHandlers();
+        TlsConfig config = tlsConfig != null ? tlsConfig : TlsConfig.fromSystemProperties();
+        TlsContext context = TlsContext.create(config);
+        TlsHttpServer server = new TlsHttpServer(context);
+        // ★ 与明文 server 共享同一个 PathInfoMatcher —— 一套 handler，两种传输
+        server.setPathInfoMatcher(pathInfoMatcher);
+        applyDecoderType(server);
+        applyPathCache();
+        server.setBufPool(new SimpleFastBufPool());
+        listenAll(server, tlsAddrs);
+        return server;
+    }
+
+    /**
+     * 构建全部 server（明文 + TLS）。
+     *
+     * <p>用法：</p>
+     * <pre>
+     * for (HttpServer s : new HttpServerBuilder()
+     *         .get("/hello", handler)
+     *         .listen(8080)
+     *         .listenTls(8443)
+     *         .tls(cfg)
+     *         .buildAll()) {
+     *     edap.addServer(s);
+     * }
+     * </pre>
+     */
+    public List<HttpServer> buildAll() {
+        List<HttpServer> servers = new ArrayList<>();
+        servers.add(build());
+        HttpServer tls = buildTls();
+        if (tls != null) {
+            servers.add(tls);
+        }
+        return servers;
+    }
+
+    private void registerBuiltinHandlers() {
         if (mapping.get("/favicon.ico") == null) {
             this.get("/favicon.ico", new FaviconHandler());
         }
@@ -261,8 +367,9 @@ public class HttpServerBuilder {
         if (mapping.get("/icon.svg") == null) {
             this.get("/favicon.ico", new FaviconHandler());
         }
-        HttpServer server = new HttpServer();
-        server.setPathInfoMatcher(pathInfoMatcher);
+    }
+
+    private void applyDecoderType(HttpServer server) {
         String httpDecoderType = System.getProperty("edap.http.decoder.type");
         if (!StringUtil.isEmpty(httpDecoderType) && "fast".equalsIgnoreCase(httpDecoderType)) {
             server.setDecoderType(HttpServer.DecoderType.FAST);
@@ -273,26 +380,51 @@ public class HttpServerBuilder {
                 server.setDecoderType(HttpServer.DecoderType.NORMAL);
             }
         }
+    }
+
+    /**
+     * 把精确路径表灌进 {@link PathInfoMatcher} 的 cache。
+     *
+     * <p><b>双 key 注册</b>：请求侧（{@code PathDecoder.decode}）对<b>解码后</b>的字节算
+     * FNV hash，而注册侧若只用原始路径字节算 hash，两者永远对不上 ——
+     * 注册 {@code /a%20b} 时 hash 的是 {@code /a%20b}，请求 {@code /a%20b} 时 hash 的是
+     * {@code /a b} ⇒ 精确 cache 永远 miss，只能退回通配符路由。
+     * 所以这里对每个路径额外注册一份「解码后」的 key。</p>
+     *
+     * <p><b>冲突处理</b>：解码后的 key 与某个已注册的原始路径相同（例如同时注册了
+     * {@code /a%20b} 与 {@code /a b}）时，<b>原始注册优先</b> —— 用 {@code putIfAbsent}，
+     * 且先跑一遍全部原始注册再跑解码别名，避免 HashMap 迭代顺序导致结果不确定。</p>
+     */
+    private void applyPathCache() {
         if (!CollectionUtils.isEmpty(mapping)) {
             Map<FastBufDataRange, PathInfo> serverMapping = new HashMap<>();
             for (Map.Entry<String, PathInfo> entry : mapping.entrySet()) {
                 serverMapping.put(HttpFastBufDataRange.from(entry.getKey()), entry.getValue());
             }
+            // 第二遍：注册「解码后」的别名
+            for (Map.Entry<String, PathInfo> entry : mapping.entrySet()) {
+                byte[] decoded = HttpFastBufDataRange.decodePathBytes(entry.getKey());
+                if (decoded == null) {
+                    // escape 非法/不完整 —— 保持改造前行为（请求时由 PathDecoder 报错）
+                    continue;
+                }
+                serverMapping.putIfAbsent(HttpFastBufDataRange.fromBytes(decoded), entry.getValue());
+            }
             pathInfoMatcher.setCache(serverMapping);
         }
-        BufPool bufPool = new SimpleFastBufPool();
-        server.setBufPool(bufPool);
+    }
+
+    private void listenAll(HttpServer server, List<String> addrs) {
         int index;
         for (String addr : addrs) {
             index = addr.indexOf(":");
-            int port = Integer.parseInt(addr.substring(index+1));
+            int port = Integer.parseInt(addr.substring(index + 1));
             if (index > 0) {
                 server.listen(addr.substring(0, index), port);
             } else {
                 server.listen(port);
             }
         }
-        return server;
     }
 
 }

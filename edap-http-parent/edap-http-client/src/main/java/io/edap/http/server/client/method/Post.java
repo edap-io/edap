@@ -7,8 +7,6 @@ import java.net.URI;
 
 public class Post extends AbtractMethod {
 
-    private HttpBody body;
-
     public Post() {}
 
     public Post(String url) {
@@ -29,14 +27,15 @@ public class Post extends AbtractMethod {
         return this;
     }
 
+    @Override
+    public Post setBody(HttpBody body) {
+        super.setBody(body);
+        return this;
+    }
+
 
     @Override
     public HttpMethod getMethod() {
         return HttpMethod.POST;
-    }
-
-    @Override
-    public HttpBody getBody() {
-        return body;
     }
 }

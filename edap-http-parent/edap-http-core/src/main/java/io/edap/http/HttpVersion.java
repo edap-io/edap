@@ -20,6 +20,16 @@ public enum HttpVersion {
     HTTP_0_9("HTTP/0.9",  9),
     HTTP_1_0("HTTP/1.0", 10),
     HTTP_1_1("HTTP/1.1", 11),
+    /**
+     * HTTP/2。RFC 9113 里 HTTP/2 没有「版本号」，只有 {@code :scheme} 伪头；
+     * 这里的 "HTTP/2" 字符串只用于日志与 {@link #fromVersion(String)} 的解析。
+     */
+    HTTP_2("HTTP/2", 2),
+    /**
+     * @deprecated 名字有误导性 —— HTTP/2 没有 "2.0" 版本。用 {@link #HTTP_2}。
+     *   保留是因为它是 public API，且 {@code HttpVersionDecoder} 依赖它。
+     */
+    @Deprecated
     HTTP_2_0("HTTP/2.0", 20),
 
     NOT_SUPPORT_VERSION("HTTP/UNKNOWN", -1);
@@ -46,6 +56,13 @@ public enum HttpVersion {
         return string;
     }
 
+    /**
+     * 是否是 HTTP/2（{@link #HTTP_2} 与历史遗留的 {@link #HTTP_2_0} 都算）。
+     */
+    public boolean isHttp2() {
+        return this == HTTP_2 || this == HTTP_2_0;
+    }
+
     @Override
     public String toString() {
         return string;
@@ -56,6 +73,7 @@ public enum HttpVersion {
             case "HTTP/0.9": return HttpVersion.HTTP_0_9;
             case "HTTP/1.0": return HttpVersion.HTTP_1_0;
             case "HTTP/1.1": return HttpVersion.HTTP_1_1;
+            case "HTTP/2":   return HttpVersion.HTTP_2;
             case "HTTP/2.0": return HttpVersion.HTTP_2_0;
             default: throw new IllegalArgumentException();
         }
@@ -66,6 +84,7 @@ public enum HttpVersion {
             case  9: return HttpVersion.HTTP_0_9;
             case 10: return HttpVersion.HTTP_1_0;
             case 11: return HttpVersion.HTTP_1_1;
+            case  2: return HttpVersion.HTTP_2;
             case 20: return HttpVersion.HTTP_2_0;
             default: throw new IllegalArgumentException();
         }
