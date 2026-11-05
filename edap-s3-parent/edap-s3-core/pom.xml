@@ -20,11 +20,32 @@
             <groupId>io.edap</groupId>
             <artifactId>edap-log-api</artifactId>
         </dependency>
+        <!--
+            SigV4 的 HMAC / SHA-256 走 edap-crypto 的 CryptoProvider 抽象
+            （native / JCE 由 edap.crypto.mac.* / edap.crypto.digest.* 开关决定）。
+            edap-crypto 对 edap-native 只有 test scope ⇒ 生产用户想开 native
+            加速仍需自行引入 edap-native。
+        -->
+        <dependency>
+            <groupId>io.edap</groupId>
+            <artifactId>edap-crypto</artifactId>
+        </dependency>
 
         <!-- 单元测试相关依赖 -->
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!-- JMH：SigV4HmacBenchmark（SigV4 签名路径修前 / 修后对比） -->
+        <dependency>
+            <groupId>org.openjdk.jmh</groupId>
+            <artifactId>jmh-core</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.openjdk.jmh</groupId>
+            <artifactId>jmh-generator-annprocess</artifactId>
             <scope>test</scope>
         </dependency>
     </dependencies>

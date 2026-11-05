@@ -9,14 +9,16 @@
  */
 package io.edap.s3.auth;
 
+import io.edap.crypto.CryptoRegistry;
+import io.edap.crypto.digest.DigestProvider;
+import io.edap.crypto.digest.DigestSession;
+import io.edap.crypto.mac.MacProvider;
+import io.edap.crypto.mac.MacSession;
 import io.edap.s3.error.S3ErrorCode;
 import io.edap.s3.error.S3Exception;
 import io.edap.s3.model.S3Request;
 
-import javax.crypto.Mac;
-import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -440,15 +442,34 @@ public class SigV4Verifier implements S3AuthVerifier {
         return s.trim().replaceAll("\\s+", " ");
     }
 
+    /**
+     * HMAC-SHA256 —— 走 edap-crypto 的 {@link io.edap.crypto.mac.MacProvider} 抽象。
+     *
+     * <p><b>为什么</b>：旧实现每次调用都 {@code Mac.getInstance(...)}（1~3μs 的
+     * provider 查找 + spi 创建），而 SigV4 的签名链一次请求要算 5 次 HMAC
+     * （date → region → service → aws4_request → signature）⇒ 纯 setup 开销。
+     * provider 内部按线程复用 {@code Mac} 实例，省掉这 5 次 {@code getInstance}。</p>
+     *
+     * <p>实现选择（native / JCE）由 {@code edap.crypto.mac.*} 开关决定，
+     * 详见 {@link io.edap.crypto.CryptoRegistry}。</p>
+     */
     public static byte[] hmac(byte[] key, String data) throws Exception {
-        Mac mac = Mac.getInstance("HmacSHA256");
-        mac.init(new SecretKeySpec(key, "HmacSHA256"));
-        return mac.doFinal(data.getBytes(StandardCharsets.UTF_8));
+        MacProvider provider = CryptoRegistry.mac("HmacSHA256");
+        MacSession session = provider.newSession(key);
+        session.update(data.getBytes(StandardCharsets.UTF_8));
+        return session.doFinal();
     }
 
+    /**
+     * SHA-256 十六进制 —— 走 edap-crypto 的 {@link io.edap.crypto.digest.DigestProvider} 抽象。
+     *
+     * <p>与 {@link #hmac(byte[], String)} 同理：省掉每次 {@code MessageDigest.getInstance}。</p>
+     */
     public static String sha256Hex(byte[] data) throws Exception {
-        MessageDigest md = MessageDigest.getInstance("SHA-256");
-        return hexEncode(md.digest(data));
+        DigestProvider provider = CryptoRegistry.digest("SHA-256");
+        DigestSession session = provider.newSession();
+        session.update(data);
+        return hexEncode(session.digest());
     }
 
     public static String hexEncode(byte[] data) {

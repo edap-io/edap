@@ -41,7 +41,7 @@ edap-s3 之前只支持 `Authorization` header 模式的 SigV4(`SigV4Verifier.ja
 | 3 | `SigV4Verifier.verify` 入口 dispatch | 新增 `verifyQuery` 公开方法由调用方选择 | 单一入口减少 caller 心智负担;header 模式逻辑不变。 |
 | 4 | Presigner 实例无状态、可复用 | 每次 new | SigV4 计算全部基于输入参数,无副作用,实例线程安全。 |
 | 5 | 强制 path-style URL | 支持两种 | 与 edap-s3 服务端路由(`/bucket/key`)一致;不引入 virtual-host 解析。 |
-| 6 | `host` 与 `port` 拆开传入 Presigner | 拼好完整 Host 字符串传入 | 让 caller 不容易拼错(拼错 = `SIGNATURE_DOES_NOT_MATCH`);Presigner 内部负责 canonical 形式。 |
+| 6 | `host` 与 `port` 拆开传入 Presigner | 拼好完整 Host 字符串传入 | 让 caller 不容易拼错(拼错 = `SIGNATURE_DOES_NOT_MATCH`);Presigner 内部负责 canonical 形式。后续演进为 `Endpoint` 值对象(scheme + host + port),见第四章。 |
 
 ---
 
@@ -71,7 +71,7 @@ presign 时 client 还没决定发什么额外 header(Content-Type/Content-Lengt
 服务端验证时:
 1. 从 query 取 `X-Amz-SignedHeaders=host`
 2. 从 wire 上取 `Host` header
-3. `host` 必须与 presign 时计算出的 `canonicalHost(host, port)` 逐字节相等(80/443 端口省略)
+3. `host` 必须与 presign 时算出的 `Endpoint#canonicalHost()` 逐字节相等(端口是否为「默认端口」取决于 scheme:http=80、https=443)
 
 ---
 
@@ -85,6 +85,7 @@ public final class SigV4Presigner {
     public static final Duration MIN_EXPIRES     = Duration.ofSeconds(1);
     public static final Duration MAX_EXPIRES     = Duration.ofSeconds(604_800);   // 7 天
 
+    // 每个操作都有两个重载:Endpoint 版(推荐,支持 https)与 (host, port) 兼容版(= http)
     public PresignedUrl presignPutObject (...);                    // PUT  /bucket/key
     public PresignedUrl presignGetObject (...);                    // GET  /bucket/key
     public PresignedUrl presignHeadObject(...);                    // HEAD /bucket/key
@@ -95,7 +96,23 @@ public final class SigV4Presigner {
                                                  String uploadId, ...);
     public PresignedUrl presignAbortMultipart(..., String uploadId, ...);  // DELETE /bucket/key?uploadId=ID
 
-    public static String canonicalHost(String host, int port);     // "s3.internal:9000" 或 "s3.internal"(80/443)
+    @Deprecated
+    public static String canonicalHost(String host, int port);     // http 语义;"host 与 port 拆开"时代的遗留
+
+    /** 预签目标端点:scheme + host + port */
+    public static final class Endpoint {
+        public static Endpoint http(String host);                   // 端口 80
+        public static Endpoint http(String host, int port);
+        public static Endpoint https(String host);                  // 端口 443
+        public static Endpoint https(String host, int port);
+
+        public String scheme();                                     // "http" / "https"
+        public String host();
+        public int port();
+        public boolean secure();
+        public int defaultPort();                                   // 80 / 443
+        public String canonicalHost();                              // "s3.example.com" 或 "s3.example.com:8443"
+    }
 
     public static final class PresignedUrl {
         public String url();                                       // 完整 path-style URL
@@ -112,10 +129,14 @@ SigV4Presigner presigner = new SigV4Presigner();
 PresignedUrl u = presigner.presignPutObject(
         accessKeyId, secretKey, "us-east-1",
         "my-bucket", "uploads/photo.jpg",
-        "s3.internal", 9000,                     // host 与 port 拆开传
-        Instant.now().plus(Duration.ofMinutes(15)));
+        SigV4Presigner.Endpoint.https("s3.example.com"),   // https + 默认端口 443
+        Duration.ofMinutes(15));
 return u.url();                                 // 给手机端
 ```
+
+内网直连(明文 http)用 `Endpoint.http("s3.internal", 9000)`;旧的
+`presignPutObject(ak, sk, region, bucket, key, host, port, expires)` 签名保留,
+内部等价于 `Endpoint.http(host, port)`。
 
 ### 4.3 内部构建流程(7 个公开方法都走同一个 `build(...)`)
 
@@ -126,19 +147,24 @@ return u.url();                                 // 给手机端
 5. **canonical request**(复用 `SigV4Verifier.buildCanonicalRequest`):
    - `payloadHash = "UNSIGNED-PAYLOAD"`
    - `signedHeaders = ["host"]`
-   - `headersMap = {host: canonicalHost(host, port)}`
+   - `headersMap = {host: endpoint.canonicalHost()}`
    - canonical query 用 **不含** `X-Amz-Signature` 的 query 算
 6. **stringToSign** + **deriveSigningKey** + **HMAC** + **hex** 出 sig。
-7. **把 sig append 进 query**,组装成 `http://host[:port]/bucket/key?<querystring>`。
+7. **把 sig append 进 query**,组装成 `{scheme}://{authority}/bucket/key?<querystring>`,
+   其中 `authority` 与第 5 步的 canonical host **同一个字符串**(同源,不可能对不上)。
 
 ### 4.4 关键不变量
 
 - **`expiresAt` 是绝对值**:不是相对当前时刻的字符串,而是 `Instant`,便于服务端对照 `Instant.now()` 做 `isAfter` 判定,没有时区/Parser 误差。
 - **`X-Amz-Signature` 不参与 canonical query**:算 sig 时先把它从 query 里 remove,append 在最后 —— AWS 规范的硬要求,违反 → 服务端永远验不过。
-- **`host` 拆开传**:`canonicalHost(host, port)` 内部负责:
-  - `host.toLowerCase()`(SigV4 强制)
-  - `port == 80 || port == 443` → 省略端口
+- **端点用 `Endpoint` 描述**:`Endpoint#canonicalHost()` 内部负责:
+  - `host.toLowerCase(Locale.ROOT)`(SigV4 强制;用 ROOT 避免土耳其语 locale 的 `I` → `ı` 坑)
+  - `port == defaultPort(scheme)`(http=80、https=443)→ 省略端口
   - 否则拼 `:port`
+- **URL authority == canonical host**:同一个变量,保证「客户端发出来的 Host header」与
+  「签名时算出来的 host」必然一致。默认端口在 URL 里**不出现** —— RFC 7230 §5.4 要求
+  `Host` 字段值与 target URI 的 authority 逐字节相同,所以 URL 里带了 `:443`、
+  canonical 里不带(或反过来)都会对不上;把端口从 URL 里省掉就没有这个歧义。
 - **canonical host 与 wire Host header 严格逐字节相等**:任何差异(`s3.Internal` vs `s3.internal`、端口漏写/多写)都会触发服务端 `SIGNATURE_DOES_NOT_MATCH`。
 - **query key 大小写**:Presigner 输出时统一用 `X-Amz-*` 大写(与 AWS CLI 一致);服务端 verifier 在 canonical 时用 `TreeMap` 自然按字典序排序,大小写不敏感(因为只有一种合法 casing)。
 
@@ -216,7 +242,7 @@ for (Map.Entry<String, String> e : headers.entrySet()) {
 
 ### 7.1 单元测试
 
-**`SigV4PresignerTest`**(`edap-s3-core/src/test/java/.../auth/`,共 9 个用例):
+**`SigV4PresignerTest`**(`edap-s3-core/src/test/java/.../auth/`,共 25 个用例):
 
 | 用例 | 验证点 |
 |------|--------|
@@ -224,7 +250,15 @@ for (Map.Entry<String, String> e : headers.entrySet()) {
 | `presignPutObject_signatureDeterministic` | 同输入两次 sig 一致;不同 `expiresAt` sig 不同 |
 | `presignPutObject_expiresBoundary` | `expires=1` OK;`expires=604800` OK;`expires=0` IAE;`expires=604801` IAE;`expiresAt<now` IAE |
 | `presignPutObject_hostWithPort` | port=8080 同时出现在 URL 和 canonical host |
-| `presignPutObject_hostPortDefault` | port=80/443 不出现在 URL 也不出现在 canonical host |
+| `presignPutObject_hostPortDefault` | 端口是否省略随 scheme 变(http=80、https=443);老 `canonicalHost(host, port)` 是 http 语义 |
+| `presignPutObject_https_urlShape` | `Endpoint.https(host)` → `https://host/bucket/key?...`,URL 里无 `:443` |
+| `presignPutObject_httpsNonDefaultPort_appearsInUrl` | `Endpoint.https(host, 8443)` → URL 与 canonical host 都带 `:8443` |
+| `presignPutObject_httpDefaultPort_omittedFromUrl` | `Endpoint.http(host)` → URL 里无 `:80` |
+| `endpoint_validation` | 空 host / 越界 port → IAE |
+| `endpoint_equalsAndHashCode` | host 大小写不敏感的值对象语义 |
+| `presignRoundtripWithVerifier_https_defaultPort` | https + 443 → Host header 不带端口,验签通过 |
+| `presignRoundtripWithVerifier_https_nonDefaultPort` | https + 8443 → Host header 带 `:8443`,验签通过 |
+| `presignRoundtripWithVerifier_httpDefaultPort` | http + 80 → Host header 不带端口,验签通过 |
 | `presignUploadPart_queryIncludesPartNumberAndUploadId` | `uploadId` + `partNumber` 在 query 里且参与签名 |
 | `presignInitiateMultipart_hasUploadsParam` | `uploads=` 在 query 里 |
 | `presignRoundtripWithVerifier` | presign → 手动 parse 回 `Map<...> queryParams` + path + headers → 调 verifier → 通过 |
@@ -280,8 +314,8 @@ public class UploadTokenResource {
         PresignedUrl u = presigner.presignPutObject(
                 ak, sk, "us-east-1",
                 req.bucket, req.key,
-                s3Host, s3Port,
-                Instant.now().plus(Duration.ofMinutes(15)));
+                SigV4Presigner.Endpoint.https(s3Host),
+                Duration.ofMinutes(15));
 
         return new TokenResp(u.url(), u.expiresAt());
     }
@@ -320,8 +354,14 @@ curl -X PUT -H "Content-Type: image/jpeg" \
 3. **query key 大小写**:Presigner 统一输出 `X-Amz-*` 大写;verifier 端 `TreeMap` 排序保证大小写不歧义。**禁止**用 `x-amz-date`(小写 d)发请求,会被 verifier 视为 `X-Amz-Date` 缺失 → `ACCESS_DENIED`。这条与 AWS CLI 行为一致。
 4. **没有 clock skew 容忍**:URL 签发后超过 `X-Amz-Expires` 秒就过期,与客户端时钟无关。客户端系统时间不准不会"提前过期",只会在它实际超时时被拒。
 5. **`host` header 必须由 HTTP 客户端发送**:某些 HTTP 库(如某些 Node.js 客户端)默认不发 Host,需要显式设置。
-6. **`http://` 而非 `https://`**:本实现生成的是 http URL(测试方便)。生产部署应改 https —— 改 `SigV4Presigner#build(...)` 末尾的 `url.append("http://")` 为 `url.append("https://")` 即可,或者传一个 `boolean useHttps` 参数。
-7. **STS / `X-Amz-Security-Token`** 不支持。要支持时需要:
+6. **scheme 与端口必须成对**:`Endpoint` 把 scheme + host + port 绑在一起,就是为了避免
+   「URL 用 https、canonical host 却按 http 的默认端口算」这类错配。历史遗留的
+   `canonicalHost(host, port)` 静态方法按 **http 语义**(只有 80 省略端口),已 `@Deprecated`。
+7. **https 需要 TLS 在 edap-s3 之外终结**:edap-s3 的 `HttpServer` 本身不终结 TLS,
+   https 部署形态是「前置 nginx / LB 做 TLS + 转发到 edap-s3 的 http 端口」。
+   验签只看 wire 上的 `Host` header,**服务端零改动**,但前置代理必须保留原始 `Host`
+   (nginx 默认 `$host` 即不含端口;若客户端 URL 带非默认端口,要用 `$http_host`)。
+8. **STS / `X-Amz-Security-Token`** 不支持。要支持时需要:
    - Presigner 把 `X-Amz-Security-Token` 加进 signed query + 头里
    - verifier 从 query 取 token 传给 `keyResolver.resolve(...)`,或额外校验
 
@@ -334,9 +374,74 @@ curl -X PUT -H "Content-Type: image/jpeg" \
 ### 9.3 未来扩展
 
 - STS 临时凭证支持。
-- `useHttps` / `pathStyle=false`(virtual-host)参数化。
+- `pathStyle=false`(virtual-host)参数化。
 - 签名 URL 缓存(基于 `(ak, region, bucket, key, expiresAt)` 五元组)。
 - `X-Amz-Content-Sha256` 参数化:支持 presign 时指定 payload hash(给已知大文件的场景优化,但失去了"任意 client 直接 PUT"的灵活性)。
+
+### 9.4 nginx 反代部署(外网 https → 内网 http)
+
+典型拓扑:
+
+```
+client ──https──> nginx (TLS 终结) ──http──> S3 (127.0.0.1:9000)
+```
+
+**S3 侧零改动** —— 验签只看 wire 上的 `Host` header,与 scheme 无关。但 nginx 必须把
+**公网** Host 原样转发过去,否则签名一定对不上。
+
+#### 关键:nginx 的 `proxy_set_header Host`
+
+nginx **默认**把 `Host` 改写成上游地址(`Host → $proxy_host`,即 `127.0.0.1:9000`)。
+这样 S3 端重建出的 canonical host 与签名里的公网 host 不一致 → **403 SIGNATURE_DOES_NOT_MATCH**。
+
+```nginx
+server {
+    listen 443 ssl;
+    server_name s3.example.com;
+
+    location / {
+        proxy_pass http://127.0.0.1:9000;
+
+        # 必须:把公网 Host 原样转发(SigV4 签的就是它)
+        proxy_set_header Host $host;          # 公网 host,不含端口
+        # 公网 URL 带非默认端口(如 https://s3.example.com:8443)时改用 $http_host
+        # proxy_set_header Host $http_host;   # 原始 Host header,保留端口
+
+        # 大文件直传:别让 nginx 先把整个 body 落盘缓冲
+        proxy_request_buffering off;
+        proxy_buffering off;
+
+        # 上游 keep-alive
+        proxy_set_header Connection "";
+    }
+}
+```
+
+| nginx 转发 | S3 收到的 Host | 签名用的 canonical host | 结果 |
+|---|---|---|---|
+| 默认 `$proxy_host` | `127.0.0.1:9000` | `s3.example.com` | ✗ 403 `SIGNATURE_DOES_NOT_MATCH` |
+| `$host` | `s3.example.com` | `s3.example.com` | ✓ |
+| `$http_host`(公网带端口) | `s3.example.com:8443` | `s3.example.com:8443` | ✓ |
+
+#### presigner 侧
+
+签名用的是**公网** authority(客户端 URL 里那个),不是 S3 的内网地址:
+
+```java
+// 客户端访问 https://s3.example.com/... → 签 s3.example.com
+presigner.presignPutObject(ak, sk, region, bucket, key,
+        SigV4Presigner.Endpoint.https("s3.example.com"), Duration.ofMinutes(15));
+```
+
+内网直连(不经过 nginx)才用 `Endpoint.http("127.0.0.1", 9000)` —— 两种拓扑的签名**不能混用**。
+
+#### 排错
+
+预签 URL 报 `403 SIGNATURE_DOES_NOT_MATCH` 而 URL 看着没问题时,按顺序查:
+
+1. nginx 的 `proxy_set_header Host` 配了没,是不是 `$host` / `$http_host`;
+2. presigner 签的是不是公网 host(而不是内网地址);
+3. 客户端有没有自己改写 `Host` 头。
 
 ---
 
