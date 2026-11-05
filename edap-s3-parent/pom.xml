@@ -21,16 +21,18 @@
     <build>
         <plugins>
             <!--
-              根 pom 在 <build><plugins> 里把 surefire 的 skipTests 写死成 true(不是
-              pluginManagement)⇒ 所有子模块的测试都不跑。这里覆盖回来,并把 includes
-              显式写成 *Test + *IT —— surefire 默认 includes 不含 *IT.java。
+              根 pom 的 surefire 配置是 <skipTests>${skipTests}</skipTests>(属性默认 true),
+              这里必须同样引用属性 —— 若写死 false,则是 POM 插件显式配置:
+              既覆盖父 pom,又压不动命令行的 -DskipTests=...,导致 `mvn install`
+              在 edap-s3-parent 子树里照样跑测试。
+              includes 显式写成 *Test + *IT —— surefire 默认 includes 不含 *IT.java。
               只影响 edap-s3-parent 下的模块,不动根 pom。
             -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
                 <configuration>
-                    <skipTests>false</skipTests>
+                    <skipTests>${skipTests}</skipTests>
                     <includes>
                         <include>**/*Test.java</include>
                         <include>**/*IT.java</include>
