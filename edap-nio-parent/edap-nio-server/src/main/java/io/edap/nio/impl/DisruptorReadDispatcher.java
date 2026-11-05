@@ -95,15 +95,15 @@ public class DisruptorReadDispatcher implements ReadDispatcher {
 //                bbPool.requite(buf);
 //            }
 			}
-		} else if (readKey.isWritable()) {
-			FastBuf wbuf = nioSession.getWriteBuf();
-			try {
-				if (wbuf != null) {
-					if (nioSession.writeToChannel(wbuf)) {
-						nioSession.removeWriteBuf(wbuf);
+        } else if (readKey.isWritable()) {
+            FastBuf wbuf = nioSession.getWriteBuf();
+            try {
+                if (wbuf != null) {
+                    if (nioSession.writeToChannel(wbuf)) {
+                        nioSession.removeWriteBuf(wbuf);
                         bbPool.requite(wbuf);
-					}
-				}
+                    }
+                }
 			} catch (IOException e) {
 				closeChannel(readKey, nioSession);
 				LOG.warn("channel {} read error ", l -> l.arg(getRemoteAddress(readKey.channel())).arg(e));
