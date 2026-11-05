@@ -4,6 +4,7 @@ import com.estylr.api.v1.common.StylistsSortBy;
 import io.edap.container.AppContext;
 import io.edap.container.BeanWrap;
 import io.edap.container.app.asm.AbstractHandler;
+import io.edap.container.test.BodyReq;
 import io.edap.container.test.DemoService;
 import io.edap.container.test.HelloReq;
 import io.edap.http.HttpHandler;
@@ -16,6 +17,8 @@ import io.edap.log.LoggerManager;
 import io.edap.util.StringUtil;
 
 import java.io.IOException;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -46,13 +49,10 @@ public class HttpEmptyParamHandler extends AbstractHandler implements HttpHandle
             resp.write(Eson.toJsonString(respData));
         } else {
             try {
-                HelloReq helloReq = new HelloReq();
-                helloReq.setId(toLong(req.getParameter("id")));
-                helloReq.setName(req.getParameter("name"));
-                helloReq.setTop(toBoolean(req.getParameter("is_top")));
-                helloReq.setSortBy(parseStylistsSortBy(req));
-
-                resp.write(Eson.toJsonString(bean.hello(helloReq)));
+                BodyReq helloReq = new BodyReq();
+                helloReq.setBody(new String(req.getBody().toByteArray(), StandardCharsets.UTF_8));
+                helloReq.setHeaders(req.getHeaderMap());
+                resp.write(Eson.toJsonString(bean.hello(null)));
             } catch (Throwable e) {
                 log.warn("", e);
                 Map<String, Object> respData = new HashMap<>();
