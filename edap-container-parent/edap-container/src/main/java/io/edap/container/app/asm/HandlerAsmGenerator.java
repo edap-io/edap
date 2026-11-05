@@ -1,11 +1,14 @@
 package io.edap.container.app.asm;
 
 import io.edap.container.Capability;
+import io.edap.container.exc.RouteBindException;
 import io.edap.container.mw.AnnoData;
 import io.edap.container.ws.WSServiceMsgHandler;
 import io.edap.grpc.GrpcHandler;
 import io.edap.http.HttpHandler;
+import io.edap.protobuf.annotation.ParamParseConfig;
 import io.edap.rpc.ErpcHandler;
+import io.edap.util.CollectionUtils;
 
 import java.lang.reflect.Method;
 import java.util.List;
@@ -204,20 +207,54 @@ public final class HandlerAsmGenerator {
      */
     public byte[] generateHandlerClass(Class<?> targetIf, Class<?> protoIf, Method method,
                                        List<AnnoData> annoDatas, ClassLoader loader) {
+        byte[] bytes = generateRaw(targetIf, protoIf, method, annoDatas, loader);
+        // 生成期护栏：坏字节码必须在「生成的那一刻」就炸，不能拖到部署期链接期才炸。
+        // （ASM 的 COMPUTE_FRAMES 合并汇合帧时取两条路径的较大栈高，不报错 ——
+        //  于是产出 JVM 拒绝的 class，表现为 EAR 恢复失败而不是「这个 Handler 生成错了」。）
+        try {
+            GeneratedClassVerifier.verify(bytes, handlerName(targetIf, protoIf, method), loader);
+        } catch (VerifyError e) {
+            // 与既有失败语义对齐：ASM 生成失败 / 类加载失败都走 RouteBindException（deploy fail(104)）
+            throw new RouteBindException(null, method.getName(), method.getParameterTypes(), e);
+        }
+        return bytes;
+    }
+
+    /** 协议派发 + emit 模板（不含护栏）。 */
+    private byte[] generateRaw(Class<?> targetIf, Class<?> protoIf, Method method,
+                               List<AnnoData> annoDatas, ClassLoader loader) {
         // 占位：emit 模板尚未实现；返回空数组。
         // AppContext.generateHandler 阶段调 Class.forName(name, true, genCL) 时会抛 CNFE，
         // 被 RouteBindException 包装（cause = ClassNotFoundException）冒泡到 Container.bindAll，
         // 最终导致 deploy 失败（fail(104)）——这是预期行为，明确告知"功能未落地"。
         if (targetIf == HttpHandler.class) {
             String resolverBeanName = requireAuthResolver(annoDatas);
-            HttpHandlerGenerator generator = new HttpHandlerGenerator(annoDatas, protoIf, method, loader,
-                    resolverBeanName);
-            return generator.generate();
+            if (hasParamConfig(annoDatas)) {
+                HttpHandlerParamParseGenerator generator = new HttpHandlerParamParseGenerator(annoDatas, protoIf,
+                        method, loader, resolverBeanName);
+                return generator.generate();
+            } else {
+                HttpHandlerGenerator generator = new HttpHandlerGenerator(annoDatas, protoIf, method, loader,
+                        resolverBeanName);
+                return generator.generate();
+            }
         } else if (targetIf == WSServiceMsgHandler.class) {
             WsHandlerGenerator generator = new WsHandlerGenerator(annoDatas, protoIf, method);
             return generator.generate();
         }
         return new byte[0];
+    }
+
+    private boolean hasParamConfig(List<AnnoData> annoDatas) {
+        if (CollectionUtils.isEmpty(annoDatas)) {
+            return false;
+        }
+        for (AnnoData ann : annoDatas) {
+            if (ParamParseConfig.class.getName().equals(ann.getType())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
