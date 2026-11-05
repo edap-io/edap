@@ -1,9 +1,11 @@
 package io.edap.auth.jwt.algorithm;
 
 import io.edap.auth.jwt.Algorithm;
+import io.edap.crypto.CryptoRegistry;
+import io.edap.crypto.mac.JceMacProvider;
+import io.edap.crypto.mac.MacProvider;
+import io.edap.crypto.mac.MacSession;
 
-import javax.crypto.Mac;
-import javax.crypto.spec.SecretKeySpec;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
@@ -12,98 +14,99 @@ import java.nio.charset.StandardCharsets;
 /**
  * HMAC-SHA256 统一入口。
  *
- * <p><b>native 自动委托</b>：构造时一次性检测
- * {@link HmacSha256Native#isAvailable()}（即 edap-native 在 classpath 且当前平台 .o 加载成功），
- * 可用时委托 {@link HmacSha256Native}（OpenSSL JNI，手工展开 HMAC-SHA256，无 provider dispatch），
- * 否则 fallback 到内嵌 ThreadLocal&lt;Mac&gt; 的纯 JDK 路径。算法名 "HS256" 解析、
- * {@link io.edap.auth.jwt.DefaultJwtBuilder} 显式 {@code new HmacSha256(key)} 等所有
- * "要 HS256" 的入口都用本类，自动获得 native 加速，调用方无需感知。</p>
- *
- * <p>显式强制某条路径：
+ * <p><b>实现走 edap-crypto 的 {@link CryptoProvider} 抽象</b>：本类只负责
+ * 「持有 key + 每线程一个 {@link MacSession}」，具体是 native（OpenSSL JNI）还是
+ * JCE（{@code javax.crypto.Mac}）由 {@link CryptoRegistry} 按开关解析：</p>
  * <ul>
- *   <li>JVM 启动参数 {@code -Dedap.jwt.hmac.native=false} 关闭 native → 强制 JDK</li>
- *   <li>直接 {@code new HmacSha256Native(key)} 跳过 fallback → 强制 native</li>
- *   <li>{@link io.edap.auth.jwt.AlgorithmRegistry#register(String, java.util.function.Function) AlgorithmRegistry.register}
- *       用 {@code HmacSha256Native::new} 替换默认工厂 → 强制 native</li>
+ *   <li>显式注册过（{@code CryptoRegistry.registerMac("HmacSHA256", ...)}）⇒ 用注册的；</li>
+ *   <li>{@code edap.crypto.mac.native=false} 或 {@code edap.crypto.mac.provider=jce} ⇒ JCE；</li>
+ *   <li>默认 ⇒ native 优先；native 不可用（classpath 无 edap-native / 当前平台无预编译 .o）
+ *       ⇒ 打<b>一次</b> WARN 后降级 JCE。</li>
  * </ul>
- * </p>
  *
- * <p><b>线程安全</b>：native 路径下 key 不可变（构造期拷贝 byte[]），{@link #sign} 把
- * key + data 一起交给 native 单次调用，无共享可变状态；JDK 路径下每线程持有独立
- * {@link Mac} 实例（{@link ThreadLocal}），与 native 等价。两种路径下本类实例本身不可变，
- * 可跨线程安全发布。</p>
+ * <p><b>旧开关仍然生效</b>：{@code -Dedap.jwt.hmac.native=false|disable|off}
+ * ⇒ 本类强制走 JCE（<b>只影响 JWT</b>，不改全局系统属性，其它模块不受影响）。</p>
  *
- * <p><b>进程级缓存</b>：{@link #NATIVE_AVAILABLE} 在类初始化时检测一次（任何 HmacSha256 实例
- * 构造前都已确定），后续每个实例构造零额外开销。</p>
+ * <p><b>线程安全</b>：{@link MacSession} 是<b>线程绑定</b>的单位（JCE 的
+ * {@code Mac} / native 的累加器都不可跨线程共享），所以本类用
+ * {@link ThreadLocal} 每线程持一个 session。key 不可变（构造期拷贝），
+ * 本类实例本身可跨线程安全发布。</p>
+ *
+ * <p><b>会话复用</b>：{@link MacSession#doFinal()} 之后 session 回到初始状态
+ * （key 保留），所以同一个 session 可以连续 sign 多次，无需重建。</p>
+ *
+ * <p><b>兼容</b>：{@link HmacSha256Native} 这个 public 嵌套类保留（外部可能直接引用），
+ * 它仍然是一条独立的、直接绑 JNI MethodHandle 的路径，输出与本类的 native 路径逐字节一致。</p>
  */
 public class HmacSha256 implements Algorithm {
 
     /**
-     * 进程级 native 可用性缓存。类初始化时调一次 {@link HmacSha256Native#isAvailable()}，
-     * 后续所有 HmacSha256 实例共用此结果。
-     *
-     * <p>{@link HmacSha256Native#isAvailable()} 内部会做 {@code Class.forName} + 读
-     * {@code io.edap.jni.Native.ENABLE_NATIVE}，不是 free，但仍然很便宜（μs 级）；
-     * 缓存到 static final 避免每次 {@code new HmacSha256} 都重做。Native 库装载结果本身
-     * 在 {@code io.edap.jni.Native.ENABLE_NATIVE} 是 final static，JVM 生命周期不变，
-     * 缓存安全。</p>
+     * JCE 侧的 MAC 算法名。
      */
-    private static final boolean NATIVE_AVAILABLE = HmacSha256Native.isAvailable();
+    private static final String MAC_ALGORITHM = "HmacSHA256";
 
-    private final Algorithm delegate;
+    private final byte[] keyBytes;
+
+    /**
+     * 每线程一个 MAC 会话 —— session 独占 JCE {@code Mac} 实例 / native 累加器，
+     * 不能跨线程共享。
+     */
+    private final ThreadLocal<MacSession> sessions;
 
     public HmacSha256(String key) {
         if (key == null) {
             throw new IllegalArgumentException("key must not be null");
         }
-        // native 可用 → 委托 HmacSha256Native（手工 HMAC-SHA256 JNI）；）
-        // 否则 → JDK ThreadLocal<Mac> fallback（内嵌 private 类，原 HmacSha256 行为）。
-        this.delegate = NATIVE_AVAILABLE ? new HmacSha256Native(key) : new HmacSha256Java(key);
+        this.keyBytes = key.getBytes(StandardCharsets.UTF_8);
+        final MacProvider provider = resolveProvider();
+        this.sessions = ThreadLocal.withInitial(() -> provider.newSession(keyBytes));
     }
 
     @Override
     public byte[] sign(byte[] data, int offset, int len) {
-        return delegate.sign(data, offset, len);
+        MacSession session = sessions.get();
+        session.update(data, offset, len);
+        // doFinal() 之后 session 回到初始状态（key 保留）⇒ 下次 sign 不用重建
+        return session.doFinal();
     }
 
     /**
-     * 纯 JDK fallback 实现：每线程持有独立 {@link Mac} 实例。
+     * 解析本次实例要用的 MAC provider。
      *
-     * <p>这是 HmacSha256 的原始实现，从外部类内嵌进来作为 native 不可用时的兜底。
-     * 行为与之前独立 {@code HmacSha256.java} 完全一致 —— 仅做包内可见性收敛，不引入新逻辑。</p>
+     * <p>顺序：</p>
+     * <ol>
+     *   <li>旧开关 {@code edap.jwt.hmac.native=false|disable|off} ⇒ 强制 JCE
+     *       （<b>不走注册表</b>，这样显式禁用 native 时不会被注册表里的 native 覆盖）；</li>
+     *   <li>否则走 {@link CryptoRegistry#mac(String)}：显式注册优先，
+     *       没注册则按 {@code edap.crypto.mac.*} 开关解析（native 优先，不可用则降级 JCE）。</li>
+     * </ol>
      */
-    private static final class HmacSha256Java implements Algorithm {
-
-        private final byte[] keyBytes;
-
-        private final ThreadLocal<Mac> macHolder;
-
-        HmacSha256Java(String key) {
-            this.keyBytes = key.getBytes(StandardCharsets.UTF_8);
-            // 必须放在 keyBytes 赋值之后：lambda 在执行期通过 this.keyBytes 访问，
-            // 字段初始化器阶段 keyBytes 尚未赋值，编译器会报"可能尚未初始化"
-            this.macHolder = ThreadLocal.withInitial(() -> {
-                try {
-                    Mac mac = Mac.getInstance("HmacSHA256");
-                    mac.init(new SecretKeySpec(keyBytes, "HmacSHA256"));
-                    return mac;
-                } catch (Exception e) {
-                    throw new RuntimeException(e);
-                }
-            });
+    private static MacProvider resolveProvider() {
+        if (legacyNativeDisabled()) {
+            return new JceMacProvider(MAC_ALGORITHM);
         }
+        return CryptoRegistry.mac(MAC_ALGORITHM);
+    }
 
-        @Override
-        public byte[] sign(byte[] data, int offset, int len) {
-            Mac mac = macHolder.get();
-            mac.reset();
-            mac.update(data, offset, len);
-            return mac.doFinal();
-        }
+    /**
+     * 旧开关 {@code edap.jwt.hmac.native} 是否<b>显式</b>禁用了 native。
+     *
+     * <p>注意区分「显式禁用」与「native 不可用」：前者要强制 JCE，
+     * 后者交给 {@link CryptoRegistry} 解析（它会打 WARN 提示降级）。</p>
+     */
+    private static boolean legacyNativeDisabled() {
+        String prop = System.getProperty("edap.jwt.hmac.native", "true");
+        return "false".equalsIgnoreCase(prop) || "disable".equalsIgnoreCase(prop)
+                || "off".equalsIgnoreCase(prop);
     }
 
     /**
      * HMAC-SHA256 native 实现（OpenSSL via {@code edap-native}）。
+     *
+     * <p>本类是<b>独立</b>路径：直接绑 JNI MethodHandle，不经过 edap-crypto 的
+     * provider 抽象。{@link HmacSha256} 默认走 provider 抽象（由开关决定 native/JCE）；
+     * 本类保留给「明确要 native、且不想引入 edap-crypto 语义」的场景，
+     * 以及历史 API 兼容。两条路径的输出逐字节一致。</p>
      *
      * <p>默认行为：edap-native 在 classpath 且当前平台 .o 加载成功时，
      * {@link io.edap.auth.jwt.AlgorithmRegistry} 静态初始化会用本类替代
@@ -121,7 +124,7 @@ public class HmacSha256 implements Algorithm {
      * 访问检查 / 异常拆包），较反射 ~50-150ns/调用 提升。</p>
      *
      * <p><b>线程安全</b>：key 不可变（构造时拷贝 byte[]），{@link #sign} 把 key + data
-     * 一起交给 native 单次调用，无共享可变状态；与 Java 实现的 ThreadLocal<Mac> 等价。</p>
+     * 一起交给 native 单次调用，无共享可变状态；与 Java 实现的 ThreadLocal&lt;Mac&gt; 等价。</p>
      */
     public static class HmacSha256Native implements Algorithm {
 

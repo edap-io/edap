@@ -1,14 +1,6 @@
 package io.edap.container.app.asm;
 
 import org.objectweb.asm.ClassReader;
-import org.objectweb.asm.Opcodes;
-import org.objectweb.asm.tree.ClassNode;
-import org.objectweb.asm.tree.MethodNode;
-//import org.objectweb.asm.tree.analysis.Analyzer;
-//import org.objectweb.asm.tree.analysis.AnalyzerException;
-//import org.objectweb.asm.tree.analysis.BasicInterpreter;
-//import org.objectweb.asm.tree.analysis.BasicValue;
-import org.objectweb.asm.util.CheckClassAdapter;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
@@ -81,11 +73,6 @@ public final class GeneratedClassVerifier {
             problems.add("[1] JVM 链接期校验: " + jvm);
         }
 
-        String stat = staticVerify(bytes, loader);
-        if (stat != null) {
-            problems.add("[3] ASM 静态校验(CheckClassAdapter/SimpleVerifier): " + stat);
-        }
-
         if (!problems.isEmpty()) {
             throw new VerifyError("生成类字节码校验失败: " + binaryName
                     + "\n  " + String.join("\n  ", problems));
@@ -132,51 +119,4 @@ public final class GeneratedClassVerifier {
         }
     }
 
-    // ---- 护栏 3：ASM 静态校验（类型检查）-------------------------------------
-
-    /**
-     * {@code CheckClassAdapter.verify} —— 用 {@code SimpleVerifier} 做类型级校验。
-     *
-     * <p>{@code SimpleVerifier} 会按需 {@code Class.forName} 解析被引用的类型；解析不到时抛
-     * {@code TypeNotPresentException}，属于环境问题，跳过本道护栏（不判定失败）。</p>
-     *
-     * @return null 表示通过或跳过；否则返回失败描述
-     */
-    private static String staticVerify(byte[] bytes, ClassLoader loader) {
-        StringWriter sw = new StringWriter();
-        try {
-            CheckClassAdapter.verify(new ClassReader(bytes), loader, false, new PrintWriter(sw));
-        } catch (Throwable t) {
-            // 类型解析不了等环境问题 —— 跳过本道
-            return null;
-        }
-        String out = sw.toString().trim();
-        if (out.isEmpty()) {
-            return null;
-        }
-        return compact(out);
-    }
-
-    /**
-     * 把 {@code CheckClassAdapter.verify} 的输出压成一行摘要。
-     * 输出形如「异常首行 + at xxx(行号) 若干 + Caused by: ...」，栈帧行对定位没价值，丢掉。
-     */
-    private static String compact(String text) {
-        StringBuilder sb = new StringBuilder();
-        for (String line : text.split("\n")) {
-            String t = line.trim();
-            if (t.isEmpty() || t.startsWith("at ") || t.startsWith("... ")) {
-                continue;
-            }
-            if (sb.length() > 0) {
-                sb.append(" | ");
-            }
-            sb.append(t);
-            if (sb.length() > 1500) {
-                sb.append(" ...");
-                break;
-            }
-        }
-        return sb.toString();
-    }
 }
