@@ -500,6 +500,7 @@ public class JavaBuilder {
                     cb.t(level).e(" * @return").arg(params[3]).ln();
                     cb.t(level).c(" */").ln();
                     List<Option> options = m.getOptions();
+                    Map<String, String> paramConfigs = new HashMap<>();
                     if (options != null && !options.isEmpty()) {
                         String protoWs = null;
                         Map<String, String> protoHttp = null;
@@ -543,10 +544,36 @@ public class JavaBuilder {
                                 case "edap.rpc.api.require_auth":
                                     requireAuthVal = option.getValue();
                                     break;
+                                default:
+                                    String prefix = "edap.rpc.api.http.paramcfg.";
+                                    if (option.getName().startsWith(prefix)) {
+                                        String key = option.getName().substring(prefix.length());
+                                        if (key.trim().length() > 0 && option.getValue() != null
+                                                && option.getValue().length() > 0) {
+                                            paramConfigs.put(key, option.getValue());
+                                        }
+                                    }
+                                    break;
                             }
                         }
                         if (protoWs != null) {
                             cb.t(level).c(protoWs).ln();
+                        }
+                        if (!paramConfigs.isEmpty()) {
+                            cb.t(level).c("@io.edap.protobuf.annotation.ParamParseConfig(configs = {").ln();
+                            int count = paramConfigs.size();
+                            int size = 0;
+                            for (Map.Entry<String, String> entry : paramConfigs.entrySet()) {
+                                cb.t(level + 1).c("@io.edap.protobuf.annotation.KeyValuePair(key = \"")
+                                        .c(entry.getKey()).c("\", value=\"").c(entry.getValue()).c("\")");
+                                if (size < count - 1) {
+                                    cb.c(",").ln();
+                                } else {
+                                    cb.ln();
+                                }
+                                size++;
+                            }
+                            cb.t(level).c("})").ln();
                         }
                         if (pubAccess) {
                             cb.t(level).c("@PublicAccess").ln();
