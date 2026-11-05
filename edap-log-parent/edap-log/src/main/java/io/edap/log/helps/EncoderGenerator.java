@@ -31,7 +31,7 @@ import java.util.List;
 import static io.edap.log.helps.EncoderPatternToken.TokenType.TEXT;
 import static io.edap.log.util.LogUtil.getKeywordConverter;
 import static io.edap.util.AsmUtil.toInternalName;
-import static io.edap.util.CryptUtil.md5;
+import static io.edap.util.Md5Util.md5;
 import static org.objectweb.asm.Opcodes.*;
 
 public class EncoderGenerator {

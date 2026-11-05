@@ -190,7 +190,7 @@ public class CryptUtil {
             data[index++] = HEX_DIGITS[v >>> 4];
             data[index++] = HEX_DIGITS[v & 0x0f];
         }
-        return StringUtil.fastInstance(data, (byte)0);
+        return new String(data);
     }
 
 }

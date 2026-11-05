@@ -21,6 +21,16 @@
             <groupId>io.edap</groupId>
             <artifactId>edap-common</artifactId>
         </dependency>
+        <!--
+            HS256 走 edap-crypto 的 CryptoProvider 抽象（native / JCE 由
+            edap.crypto.mac.* 开关决定；旧开关 edap.jwt.hmac.native=false 仍然生效）。
+            edap-crypto 对 edap-native 只有 test scope ⇒ 生产用户想开 native
+            加速仍需自行引入 edap-native。
+        -->
+        <dependency>
+            <groupId>io.edap</groupId>
+            <artifactId>edap-crypto</artifactId>
+        </dependency>
         <dependency>
             <groupId>io.edap</groupId>
             <artifactId>edap-json</artifactId>

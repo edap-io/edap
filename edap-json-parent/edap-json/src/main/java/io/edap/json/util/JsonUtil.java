@@ -27,12 +27,11 @@ import java.lang.reflect.*;
 import java.math.BigDecimal;
 import java.util.*;
 
-import static io.edap.json.consts.JsonConsts.END_OF_NUMBER;
 import static io.edap.json.consts.JsonConsts.INVALID_CHAR_FOR_NUMBER;
 import static io.edap.util.AsmUtil.isMap;
 import static io.edap.util.AsmUtil.isPojo;
 import static io.edap.util.ClazzUtil.*;
-import static io.edap.util.CryptUtil.md5;
+import static io.edap.util.Md5Util.md5;
 
 public class JsonUtil {
 

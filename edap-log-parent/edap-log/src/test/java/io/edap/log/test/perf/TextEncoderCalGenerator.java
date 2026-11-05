@@ -28,7 +28,7 @@ import java.nio.charset.StandardCharsets;
 
 import static io.edap.util.AsmUtil.toInternalName;
 import static io.edap.util.AsmUtil.visitIntInsn;
-import static io.edap.util.CryptUtil.md5;
+import static io.edap.util.Md5Util.md5;
 import static org.objectweb.asm.Opcodes.*;
 
 public class TextEncoderCalGenerator {

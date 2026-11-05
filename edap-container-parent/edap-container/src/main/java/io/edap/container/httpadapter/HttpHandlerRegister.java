@@ -17,7 +17,7 @@
 package io.edap.container.httpadapter;
 
 import io.edap.http.HttpHandler;
-import io.edap.util.CryptUtil;
+import io.edap.util.Md5Util;
 import io.edap.util.internal.GeneratorClassInfo;
 
 import java.lang.reflect.Constructor;
@@ -112,7 +112,7 @@ public class HttpHandlerRegister {
             }
         }
         ptypes.append(')');
-        name.append("HttpHandler_").append(CryptUtil.md5(ptypes.toString()));
+        name.append("HttpHandler_").append(Md5Util.md5(ptypes.toString()));
         return name.toString();
     }
 

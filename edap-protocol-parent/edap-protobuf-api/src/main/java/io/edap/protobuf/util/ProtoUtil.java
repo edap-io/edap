@@ -46,7 +46,7 @@ import java.util.*;
 
 import static io.edap.util.AsmUtil.*;
 import static io.edap.util.ClazzUtil.*;
-import static io.edap.util.CryptUtil.md5;
+import static io.edap.util.Md5Util.md5;
 import static java.lang.reflect.Modifier.isPublic;
 import static org.objectweb.asm.Opcodes.*;
 import static org.objectweb.asm.Opcodes.CHECKCAST;

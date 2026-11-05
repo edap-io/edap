@@ -47,7 +47,7 @@ import java.util.*;
 
 import static io.edap.protobuf.util.ProtoUtil.javaToProtoType;
 import static io.edap.util.AsmUtil.toLangName;
-import static io.edap.util.CryptUtil.md5;
+import static io.edap.util.Md5Util.md5;
 
 /**
  * 使用Proto文件定义service的相关处理逻辑

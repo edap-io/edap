@@ -31,7 +31,7 @@ import java.util.*;
 import static io.edap.util.ClazzUtil.*;
 import static io.edap.util.Constants.EMPTY_LIST;
 import static io.edap.util.Constants.EMPTY_STRING;
-import static io.edap.util.CryptUtil.md5;
+import static io.edap.util.Md5Util.md5;
 import static io.edap.util.StringUtil.isEmpty;
 
 public class DaoUtil {

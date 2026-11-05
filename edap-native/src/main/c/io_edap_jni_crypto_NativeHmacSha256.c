@@ -28,6 +28,7 @@
  *
  * 改用 OpenSSL 1.1 风格的 legacy SHA256_*（直接 C，无 provider dispatch）；
  * HMAC 手工展开：H((K xor opad) || H((K xor ipad) || m))。
+ * 展开逻辑已抽到 edap_jni_common.h，与 NativeMac.c 共用同一份实现。
  *
  * Per-thread 优化可选：
  * - 当前实现每次都重算 k_pad / ipad / opad（~128 字节 XOR，几十 cycles）
@@ -38,12 +39,9 @@
  */
 #include <jni.h>
 #include <openssl/sha.h>   /* legacy SHA256_{Init,Update,Final} — direct C, no provider dispatch */
-#include <string.h>
 
+#include "edap_jni_common.h"
 #include "io_edap_jni_crypto_NativeHmacSha256.h"
-
-#define SHA256_BLOCK_SIZE 64   /* SHA-256 block size (bytes) */
-#define SHA256_DIGEST_SIZE 32  /* SHA-256 output size (bytes) */
 
 JNIEXPORT jbyteArray JNICALL Java_io_edap_jni_crypto_NativeHmacSha256_sign0
   (JNIEnv *env, jclass cls,
@@ -65,14 +63,8 @@ JNIEXPORT jbyteArray JNICALL Java_io_edap_jni_crypto_NativeHmacSha256_sign0
         return NULL;
     }
 
-    unsigned char k_pad[SHA256_BLOCK_SIZE];
-    if (keyLen > SHA256_BLOCK_SIZE) {
-        SHA256((const unsigned char *)keyPtr, (size_t)keyLen, k_pad);
-        memset(k_pad + SHA256_DIGEST_SIZE, 0, SHA256_BLOCK_SIZE - SHA256_DIGEST_SIZE);
-    } else {
-        memcpy(k_pad, keyPtr, (size_t)keyLen);
-        memset(k_pad + keyLen, 0, SHA256_BLOCK_SIZE - keyLen);
-    }
+    unsigned char k_pad[EDAP_SHA256_BLOCK_SIZE];
+    edap_sha256_key_pad((const unsigned char *)keyPtr, (size_t)keyLen, k_pad);
 
     (*env)->ReleasePrimitiveArrayCritical(env, key, keyPtr, JNI_ABORT);
 
@@ -86,37 +78,15 @@ JNIEXPORT jbyteArray JNICALL Java_io_edap_jni_crypto_NativeHmacSha256_sign0
         return NULL;
     }
 
-    unsigned char inner_pad[SHA256_BLOCK_SIZE];
-    unsigned char outer_pad[SHA256_BLOCK_SIZE];
-    for (int i = 0; i < SHA256_BLOCK_SIZE; i++) {
-        inner_pad[i] = k_pad[i] ^ 0x36;
-        outer_pad[i] = k_pad[i] ^ 0x5c;
-    }
-
-    /* Inner: H(inner_pad || data) */
-    SHA256_CTX inner;
-    SHA256_Init(&inner);
-    SHA256_Update(&inner, inner_pad, SHA256_BLOCK_SIZE);
-    SHA256_Update(&inner, (const unsigned char *)(dataPtr + offset), (size_t)len);
-
-    unsigned char inner_hash[SHA256_DIGEST_SIZE];
-    SHA256_Final(inner_hash, &inner);
-
-    /* Outer: H(outer_pad || inner_hash) */
-    SHA256_CTX outer;
-    SHA256_Init(&outer);
-    SHA256_Update(&outer, outer_pad, SHA256_BLOCK_SIZE);
-    SHA256_Update(&outer, inner_hash, SHA256_DIGEST_SIZE);
-
-    unsigned char result[SHA256_DIGEST_SIZE];
-    SHA256_Final(result, &outer);
+    unsigned char result[EDAP_SHA256_DIGEST_SIZE];
+    edap_hmac_sha256(k_pad, (const unsigned char *)(dataPtr + offset), (size_t)len, result);
 
     /* 立即 release，反向顺序 */
     (*env)->ReleasePrimitiveArrayCritical(env, data, dataPtr, JNI_ABORT);
 
-    jbyteArray ret = (*env)->NewByteArray(env, (jsize)SHA256_DIGEST_SIZE);
+    jbyteArray ret = (*env)->NewByteArray(env, (jsize)EDAP_SHA256_DIGEST_SIZE);
     if (ret != NULL) {
-        (*env)->SetByteArrayRegion(env, ret, 0, (jsize)SHA256_DIGEST_SIZE, (const jbyte *)result);
+        (*env)->SetByteArrayRegion(env, ret, 0, (jsize)EDAP_SHA256_DIGEST_SIZE, (const jbyte *)result);
     }
     return ret;
 }

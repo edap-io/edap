@@ -17,7 +17,6 @@
 package io.edap.http.server;
 
 import io.edap.BufPool;
-import io.edap.Decoder;
 import io.edap.buffer.FastBuf;
 import io.edap.http.*;
 import io.edap.http.header.HeaderConnection;
@@ -27,11 +26,11 @@ import io.edap.http.ws.Ping;
 import io.edap.http.ws.WSAuthenticator;
 import io.edap.log.Logger;
 import io.edap.log.LoggerManager;
-import io.edap.nio.ParseResult;
 import io.edap.pool.Pool;
 import io.edap.util.ByteArrayBuilder;
 import io.edap.util.CollectionUtils;
 import io.edap.util.CryptUtil;
+import io.edap.util.Md5Util;
 
 import java.io.IOException;
 import java.nio.channels.SelectionKey;
@@ -44,7 +43,6 @@ import static io.edap.http.header.UpgradeHeader.UPGRADE_WEBSOCKET;
 import static io.edap.http.server.HttpServer.NOT_FOUND_HANDLER;
 import static io.edap.http.server.HttpServer.NOT_SUPPORT_METHO_HANDLER;
 import static io.edap.http.ws.AbstractFrame.*;
-import static io.edap.nio.NioSession.THREAD_WRITE_BUF;
 
 public class HttpServerNioSession extends HttpNioSession implements WSConnection {
 

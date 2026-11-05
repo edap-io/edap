@@ -52,7 +52,7 @@ edap-common ──(compile)──▶ edap-crypto ──(test)──▶ edap-nati
 
 ### 1.4 ★ 类初始化环：edap-crypto 为什么不能依赖 edap-log-api
 
-**这是本模块踩过的最严重的坑**（C-8 迁移 `CryptUtil` 时引入）。
+**这是本模块踩过的最严重的坑**（C-8 迁移 `Md5Util` 时引入）。
 
 edap-crypto 位于**日志系统的启动路径**上：
 
@@ -82,7 +82,7 @@ CryptoRegistry.<clinit> ──getLogger──▶ LoggerManager.init() ──SPI�
 `io.edap.crypto.internal.CryptoDiagnostics`（默认 stderr，宿主可换成自己的 logger，
 见 §4.2）。
 
-**双保险**：`edap-common` 的 `CryptUtil` 对 crypto 层的 `RuntimeException`
+**双保险**：`edap-common` 的 `Md5Util` 对 crypto 层的 `RuntimeException`
 有**裸 JCE 兜底**（`MessageDigest.getInstance`，完全绕开 edap-crypto），
 并把问题打到 stderr —— 结果逐字节相同，不掩盖错误。
 即便类初始化环还在，NPE 也会被兜底吃掉，不会再把整个日志系统打死。
@@ -502,7 +502,7 @@ nm -gU /opt/homebrew/opt/openssl@4/lib/libcrypto.4.dylib | grep -E 'SHA256_Init|
 | C-5 | 修后基准跑 5 轮，落 `after-*.json` | 中位数 + 变异系数 | ✅ 同批次 |
 | C-6 | 迁移 JWT | 热路径明确，收益最大 | ✅ |
 | C-7 | 迁移 `SigV4Verifier` | 收益是**纯 JCE**（省 setup） | ✅ |
-| C-8 | 迁移 `CryptUtil` | 影响面最大，放最后 | ✅ |
+| C-8 | 迁移 `Md5Util` | 影响面最大，放最后 | ✅ |
 | C-9 | 可选 `NativeCipher`（EVP + fetch 缓存） | **实测判定为不做**：EVP 固定开销高于 legacy（§6.2），仓库零 Cipher 用量 | ❌ **不做**（JCE-only） |
 | C-10 | 可选 `EVP_MAC_fetch` 缓存版 HMAC 的 JMH arm | **已用纯 C 探针回答**（§6.2）：EVP 慢 2~5 倍 ⇒ 不迁移 | ❌ **不做**（维持 legacy） |
 
@@ -559,7 +559,7 @@ nm -gU /opt/homebrew/opt/openssl@4/lib/libcrypto.4.dylib | grep -E 'SHA256_Init|
 **依赖方向**：`edap-common → edap-crypto`（无环；
 `edap-native` 已解除对 `edap-common` 的依赖；edap-crypto 不依赖 edap-log-api，见 §1.4）。
 
-**★ 裸 JCE 兜底**：`CryptUtil` 位于**日志 bootstrap 路径**上
+**★ 裸 JCE 兜底**：`Md5Util` 位于**日志 bootstrap 路径**上
 （`LoggerManager.init()` → SPI provider → appender 初始化 → `EncoderGenerator`
 → `CryptUtil.md5`）。crypto 层一旦抛 `RuntimeException`，会连带打死整个日志系统
 （SPI provider 实例化失败 ⇒ 全应用退化成 NopLogger）。
@@ -913,8 +913,8 @@ cd /tmp/edap-head-clean && mvn -o -pl <模块> -am install -DskipTests=false
 | R-05 | **edap-crypto → edap-native → edap-common → edap-crypto 的 reactor 环** | edap-native 已解除对 edap-common 的依赖 |
 | R-06 | **provider 全局单例被误当线程安全对象使用** | provider 线程安全（内部池），session 独占实例 —— 已在 javadoc 写明 |
 | R-07 | **cipher 的 AEAD 认证失败被吞掉** | `AEADBadTagException` 原样透出；`doFinal` 用 try/finally 保证实例归还 |
-| R-08 | **edap-crypto → edap-log-api ⇒ 跨模块类初始化环 ⇒ 全应用退化成 NopLogger** | edap-crypto **不依赖 edap-log-api**（§1.4）；告警走 `CryptoDiagnostics`（§4.2）；`CryptUtil` 有裸 JCE 兜底；两道回归测试守着（常量池扫描 + 独立 ClassLoader bootstrap） |
-| R-09 | **edap-crypto 位于日志 bootstrap 路径 ⇒ crypto 层故障会波及日志系统** | `CryptUtil` 捕获 crypto 层的 `RuntimeException` 后退回裸 JCE，并把问题打到 stderr；结果逐字节相同 |
+| R-08 | **edap-crypto → edap-log-api ⇒ 跨模块类初始化环 ⇒ 全应用退化成 NopLogger** | edap-crypto **不依赖 edap-log-api**（§1.4）；告警走 `CryptoDiagnostics`（§4.2）；`Md5Util` 有裸 JCE 兜底；两道回归测试守着（常量池扫描 + 独立 ClassLoader bootstrap） |
+| R-09 | **edap-crypto 位于日志 bootstrap 路径 ⇒ crypto 层故障会波及日志系统** | `Md5Util` 捕获 crypto 层的 `RuntimeException` 后退回裸 JCE，并把问题打到 stderr；结果逐字节相同 |
 
 ### 已知限制
 

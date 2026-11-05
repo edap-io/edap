@@ -39,11 +39,11 @@
         </dependency>
         <dependency>
             <groupId>io.edap</groupId>
-            <artifactId>edap-log-api</artifactId>
+            <artifactId>edap-asm-utils</artifactId>
         </dependency>
         <dependency>
             <groupId>io.edap</groupId>
-            <artifactId>edap-asm-utils</artifactId>
+            <artifactId>edap-log-api</artifactId>
         </dependency>
 
         <!-- 单元测试相关依赖 -->

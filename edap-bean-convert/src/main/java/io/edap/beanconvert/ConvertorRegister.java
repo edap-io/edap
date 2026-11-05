@@ -18,7 +18,7 @@ package io.edap.beanconvert;
 
 import io.edap.log.Logger;
 import io.edap.log.LoggerManager;
-import io.edap.util.CryptUtil;
+import io.edap.util.Md5Util;
 import io.edap.util.internal.GeneratorClassInfo;
 
 import java.util.*;
@@ -63,7 +63,7 @@ public class ConvertorRegister {
             packName = "java";
         }
         return "ebc." + packName + ".Convertor" +
-                CryptUtil.md5(orignalCls.getName() + "->" + destCls.getName());
+                Md5Util.md5(orignalCls.getName() + "->" + destCls.getName());
     }
 
     private synchronized ConvertorLoader getConvertorLoader(Class orignalCls, Class destCls) {

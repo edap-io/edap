@@ -73,6 +73,7 @@
         <module>edap-microservice-parent</module>
         <module>edap-grpc-parent</module>
         <module>edap-native</module>
+        <module>edap-crypto</module>
         <module>edap-tx-parent</module>
         <module>edap-s3-parent</module>
         <module>edap-raft-parent</module>
@@ -111,6 +112,11 @@
             <dependency>
                 <groupId>io.edap</groupId>
                 <artifactId>edap-native</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.edap</groupId>
+                <artifactId>edap-crypto</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
@@ -262,6 +268,16 @@
             <dependency>
                 <groupId>org.ow2.asm</groupId>
                 <artifactId>asm-util</artifactId>
+                <version>${asm.version}</version>
+            </dependency>
+            <!--
+                asm-analysis: Analyzer / BasicInterpreter / AnalyzerException。
+                生成期字节码校验护栏（GeneratedClassVerifier）在 main scope 使用，
+                不能只放在 test scope。
+            -->
+            <dependency>
+                <groupId>org.ow2.asm</groupId>
+                <artifactId>asm-analysis</artifactId>
                 <version>${asm.version}</version>
             </dependency>
             <dependency>
