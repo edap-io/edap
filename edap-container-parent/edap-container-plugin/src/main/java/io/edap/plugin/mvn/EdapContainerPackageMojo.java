@@ -134,6 +134,7 @@ public class EdapContainerPackageMojo extends AbstractMojo {
                 File bootLibsFile = new File(resourcesDir.getAbsolutePath() +
                         "/edap-container-boot-lib.txt");
                 RandomAccessFile libsFile = new RandomAccessFile(bootLibsFile, "rw");
+                libsFile.setLength(0);
                 libsFile.write(libsStr.toString().getBytes(StandardCharsets.UTF_8));
                 libsFile.close();
             }
