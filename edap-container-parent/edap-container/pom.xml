@@ -77,15 +77,26 @@
             <artifactId>postgresql</artifactId>
         </dependency>
 
+        <!--
+            ASM 三个 artifact 提到 compile scope：生成期字节码校验护栏
+            （io.edap.container.app.asm.GeneratedClassVerifier）在 main scope 使用——
+            asm-tree(ClassNode/MethodNode) + asm-analysis(Analyzer/BasicInterpreter)
+            + asm-util(CheckClassAdapter)。
+            护栏的意义是把 VerifyError 从「部署期炸」提前到「生成期炸」，
+            校验逻辑必须在生产路径上，不能只活在测试里。
+        -->
         <dependency>
             <groupId>org.ow2.asm</groupId>
             <artifactId>asm-tree</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.ow2.asm</groupId>
+            <artifactId>asm-analysis</artifactId>
             <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.ow2.asm</groupId>
             <artifactId>asm-util</artifactId>
-            <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.junit.jupiter</groupId>

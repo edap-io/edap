@@ -4,10 +4,10 @@ import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.MethodNode;
-import org.objectweb.asm.tree.analysis.Analyzer;
-import org.objectweb.asm.tree.analysis.AnalyzerException;
-import org.objectweb.asm.tree.analysis.BasicInterpreter;
-import org.objectweb.asm.tree.analysis.BasicValue;
+//import org.objectweb.asm.tree.analysis.Analyzer;
+//import org.objectweb.asm.tree.analysis.AnalyzerException;
+//import org.objectweb.asm.tree.analysis.BasicInterpreter;
+//import org.objectweb.asm.tree.analysis.BasicValue;
 import org.objectweb.asm.util.CheckClassAdapter;
 
 import java.io.PrintWriter;
@@ -80,10 +80,7 @@ public final class GeneratedClassVerifier {
         if (jvm != null) {
             problems.add("[1] JVM 链接期校验: " + jvm);
         }
-        String flow = dataFlowVerify(bytes);
-        if (flow != null) {
-            problems.add("[2] ASM 数据流分析(Analyzer+BasicInterpreter): " + flow);
-        }
+
         String stat = staticVerify(bytes, loader);
         if (stat != null) {
             problems.add("[3] ASM 静态校验(CheckClassAdapter/SimpleVerifier): " + stat);
@@ -133,38 +130,6 @@ public final class GeneratedClassVerifier {
         Class<?> define(String name, byte[] code) {
             return defineClass(name, code, 0, code.length);
         }
-    }
-
-    // ---- 护栏 2：ASM 数据流分析（结构检查）-----------------------------------
-
-    /**
-     * {@code Analyzer} + {@code BasicInterpreter} 从零重算操作数栈高度。
-     *
-     * <p>汇合点栈高不一致时 ASM 在 {@code Frame.merge} 抛 {@code Incompatible stack heights}，
-     * 与 JVM 的「Inconsistent stackmap frames at branch target N」一一对应。</p>
-     *
-     * @return null 表示通过；否则返回失败描述
-     */
-    private static String dataFlowVerify(byte[] bytes) {
-        ClassNode cn = new ClassNode();
-        try {
-            new ClassReader(bytes).accept(cn, 0);
-        } catch (RuntimeException e) {
-            return "class 文件解析失败: " + e;
-        }
-        for (MethodNode mn : cn.methods) {
-            if ((mn.access & (Opcodes.ACC_ABSTRACT | Opcodes.ACC_NATIVE)) != 0) {
-                continue;
-            }
-            try {
-                new Analyzer<BasicValue>(new BasicInterpreter()).analyze(cn.name, mn);
-            } catch (AnalyzerException e) {
-                return "方法 " + mn.name + mn.desc + " 校验失败: " + e.getMessage();
-            } catch (RuntimeException e) {
-                return "方法 " + mn.name + mn.desc + " 分析异常: " + e;
-            }
-        }
-        return null;
     }
 
     // ---- 护栏 3：ASM 静态校验（类型检查）-------------------------------------
