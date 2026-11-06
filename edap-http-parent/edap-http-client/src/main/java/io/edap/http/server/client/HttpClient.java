@@ -72,9 +72,12 @@ public class HttpClient {
     }
 
     public HttpResp get(Get method) throws IOException {
-        Request get = new Request.Builder().url(method.getUrl()).build();
+        Request.Builder getBuilder = new Request.Builder().url(method.getUrl());
+        for (Map.Entry<String, String> entry : method.getHeaders().entrySet()) {
+            getBuilder.addHeader(entry.getKey(), entry.getValue());
+        }
         try {
-            Response resp = client.newCall(get).execute();
+            Response resp = client.newCall(getBuilder.build()).execute();
             return new HttpResp() {
                 @Override
                 public int code() {
