@@ -95,7 +95,12 @@ public class DaoUtil {
                     hasSetColumn = true;
                 }
                 String column = jdbcInfo.getColumnName();
-                sb.append(column).append("=?");
+                TypeConvertor typeConvertorAnn = getTypeConvertorAnnotation(jdbcInfo.getField().getAnnotations());
+                if (typeConvertorAnn == null) {
+                    sb.append(column).append("=?");
+                } else {
+                    sb.append(column).append("=").append(typeConvertorAnn.jdbcPlaceholder());
+                }
                 updateColumns.add(jdbcInfo);
             }
             if (idField == null && daoOption != null && !isEmpty(daoOption.getIdFieldName())) {
@@ -116,6 +121,19 @@ public class DaoUtil {
         wherColumns.add(idField);
         updateInfo.setWhereColumns(wherColumns);
         return updateInfo;
+    }
+
+    private static TypeConvertor getTypeConvertorAnnotation(Annotation[] anns) {
+        if (anns == null || anns.length == 0) {
+            return null;
+        }
+        for (Annotation ann : anns) {
+            if (ann instanceof TypeConvertor) {
+                return (TypeConvertor)ann;
+            }
+        }
+
+        return null;
     }
 
     /**
