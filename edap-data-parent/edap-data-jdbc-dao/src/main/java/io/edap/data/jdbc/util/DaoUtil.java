@@ -227,7 +227,8 @@ public class DaoUtil {
                 String typeName = m.getReturnType().getName();
                 String fieldName = "";
                 String name = m.getName();
-                if (m.getName().startsWith("is") && m.getName().length() > 2 && "boolean".equals(typeName)) {
+                if (m.getName().startsWith("is") && m.getName().length() > 2
+                        && ("boolean".equals(typeName) || "java.lang.Boolean".equals(typeName))) {
                     fieldName = name.substring(2, 3).toLowerCase(Locale.ENGLISH) + name.substring(3);
                 } else if (m.getName().startsWith("get") && m.getName().length() > 3) {
                     fieldName = name.substring(3, 4).toLowerCase(Locale.ENGLISH) + name.substring(4);
