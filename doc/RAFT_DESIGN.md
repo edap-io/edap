@@ -114,7 +114,10 @@ etcd 的 Go 包 → edap-raft 的 Java 包：
 | apply 线程（`applyHandler` 非 null 时自建） | 应用已提交条目；完成后推进 `applied` 指针 |
 | 应用侧定时器 | 按固定节奏调 `node.tick()`，驱动选举超时与心跳（模块不自带定时器） |
 
-> `io.edap.util.EdapTime` 单例有**非 daemon** 线程（`Edap_time_thread`），会阻止 JVM 退出 ——
+> 应用侧定时器可以直接用 `node.startTicker(TimerService, long)` —— 它把 tick 接到平台共享的
+> 时间轮上（`io.edap.util.timing.Timers.get()`），返回的 `TimerHandle` 在 `node.stop()` 时被取消。
+>
+> `io.edap.util.EdapTime` 单例的刷新线程（`Edap_time_thread`）现在是 **daemon**，不阻止 JVM 退出。
 > raft 不用 `EdapTime` / `IdGenerator`，节点 id 由用户显式指定。
 
 ### 3.1 Ready 循环

@@ -32,6 +32,7 @@ import io.edap.util.CollectionUtils;
 import io.edap.nio.util.ConfigUtils;
 
 import java.util.*;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -51,7 +52,10 @@ public class ServerGroup {
      */
     private String       name;
     /**
-     * 服务器组包含的服务器列表
+     * 服务器组包含的服务器列表。
+     *
+     * <p>用 CopyOnWriteArrayList：写只发生在 bind 阶段（很少），读会被
+     * 会话空闲回收线程并发遍历（{@link io.edap.nio.NioSessionIdleReaper}）。</p>
      */
     private List<Server> servers;
 
@@ -103,7 +107,7 @@ public class ServerGroup {
     }
 
     public ServerGroup() {
-        servers   = new ArrayList<>();
+        servers   = new CopyOnWriteArrayList<>();
         acceptors = new ArrayList<>();
     }
 

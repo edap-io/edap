@@ -42,8 +42,12 @@ import java.util.Objects;
  * {@link io.edap.tx.isolation.Isolation#DEFAULT}(-1) 跳过
  * {@code setTransactionIsolation()} 调用,保留数据源/驱动默认级别。</p>
  *
- * <p><b>timeout 静默忽略</b>:JDBC 协议层不支持事务超时;应用层可通过
- * {@link java.util.concurrent.ExecutorService} 或上层调度实现。Phase 2 不报错。</p>
+ * <p><b>timeout 下沉到语句层</b>:JDBC 协议层没有"事务超时"这个概念,
+ * 唯一能表达"这条 SQL 最多跑多久"的是 {@link java.sql.Statement#setQueryTimeout(int)}
+ * —— 所以 {@code @Transactional(timeout=)} 被存进 {@link JdbcTransactionResource},
+ * 由 dao 层在创建语句时套上去(见 {@code ConnectionHolder#queryTimeoutSeconds()})。
+ * <b>注意语义边界</b>:它只约束 SQL 执行阶段,业务方法里 sleep/计算不计时;
+ * 驱动不支持 {@code setQueryTimeout} 时会记警告并继续(见 dao 层)。</p>
  *
  * <p><b>多数据源</b>:Phase 2 单 DataSource 场景,resource key 即 DataSource 自身
  * (经由 {@link TransactionResource} 内部传递);多 DS 时由调用方在
@@ -74,7 +78,7 @@ public class DataSourceTransactionManager extends DefaultEdapTransactionManager 
             if (definition.isolation().jdbcLevel() != -1) {
                 con.setTransactionIsolation(definition.isolation().jdbcLevel());
             }
-            return new JdbcTransactionResource(con, dataSource);
+            return new JdbcTransactionResource(con, dataSource, definition.timeout());
         } catch (SQLException e) {
             throw new TransactionSystemException("Failed to begin JDBC transaction", e);
         }

@@ -49,6 +49,7 @@ import io.edap.protobuf.annotation.Sharded;
 import io.edap.tx.EdapTransactionManager;
 import io.edap.tx.jdbc.DataSourceTransactionManager;
 import io.edap.util.CollectionUtils;
+import io.edap.util.timing.TimerHandle;
 
 import javax.sql.DataSource;
 import java.io.IOException;
@@ -57,7 +58,6 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ScheduledFuture;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
 import javax.inject.Named;
@@ -168,7 +168,7 @@ public class AppContext implements Lifecycle {
      * PREVIOUS <b>不接 rollback</b>：回滚路径统一走"deploy 到 staging → switchVersion(staging → current)"二段式。</p>
      *
      * <p>demote 时由 Container 设值，并排一个延迟 stop 任务（默认 60s，可配置）；
-     *     到点由 Container.prevReleaseScheduler 调 {@link #stop()} 释放连接池。
+     *     到点由平台时间轮（Container 排的延迟任务）调 {@link #stop()} 释放连接池。
      *     若 60s 内又发生 switchVersion 新的 demote，Container 会先 cancel 旧任务再立即 stop 这个 ctx。</p>
      */
     private volatile long demotedAt;
@@ -177,7 +177,7 @@ public class AppContext implements Lifecycle {
      * demote 排的延迟 stop 任务的句柄，cancel 用于"下一次 switchVersion 提前释放"。
      * 由 Container 设值 / cancel；AppContext 自己不持有调度器。
      */
-    private volatile ScheduledFuture<?> releaseFuture;
+    private volatile TimerHandle releaseFuture;
 
     private Map<FastBufDataRange, PathInfo> pathInfoMap;
 
@@ -1239,7 +1239,7 @@ public class AppContext implements Lifecycle {
     }
 
     /** 由 Container 设值：延迟 stop 任务句柄（用于 cancel 提前释放）。 */
-    public void setReleaseFuture(ScheduledFuture<?> f) {
+    public void setReleaseFuture(TimerHandle f) {
         this.releaseFuture = f;
     }
 
@@ -1248,9 +1248,9 @@ public class AppContext implements Lifecycle {
      * stop 由调用方在 cancel 之后立即触发，调用边界显式。
      */
     public void cancelRelease() {
-        ScheduledFuture<?> f = this.releaseFuture;
+        TimerHandle f = this.releaseFuture;
         if (f != null) {
-            f.cancel(false);                                     // mayInterruptIfRunning=false：让已触发的任务跑完
+            f.cancel();                                         // 平台时间轮的 cancel 不打断已投递的任务
             this.releaseFuture = null;
         }
     }

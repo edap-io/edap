@@ -700,7 +700,8 @@ public final class ClusterProposalHarness {
                     stats, root, baseDir != null, transportMode, maxInflight, leaderId.get());
             System.out.flush();
             if (sharedEdap != null) {
-                // edap-nio 依赖的 EdapTime 单例有非 daemon 线程，JVM 自己不会退出。
+                // edap-nio 的 acceptor 线程是非 daemon，JVM 自己不会退出。
+                // （EdapTime 的刷新线程现在是 daemon，不再是这个原因。）
                 // 基准跑完必须显式退出，否则 shell 会一直等。
                 System.exit(0);
             }

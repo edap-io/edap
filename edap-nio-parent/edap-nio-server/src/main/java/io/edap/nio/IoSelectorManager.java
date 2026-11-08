@@ -37,6 +37,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.BiConsumer;
 
 public class IoSelectorManager {
 
@@ -167,8 +168,37 @@ public class IoSelectorManager {
         try {
 			nioSession.setSelector(ioWorker.selector);
             key = nioSession.getSocketChannel().register(ioWorker.selector, SelectionKey.OP_READ, nioSession);
+            // 把 OP_READ 的 key 挂到会话上：关闭会话时需要它来取消注册。
+            // （flush() 里重新 register 注册 OP_WRITE 时拿到的是同一个 key 对象）
+            nioSession.setSelectionKey(key);
         } catch (ClosedChannelException e) {
             throw new RuntimeException(e);
+        }
+    }
+
+    /**
+     * 遍历本管理器当前注册的所有会话。
+     *
+     * <p><b>并发安全</b>：JDK 的 {@code Selector.keys()} 底层是
+     * {@code ConcurrentHashMap.newKeySet()}（JDK 9+），跨线程遍历不会与 IO 线程的
+     * register/cancel 撞出 CME。遍历期间新增的会话不保证被访问到，
+     * 已取消的 key 仍在集合里（取消要等 selector 下一次 select 才真正摘除），
+     * 调用方需自行用 {@link SelectionKey#isValid()} 过滤。</p>
+     *
+     * @param consumer 回调，参数为 (key, session)
+     */
+    public void forEachSession(BiConsumer<SelectionKey, NioServerSession> consumer) {
+        for (int i = 0; i < ioWorkers.length; i++) {
+            Selector selector = ioWorkers[i].selector;
+            if (selector == null) {
+                continue;
+            }
+            for (SelectionKey key : selector.keys()) {
+                Object attachment = key.attachment();
+                if (attachment instanceof NioServerSession) {
+                    consumer.accept(key, (NioServerSession) attachment);
+                }
+            }
         }
     }
 

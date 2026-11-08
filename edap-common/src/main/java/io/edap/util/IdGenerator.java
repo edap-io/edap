@@ -81,9 +81,12 @@ public class IdGenerator {
      */
     private          long              seq = 0;
     /**
-     * Edap的时间实例，优化取当前时间戳的逻辑，提供并发性能
+     * Edap的时间实例，优化取当前时间戳的逻辑，提供并发性能。
+     *
+     * <p>可注入 —— 不同模式（主动刷新 / 不主动刷新）下 ID 生成器的取时方式不同，
+     * 注入之后两条路径都能被测到。</p>
      */
-    private static   EdapTime          EDAP_TIME = EdapTime.instance();
+    private final    EdapTime          time;
     /**
      * 防止时间回拨的秒数，每秒会保留1000毫秒的记录默认保留10秒的历史记录，当回拨大于10秒时抛异常。
      */
@@ -99,6 +102,16 @@ public class IdGenerator {
         this(12, 10, workId, 10);
     }
 
+    /**
+     * 用指定的时钟源生成 ID。
+     *
+     * @param workId 节点 id
+     * @param time   时钟源（通常传 {@link EdapTime#instance()}）
+     */
+    public IdGenerator(int workId, EdapTime time) {
+        this(12, 10, workId, 10, time);
+    }
+
     public IdGenerator(int seqBits, int workIdBits, WorkIdProvider workIdProvider) {
         this(seqBits, workIdBits, workIdProvider.getWordId(), 10);
     }
@@ -112,6 +125,14 @@ public class IdGenerator {
     }
 
     public IdGenerator(int seqBits, int workIdBits, int workId, int historySecond) {
+        this(seqBits, workIdBits, workId, historySecond, EdapTime.instance());
+    }
+
+    public IdGenerator(int seqBits, int workIdBits, int workId, int historySecond, EdapTime time) {
+        if (time == null) {
+            throw new NullPointerException("time");
+        }
+        this.time               = time;
         this.workId             = workId;
         this.workIdBits         = workIdBits;
         this.workIdMask         = -1L ^ (-1L << (workIdBits + seqBits));
@@ -122,8 +143,12 @@ public class IdGenerator {
         this.historyMills       = historySecond * 1000;
         this.idInfoHistory      = new RingArray<>(IdInfo::new, historyMills);
 
-        EDAP_TIME.addCallback(this::setCurTimeMillis, 0, 1, TimeUnit.MILLISECONDS);
-        setCurTimeMillis(EDAP_TIME.currentTimeMillis());
+        if (time.mode() == EdapTime.Mode.REFRESH) {
+            // 主动刷新模式：靠毫秒档推送把 curTimestamp 顶到当前毫秒，
+            // 顺带把"每个毫秒一条"的历史灌满 —— 时间回拨时靠它续序列号。
+            time.addCallback(this::setCurTimeMillis, 0, 1, TimeUnit.MILLISECONDS);
+        }
+        setCurTimeMillis(time.currentTimeMillis());
     }
 
     private synchronized void setCurTimeMillis(long timeMillis) {
@@ -159,6 +184,16 @@ public class IdGenerator {
 
     private long getId0() {
         long cur = curTimestamp;
+        if (time.mode() == EdapTime.Mode.ON_DEMAND) {
+            // 不主动刷新模式没有推送源：自己拉一次时钟，保证 ID 里的时间戳是当前毫秒。
+            // 顺带的副作用是历史里会有"当前毫秒"的记录 —— 回拨恢复的精度降到
+            // "有 ID 的毫秒"，没有 ID 的毫秒回拨到那里会抛错（安全，不会出重复 ID）。
+            long now = time.currentTimeMillis();
+            if (now != cur) {
+                setCurTimeMillis(now);
+                cur = now;
+            }
+        }
         if (cur < lastTimestamp) {
             System.out.println("cur=" + cur + ",curTimestamp=" + curTimestamp);
             return getTimeRewindId(cur, lastTimestamp);
@@ -204,14 +239,14 @@ public class IdGenerator {
     }
 
     private long getNextMillis() {
-        long c = EDAP_TIME.currentTimeMillis();
+        long c = time.currentTimeMillis();
         while (c <= curTimestamp) {
             try {
                 TimeUnit.NANOSECONDS.sleep(10);
             } catch (InterruptedException e) {
 
             }
-            c = EDAP_TIME.currentTimeMillis();
+            c = time.currentTimeMillis();
         }
         setCurTimeMillis(c);
         return c;

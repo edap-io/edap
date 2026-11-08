@@ -21,14 +21,18 @@ import io.edap.json.Eson;
 import io.edap.json.JsonObject;
 import io.edap.log.Logger;
 import io.edap.log.LoggerManager;
+import io.edap.nio.NioSessionIdleReaper;
 import io.edap.nio.SelectorProvider;
+import io.edap.nio.util.ConfigUtils;
 import io.edap.props.Props;
 import io.edap.util.CollectionUtils;
+import io.edap.util.timing.Timers;
 
 import java.io.*;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -43,6 +47,15 @@ public class Edap {
 
     private static final Logger log = LoggerManager.getLogger(Edap.class);
 
+    /**
+     * 会话空闲回收的配置项。不配就是关闭（不启动回收器）。
+     */
+    public static final String SESSION_IDLE_TIMEOUT_KEY = "edap.nio.session.idleTimeoutMs";
+
+    /**
+     * serverGroups 用并发 map：空闲回收线程会遍历它，
+     * 与 {@link #addServerGroup} 的写入并发。
+     */
     private Map<String, ServerGroup> serverGroups;
 
     private static final List<SelectorProvider> SELECTOR_PROVIDERS = new CopyOnWriteArrayList<>();
@@ -54,8 +67,13 @@ public class Edap {
     private final    ReentrantLock        lifecycleLock = new ReentrantLock();
     private          Props                edapProps;
 
+    /**
+     * 会话空闲回收器（未配置空闲超时时为 null）。
+     */
+    private volatile NioSessionIdleReaper idleReaper;
+
     public Edap() {
-        serverGroups = new HashMap<>();
+        serverGroups = new ConcurrentHashMap<>();
         init();
         state = EdapState.NEW;
     }
@@ -265,11 +283,78 @@ public class Edap {
 
             });
 
+            startSessionIdleReaper();
             state = EdapState.RUNNING;
         } finally {
             lifecycleLock.unlock();
         }
         //int read = System.in.read();
+    }
+
+    /**
+     * 按配置启动会话空闲回收器。
+     *
+     * <p><b>默认关闭</b>：{@code edap.nio.session.idleTimeoutMs} 没配（或配了非正数）
+     * 就不启动，行为与没有这个组件时完全一致。配了的话从系统属性 / 环境变量 /
+     * edap.json5 配置里取（{@link ConfigUtils} 的取值链）。</p>
+     */
+    private void startSessionIdleReaper() {
+        long idleTimeoutMs = parseSessionIdleTimeoutMs();
+        if (idleTimeoutMs <= 0) {
+            return;
+        }
+        try {
+            NioSessionIdleReaper reaper = new NioSessionIdleReaper(this, idleTimeoutMs, Timers.get());
+            reaper.start();
+            this.idleReaper = reaper;
+        } catch (Throwable t) {
+            log.warn("start nio session idle reaper failed", l -> l.threw(t));
+        }
+    }
+
+    /**
+     * 读会话空闲超时配置。没配返回 -1（表示不启用）。
+     *
+     * <p>取值顺序：系统属性 / 环境变量（{@link ConfigUtils}）→ edap.json5
+     * （{@link #getProps()}）。两处都用同一个 key {@value #SESSION_IDLE_TIMEOUT_KEY}。</p>
+     */
+    public long parseSessionIdleTimeoutMs() {
+        Object value = ConfigUtils.getConfigValue(SESSION_IDLE_TIMEOUT_KEY, getConfig(), null);
+        if (value != null) {
+            return parseIdleTimeout(value);
+        }
+        Props props = getProps();
+        if (props.containsKey(SESSION_IDLE_TIMEOUT_KEY)) {
+            return props.getLong(SESSION_IDLE_TIMEOUT_KEY, -1L);
+        }
+        return -1L;
+    }
+
+    private long parseIdleTimeout(Object value) {
+        try {
+            long ms = Long.parseLong(String.valueOf(value).trim());
+            return ms > 0 ? ms : -1L;
+        } catch (NumberFormatException e) {
+            log.warn("invalid {} value [{}], idle reaper disabled",
+                    l -> l.arg(SESSION_IDLE_TIMEOUT_KEY).arg(value));
+            return -1L;
+        }
+    }
+
+    /**
+     * 停掉会话空闲回收器。只撤自己的任务，不动平台时间轮（那会连累别的消费方）。
+     */
+    private void stopSessionIdleReaper() {
+        NioSessionIdleReaper reaper = this.idleReaper;
+        if (reaper == null) {
+            return;
+        }
+        this.idleReaper = null;
+        try {
+            reaper.close();
+        } catch (Throwable t) {
+            log.warn("stop nio session idle reaper failed", l -> l.threw(t));
+        }
     }
 
 
@@ -305,7 +390,9 @@ public class Edap {
     private void doStop() {
         //System.out.println("Edap stop...");
         log.info("Edap stop...");
-        // 1. 先触发 stop hooks（Container 等）：内存级清理，不动 socket
+        // 0. 先停会话空闲回收：它会关连接，别跟停机流程抢
+        stopSessionIdleReaper();
+        // 1. 再触发 stop hooks（Container 等）：内存级清理，不动 socket
         for (Stoppable hook : STOP_HOOKS) {
             try {
                 hook.stop();

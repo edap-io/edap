@@ -176,4 +176,22 @@ public class TxConnectionHolder implements ConnectionHolder {
         TransactionStatus status = TxScope.currentStatus();
         return status != null && status.resource() instanceof JdbcTransactionResource;
     }
+
+    /**
+     * 当前事务的语句查询超时（秒）—— 来自 {@code @Transactional(timeout=)}。
+     *
+     * <p>取值走<b>事务资源</b>而不是 {@code TransactionStatus.definition()}：
+     * 资源是在物理事务开启那一刻建的，REQUIRED 嵌套时内层复用外层的事务，
+     * 资源的超时就是外层那个 —— 与"连接是外层开的"保持一致。</p>
+     *
+     * <p>不在事务里时返回 -1（不设超时）。</p>
+     */
+    @Override
+    public int queryTimeoutSeconds() {
+        TransactionStatus status = TxScope.currentStatus();
+        if (status != null && status.resource() instanceof JdbcTransactionResource) {
+            return ((JdbcTransactionResource) status.resource()).getTimeoutSeconds();
+        }
+        return -1;
+    }
 }

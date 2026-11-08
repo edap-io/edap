@@ -26,6 +26,8 @@ import io.edap.raft.protocol.EntryType;
 import io.edap.raft.protocol.HardState;
 import io.edap.raft.protocol.Message;
 import io.edap.raft.protocol.MessageType;
+import io.edap.util.timing.TimerHandle;
+import io.edap.util.timing.TimerService;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -221,6 +223,14 @@ public class Node {
     /** 节点是否已经停止 */
     private final AtomicBoolean stopped = new AtomicBoolean();
 
+    /**
+     * tick 驱动句柄（{@link #startTicker} 注册的）。
+     *
+     * <p>{@link #stop()} 会把它撤掉 —— tick 是"节点还活着"的信号，
+     * 节点停了还继续 tick 只是白烧 CPU。</p>
+     */
+    private volatile TimerHandle ticker;
+
     /** 状态机线程 */
     private final Thread worker;
 
@@ -353,6 +363,41 @@ public class Node {
                     + " A tick missed to fire. Node blocks too long!");
         }
         signalWakeup();
+    }
+
+    /**
+     * 启动 tick 驱动 —— 按固定节奏调 {@link #tick()}，驱动选举超时与心跳。
+     *
+     * <p><b>raft 模块不自带定时器</b>：时间源由调用方给（通常是平台共享的
+     * {@code io.edap.util.timing.Timers#get()}），这样整个平台只有一套时间口径
+     * 和一套线程模型。</p>
+     *
+     * <p><b>tick 周期怎么定</b>：raft 的超时用「tick 数」表达
+     * （{@link RaftConfig#electionTick} / {@link RaftConfig#heartbeatTick}），
+     * 这里给的是<b>一个 tick 折合多少毫秒</b>。比如 electionTick=10、
+     * heartbeatTick=1、tickMillis=100 → 心跳 100ms、选举超时 1s。</p>
+     *
+     * <p><b>生命周期</b>：句柄挂在节点上，{@link #stop()} 会自动撤掉 tick ——
+     * 节点停了还继续 tick 只是白烧 CPU。重复调用会先撤掉上一个。</p>
+     *
+     * @param timerService 时间源（平台共享定时服务）
+     * @param tickMillis   一个 tick 折合的毫秒数，必须 &gt; 0
+     * @return tick 任务的句柄（可提前取消）
+     */
+    public synchronized TimerHandle startTicker(TimerService timerService, long tickMillis) {
+        if (timerService == null) {
+            throw new NullPointerException("timerService");
+        }
+        if (tickMillis <= 0) {
+            throw new IllegalArgumentException("tickMillis must be positive");
+        }
+        TimerHandle old = this.ticker;
+        if (old != null) {
+            old.cancel();
+        }
+        TimerHandle h = timerService.scheduleAtFixedRate(this::tick, tickMillis, tickMillis, TimeUnit.MILLISECONDS);
+        this.ticker = h;
+        return h;
     }
 
     /**
@@ -700,6 +745,12 @@ public class Node {
             if (!stopped.compareAndSet(false, true)) {
                 return;
             }
+        }
+        // 撤掉 tick 驱动：节点停了还继续 tick 只是白烧 CPU
+        TimerHandle t = this.ticker;
+        if (t != null) {
+            t.cancel();
+            this.ticker = null;
         }
         // 唤醒所有等待中的请求
         for (PendingRequest req : pendingRequests) {

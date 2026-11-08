@@ -4,6 +4,7 @@ import io.edap.util.EdapTime;
 import io.edap.util.IdGenerator;
 import org.junit.jupiter.api.Test;
 
+import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -11,7 +12,6 @@ import java.util.Calendar;
 import java.util.Random;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -68,10 +68,8 @@ public class IdGeneratorTest {
 	@Test
 	public void testGetTimeRewindId() throws NoSuchFieldException, IllegalAccessException, InvocationTargetException, NoSuchMethodException {
 		EdapTime edapTime = EdapTime.instance();
-		Field field = EdapTime.class.getDeclaredField("scheduledFuture");
-		field.setAccessible(true);
-		ScheduledFuture future = (ScheduledFuture)field.get(edapTime);
-		future.cancel(true);
+		// 停掉后台刷新，让测试自己控制时钟
+		edapTime.shutdown();
 
 		Random random = new Random();
 		int workId = random.nextInt(512);
@@ -117,10 +115,8 @@ public class IdGeneratorTest {
 	@Test
 	public void testGetIds() throws NoSuchFieldException, IllegalAccessException, InvocationTargetException {
 		EdapTime edapTime = EdapTime.instance();
-		Field field = EdapTime.class.getDeclaredField("scheduledFuture");
-		field.setAccessible(true);
-		ScheduledFuture future = (ScheduledFuture)field.get(edapTime);
-		future.cancel(true);
+		// 停掉后台刷新，让测试自己控制时钟
+		edapTime.shutdown();
 
 		Random random = new Random();
 		int workId = random.nextInt(512);
@@ -150,12 +146,10 @@ public class IdGeneratorTest {
 	public void testGetId() throws NoSuchFieldException, IllegalAccessException, InvocationTargetException {
 		ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
 		EdapTime edapTime = EdapTime.instance();
-		Field field = EdapTime.class.getDeclaredField("scheduledFuture");
-		field.setAccessible(true);
+		// 停掉后台刷新，让测试自己控制时钟
+		edapTime.shutdown();
 		Field curField = EdapTime.class.getDeclaredField("current");
 		curField.setAccessible(true);
-		ScheduledFuture future = (ScheduledFuture)field.get(edapTime);
-		future.cancel(true);
 		Random random = new Random();
 		int workId = random.nextInt(512);
 		long oldMills = System.currentTimeMillis();
@@ -197,10 +191,8 @@ public class IdGeneratorTest {
 	@Test
 	public void testSetCurTimeMillis() throws NoSuchFieldException, IllegalAccessException, InterruptedException, InvocationTargetException {
 		EdapTime edapTime = EdapTime.instance();
-		Field field = EdapTime.class.getDeclaredField("scheduledFuture");
-		field.setAccessible(true);
-		ScheduledFuture future = (ScheduledFuture)field.get(edapTime);
-		future.cancel(true);
+		// 停掉后台刷新，让测试自己控制时钟
+		edapTime.shutdown();
 		Random random = new Random();
 		int workId = random.nextInt(512);
 		long oldMills = System.currentTimeMillis();
@@ -219,10 +211,8 @@ public class IdGeneratorTest {
 	@Test
 	public void testConstructor() throws NoSuchMethodException, InvocationTargetException, IllegalAccessException, NoSuchFieldException, InterruptedException {
 		EdapTime edapTime = EdapTime.instance();
-		Field field = EdapTime.class.getDeclaredField("scheduledFuture");
-		field.setAccessible(true);
-		ScheduledFuture future = (ScheduledFuture)field.get(edapTime);
-		future.cancel(true);
+		// 停掉后台刷新，让测试自己控制时钟
+		edapTime.shutdown();
 		Random random = new Random(1024);
 		int workId = random.nextInt();
 		IdGeneratorTestReq testReq = new IdGeneratorTestReq();
@@ -290,5 +280,50 @@ public class IdGeneratorTest {
 		private long seqId;
 		private int  historyMills;
 		private long curMills;
+	}
+
+	/**
+	 * 造一个"不主动刷新"模式的时钟源：没有推送线程，IdGenerator 得自己拉时钟。
+	 */
+	private static EdapTime newOnDemandTime() throws Exception {
+		Constructor<EdapTime> constructor = EdapTime.class.getDeclaredConstructor(EdapTime.Mode.class);
+		constructor.setAccessible(true);
+		return constructor.newInstance(EdapTime.Mode.ON_DEMAND);
+	}
+
+	/**
+	 * 不主动刷新模式：没有推送源，IdGenerator 每次取 ID 自己读时钟，
+	 * ID 里嵌的时间戳必须是当前毫秒。
+	 */
+	@Test
+	public void testOnDemandMode() throws Exception {
+		EdapTime direct = newOnDemandTime();
+		int workId = 7;
+		IdGenerator idGenerator = new IdGenerator(workId, direct);
+
+		long before = System.currentTimeMillis();
+		long id = idGenerator.getId();
+		long after = System.currentTimeMillis();
+
+		IdGenerator.IdInfo info = idGenerator.idInfo(id);
+		assertEquals(workId, info.getWorkId());
+		assertTrue(info.getTimestamp() >= before && info.getTimestamp() <= after,
+				"不主动刷新模式的 ID 时间戳必须是当前毫秒，实际 " + info.getTimestamp());
+		assertEquals(1, info.getSeq());
+
+		// 连取：ID 互不相同
+		long prev = id;
+		for (int i = 0; i < 100; i++) {
+			long next = idGenerator.getId();
+			assertNotEquals(prev, next);
+			prev = next;
+		}
+
+		// 跨毫秒后时间戳要跟着走
+		Thread.sleep(20L);
+		long later = idGenerator.getId();
+		long laterTs = idGenerator.idInfo(later).getTimestamp();
+		assertTrue(laterTs > info.getTimestamp(),
+				"跨毫秒后 ID 的时间戳必须前进，实际 " + laterTs + " vs " + info.getTimestamp());
 	}
 }

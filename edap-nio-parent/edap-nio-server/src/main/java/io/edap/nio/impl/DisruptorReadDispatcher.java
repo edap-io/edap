@@ -23,6 +23,7 @@ import io.edap.buffer.FastBuf;
 import io.edap.log.Logger;
 import io.edap.log.LoggerManager;
 import io.edap.nio.DisruptorManager;
+import io.edap.nio.NioSessionCloser;
 import io.edap.nio.ReadDispatcher;
 import io.edap.nio.event.BizEvent;
 import io.edap.pool.Pool;
@@ -30,9 +31,7 @@ import io.edap.pool.impl.ThreadLocalPool;
 import io.edap.util.EdapTime;
 
 import java.io.IOException;
-import java.net.SocketAddress;
 import java.nio.channels.SelectionKey;
-import java.nio.channels.SocketChannel;
 
 import static io.edap.nio.NioSession.THREAD_WRITE_BUF;
 import static io.edap.nio.util.NetUtil.getRemoteAddress;
@@ -48,7 +47,6 @@ public class DisruptorReadDispatcher implements ReadDispatcher {
 
     private DisruptorManager<BizEvent> disruptorManager;
 
-    private static boolean  NIO_SESSION_POOLED;
     private static EdapTime EDAP_TIME          = EdapTime.instance();
 
 
@@ -60,8 +58,6 @@ public class DisruptorReadDispatcher implements ReadDispatcher {
         for (int i = 0;i < 16; i++) {
             bbPool.requite(new FastBuf(32768));
         }
-
-        NIO_SESSION_POOLED = server.isNioSesionPooled();
     }
 
     @Override
@@ -112,22 +108,6 @@ public class DisruptorReadDispatcher implements ReadDispatcher {
     }
 
     private void closeChannel(SelectionKey readKey, NioServerSession nioSession) {
-        SocketChannel channel = (SocketChannel)readKey.channel();
-        try {
-            SocketAddress remoteAddr = channel.getRemoteAddress();
-            readKey.cancel();
-            channel.close();
-            if (remoteAddr != null) {
-                LOG.info("channel {} closed", l -> l.arg(remoteAddr));
-            } else {
-                LOG.info("channel {} closed", l -> l.arg(channel));
-            }
-        } catch (IOException e) {
-            LOG.warn("channel {} close error", l -> l.arg(channel).threw(e));
-        } finally {
-            if (nioSession != null && NIO_SESSION_POOLED) {
-                server.getNioSessionPool().requite(nioSession);
-            }
-        }
+        NioSessionCloser.close(server, readKey, nioSession);
     }
 }

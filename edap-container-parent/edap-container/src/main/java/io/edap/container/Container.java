@@ -24,6 +24,8 @@ import io.edap.log.Logger;
 import io.edap.log.LoggerManager;
 import io.edap.nio.util.ConfigUtils;
 import io.edap.props.Props;
+import io.edap.util.timing.TimerHandle;
+import io.edap.util.timing.Timers;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -43,9 +45,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -127,23 +126,6 @@ public class Container {
      *     per-(HttpServer × path)，多 Container 之间天然隔离（不用跨 Container 同步）。</p>
      */
     private final ConcurrentHashMap<String, ServiceWSHandler> wsHandlers = new ConcurrentHashMap<>();
-
-    /**
-     * PREVIOUS 槽延迟释放调度器。
-     *
-     * <p>switchVersion(staging → current) 时老 current 被 demote 到 PREVIOUS 槽。
-     * PREVIOUS 槽的语义是"承接 in-flight 老请求 graceful drain + 记录上次版本"，
-     * 不是"rollback 备用"。调度器在 demote 那一刻起 {@link #prevReleaseDelayMs} 毫秒后
-     * 调 ctx.stop() —— destroyAllSingletons 关闭 Hikari 等连接池，释放数据库连接。</p>
-     *
-     * <p>单线程 daemon executor：延迟任务不需要并行；daemon 不会阻止 JVM 退出。</p>
-     */
-    private final ScheduledExecutorService prevReleaseScheduler =
-            Executors.newSingleThreadScheduledExecutor(r -> {
-                Thread t = new Thread(r, "container-prev-release");
-                t.setDaemon(true);
-                return t;
-            });
 
     /**
      * PREVIOUS 槽 ctx 延迟释放时长（毫秒）。给 in-flight 老请求一个收尾窗口。
@@ -529,7 +511,7 @@ public class Container {
     /**
      * 给刚 demote 到 PREVIOUS 槽的 ctx 排延迟 stop。
      *
-     * <p>到点由 {@link #prevReleaseScheduler} 调 ctx.stop()：destroyAllSingletons 阶段
+     * <p>到点由平台时间轮（{@link Timers}）调 ctx.stop()：destroyAllSingletons 阶段
      * 会关掉 AutoCloseable bean（含 HikariDataSource）→ 连接池释放 → 数据库连接回收。
      * in-flight 老请求会被强杀 —— 业务方需保证关键请求在 60s 内完成。</p>
      *
@@ -540,7 +522,7 @@ public class Container {
     private void schedulePrevRelease(AppContext ctx) {
         if (ctx == null) return;
         long delayMs = this.prevReleaseDelayMs;
-        ScheduledFuture<?> f = prevReleaseScheduler.schedule(() -> {
+        TimerHandle f = Timers.get().schedule(() -> {
             try {
                 log.info("PREVIOUS 槽 ctx 超时释放 [{}:{}]",
                         l -> l.arg(ctx.appId()).arg(compositeOf(ctx)));
@@ -795,6 +777,9 @@ public class Container {
             } catch (Throwable t) {
                 log.warn("Container.stop 时 {} 异常", l -> l.arg(ctx.appId()).threw(t));
             }
+            // 撤掉 PREVIOUS 槽排的延迟 stop：ctx 已经停了，再让它到点跑一遍是多余的，
+            // 而且会在容器停完之后再去动已经释放过的资源。
+            ctx.cancelRelease();
             // 同步清掉本 appId 在对应槽的 FQCN 注册
             // （ctx.stop() 不动 map，因为 undeploy 路径由 Container 自己清 —— 这里是 stop 路径）
             unregisterSlotIfs(slot, ctx.appId(), ctx.dmd());
@@ -804,17 +789,9 @@ public class Container {
         // 清空 wsHandlers map：所有 AppContext 已 stop，map entry 的 ServiceWSHandler 实例
         // 无外部引用（dispatch 路径已空），显式 clear 让 wsHandler 随 map 一起释放。
         wsHandlers.clear();
-        // shutdown PREVIOUS 延迟释放调度器：awaitTermination 等所有未触发的延迟任务跑完，
-        // 避免容器关闭期间还有线程在调 ctx.stop() 引起竞态。60s 上限防止 Container.stop() 阻塞过久。
-        prevReleaseScheduler.shutdown();
-        try {
-            if (!prevReleaseScheduler.awaitTermination(60, TimeUnit.SECONDS)) {
-                prevReleaseScheduler.shutdownNow();
-            }
-        } catch (InterruptedException e) {
-            prevReleaseScheduler.shutdownNow();
-            Thread.currentThread().interrupt();
-        }
+        // PREVIOUS 槽的延迟 stop 已经在上面的循环里逐个 cancelRelease() 撤掉了 ——
+        // 平台时间轮是全平台共享的，不能像以前那样 shutdown 整个调度器，
+        // 否则会连带干掉别的消费方（Raft tick / NIO 空闲回收）的任务。
 
         lifecycleLock.lock();
         try {
@@ -1243,7 +1220,7 @@ public class Container {
             // 同步 .deploy/<role>-<appId>.json 三个文件：非空 slot 写、空 slot 删
             syncDeployMetaFiles(appId);
             // PREVIOUS 槽里新 demotedCurrent 排延迟释放 —— 给 in-flight 一个收尾窗口（默认 60s），
-            // 到点由 prevReleaseScheduler 调 ctx.stop()，destroyAllSingletons 释放 Hikari 等连接池。
+            // 到点由平台时间轮调 ctx.stop()，destroyAllSingletons 释放 Hikari 等连接池。
             // 如果 60s 内又发生 switchVersion 新的 demote，上面的分支已 cancel + 立即 stop 这个 ctx。
             if (demotedCurrent != null) {
                 demotedCurrent.markDemoted();

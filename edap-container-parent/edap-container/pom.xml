@@ -12,6 +12,15 @@
     <artifactId>edap-container</artifactId>
 
     <dependencies>
+        <!--
+            平台时间门面与平台级时间轮（io.edap.util / io.edap.util.timing）。
+            直接依赖而不是靠 edap-nio-server 传递 —— Container 现在直接用
+            io.edap.util.timing.Timers 排 PREVIOUS 槽的延迟释放。
+        -->
+        <dependency>
+            <groupId>io.edap</groupId>
+            <artifactId>edap-common</artifactId>
+        </dependency>
         <dependency>
             <groupId>io.edap</groupId>
             <artifactId>edap-http-server</artifactId>

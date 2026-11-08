@@ -54,9 +54,30 @@ public class JdbcTransactionResource implements TransactionResource {
     private final DataSource dataSource;
     private volatile boolean rollbackOnly;
 
+    /**
+     * 事务的语句查询超时（秒）；-1 = 不设超时。
+     *
+     * <p>来自 {@code @Transactional(timeout=)}。JDBC 协议层没有"事务超时"这个概念，
+     * 唯一能表达"最多跑多久"的是 {@link java.sql.Statement#setQueryTimeout(int)}
+     * —— 所以这里存的是<b>语句</b>超时，由 dao 层在创建语句时套上去。</p>
+     */
+    private final int timeoutSeconds;
+
     public JdbcTransactionResource(Connection connection, DataSource dataSource) {
+        this(connection, dataSource, -1);
+    }
+
+    public JdbcTransactionResource(Connection connection, DataSource dataSource, int timeoutSeconds) {
         this.connection = connection;
         this.dataSource = dataSource;
+        this.timeoutSeconds = timeoutSeconds;
+    }
+
+    /**
+     * 本事务的语句查询超时（秒）；-1 = 不设超时。
+     */
+    public int getTimeoutSeconds() {
+        return timeoutSeconds;
     }
 
     /**

@@ -43,6 +43,21 @@ public interface ConnectionHolder {
         return false;
     }
 
+    /**
+     * 当前事务的<b>语句查询超时</b>（秒）。-1 表示不设超时。
+     *
+     * <p>由持有者实现的 {@code StatementSession} 在创建 {@link java.sql.Statement} /
+     * {@link java.sql.PreparedStatement} 时调 {@code setQueryTimeout} ——
+     * 这是 JDBC 协议层唯一能表达"这条 SQL 最多跑多久"的口子。</p>
+     *
+     * <p>默认 -1：不在事务里（或没有 tx-aware holder）时不设超时。
+     * tx-aware holder（{@code TxConnectionHolder}）覆盖为当前事务
+     * {@code @Transactional(timeout=)} 的值。</p>
+     */
+    default int queryTimeoutSeconds() {
+        return -1;
+    }
+
     class SimpleConnectionHolder implements ConnectionHolder {
 
         private Connection currentCon;

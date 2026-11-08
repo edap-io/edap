@@ -89,6 +89,7 @@ public class AcceptEventHandler implements EventHandler<AcceptEvent> {
         }
         nioSession.setSocketChannel(sc);
         nioSession.setChannelFd(NioServerSession.getValue(sc, "fd"));
+        nioSession.setServer(server);
         nioSession.setEdap(scc.getEdap());
         nioSession.setMonitorIndex(scc.getMonitorIndex());
         nioSession.setLastReadTime(EDAP_TIME.currentTimeMillis());

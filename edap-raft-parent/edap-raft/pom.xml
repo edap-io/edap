@@ -24,6 +24,16 @@
             <artifactId>edap-nio-server</artifactId>
             <version>${edap.version}</version>
         </dependency>
+        <!--
+            平台时间门面与平台级时间轮（io.edap.util / io.edap.util.timing）。
+            直接依赖而不是靠 edap-nio-server 传递 —— Node.startTicker() 直接用
+            io.edap.util.timing.TimerService，模块本身不自带定时器线程。
+        -->
+        <dependency>
+            <groupId>io.edap</groupId>
+            <artifactId>edap-common</artifactId>
+            <version>${edap.version}</version>
+        </dependency>
         <dependency>
             <groupId>io.edap</groupId>
             <artifactId>edap-log-api</artifactId>

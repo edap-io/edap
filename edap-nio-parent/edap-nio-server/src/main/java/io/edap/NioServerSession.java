@@ -20,8 +20,10 @@ import io.edap.buffer.FastBuf;
 import io.edap.log.Logger;
 import io.edap.log.LoggerManager;
 import io.edap.nio.NioSession;
+import io.edap.nio.NioSessionCloser;
 import io.edap.nio.ParseResult;
 import io.edap.pool.Pool;
+import io.edap.util.EdapTime;
 
 import java.io.FileDescriptor;
 import java.io.IOException;
@@ -31,6 +33,7 @@ import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * NIO连接的会话类
@@ -40,6 +43,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public abstract class NioServerSession<T> extends NioSession {
 
     static Logger LOG = LoggerManager.getLogger(NioServerSession.class);
+
+    private static final EdapTime EDAP_TIME = EdapTime.instance();
 
     private final AtomicBoolean readLock = new AtomicBoolean();
     private final AtomicBoolean writeLock = new AtomicBoolean();
@@ -68,6 +73,20 @@ public abstract class NioServerSession<T> extends NioSession {
      * 最后写数据的时间
      */
     private volatile long lastWriteTime;
+
+    /**
+     * 当前连接持有的 channel —— 同时充当「这条连接是否已经被关闭」的闸门。
+     *
+     * <p>会话是池化对象：一条连接关闭后会把会话归还对象池，下一条连接可能复用
+     * 同一个会话实例。若此时旧连接的「迟到关闭」（例如空闲回收线程与 IO 线程
+     * 撞上）再次把会话归还，对象池里就会出现两份同一个会话实例，两条连接共用
+     * 一个会话对象 —— 互相踩 socketChannel。</p>
+     *
+     * <p>用 CAS 把 channel 置空来抢闸门：只有把闸门抢到的那一方才负责归还对象池。
+     * 会话被复用给新连接后（{@link #setSocketChannel} 换了 channel），旧连接的
+     * 迟到关闭就抢不到闸门，自然不会二次归还。</p>
+     */
+    private final AtomicReference<SocketChannel> activeChannel = new AtomicReference<>();
 
     private List<String> durations;
     /**
@@ -133,6 +152,21 @@ public abstract class NioServerSession<T> extends NioSession {
 
     public void setSocketChannel(SocketChannel socketChannel) {
         this.socketChannel = socketChannel;
+        // 连接换了 —— 重新持有闸门，让这条连接成为当前唯一有权归还会话的一方
+        this.activeChannel.set(socketChannel);
+    }
+
+    /**
+     * 抢占「关闭这条连接」的所有权：把闸门从 {@code channel} 置空。
+     *
+     * <p>返回 true 表示调用方是这条连接的第一个关闭者，应当负责把会话归还对象池；
+     * 返回 false 表示这条连接已经被别人关过（或会话已被复用给别的连接），
+     * 调用方<b>不能</b>再归还会话。</p>
+     *
+     * @param channel 本次关闭对应的 channel
+     */
+    public boolean claimClose(SocketChannel channel) {
+        return channel != null && this.activeChannel.compareAndSet(channel, null);
     }
 
     public ServerSocketChannel getServerSocketChannel() {
@@ -288,7 +322,9 @@ public abstract class NioServerSession<T> extends NioSession {
     public int fastWrite(FastBuf buf) throws IOException {
         if (channelFd == null) {
             buf.syncToByteBuffer();
-            return socketChannel.write(buf.byteBuffer());
+            int n = socketChannel.write(buf.byteBuffer());
+            markWrite(n);
+            return n;
         }
         try {
 //            while (true) {
@@ -299,9 +335,23 @@ public abstract class NioServerSession<T> extends NioSession {
 //                    throw new IOException(new InterruptedException());
 //                }
 //            }
-            return writeInternal(buf);
+            int n = writeInternal(buf);
+            markWrite(n);
+            return n;
         } finally {
             //writeLock.compareAndSet(true, false);
+        }
+    }
+
+    /**
+     * 记一次「真的写出去了字节」的写时间。
+     *
+     * <p>只有写出字节数 &gt; 0 才记 —— 空写（缓冲区已空、socket 缓冲满写不动）
+     * 不代表这条连接还活着，记上去会把空闲回收的判定拖住。</p>
+     */
+    private void markWrite(int written) {
+        if (written > 0) {
+            this.lastWriteTime = EDAP_TIME.currentTimeMillis();
         }
     }
 
@@ -403,11 +453,13 @@ public abstract class NioServerSession<T> extends NioSession {
 		}
 	}
 
+    /**
+     * 关闭本会话：取消 selector key、关 channel、必要时把会话归还对象池。
+     *
+     * <p>与 IO 线程的关连接路径走同一条 {@link NioSessionCloser}，避免两处各关一半
+     * （只关 channel 不取消 key → selector 里的 key 还挂着）。</p>
+     */
     public void close() {
-        try {
-            socketChannel.close();
-        } catch (IOException e) {
-            LOG.error(this.getClass().getName() + " close error", e);
-        }
+        NioSessionCloser.close(this.getServer(), this.getSelectionKey(), this);
     }
 }

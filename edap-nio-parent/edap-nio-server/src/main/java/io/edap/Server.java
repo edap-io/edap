@@ -28,6 +28,7 @@ import io.edap.pool.SimpleFastBufPool;
 import io.edap.util.StringUtil;
 
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -85,7 +86,8 @@ public abstract class Server<T, S extends NioServerSession> {
         maxClientCount       = 256000;
         backLog              = 1024;
         curClientCount       = new AtomicInteger(0);
-        ioSelectorManagerMap = new HashMap<>();
+        // 并发 map：bind 阶段写入，会话空闲回收线程会并发遍历
+        ioSelectorManagerMap = new ConcurrentHashMap<>();
         setBufPool(new SimpleFastBufPool());
     }
 
