@@ -1574,8 +1574,15 @@ public class BaseDaoGenerator {
             mv.visitMethodInsn(INVOKEINTERFACE, "java/sql/ResultSet", getMethod,
                     "(I)" + jdbcInfo.getJdbcType(), true);
             String fieldName = jdbcInfo.getField().getName();
-            String setMethod = "set" + fieldName.substring(0,1).toUpperCase(Locale.ENGLISH)
-                    + fieldName.substring(1);
+            String setMethod;
+            String fieldType = jdbcInfo.getField().getType().getTypeName();
+            if (fieldName.startsWith("is") && (fieldType.equals("boolean") || fieldType.equals("java.lang.Boolean"))) {
+                setMethod = "set" + fieldName.substring(2,3).toUpperCase(Locale.ENGLISH)
+                        + fieldName.substring(3);
+            } else {
+                setMethod = "set" + fieldName.substring(0,1).toUpperCase(Locale.ENGLISH)
+                        + fieldName.substring(1);
+            }
             if (jdbcInfo.isNeedUnbox()) {
                 visitBoxedOpcode(mv, jdbcInfo.getField());
             }
