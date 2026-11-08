@@ -245,7 +245,13 @@ public class DaoUtil {
             }
 
             JdbcInfo jdbcInfo = new JdbcInfo();
-            jdbcInfo.setValueMethod(fieldMethods.get(f.getName()));
+            Method valMethod = fieldMethods.get(f.getName());
+            if (valMethod == null && f.getName().startsWith("is")
+                    && (f.getType().getName().equals("boolean") || f.getType().getName().equals("java.lang.Boolean"))) {
+                valMethod = fieldMethods.get(f.getName().substring(2, 3).toLowerCase(Locale.ENGLISH) +
+                        f.getName().substring(3));
+            }
+            jdbcInfo.setValueMethod(valMethod);
             JdbcTypeInfo typeInfo = getJdbcType(f, f.getAnnotations());
             jdbcInfo.setJdbcType(typeInfo.type);
             jdbcInfo.setJdbcMethod(typeInfo.setMethod);
