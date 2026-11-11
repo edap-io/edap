@@ -24,6 +24,11 @@
             <groupId>io.edap</groupId>
             <artifactId>edap-s3-disk</artifactId>
         </dependency>
+        <!-- 缩略图引擎 —— Config 直接用 VipsCliImageEngine 建派生 store -->
+        <dependency>
+            <groupId>io.edap</groupId>
+            <artifactId>edap-image</artifactId>
+        </dependency>
 
         <!-- 单元测试相关依赖 -->
         <dependency>

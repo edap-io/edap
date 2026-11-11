@@ -30,6 +30,11 @@
             <groupId>io.edap</groupId>
             <artifactId>edap-crypto</artifactId>
         </dependency>
+        <!-- 派生资源（缩略图）规格 —— edap-image 是纯计算库，不依赖日志子系统 -->
+        <dependency>
+            <groupId>io.edap</groupId>
+            <artifactId>edap-image</artifactId>
+        </dependency>
 
         <!-- 单元测试相关依赖 -->
         <dependency>

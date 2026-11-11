@@ -21,6 +21,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Stream;
 
 /**
@@ -38,6 +39,18 @@ public final class DiskBucketStore implements BucketStore {
 
     private static final String ACL_FILE = ".acl";
 
+    /**
+     * 数据根下的保留名 —— <b>不是桶</b>，是派生资源缓存目录
+     * （{@code <root>/_derived/}）。
+     *
+     * <p>桶 = 数据根下的一个目录，所以任何放在数据根下的目录都会被 {@link #list()}
+     * 当成桶列出来。派生缓存必须和数据放在一起（备份、迁移、扩容都是同一棵树），
+     * 所以只能靠「保留名」把它从桶列表里剔除。</p>
+     */
+    public static final String DERIVED_DIR = "_derived";
+
+    private static final Set<String> RESERVED_ROOT_NAMES = Set.of(DERIVED_DIR);
+
     private final Path root;
 
     public DiskBucketStore(Path root) throws IOException {
@@ -47,6 +60,10 @@ public final class DiskBucketStore implements BucketStore {
 
     @Override
     public void create(String bucket) throws IOException {
+        if (RESERVED_ROOT_NAMES.contains(bucket)) {
+            throw new S3Exception(S3ErrorCode.INVALID_BUCKET_NAME,
+                    "Invalid bucket name: " + bucket + " (reserved)", "/" + bucket);
+        }
         Path dir = bucketDir(bucket);
         try {
             Files.createDirectory(dir);
@@ -81,7 +98,10 @@ public final class DiskBucketStore implements BucketStore {
             for (Path p : (Iterable<Path>) stream::iterator) {
                 if (Files.isDirectory(p)) {
                     Path fname = p.getFileName();
-                    if (fname != null) names.add(fname.toString());
+                    // 派生资源缓存目录不是桶 —— 不能出现在 LIST BUCKETS 里
+                    if (fname != null && !RESERVED_ROOT_NAMES.contains(fname.toString())) {
+                        names.add(fname.toString());
+                    }
                 }
             }
         }
@@ -122,5 +142,14 @@ public final class DiskBucketStore implements BucketStore {
 
     Path bucketDir(String bucket) {
         return root.resolve(bucket);
+    }
+
+    /**
+     * 数据根 —— 派生资源缓存目录（{@code <root>/_derived}）就挂在它下面。
+     *
+     * @return 数据根的绝对路径
+     */
+    public Path root() {
+        return root;
     }
 }

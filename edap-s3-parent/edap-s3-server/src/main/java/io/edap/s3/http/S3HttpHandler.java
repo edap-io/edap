@@ -9,9 +9,7 @@
  */
 package io.edap.s3.http;
 
-import io.edap.buffer.FastBuf;
 import io.edap.http.HttpHandler;
-import io.edap.http.HttpNioSession;
 import io.edap.http.HttpRequest;
 import io.edap.http.HttpResponse;
 import io.edap.s3.auth.S3AuthVerifier;
@@ -112,12 +110,7 @@ public final class S3HttpHandler implements HttpHandler {
             body = new byte[0];
         }
 
-        if (!customHeaders.containsKey("Content-Length")) {
-            customHeaders.put("Content-Length", String.valueOf(body.length));
-        }
-
-        resp.setSimpleResponse(s3Resp.status(), customHeaders);
-        flushWithBody(req, resp, body);
+        HttpResponseWriter.write(req, resp, s3Resp.status(), customHeaders, body);
     }
 
     private void writeError(HttpRequest req, HttpResponse resp, S3Exception ex) throws IOException {
@@ -126,73 +119,6 @@ public final class S3HttpHandler implements HttpHandler {
         hdrs.put("x-amz-error-code", ex.code().s3Code);
         hdrs.put("x-amz-error-message", ex.getMessage() == null ? "" : ex.getMessage());
         byte[] body = XmlResponseBuilder.errorBody(ex);
-        hdrs.put("Content-Length", String.valueOf(body.length));
-        resp.setSimpleResponse(ex.httpStatus(), hdrs);
-        flushWithBody(req, resp, body);
-    }
-
-    /**
-     * setSimpleResponse 已经把 status + headers + 结束 CRLF 写进 buf;
-     * 现在把 body 直接 append 到 buf,然后调 nioSession.writeToChannel(buf)
-     * 强制 flush 到 socket。
-     *
-     * <p>修复:原循环在 nio.writeToChannel 部分写返回 false 时,
-     * {@code buf.wpos(buf.address())} 会把 wpos 重置到 address,但此时 rpos
-     * 还在中间位置 —— 紧接着的 {@code buf.write(...)} 用新 body 数据覆盖掉
-     * [address, rpos) 的已发字节和 [rpos, wpos) 的待发字节,包括头部和小 body
-     * 首段。客户端在 parseHTTPHeader 处永久阻塞。修复:循环内不再盲目重置 wpos,
-     * 而是把待发字节紧凑到 buf 头部,保证下次 writeToChannel 把完整内容送出。
-     */
-    private void flushWithBody(HttpRequest req, HttpResponse resp, byte[] body) throws IOException {
-        FastBuf buf = resp.getBuf();
-        if (buf == null) return;
-        HttpNioSession nio = req.getHttpNioSession();
-        int len = body == null ? 0 : body.length;
-        int wlen = 0;
-        if (len > 0) {
-            int first = Math.min(len, buf.writeRemain());
-            wlen = buf.write(body, 0, first);
-        }
-        while (wlen < len || buf.rpos() < buf.wpos()) {
-            if (nio != null) {
-                long oldRpos = buf.rpos();
-                boolean complete = nio.writeToChannel(buf);
-                if (!complete && buf.rpos() == oldRpos) {
-                    // writeToChannel 返回 false 且 rpos 没前进 = EAGAIN(socket send buffer 满)。
-                    // 这里不能 break —— handler 局部变量 body[wlen..] 的字节还没进过 buf,
-                    // break 后就丢了,客户端收不到完整响应(Content-Length 写的是完整长度)。
-                    // 短暂 sleep 给 socket drain 机会,然后重试。worker thread 会阻塞 ~1ms,
-                    // 但这是当前 flushWithBody 没接入异步 OP_WRITE 队列下的最简方案。
-                    // 真正的修法是 task #20/#21/#22 的 OP_WRITE 异步重调度。
-                    try {
-                        Thread.sleep(1);
-                    } catch (InterruptedException ie) {
-                        Thread.currentThread().interrupt();
-                        throw new IOException("interrupted while flushing body", ie);
-                    }
-                    continue;
-                }
-                // complete 或 partial:继续
-            }
-            // 部分写?把 [rpos, wpos) 的待发内容紧凑到 buf 头部,
-            // 避免下次 write 把待发字节覆盖掉。
-            if (buf.rpos() > buf.address()) {
-                long pending = buf.wpos() - buf.rpos();
-                if (pending > 0) {
-                    io.edap.util.UnsafeUtil.copyMemory(buf.rpos(), buf.address(), pending);
-                }
-                buf.wpos(buf.address() + pending);
-                buf.rpos(buf.address());
-            }
-            // 填新 body 到 buf(只在 buf 空时才写)
-            if (buf.rpos() == buf.wpos() && wlen < len) {
-                buf.wpos(buf.address());
-                buf.rpos(buf.address());
-                int chunk = Math.min(len - wlen, buf.writeRemain());
-                wlen += buf.write(body, wlen, chunk);
-            }
-        }
-        // 收尾 flush(可能还有零碎字节)
-        if (nio != null) nio.writeToChannel(buf);
+        HttpResponseWriter.write(req, resp, ex.httpStatus(), hdrs, body);
     }
 }

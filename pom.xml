@@ -74,6 +74,7 @@
         <module>edap-grpc-parent</module>
         <module>edap-native</module>
         <module>edap-crypto</module>
+        <module>edap-image</module>
         <module>edap-tx-parent</module>
         <module>edap-s3-parent</module>
         <module>edap-raft-parent</module>
@@ -204,6 +205,11 @@
             <dependency>
                 <groupId>io.edap</groupId>
                 <artifactId>edap-s3-disk</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.edap</groupId>
+                <artifactId>edap-image</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>

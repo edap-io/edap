@@ -76,6 +76,26 @@ public class DiskBucketStoreTest {
         assertEquals("z", all.get(2));
     }
 
+    /**
+     * 派生资源缓存目录（{@code _derived/}）挂在数据根下，但它<b>不是桶</b> ——
+     * 不能出现在 LIST BUCKETS 里。
+     */
+    @Test
+    void derivedDirIsNotListedAsBucket() throws Exception {
+        store.create("foo");
+        Files.createDirectories(tmp.resolve(DiskBucketStore.DERIVED_DIR));
+        List<String> all = store.list();
+        assertEquals(1, all.size());
+        assertEquals("foo", all.get(0));
+    }
+
+    @Test
+    void createReservedDerivedNameIsRejected() throws Exception {
+        S3Exception ex = assertThrows(S3Exception.class,
+                () -> store.create(DiskBucketStore.DERIVED_DIR));
+        assertEquals(S3ErrorCode.INVALID_BUCKET_NAME, ex.code());
+    }
+
     @Test
     void aclDefaultsToPrivate() throws Exception {
         store.create("foo");

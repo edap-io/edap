@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>io.edap</groupId>
+        <artifactId>edap</artifactId>
+        <version>${edap.version}</version>
+    </parent>
+
+    <artifactId>edap-image</artifactId>
+
+    <description>
+        图片处理模块：缩略图生成唯一引擎是 libvips，通过命令行调用
+        （vips thumbnail → vips jpegsave/webpsave），每个请求拉起子进程。
+
+        为什么用命令行而不是进程内（JNA/JNI）调用：决定性因素是崩溃隔离。
+        进程内绑定里的任何错误都会让整个 JVM 无异常地死掉（实测踩过 3 次，
+        崩在 libvips.so.42+0x18ec84），Java 层 catch 不到 —— 在 edap-s3 里
+        那等于 S3 全站不可用；子进程崩则只是一次派生失败。
+        内存上，子进程退出即把内存还给 OS，进程内的堆外内存是 JVM 的盲区。
+
+        性能代价（Debian 13 aarch64 实测，4000×3000 JPEG → 200px 宽）：
+        命令行 73 ms vs 进程内 42 ms（差的 31 ms 里 25 ms 是 libvips 动态链接开销，
+        libvips 8.16 没有常驻 server 模式，省不掉）；峰值 RSS 38.7 MB，
+        IM/GM 是 108~228 MB；8 并发吞吐 86 张/s vs 进程内 146 张/s。
+        缩略图是异步派生、不在请求路径上，这个差距可以接受。
+
+        为什么引擎选 libvips 而不是 ImageMagick / GraphicsMagick：同样的输入下
+        命令行 73 ms vs IM 356 ms / GM 101 ms（GM 限单核后 187 ms），
+        内存 38.7 MB vs 108~228 MB。根因是 libvips 的 JPEG shrink-on-load
+        （解码时直接按目标尺寸缩小），IM/GM 必须全解码。
+
+        刻意不依赖 edap-common / edap-log-api：本模块是纯计算库，不碰日志子系统，
+        避免与 edap-crypto 同类的类初始化环。
+
+        libvips 是运行期依赖，不是构建期依赖：找不到 vips 可执行文件时
+        ImageEngine.available() 返回 false，调用方自行降级；
+        本模块在任何平台上都能正常编译与启动。
+    </description>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+</project>

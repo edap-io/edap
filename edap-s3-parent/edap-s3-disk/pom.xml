@@ -24,6 +24,11 @@
             <groupId>io.edap</groupId>
             <artifactId>edap-log-api</artifactId>
         </dependency>
+        <!-- 派生资源（缩略图）引擎 —— 只用 ImageEngine / ThumbSpec 两个类型 -->
+        <dependency>
+            <groupId>io.edap</groupId>
+            <artifactId>edap-image</artifactId>
+        </dependency>
 
         <!-- 单元测试相关依赖 -->
         <dependency>

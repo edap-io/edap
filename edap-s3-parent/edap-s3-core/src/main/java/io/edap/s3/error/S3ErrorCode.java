@@ -36,7 +36,10 @@ public enum S3ErrorCode {
 
     METHOD_NOT_ALLOWED(405, "MethodNotAllowed"),
 
-    INTERNAL_ERROR(500, "InternalError");
+    INTERNAL_ERROR(500, "InternalError"),
+
+    /** 派生资源（缩略图）专用：引擎不可用 / 派生队列已满。 */
+    SERVICE_UNAVAILABLE(503, "ServiceUnavailable");
 
     public final int httpStatus;
     public final String s3Code;
