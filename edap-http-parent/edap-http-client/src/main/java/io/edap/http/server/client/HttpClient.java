@@ -2,6 +2,8 @@ package io.edap.http.server.client;
 
 import io.edap.http.server.client.method.Get;
 import io.edap.http.server.client.method.Post;
+import io.edap.log.Logger;
+import io.edap.log.LoggerManager;
 import okhttp3.*;
 
 import java.io.IOException;
@@ -10,6 +12,8 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class HttpClient {
+
+    static Logger log = LoggerManager.getLogger(HttpClient.class);
 
     HashMap<AsyncGroupConfig, AsyncGroup> asyncGroups = new HashMap<>();
 
@@ -37,12 +41,22 @@ public class HttpClient {
         try {
 
             Request.Builder postBuilder = new Request.Builder().url(method.getUrl());
-
+            MediaType mediaType = JSON;
             for (Map.Entry<String, String> entry : method.getHeaders().entrySet()) {
+                if ("Content-Type".equalsIgnoreCase(entry.getKey())) {
+                    try {
+                        MediaType mt = MediaType.parse(entry.getValue());
+                        if (mt != null) {
+                            mediaType = mt;
+                        }
+                    } catch (Throwable e) {
+                        log.warn("MediaType.parse {} error", l -> l.arg(entry.getValue()).threw(e));
+                    }
+                }
                 postBuilder.addHeader(entry.getKey(), entry.getValue());
             }
             if (method.getBody() != null) {
-                postBuilder.post(RequestBody.create(method.getBody().bytes(), JSON));
+                postBuilder.post(RequestBody.create(method.getBody().bytes(), mediaType));
             }
             Response resp = client.newCall(postBuilder.build()).execute();
             return new HttpResp() {
