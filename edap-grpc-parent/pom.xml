@@ -13,6 +13,10 @@
     <packaging>pom</packaging>
     <modules>
         <module>edap-grpc-api</module>
+        <module>edap-grpc-server</module>
+        <module>edap-grpc-client</module>
+        <!-- 性能对比基准模块：唯一引入 google 系依赖的地方，不进任何运行时产物 -->
+        <module>edap-grpc-benchmark</module>
     </modules>
 
     <properties>

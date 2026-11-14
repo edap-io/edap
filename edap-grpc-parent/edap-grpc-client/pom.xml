@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>io.edap</groupId>
+        <artifactId>edap-grpc-parent</artifactId>
+        <version>${edap.version}</version>
+    </parent>
+
+    <artifactId>edap-grpc-client</artifactId>
+
+    <dependencies>
+        <dependency>
+            <groupId>io.edap</groupId>
+            <artifactId>edap-grpc-api</artifactId>
+        </dependency>
+        <!--
+            只取 HTTP/2 的帧层与 HPACK（io.edap.http.http2.*）—— 传输层就是 HTTP/2，
+            不引入 edap-http-server（那是服务端）。
+        -->
+        <dependency>
+            <groupId>io.edap</groupId>
+            <artifactId>edap-http-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.edap</groupId>
+            <artifactId>edap-protobuf</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!--
+            端到端测试要起一个真的 gRPC 服务端 —— 仅 test scope，不进运行时。
+        -->
+        <dependency>
+            <groupId>io.edap</groupId>
+            <artifactId>edap-grpc-server</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+</project>

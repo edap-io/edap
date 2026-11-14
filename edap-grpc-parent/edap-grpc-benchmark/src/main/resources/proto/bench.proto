@@ -1,0 +1,82 @@
+/*
+ * Copyright 2026 The edap Project
+ *
+ * The Netty Project licenses this file to you under the Apache License,
+ * version 2.0 (the "License"); you may not use this file except in compliance
+ * with the License. You may obtain a copy of the License at:
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+ * License for the specific language governing permissions and limitations
+ * under the License.
+ */
+
+// ★ 基准测试唯一的 proto 定义 —— 同时喂给两个代码生成器：
+//   1) edap 侧：io.edap:edap-protoc-maven-plugin（generate goal）
+//      → io.edap.grpc.benchmark.Payload       （edap 的 POJO 形态）
+//      → io.edap.grpc.benchmark.BenchService  （edap 的服务接口）
+//   2) google 侧：org.xolstice.maven.plugins:protobuf-maven-plugin
+//      → io.edap.grpc.benchmark.Bench         （protobuf-java 的外层类，内含嵌套 Payload）
+//      → io.edap.grpc.benchmark.BenchServiceGrpc（grpc-java 的服务 stub）
+//
+// 两套代码类名不冲突（edap 的服务接口叫 BenchService、protoc 的外层类叫 Bench），
+// 但 protobuf 数据格式完全一致 —— 所以两边生成的 server / client 可以互相调用。
+//
+// 注意：service 名（BenchService）不能与 proto 文件名（bench）相同，
+// 否则 protoc 的外层类 Bench 会与 edap 的服务接口 BenchService 之外的命名撞车，
+// 且 grpc-java 插件生成的服务类名也会与 edap 侧撞名。
+
+syntax = "proto3";
+
+package edap.bench;
+
+option java_package = "io.edap.grpc.benchmark";
+
+message Payload {
+    string name = 1;
+    int32 value = 2;
+    bytes blob = 3;
+}
+
+// ★ 编解码器微基准用的消息（见 io.edap.grpc.benchmark.ProtoCodecBenchmark）
+//
+// 为什么单独定义：Payload 是「平坦结构」（一个 string + 一个 int + 一个 bytes），
+// 它打不中 edap protobuf 编解码器的关键路径 ——
+//   · 字符串解码（readString 的手写 UTF-8 解码）
+//   · 嵌套消息的长度前缀（writeLenMoveBytes 的整块 memmove）
+//   · packed int 列表
+//   · map<string,string>
+//
+// 这一组消息专门用来打这些路径，且**同一份定义同时喂两个生成器**
+// ⇒ 两边的 wire 字节天然对齐，探针里可以直接逐字节断言。
+
+// 纯字符串（测字符串编解码本身，不掺杂别的字段）
+message CodecStr {
+    string s = 1;
+}
+
+message CodecInner {
+    string s = 1;
+    int32 v = 2;
+}
+
+message CodecNest {
+    CodecInner inner = 1;           // 嵌套消息（长度前缀 memmove 路径）
+    repeated CodecInner inners = 2; // repeated 嵌套消息
+    repeated int32 nums = 3;       // packed int（proto3 默认 packed）
+    map<string, string> attrs = 4;  // map<string,string>
+}
+
+service BenchService {
+    rpc Unary(Payload) returns (Payload);
+
+    // ★ 三种流式形态 —— 兼容性矩阵要覆盖它们：
+    //   流式是 gRPC 里协议行为分化最厉害的地方（半关闭、trailers、流控窗口），
+    //   只测一元调用证明不了「edap 与 grpc-java 真的能互操作」。
+    rpc ClientStream(stream Payload) returns (Payload);
+    rpc ServerStream(Payload) returns (stream Payload);
+    rpc Bidi(stream Payload) returns (stream Payload);
+}

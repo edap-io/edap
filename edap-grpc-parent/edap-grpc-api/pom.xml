@@ -11,4 +11,17 @@
 
     <artifactId>edap-grpc-api</artifactId>
 
+    <dependencies>
+        <!-- protobuf 的编解码只用 edap 自研组件，不依赖 google 的 protobuf-java -->
+        <dependency>
+            <groupId>io.edap</groupId>
+            <artifactId>edap-protobuf</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
 </project>

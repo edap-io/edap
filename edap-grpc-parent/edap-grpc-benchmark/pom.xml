@@ -1,0 +1,181 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>io.edap</groupId>
+        <artifactId>edap-grpc-parent</artifactId>
+        <version>${edap.version}</version>
+    </parent>
+
+    <artifactId>edap-grpc-benchmark</artifactId>
+
+    <name>edap-grpc-benchmark</name>
+    <description>
+        edap 原生 gRPC 与 google grpc-java 的性能对比基准。
+        同一份 proto 文件分别喂给 edap 自己的代码生成器（edap-protoc-maven-plugin）
+        和 google 的 protoc（protobuf-maven-plugin + protoc-gen-grpc-java），
+        生成两套 Java 代码后做端到端吞吐/延迟对比与跨框架互操作验证。
+
+        ★ 本模块是唯一引入 google 系依赖（grpc-java / protobuf-java）的地方，
+          这些依赖不会进入任何 edap 运行时产物（edap-container-boot-lib.txt 不含本模块）。
+    </description>
+
+    <properties>
+        <grpc.version>1.85.1</grpc.version>
+        <protobuf.version>3.25.9</protobuf.version>
+        <os-maven-plugin.version>1.7.1</os-maven-plugin.version>
+        <protobuf-maven-plugin.version>0.6.1</protobuf-maven-plugin.version>
+        <!-- 两个生成器共用的唯一 proto 目录（edap 插件只扫 <resourceDir>/proto） -->
+        <bench.proto.dir>${project.basedir}/src/main/resources/proto</bench.proto.dir>
+    </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <!--
+                ★ 覆盖根 pom 的 dependencyManagement：
+                  根 pom 把 com.google.protobuf:protobuf-java 管成了 ${protobuf.java.verson}
+                  (4.29.3) 且 scope=test。dependencyManagement 优先级高于本模块自己写的
+                  <version>/<scope>，不覆盖的话 protobuf-java 根本不在编译类路径上，
+                  protoc 生成的 Bench.java 会整片报「程序包 com.google.protobuf 不存在」。
+                  这里显式改成与 protoc 版本一致的 3.25.9 + compile，
+                  只影响本模块（google 系依赖的隔离边界）。
+            -->
+            <dependency>
+                <groupId>com.google.protobuf</groupId>
+                <artifactId>protobuf-java</artifactId>
+                <version>${protobuf.version}</version>
+                <scope>compile</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <dependencies>
+        <!-- ==================== edap 侧 ==================== -->
+        <dependency>
+            <groupId>io.edap</groupId>
+            <artifactId>edap-grpc-server</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.edap</groupId>
+            <artifactId>edap-grpc-client</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.edap</groupId>
+            <artifactId>edap-protobuf</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.edap</groupId>
+            <artifactId>edap-nio-server</artifactId>
+        </dependency>
+
+        <!-- ==================== google 侧（仅本模块） ==================== -->
+        <dependency>
+            <groupId>io.grpc</groupId>
+            <artifactId>grpc-netty-shaded</artifactId>
+            <version>${grpc.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.grpc</groupId>
+            <artifactId>grpc-stub</artifactId>
+            <version>${grpc.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.grpc</groupId>
+            <artifactId>grpc-protobuf</artifactId>
+            <version>${grpc.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.google.protobuf</groupId>
+            <artifactId>protobuf-java</artifactId>
+            <!-- 版本/scope 由上面的 dependencyManagement 决定（根 pom 的管理项在此被覆盖） -->
+        </dependency>
+
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <extensions>
+            <!-- 给 protoc / protoc-gen-grpc-java 的 exe artifact 提供 ${os.detected.classifier} -->
+            <extension>
+                <groupId>kr.motd.maven</groupId>
+                <artifactId>os-maven-plugin</artifactId>
+                <version>${os-maven-plugin.version}</version>
+            </extension>
+        </extensions>
+        <plugins>
+            <!--
+                ① edap 侧的代码生成器。
+
+                   ★ 必须排在 protobuf-maven-plugin 之前：本插件要求
+                   project.getCompileSourceRoots().size() == 1，而 protobuf 插件会往里
+                   追加两个源根（java + grpc-java）。同一 phase 内按 POM 顺序执行，
+                   所以把 edap 插件写在前面即可。
+
+                   ★ implModulePath 必须显式配：插件里 implSrcDir.exists() 的校验在
+                   createImpl 判断之外，不配会直接 fail（implModulePath 默认值是 null）。
+                   这里指向模块自身，只为通过存在性校验，不生成任何实现代码。
+            -->
+            <plugin>
+                <groupId>io.edap</groupId>
+                <artifactId>edap-protoc-maven-plugin</artifactId>
+                <version>${project.version}</version>
+                <configuration>
+                    <implModulePath>.</implModulePath>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>edap-proto</id>
+                        <goals>
+                            <goal>generate</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <!--
+                ② google 侧的代码生成器。
+                   compile       → 生成 protobuf-java 的消息类
+                   compile-custom→ 调用 protoc-gen-grpc-java 生成服务 stub
+                   两个 goal 的 protoSourceRoot 都指向同一份 proto 文件。
+            -->
+            <plugin>
+                <groupId>org.xolstice.maven.plugins</groupId>
+                <artifactId>protobuf-maven-plugin</artifactId>
+                <version>${protobuf-maven-plugin.version}</version>
+                <configuration>
+                    <protocArtifact>com.google.protobuf:protoc:${protobuf.version}:exe:${os.detected.classifier}</protocArtifact>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>proto-java</id>
+                        <goals>
+                            <goal>compile</goal>
+                        </goals>
+                        <configuration>
+                            <protoSourceRoot>${bench.proto.dir}</protoSourceRoot>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>proto-grpc-java</id>
+                        <goals>
+                            <goal>compile-custom</goal>
+                        </goals>
+                        <configuration>
+                            <pluginId>grpc-java</pluginId>
+                            <pluginArtifact>io.grpc:protoc-gen-grpc-java:${grpc.version}:exe:${os.detected.classifier}</pluginArtifact>
+                            <protoSourceRoot>${bench.proto.dir}</protoSourceRoot>
+                            <outputDirectory>${project.build.directory}/generated-sources/protobuf/grpc-java</outputDirectory>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>
