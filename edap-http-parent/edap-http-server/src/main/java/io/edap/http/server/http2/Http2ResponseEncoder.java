@@ -22,8 +22,6 @@ import io.edap.http.ResponseEncoder;
 import io.edap.http.header.ContentTypeHeader;
 import io.edap.http.header.Header;
 import io.edap.http.http2.Http2Flags;
-import io.edap.http.http2.Http2FrameType;
-import io.edap.http.http2.hpack.HpackEncoder;
 import io.edap.http.http2.hpack.HpackHeader;
 
 import java.nio.charset.StandardCharsets;
@@ -59,16 +57,17 @@ public class Http2ResponseEncoder implements ResponseEncoder {
 
     private final Http2Connection connection;
     private final Http2Stream stream;
-    private final HpackEncoder hpackEncoder;
 
     public Http2ResponseEncoder(Http2Connection connection, Http2Stream stream) {
         this.connection = connection;
         this.stream = stream;
-        this.hpackEncoder = connection.getHpackEncoder();
     }
 
     @Override
     public void writeHead(HttpResponse response, int contentLength) {
+        if (Http2WriteStats.ENABLED) {
+            Http2WriteStats.responseHeads.increment();
+        }
         List<HpackHeader> headers = new ArrayList<>(8);
         // ★ :status 必须是第一个伪头
         headers.add(new HpackHeader(":status", Integer.toString(response.getStatusCode())));
@@ -95,9 +94,7 @@ public class Http2ResponseEncoder implements ResponseEncoder {
         headers.add(new HpackHeader("date", currentDate()));
         headers.add(new HpackHeader("server", "ews"));
 
-        byte[] block = hpackEncoder.encode(headers);
-        connection.writeFrame(Http2FrameType.HEADERS, Http2Flags.END_HEADERS,
-                stream.getStreamId(), block, 0, block.length);
+        connection.writeHeaders(stream, headers, Http2Flags.END_HEADERS);
     }
 
     @Override
@@ -105,23 +102,18 @@ public class Http2ResponseEncoder implements ResponseEncoder {
         if (length <= 0) {
             return;
         }
-        int pos = offset;
-        int remaining = length;
-        while (remaining > 0) {
-            int n = connection.reserveSend(stream, remaining);
-            if (n <= 0) {
-                // 流控窗口耗尽 —— 剩余数据挂到流上，等 WINDOW_UPDATE 再发
-                stream.appendPendingBody(data, pos, remaining);
-                return;
-            }
-            connection.writeFrame(Http2FrameType.DATA, 0, stream.getStreamId(), data, pos, n);
-            pos += n;
-            remaining -= n;
-        }
+        connection.writeBody(stream, data, offset, length);
     }
 
     @Override
     public void end(HttpResponse response) {
+        Map<String, String> trailers = response.getTrailers();
+        if (trailers != null && !trailers.isEmpty()) {
+            // ★ 有 trailers —— 响应以 HEADERS(END_STREAM) 帧结束（RFC 9113 §8.1）。
+            //   gRPC 的 grpc-status / grpc-message 就在这里。
+            connection.writeTrailers(stream, trailers);
+            return;
+        }
         // 空 DATA 帧 + END_STREAM —— 这是 h2 里「响应结束」的唯一标记。
         // body 还没发完时由连接层延后 END_STREAM。
         connection.endStream(stream);

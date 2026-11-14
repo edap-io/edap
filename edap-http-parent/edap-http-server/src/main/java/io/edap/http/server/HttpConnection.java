@@ -56,9 +56,9 @@ public interface HttpConnection {
     /**
      * NIO 层把「上次没写完的字节」写完之后回调。
      *
-     * <p>HTTP/2 场景下 socket 缓冲（默认 16KB）远小于一个窗口（64KB），大响应必然写不完，
-     * 残余字节挂在 session 的写队列上，等 {@code OP_WRITE} 事件继续写。本回调就是那个
-     * 「继续写」的触发点 —— 没有它，挂起的帧永远发不出去。</p>
+     * <p>HTTP/2 场景下内核的 socket 发送缓冲不保证一次收得下一整条响应，
+     * 大响应可能写不完，残余字节挂在 session 的写队列上，等 {@code OP_WRITE} 事件继续写。
+     * 本回调就是那个「继续写」的触发点 —— 没有它，挂起的帧永远发不出去。</p>
      */
     default void onWriteBufDrained() {
     }

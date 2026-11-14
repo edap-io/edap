@@ -26,6 +26,7 @@ import io.edap.http.PathInfo;
 import io.edap.http.codec.HttpFastBufDataRange;
 import io.edap.http.server.handler.NotFoundHandler;
 import io.edap.http.server.handler.NotSupportMethodHandler;
+import io.edap.http.server.http2.Http2ProtocolRouter;
 import io.edap.http.server.rangedecoder.PathDecoder;
 import io.edap.nio.codec.FastBufDataRange;
 
@@ -75,6 +76,14 @@ public class HttpServer extends Server {
     private final Decoder<HttpRequest, HttpNioSession> requestDecoder;
 
     /**
+     * HTTP/2 协议路由器（gRPC 之类）—— null 表示全部走默认的 HTTP 处理路径。
+     *
+     * <p>与 {@link #pathDecoder} 同源：都是 per-HttpServer 的配置，
+     * {@code Http2Connection} 构造时取一次。</p>
+     */
+    private volatile Http2ProtocolRouter protocolRouter;
+
+    /**
      * 默认构造：自建空 PathInfoMatcher。生产路径一般走 {@link #HttpServer(PathInfoMatcher)}，
      * 由 {@link HttpServerBuilder} 在 build() 时注入（HttpServerBuilder 把 wildcard 注册到自己的
      * PathInfoMatcher 上，build() 再把这个 matcher 转交给 HttpServer，保证 wildcard 路由生效）。
@@ -111,6 +120,23 @@ public class HttpServer extends Server {
     public void setPathInfoMatcher(PathInfoMatcher pathInfoMatcher) {
         this.pathInfoMatcher = pathInfoMatcher;
         this.pathDecoder.setPathInfoMatcher(pathInfoMatcher);
+    }
+
+    /**
+     * HTTP/2 协议路由器（gRPC 之类）。null = 全部走默认 HTTP 处理。
+     */
+    public Http2ProtocolRouter getProtocolRouter() {
+        return protocolRouter;
+    }
+
+    /**
+     * 设置 HTTP/2 协议路由器（gRPC 之类）。
+     *
+     * <p>必须在 server 启动<b>之前</b>设置 —— {@code Http2Connection} 在构造时取一次，
+     * 已经建立的连接不会重新取。</p>
+     */
+    public void setProtocolRouter(Http2ProtocolRouter protocolRouter) {
+        this.protocolRouter = protocolRouter;
     }
 
     /**

@@ -44,6 +44,14 @@ public class ContentTypeHeader extends Header {
     public static ContentTypeHeader PROTOBUF        = from("application/x-protobuf");
     public static ContentTypeHeader FORM_URLENCODED = from("application/x-www-form-urlencoded");
 
+    /**
+     * gRPC 的响应内容类型（gRPC over HTTP/2 规范）。
+     *
+     * <p>请求侧可以是 {@code application/grpc+proto} 之类（带 + 前缀的子类型），
+     * 但响应侧固定是 {@code application/grpc}。</p>
+     */
+    public static ContentTypeHeader GRPC            = from("application/grpc");
+
     public static ContentTypeHeader from(String value) {
         value = value.trim();
         ContentTypeHeader contentTypeHeader = CONTENT_TYPES.get(value);

@@ -105,6 +105,13 @@ public class Http2Stream {
     private int pendingBodyOffset;
     private int pendingBodyLength;
 
+    /**
+     * body 第一次被流控挂起的时间（纳秒）—— 0 表示没挂起过。
+     *
+     * <p>诊断用：用来量「响应在流控上等了多久」。</p>
+     */
+    private long pendingSinceNanos;
+
     /** 本端已发 END_STREAM */
     private boolean closedLocally;
 
@@ -113,6 +120,21 @@ public class Http2Stream {
 
     /** 响应已结束，但 body 还挂在流上等 WINDOW_UPDATE —— END_STREAM 要延后发 */
     private boolean pendingEnd;
+
+    /**
+     * 协议处理器（gRPC 之类）—— 由 {@link Http2Connection#getProtocolRouter()} 选出。
+     *
+     * <p>null 表示这条流走默认的 HTTP 处理路径（{@code session.handle(request)}）。</p>
+     */
+    private Http2ProtocolHandler protocolHandler;
+
+    /** 请求侧是否已经结束（{@link Http2ProtocolHandler#onEnd} 只调一次） */
+    private boolean protocolEnded;
+
+    /**
+     * 因流控挂起、还没发出去的 trailers —— body 发完之后再发 HEADERS(END_STREAM)。
+     */
+    private Map<String, String> pendingTrailers;
 
     public Http2Stream(int streamId, Http2Connection connection) {
         this.streamId = streamId;
@@ -222,6 +244,33 @@ public class Http2Stream {
         if (authority != null) {
             request.setHost(authority);
         }
+
+        selectProtocolHandler();
+    }
+
+    /**
+     * 选这条流的协议处理器（gRPC 之类）。
+     *
+     * <p>只有「header 收齐」才知道这是不是非 HTTP 语义（{@code content-type:
+     * application/grpc}），所以选择点只能在这里。没有路由器（或路由返回 null）
+     * 时，protocolHandler 保持 null —— 走默认的 HTTP 处理路径。</p>
+     */
+    private void selectProtocolHandler() {
+        Http2ProtocolRouter router = connection.getProtocolRouter();
+        if (router == null) {
+            return;
+        }
+        Http2ProtocolHandler handler = router.select(request);
+        if (handler != null) {
+            this.protocolHandler = handler;
+        }
+    }
+
+    /**
+     * 这条流有没有被协议处理器接管。
+     */
+    public boolean hasProtocolHandler() {
+        return protocolHandler != null;
     }
 
     /**
@@ -382,9 +431,17 @@ public class Http2Stream {
 
     /**
      * 追加 body 数据（DATA 帧载荷）。
+     *
+     * <p>协议处理器接管请求体时（{@code takesStreamingBody()}），body <b>不累积</b>，
+     * 而是逐块转发 —— gRPC 的请求是消息流，必须增量处理。</p>
      */
-    public void appendBody(byte[] data, int offset, int length) {
+    public void appendBody(byte[] data, int offset, int length) throws IOException {
         if (length <= 0) {
+            return;
+        }
+        Http2ProtocolHandler handler = protocolHandler;
+        if (handler != null && handler.takesStreamingBody()) {
+            handler.onBody(this, data, offset, length);
             return;
         }
         if (bodyLen + length > body.length) {
@@ -411,9 +468,20 @@ public class Http2Stream {
 
     /**
      * header 收齐 + 对端半关闭 ⇒ 请求可以派发了。
+     *
+     * <p><b>协议处理器接管时例外</b>：header 一收齐就能派发，<b>不等 body</b> ——
+     * 服务端流式（server streaming）必须在请求收完之前就能开始回响应，
+     * 否则 gRPC 的「请求一条、响应多条」会退化成「先收完再回」，
+     * 双向流式更是完全没法用。</p>
      */
     public boolean isReadyToDispatch() {
-        return headersComplete && endStream && !dispatched && !refused;
+        if (!headersComplete || dispatched || refused) {
+            return false;
+        }
+        if (protocolHandler != null) {
+            return true;
+        }
+        return endStream;
     }
 
     /**
@@ -424,13 +492,38 @@ public class Http2Stream {
             return;
         }
         dispatched = true;
-        if (bodyLen > 0) {
-            request.setBody(new HeapHttpBody(body, 0, bodyLen));
-        }
         // 响应编码策略绑定到「连接 + 流」—— 不引入 isHttp2 布尔
         response.setEncoder(new Http2ResponseEncoder(connection, this));
         response.setBuf(THREAD_WRITE_BUF.get());
+        Http2ProtocolHandler handler = protocolHandler;
+        if (handler != null) {
+            // 协议处理器接管：不累积 body，也不走 session.handle()
+            handler.onHeaders(this);
+            return;
+        }
+        if (bodyLen > 0) {
+            request.setBody(new HeapHttpBody(body, 0, bodyLen));
+        }
         connection.getSession().handle(request);
+    }
+
+    /**
+     * 请求侧结束 —— 通知协议处理器（幂等，只调一次）。
+     */
+    public void endProtocol() throws IOException {
+        Http2ProtocolHandler handler = protocolHandler;
+        if (handler == null || protocolEnded) {
+            return;
+        }
+        protocolEnded = true;
+        handler.onEnd(this);
+    }
+
+    /**
+     * 这条流是否已经派发过。
+     */
+    public boolean isDispatched() {
+        return dispatched;
     }
 
     // ------------------------------------------------------------------
@@ -531,11 +624,32 @@ public class Http2Stream {
     }
 
     /**
+     * 挂起 trailers —— body 还没发完（流控暂停），trailers 要等 body 发完再发。
+     */
+    public void setPendingTrailers(Map<String, String> trailers) {
+        this.pendingTrailers = trailers;
+    }
+
+    /**
+     * 取出并清空挂起的 trailers。
+     *
+     * @return 挂起的 trailers；null 表示没有挂起的 trailers
+     */
+    public Map<String, String> takePendingTrailers() {
+        Map<String, String> trailers = pendingTrailers;
+        pendingTrailers = null;
+        return trailers;
+    }
+
+    /**
      * 因流控暂停而挂起的待发 body。
      */
     public void appendPendingBody(byte[] data, int offset, int length) {
         if (length <= 0) {
             return;
+        }
+        if (pendingSinceNanos == 0L) {
+            pendingSinceNanos = System.nanoTime();
         }
         if (pendingBody == null) {
             pendingBody = new byte[length];
@@ -579,6 +693,17 @@ public class Http2Stream {
             pendingBodyOffset = 0;
             pendingBodyLength = 0;
         }
+    }
+
+    /**
+     * 取出「body 被流控挂起」的时刻（纳秒）并清零 —— 0 表示这次没有挂起过。
+     *
+     * <p>诊断用：算响应在流控上等了多久。</p>
+     */
+    public long takePendingSinceNanos() {
+        long v = pendingSinceNanos;
+        pendingSinceNanos = 0L;
+        return v;
     }
 
     // ------------------------------------------------------------------

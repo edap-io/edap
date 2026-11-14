@@ -214,9 +214,9 @@ public class HttpServerNioSession extends HttpNioSession implements WSConnection
 	/**
 	 * NIO 层把写队列头写完之后回调 —— 协议连接据此继续发剩下的数据。
 	 *
-	 * <p><b>★ 这是 HTTP/2 大响应能发完的关键</b>：socket 的发送缓冲默认只有 16KB
-	 * （{@code AcceptEventHandler} 里 {@code setSendBufferSize(16 * 1024)}），
-	 * 而 HTTP/2 的发送窗口是 64KB。大响应第一次写必然写不完，残余字节挂在 session 的
+	 * <p><b>★ 这是 HTTP/2 大响应能发完的关键</b>：内核的发送缓冲不保证一次收得下一整条
+	 * 响应（{@code AcceptEventHandler} 现在<b>不</b>钉死 SO_SNDBUF，交给内核自动调优），
+	 * 而 HTTP/2 的发送窗口是 1MB。大响应第一次写有可能写不完，残余字节挂在 session 的
 	 * 写队列上，等 {@code OP_WRITE} 事件；队列头写完时 NIO 层回调
 	 * {@code removeWriteBuf}，协议连接必须在这里把剩下的帧继续发出去，
 	 * 否则那些帧永远卡在队列里（对端表现为「响应只发了一半就停住」）。</p>
@@ -283,6 +283,9 @@ public class HttpServerNioSession extends HttpNioSession implements WSConnection
 	 * 对端的 WINDOW_UPDATE，双方死锁。</p>
 	 */
 	public void enableWriteInterest() {
+		if (io.edap.http.server.http2.Http2WriteStats.ENABLED) {
+			io.edap.http.server.http2.Http2WriteStats.opWriteEnables.increment();
+		}
 		SelectionKey key = obtainSelectionKey();
 		if (key == null || !key.isValid()) {
 			return;

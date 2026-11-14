@@ -46,11 +46,37 @@ public class Http2FlowController {
     /** 窗口上限（RFC 9113 §6.9.1：超过 2^31-1 是 FLOW_CONTROL_ERROR） */
     public static final int MAX_WINDOW = 0x7fffffff;
 
+    /**
+     * 本端通告的<b>流级</b>接收窗口初值（1MB）。
+     *
+     * <p>RFC 9113 §6.9.2 的默认值 65535 太小：一条 64KB 的请求塞不进一个窗口，
+     * 必须等对端归还额度才能发完，在途请求数被压在 1 个。</p>
+     */
+    public static final int STREAM_WINDOW = 1024 * 1024;
+
+    /**
+     * 本端<b>连接级</b>接收窗口的目标值（8MB）。
+     *
+     * <p>RFC 9113 §6.9.2：连接级窗口初值恒为 65535，<b>不受 SETTINGS_INITIAL_WINDOW_SIZE 影响</b>，
+     * 但接收方<b>可以</b>用 {@code WINDOW_UPDATE}（streamId=0）把它撑大 ——
+     * grpc-java 两端都撑到 1MB。不撑的话，一条连接上能同时在途的字节只有 64KB，
+     * 并发再高也没有意义（64KB 负载下并发 1 → 32 的吞吐是 3239 → 3272 req/s）。</p>
+     *
+     * <p><b>为什么是 8MB 而不是 1MB</b>：连接级窗口就是「一条连接上最多能同时在途多少字节」
+     * 的天花板。1MB 时一条 64KB 的请求只允许 <b>16 个</b>并发在途 —— 32 并发下另外 16 个的
+     * 客户端线程要卡在流控上等额度（实测 64KB 负载下每条请求平均有 <b>1.13ms</b>是纯等待，
+     * p99 被推到 <b>15ms</b>）。8MB 能装下 128 条 64KB 请求 ⇒ 并发 32 时连接级窗口不再是瓶颈。</p>
+     */
+    public static final int CONN_WINDOW = Integer.getInteger("edap.http2.connWindow", 8 * 1024 * 1024);
+
     /** 连接级发送窗口：对端还能接收多少字节 */
     private int connSendWindow = DEFAULT_WINDOW;
 
     /** 连接级接收窗口：我们还能接收多少字节 */
     private int connRecvWindow = DEFAULT_WINDOW;
+
+    /** 连接级接收窗口的<b>大小</b>（我们已经告诉对端它能发多少）—— credit 阈值按它的一半算 */
+    private int connRecvWindowSize = DEFAULT_WINDOW;
 
     /** 对端通告的 INITIAL_WINDOW_SIZE（新流的发送窗口初值） */
     private int peerInitialWindowSize = DEFAULT_WINDOW;
@@ -60,6 +86,21 @@ public class Http2FlowController {
 
     /** 已收到但还没归还给对端的连接级字节数 */
     private int pendingConnRecvCredit;
+
+    /**
+     * 扩大连接级接收窗口 —— 发一帧 {@code WINDOW_UPDATE}(streamId=0) 把对端的发送窗口撑大。
+     *
+     * @return 需要发给对端的增量（0 = 不用扩）
+     */
+    public int growConnRecvWindow() {
+        int increment = CONN_WINDOW - connRecvWindowSize;
+        if (increment <= 0) {
+            return 0;
+        }
+        connRecvWindowSize = CONN_WINDOW;
+        connRecvWindow += increment;
+        return increment;
+    }
 
     /**
      * 对端通告的 INITIAL_WINDOW_SIZE 初值。
@@ -144,7 +185,7 @@ public class Http2FlowController {
      * 取出待归还的连接级 credit（攒够初始窗口的一半才返回）。
      */
     public int takeConnRecvCredit() {
-        int threshold = Math.max(1, DEFAULT_WINDOW / 2);
+        int threshold = Math.max(1, connRecvWindowSize / 2);
         if (pendingConnRecvCredit < threshold) {
             return 0;
         }

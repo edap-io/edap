@@ -21,32 +21,43 @@ import io.edap.http.http2.Http2FrameCodec;
 import io.edap.http.server.HttpServerNioSession;
 import io.edap.log.Logger;
 import io.edap.log.LoggerManager;
+import io.edap.nio.NioSession;
 import io.edap.pool.Pool;
+import io.edap.util.UnsafeUtil;
 
 import java.io.IOException;
-import java.util.ArrayDeque;
-import java.util.Deque;
 
 /**
  * HTTP/2 帧写出器。
  *
- * <p><b>★ 帧原子性</b>：一个帧要么完整写进缓冲，要么一个字节都不写。
- * {@code FastBuf.write(byte[],off,len)} 是<b>静默截断</b>的（写不满不报错），
- * 所以这里先判 {@code writeRemain()} 再写，绝不产生半帧。</p>
+ * <p><b>★ 出站结构：netty 式的「累积缓冲」</b>。帧不再各自分配一个 {@code byte[]}，
+ * 而是<b>直接写进一块出站累积缓冲</b>；缓冲攒够一次响应（或缓冲满）才做一次 socket 写。</p>
+ *
+ * <p>换来两件事（都是实测的，不是推演）：</p>
+ * <ul>
+ *   <li><b>一条 64KB 响应只做 1 次 socket 写</b>。原来写缓冲只有 32KB，
+ *       而 HTTP/2 的最大帧是 16KB —— 一个缓冲只装得下一个帧，
+ *       于是每条 64KB 响应被拆成 <b>4 次 socket 写</b>（实测 4.10 次/响应），
+ *       对端也要被唤醒 4 次。写缓冲放大到 128KB 后降到 <b>1.01 次/响应</b>，
+ *       吞吐 <b>+29%</b>；现在是 256KB，还能把一次读带回的 4 条 64KB 响应攒成一次写。</li>
+ *   <li><b>少一次整块拷贝、少一批分配</b>。原来：载荷 → 帧数组（一次拷贝 + 一个
+ *       {@code byte[]}），帧数组 → 写缓冲（又一次拷贝）。现在：载荷 → 写缓冲，一次到位。</li>
+ * </ul>
+ *
+ * <p><b>★ 为什么缓冲必须是连续的</b>：socket 的写是 {@code write(2)}，
+ * 一次只能写一段连续内存。帧不连续就没法一次写完 ——
+ * 「一条响应一次 syscall」的前提就是整条响应在内存里连续。</p>
  *
  * <p><b>★ 出站链路</b>（为什么不能直接写 socket）：</p>
  *
  * <blockquote>
- * socket 的发送缓冲默认只有 16KB（{@code AcceptEventHandler} 里
- * {@code socket.setSendBufferSize(16 * 1024)}），而 HTTP/2 一个发送窗口就是 64KB。
- * 大响应第一次写<b>必然写不完</b>，必须有一个「写不完也能续写」的机制。
+ * socket 的发送缓冲可能写不下（内核自动调优，不保证一次能收下 64KB），
+ * 所以必须有「写不完也能续写」的机制。
  * </blockquote>
  *
- * <p>本类用三层结构实现它：</p>
+ * <p>本类用两层结构实现它：</p>
  * <ol>
- *   <li><b>帧队列</b>（{@link #frames}）：还没装进写缓冲的整帧；</li>
- *   <li><b>写缓冲</b>（{@link #buffer}）：从池里借的 32KB {@link FastBuf}，
- *       装了若干整帧；</li>
+ *   <li><b>累积缓冲</b>（{@link #buffer}）：帧直接写进来，攒够一次 socket 写；</li>
  *   <li><b>NIO 写队列</b>：socket 写不动时，把写缓冲里剩下的字节挂到 session 的
  *       写队列上，等 {@code OP_WRITE} 事件由 NIO 层继续写。</li>
  * </ol>
@@ -67,23 +78,29 @@ public class Http2FrameWriter {
 
     static final Logger LOG = LoggerManager.getLogger(Http2FrameWriter.class);
 
-    /** 写缓冲大小 —— 与 NIO 层的 THREAD_WRITE_BUF 保持一致 */
-    static final int BUFFER_SIZE = 32768;
+    /**
+     * 出站累积缓冲的容量。
+     *
+     * <p>必须与写缓冲池里的缓冲一样大（都取自 {@link NioSession#WRITE_BUFFER_SIZE}）——
+     * 否则每次响应都要重新分配一块缓冲，而直连内存的分配远比堆内存贵。</p>
+     */
+    static final int BUFFER_SIZE = NioSession.WRITE_BUFFER_SIZE;
 
     private final Http2Connection connection;
 
     /**
-     * 待发送的整帧队列（还没装进写缓冲的帧）。
-     */
-    private final Deque<byte[]> frames = new ArrayDeque<>();
-
-    /**
-     * 当前写缓冲。null 表示手上没有缓冲。
+     * 出站累积缓冲 —— 帧直接写进来（不分配中间帧数组）。
+     * null 表示手上没有缓冲。
      *
      * <p>一旦交给 NIO 层的写队列就必须置 null —— 那个缓冲归 NIO 层所有，
      * 它写完会归还到池里，不能再被本类使用。</p>
      */
     private FastBuf buffer;
+
+    /**
+     * 累积缓冲里已写入、还没发到 socket 的字节数。
+     */
+    private int pending;
 
     /**
      * 写缓冲池（NIO 层传进来）。
@@ -103,39 +120,45 @@ public class Http2FrameWriter {
     // 帧的产出
     // ------------------------------------------------------------------
 
-    public void writeFrame(int type, int flags, int streamId, byte[] payload, int offset, int length) {
+    /**
+     * 写一个帧 —— 帧头与载荷<b>直接写进累积缓冲</b>。
+     *
+     * <p>帧头 9 字节：长度 24 位 + 类型 8 位 + 标志 8 位 + 流标识 31 位（RFC 9113 §4.1）。</p>
+     */
+    public synchronized void writeFrame(int type, int flags, int streamId, byte[] payload, int offset, int length) {
         if (length > 0xffffff) {
             throw new IllegalArgumentException("帧载荷超过 24 位长度上限: " + length);
         }
-        byte[] frame = new byte[Http2FrameCodec.FRAME_HEADER_LENGTH + length];
-        frame[0] = (byte) ((length >>> 16) & 0xff);
-        frame[1] = (byte) ((length >>> 8) & 0xff);
-        frame[2] = (byte) (length & 0xff);
-        frame[3] = (byte) (type & 0xff);
-        frame[4] = (byte) (flags & 0xff);
-        frame[5] = (byte) ((streamId >>> 24) & 0x7f);
-        frame[6] = (byte) ((streamId >>> 16) & 0xff);
-        frame[7] = (byte) ((streamId >>> 8) & 0xff);
-        frame[8] = (byte) (streamId & 0xff);
+        int need = Http2FrameCodec.FRAME_HEADER_LENGTH + length;
+        FastBuf buf = bufferFor(need);
+        long p = buf.wpos();
+        buf.writeNotCheck(p,     (byte) ((length >>> 16) & 0xff));
+        buf.writeNotCheck(p + 1, (byte) ((length >>> 8) & 0xff));
+        buf.writeNotCheck(p + 2, (byte) (length & 0xff));
+        buf.writeNotCheck(p + 3, (byte) (type & 0xff));
+        buf.writeNotCheck(p + 4, (byte) (flags & 0xff));
+        buf.writeNotCheck(p + 5, (byte) ((streamId >>> 24) & 0x7f));
+        buf.writeNotCheck(p + 6, (byte) ((streamId >>> 16) & 0xff));
+        buf.writeNotCheck(p + 7, (byte) ((streamId >>> 8) & 0xff));
+        buf.writeNotCheck(p + 8, (byte) (streamId & 0xff));
+        buf.wpos(p + Http2FrameCodec.FRAME_HEADER_LENGTH);
         if (length > 0) {
-            System.arraycopy(payload, offset, frame, Http2FrameCodec.FRAME_HEADER_LENGTH, length);
+            int n = buf.write(payload, offset, length);
+            if (n != length) {
+                // bufferFor 已经保证装得下 —— 装不下说明缓冲算错了，绝不能静默截断
+                throw new IllegalStateException("写缓冲空间不足: 需要 " + length + " 字节，实际写入 " + n);
+            }
         }
-        enqueue(frame);
-    }
-
-    public void writeFrame(int type, int flags, int streamId, byte[] payload) {
-        writeFrame(type, flags, streamId, payload, 0, payload.length);
-    }
-
-    /**
-     * 帧入队。
-     *
-     * <p>只入队，不直接写 socket —— 真正的写出在 {@link #flushToSocket()}，
-     * 由连接层在 decode 结束后统一触发。</p>
-     */
-    private void enqueue(byte[] frame) {
-        frames.addLast(frame);
+        pending += need;
         frameCount++;
+        if (Http2WriteStats.ENABLED) {
+            Http2WriteStats.framesEnqueued.increment();
+            Http2WriteStats.frameBytes.add(need);
+        }
+    }
+
+    public synchronized void writeFrame(int type, int flags, int streamId, byte[] payload) {
+        writeFrame(type, flags, streamId, payload, 0, payload.length);
     }
 
     // ------------------------------------------------------------------
@@ -143,43 +166,173 @@ public class Http2FrameWriter {
     // ------------------------------------------------------------------
 
     /**
-     * 把待发帧尽量写到 socket。
+     * 拿一块装得下 {@code need} 字节的累积缓冲。
+     *
+     * <p>装不下就换一块更大的，并把已累积的字节搬过去 ——
+     * 响应必须连续，不能拆成两段写（拆了就变成两次 socket 写，
+     * 又回到「一条响应多次 syscall」的老问题）。</p>
+     */
+    private FastBuf bufferFor(int need) {
+        if (buffer == null) {
+            buffer = borrowBuffer(need);
+            return buffer;
+        }
+        if (buffer.writeRemain() >= need) {
+            return buffer;
+        }
+        // ★★ 缓冲满了：先把已累积的字节**写出去**，而不是换一块更大的缓冲。
+        //
+        //   原来这里是「换一块 pending + need 大小的新缓冲，并把已累积的整块搬过去」。
+        //   换完之后新缓冲的剩余空间恰好只够再放一帧 ⇒ 下一帧又触发换缓冲 ⇒
+        //   缓冲一帧一帧地长大，而**每次换缓冲都要把已累积的全部字节搬一遍** ⇒
+        //   平方级拷贝。
+        //
+        //   实测（edap gRPC，64KB 负载 / 32 并发 / 连接复用，grpc-java 客户端）：
+        //     平方级换缓冲：5 秒搬了 26GB（实际输出只有 1.9GB ⇒ 15 倍放大），
+        //                   吞吐 6,418 req/s；连接新开时同样的场景只搬 8GB（1.9 倍），
+        //                   吞吐 12,916 req/s。
+        //     先写出去：拷贝归零，吞吐回到 13,000+ req/s。
+        //
+        //   ★ 「一条响应一次 syscall」是**优化**而不是协议要求 ——
+        //   HTTP/2 是字节流，响应被拆到两次 socket 写，对端照样按字节流重组。
+        //   与其用平方级拷贝换「一次写完」，不如多一次 syscall（几十微秒）
+        //   换掉几百 MB 的内存搬运。
+        if (tryFlushToSocket()) {
+            if (buffer == null) {
+                buffer = borrowBuffer(need);
+                return buffer;
+            }
+            if (buffer.writeRemain() >= need) {
+                return buffer;
+            }
+        }
+        if (buffer == null) {
+            // 刚才那次 flush 是「半写」—— 累积缓冲（含没写完的残余字节）已经
+            // 交给了 NIO 层的写队列，这里手上没有缓冲了，重新借一块。
+            // （走到这里说明 socket 写不动，但残余字节已经在队列里，不会丢。）
+            buffer = borrowBuffer(need);
+            return buffer;
+        }
+        // 写不出去（socket 写队列里还有没写完的字节）⇒ 只能换一块更大的缓冲。
+        // ★ 按 2 倍增长（摊还 O(1)）—— 不要按「pending + need」精确增长：
+        //   精确增长会让缓冲一帧一帧地长，每次都搬走全部已累积的字节（平方级）。
+        FastBuf old = buffer;
+        int capacity = old.byteBuffer().capacity();
+        long want = Math.max((long) pending + need, (long) capacity * 2L);
+        if (want > Integer.MAX_VALUE) {
+            want = (long) pending + need;
+        }
+        FastBuf nb = borrowBuffer((int) want);
+        if (pending > 0) {
+            // 整块搬运（堆外到堆外，一次 copyMemory）
+            UnsafeUtil.copyMemory(old.address(), nb.address(), pending);
+            nb.wpos(nb.address() + pending);
+        }
+        if (Http2WriteStats.ENABLED) {
+            // ★ 换缓冲是一次「把已累积的整块搬走」—— 代价与累积量成正比。
+            //   一次 flush 里换得越多，搬的总字节数越大。
+            Http2WriteStats.bufferSwaps.increment();
+            Http2WriteStats.bufferSwapBytes.add(pending);
+        }
+        releaseBuffer(old);
+        buffer = nb;
+        return buffer;
+    }
+
+    /**
+     * 试着把已累积的字节写出去 —— 失败（socket 写不动）就返回 false，交给调用方换缓冲。
+     *
+     * <p>写失败不抛：真正的写失败会在本轮 decode 结束的 flush 里被正常处理，
+     * 这里只是「缓冲满了，先腾个位置」的优化路径。</p>
+     */
+    private boolean tryFlushToSocket() {
+        try {
+            return flushToSocket();
+        } catch (IOException e) {
+            LOG.warn("http2 flush when buffer full failed: ", l -> l.threw(e));
+            return false;
+        }
+    }
+
+    private FastBuf borrowBuffer(int need) {
+        if (Http2WriteStats.ENABLED) {
+            Http2WriteStats.buffersBorrowed.increment();
+        }
+        FastBuf b = pool != null ? pool.borrow() : null;
+        if (b == null) {
+            FastBuf fresh = new FastBuf(Math.max(BUFFER_SIZE, need));
+            recordBorrow(fresh.byteBuffer().capacity());
+            return fresh;
+        }
+        if (b.byteBuffer().capacity() < need) {
+            // 池里的缓冲比需要的还小 —— 换一块够大的（这块小的还回池里）
+            FastBuf small = b;
+            b = new FastBuf(need);
+            releaseBuffer(small);
+            recordBorrow(b.byteBuffer().capacity());
+            return b;
+        }
+        b.clear();
+        recordBorrow(b.byteBuffer().capacity());
+        return b;
+    }
+
+    /** 记录借到的缓冲容量（诊断用：看池子里到底是多大的缓冲）。 */
+    private static void recordBorrow(int capacity) {
+        Http2WriteStats.borrowedCapacitySum.add(capacity);
+        Http2WriteStats.borrowedCapacityMax.accumulateAndGet(capacity, Math::max);
+        Http2WriteStats.borrowedCapacityMin.accumulateAndGet(capacity, Math::min);
+    }
+
+    private void releaseBuffer(FastBuf b) {
+        // 只有**标准尺寸**的缓冲才回池 —— 池里的缓冲尺寸必须一致，
+        // 否则借到一块小缓冲的调用方还得再换一块。
+        // ★ 用 == 而不是 >=：「换缓冲」时长大出来的缓冲（容量 > BUFFER_SIZE）
+        //   不能回池 —— 池里混进大缓冲会让每个借到它的调用方都占着一块大内存。
+        if (pool != null && b.byteBuffer().capacity() == BUFFER_SIZE) {
+            pool.requite(b);
+        }
+    }
+
+    /**
+     * 把累积缓冲里的字节写到 socket。
      *
      * @return true 表示全部写完
      */
-    boolean flushToSocket() throws IOException {
+    synchronized boolean flushToSocket() throws IOException {
         HttpServerNioSession session = connection.getSession();
         if (session.getWriteBuf() != null) {
             // 上次没写完的字节还在 NIO 写队列里 —— 必须等它写完才能发新帧（保序）
             enableWriteInterest();
             return false;
         }
-        while (true) {
-            if (buffer == null) {
-                if (frames.isEmpty()) {
-                    disableWriteInterest();
-                    return true;
-                }
-                buffer = borrowBuffer();
-                fillBuffer();
-                if (buffer.remain() == 0) {
-                    // 缓冲里一帧都没装下（正常不会发生：最大帧 9+16384 < 32768）
-                    releaseBuffer(buffer);
-                    buffer = null;
-                    continue;
-                }
-            }
-            if (!session.writeToChannel(buffer)) {
-                // socket 写不动 —— 残余字节交给 NIO 层的写队列，等 OP_WRITE 事件继续写
-                session.putToWriteQueue(buffer);
-                buffer = null;
-                enableWriteInterest();
-                return false;
-            }
-            // 整块写完（writeToChannel 内部已把缓冲 clear 掉）
-            releaseBuffer(buffer);
-            buffer = null;
+        if (pending == 0) {
+            disableWriteInterest();
+            return true;
         }
+        FastBuf buf = buffer;
+        if (Http2WriteStats.ENABLED) {
+            Http2WriteStats.socketWrites.increment();
+            Http2WriteStats.flushes.increment();
+            Http2WriteStats.flushBytes.add(pending);
+        }
+        if (!session.writeToChannel(buf)) {
+            // socket 写不动 —— 残余字节交给 NIO 层的写队列，等 OP_WRITE 事件继续写
+            if (Http2WriteStats.ENABLED) {
+                Http2WriteStats.partialWrites.increment();
+            }
+            session.putToWriteQueue(buf);
+            buffer = null;
+            pending = 0;
+            enableWriteInterest();
+            return false;
+        }
+        // 整块写完（writeToChannel 内部已把缓冲 clear 掉）
+        releaseBuffer(buf);
+        buffer = null;
+        pending = 0;
+        disableWriteInterest();
+        return true;
     }
 
     /**
@@ -194,44 +347,10 @@ public class Http2FrameWriter {
     }
 
     /**
-     * 把帧队列里的帧尽量装进写缓冲。
-     */
-    private void fillBuffer() {
-        while (!frames.isEmpty()) {
-            byte[] frame = frames.peekFirst();
-            if (buffer.writeRemain() < frame.length) {
-                break;
-            }
-            frames.pollFirst();
-            // writeRemain 已经保证放得下 —— 不会触发 FastBuf.write 的静默截断
-            buffer.write(frame, 0, frame.length);
-        }
-    }
-
-    private FastBuf borrowBuffer() {
-        FastBuf b = pool != null ? pool.borrow() : null;
-        if (b == null) {
-            b = new FastBuf(BUFFER_SIZE);
-        }
-        b.clear();
-        return b;
-    }
-
-    private void releaseBuffer(FastBuf b) {
-        if (pool != null) {
-            pool.requite(b);
-        }
-    }
-
-    public void setPool(Pool<FastBuf> pool) {
-        this.pool = pool;
-    }
-
-    /**
      * 是否还有没发出去的字节。
      */
     public boolean isPendingEmpty() {
-        return frames.isEmpty() && buffer == null;
+        return pending == 0;
     }
 
     /**
@@ -247,6 +366,10 @@ public class Http2FrameWriter {
      */
     public void resetFrameCount() {
         frameCount = 0;
+    }
+
+    public void setPool(Pool<FastBuf> pool) {
+        this.pool = pool;
     }
 
     // ------------------------------------------------------------------
@@ -267,7 +390,7 @@ public class Http2FrameWriter {
     /**
      * 撤销 {@code OP_WRITE}。
      *
-     * <p>不撤销的话 selector 会一直被「socket 可写」唤醒，空转烧 CPU。</p>
+     * <p>不撤销的话 selector 会被「socket 可写」唤醒，空转烧 CPU。</p>
      */
     private void disableWriteInterest() {
         connection.getSession().disableWriteInterest();

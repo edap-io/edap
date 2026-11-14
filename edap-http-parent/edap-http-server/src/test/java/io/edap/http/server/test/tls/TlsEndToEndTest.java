@@ -66,7 +66,7 @@ public class TlsEndToEndTest {
     private static final String BODY = "hello edap tls";
 
     /**
-     * 大响应体的长度 —— 必须<b>大于</b> socket 的发送缓冲（16KB），
+     * 大响应体的长度 —— 必须<b>远大于</b> socket 的发送缓冲，
      * 否则测不出「写队列 + OP_WRITE 续写」这条路径。
      */
     private static final int BIG_SIZE = 300_000;
@@ -176,7 +176,7 @@ public class TlsEndToEndTest {
      * 回归：TLS + HTTP/2 的大响应体。
      *
      * <p><b>★ 这条用例守的是「TLS 密文 backlog 卡死」那个 bug</b>：
-     * 300KB 的响应必然写不满 socket（发送缓冲只有 16KB），剩下的字节挂在
+     * 300KB 的响应必然写不满 socket（内核发送缓冲不保证一次收得下），剩下的字节挂在
      * TLS 层的密文队列上等 {@code OP_WRITE} 续写。当时有两个坑：</p>
      * <ol>
      *   <li>密文队列头被 NIO 层摘掉时没触发续写 ⇒ 大响应体永远发不出去；</li>

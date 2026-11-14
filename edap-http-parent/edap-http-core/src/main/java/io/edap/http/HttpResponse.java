@@ -85,6 +85,15 @@ public class HttpResponse {
      */
     private ResponseEncoder encoder;
 
+    /**
+     * 响应尾（trailers）—— HTTP/2 里以 HEADERS(END_STREAM) 帧发出。
+     *
+     * <p><b>gRPC 的响应就是以 trailers 结束的</b>：{@code grpc-status} /
+     * {@code grpc-message} 都在里面。HTTP/1.1 不支持 trailers（RFC 9110 §6.5），
+     * 那边会忽略本字段。</p>
+     */
+    private Map<String, String> trailers;
+
     private HttpNioSession nioSession;
 
     private static final ResponseEncoder DEFAULT_ENCODER = new Http1ResponseEncoder();
@@ -330,6 +339,62 @@ public class HttpResponse {
     }
 
     /**
+     * 响应尾（trailers）。null 表示没有 trailers。
+     */
+    public Map<String, String> getTrailers() {
+        return trailers;
+    }
+
+    /**
+     * 设置响应尾（trailers）。
+     */
+    public HttpResponse setTrailers(Map<String, String> trailers) {
+        this.trailers = trailers;
+        return this;
+    }
+
+    /**
+     * 加一个响应尾。
+     */
+    public HttpResponse putTrailer(String name, String value) {
+        if (trailers == null) {
+            trailers = new LinkedHashMap<>(4);
+        }
+        trailers.put(name, value);
+        return this;
+    }
+
+    /**
+     * 只写响应头，不写 body —— 流式响应的第一步。
+     *
+     * <p>HTTP/1.1 下等价于 {@code writeHead}（不带 Content-Length）；
+     * HTTP/2 下就是发一个 HEADERS 帧。</p>
+     */
+    public HttpResponse begin() throws IOException {
+        getEncoder().writeHead(this, -1);
+        return this;
+    }
+
+    /**
+     * 写一段 body —— 流式响应的中间步骤（可以调多次）。
+     */
+    public HttpResponse chunk(byte[] data, int offset, int length) throws IOException {
+        getEncoder().writeBody(this, data, offset, length);
+        return this;
+    }
+
+    /**
+     * 结束响应 —— 流式响应的最后一步。
+     *
+     * <p>如果 {@link #putTrailer} 放过响应尾，HTTP/2 下会发 HEADERS(END_STREAM) 帧；
+     * 否则发空 DATA(END_STREAM)。</p>
+     */
+    public HttpResponse end() throws IOException {
+        getEncoder().end(this);
+        return this;
+    }
+
+    /**
      * varargs 响应头（只读视图）。
      */
     public List<Header> getExtraHeaders() {
@@ -355,6 +420,7 @@ public class HttpResponse {
         contentType = null;
         headers.clear();
         extraHeaders = null;
+        trailers = null;
         encoder = null;
     }
 }

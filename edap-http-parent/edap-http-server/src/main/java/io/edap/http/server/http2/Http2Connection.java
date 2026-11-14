@@ -27,6 +27,7 @@ import io.edap.http.http2.Http2FrameType;
 import io.edap.http.http2.Http2Settings;
 import io.edap.http.http2.hpack.HpackDecoder;
 import io.edap.http.http2.hpack.HpackEncoder;
+import io.edap.http.http2.hpack.HpackHeader;
 import io.edap.http.server.HttpConnection;
 import io.edap.http.server.HttpServer;
 import io.edap.http.server.HttpServerNioSession;
@@ -38,8 +39,11 @@ import io.edap.pool.Pool;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.HashMap;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * HTTP/2 连接（RFC 9113）。
@@ -62,8 +66,8 @@ public class Http2Connection implements HttpConnection {
     /**
      * 单个 DATA 帧的最大载荷。
      *
-     * <p>RFC 9113 §6.5.2 的默认值是 16384，够用且能装进 32KB 的写缓冲
-     * （帧头 9 字节 + 载荷 16384 = 16393 &lt; 32768）。</p>
+     * <p>RFC 9113 §6.5.2 的默认值是 16384（帧头 9 字节 + 载荷 16384 = 16393 字节），
+     * 而写缓冲是 256KB —— 一个缓冲装得下 15 个最大帧。</p>
      */
     static final int MAX_FRAME_PAYLOAD = 16384;
 
@@ -88,7 +92,17 @@ public class Http2Connection implements HttpConnection {
     /** 对端通告给本端的设置 */
     private final Http2Settings remoteSettings = new Http2Settings();
 
-    private final Map<Integer, Http2Stream> streams = new HashMap<>();
+    /**
+     * 活跃的流。
+     *
+     * <p><b>★ 必须是 {@link ConcurrentHashMap}</b>：这张表会被<b>两个线程</b>改 ——
+     * IO 线程（收 RST_STREAM、派发失败时摘流）和业务线程
+     * （{@code endStream} / {@code writeTrailers} → {@code removeIfFullyClosed}）。
+     * 普通 {@link HashMap} 在「一边遍历一边改」时抛
+     * {@link ConcurrentModificationException}，而这个异常会从 decode 一路抛出去 ——
+     * 连接状态就此损坏，对端永远等不到响应（表现为并发一高就全部超时）。</p>
+     */
+    private final Map<Integer, Http2Stream> streams = new ConcurrentHashMap<>();
 
     /** per-HttpServer 的路径解码器（与 HTTP/1.1 共用，保证路由语义一致） */
     private final PathDecoder pathDecoder;
@@ -121,6 +135,13 @@ public class Http2Connection implements HttpConnection {
     /** 服务器连接前言（SETTINGS 帧）是否已经发出 */
     private boolean localSettingsSent;
 
+    /**
+     * 协议路由器（gRPC 之类）—— 决定一条流走默认 HTTP 处理还是协议处理器。
+     *
+     * <p>null = 全部走默认 HTTP 处理（既有行为，逐字节不变）。</p>
+     */
+    private Http2ProtocolRouter protocolRouter;
+
     private boolean goAwayReceived;
 
     public Http2Connection(HttpServerNioSession session, byte[] carry) {
@@ -131,6 +152,9 @@ public class Http2Connection implements HttpConnection {
         localSettings.setEnablePush(0);
         localSettings.setMaxConcurrentStreams(128);
         localSettings.setMaxHeaderListSize(16384);
+        // ★ 流级接收窗口给到 1MB（RFC 9113 §6.9.2 的默认值 65535 太小 ——
+        //   一条 64KB 的请求塞不进一个窗口，在途请求数被压在 1 个）
+        localSettings.setInitialWindowSize(Http2FlowController.STREAM_WINDOW);
         hpackDecoder.setMaxTableSize(localSettings.getHeaderTableSize());
         flowController.setLocalInitialWindowSize(localSettings.getInitialWindowSize());
 
@@ -138,6 +162,10 @@ public class Http2Connection implements HttpConnection {
         this.pathDecoder = (server instanceof HttpServer)
                 ? ((HttpServer) server).getPathDecoder()
                 : new PathDecoder();
+        // 协议路由器与 pathDecoder 同源：都从 per-HttpServer 的配置里取
+        this.protocolRouter = (server instanceof HttpServer)
+                ? ((HttpServer) server).getProtocolRouter()
+                : null;
 
         // 嗅探阶段已经比对过 carry.length 个字节（前言的开头）
         if (carry != null && carry.length > 0) {
@@ -166,6 +194,21 @@ public class Http2Connection implements HttpConnection {
 
     public QueryStringDecoder getQueryDecoder() {
         return queryDecoder;
+    }
+
+    /**
+     * 协议路由器（gRPC 之类）。null = 全部走默认 HTTP 处理。
+     */
+    public Http2ProtocolRouter getProtocolRouter() {
+        return protocolRouter;
+    }
+
+    /**
+     * 设置协议路由器。构造之后设置只对<b>之后新建的流</b>生效 ——
+     * 已经收完 header 的流早就选好处理路径了。
+     */
+    public void setProtocolRouter(Http2ProtocolRouter protocolRouter) {
+        this.protocolRouter = protocolRouter;
     }
 
     public Http2Settings getLocalSettings() {
@@ -216,12 +259,88 @@ public class Http2Connection implements HttpConnection {
         }
     }
 
-    public void writeFrame(int type, int flags, int streamId, byte[] payload, int offset, int length) {
+    /**
+     * 写一个帧。
+     *
+     * <p><b>★ 出站整体加锁</b>：同一条流上的帧必须<b>严格保序</b>
+     * （DATA 帧的顺序就是消息的顺序），而 gRPC 这类协议的业务线程
+     * （服务端流式在别的线程推消息）与 IO 线程（补发被流控挂起的 body）
+     * 会并发写。锁的粒度是「连接」—— 一条连接一个 writer，帧队列本来就是共享的。</p>
+     */
+    public synchronized void writeFrame(int type, int flags, int streamId, byte[] payload, int offset, int length) {
         writer.writeFrame(type, flags, streamId, payload, offset, length);
     }
 
-    public void writeFrame(int type, int flags, int streamId, byte[] payload) {
+    public synchronized void writeFrame(int type, int flags, int streamId, byte[] payload) {
         writer.writeFrame(type, flags, streamId, payload, 0, payload.length);
+    }
+
+    /**
+     * 写响应体（DATA 帧）—— 流控窗口不够时剩余数据挂到流上，等 WINDOW_UPDATE 再发。
+     */
+    public synchronized void writeBody(Http2Stream stream, byte[] data, int offset, int length) {
+        int pos = offset;
+        int remaining = length;
+        while (remaining > 0) {
+            int n = reserveSend(stream, remaining);
+            if (n <= 0) {
+                // 流控窗口耗尽 —— 剩余数据挂到流上，等 WINDOW_UPDATE 再发
+                stream.appendPendingBody(data, pos, remaining);
+                return;
+            }
+            writeFrame(Http2FrameType.DATA, 0, stream.getStreamId(), data, pos, n);
+            pos += n;
+            remaining -= n;
+        }
+    }
+
+    /**
+     * 写一个 HEADERS 帧（响应头 / trailers）。
+     *
+     * <p><b>★ 必须整体加锁</b>：HPACK 编码器是<b>连接级共享</b>的有状态对象
+     * （动态表 + 索引），编码与写帧之间不能被打断，也不能与另一个线程的编码交错 ——
+     * 交错会让动态表状态错乱，对端解出来的头是乱的。
+     * 业务线程（比如 gRPC 的服务端流式在别的线程推消息）与 IO 线程并发写是常态。</p>
+     *
+     * @param stream 目标流
+     * @param headers 待编码的头
+     * @param flags   帧标志（{@code END_HEADERS} / {@code END_STREAM}）
+     */
+    public synchronized void writeHeaders(Http2Stream stream, List<HpackHeader> headers, int flags) {
+        byte[] block = hpackEncoder.encode(headers);
+        writeFrame(Http2FrameType.HEADERS, flags, stream.getStreamId(), block, 0, block.length);
+    }
+
+    /**
+     * 写 trailers —— 以 HEADERS(END_STREAM) 帧结束这条流（RFC 9113 §8.1）。
+     *
+     * <p><b>gRPC 的响应就是以 trailers 结束的</b>：{@code grpc-status} /
+     * {@code grpc-message} 都在里面。</p>
+     *
+     * <p>body 还没发完（流控挂起）时不能发 END_STREAM —— 否则对端会认为响应提前结束。
+     * 这时 trailers 挂在流上，等 body 发完再发（见 {@link #flushPendingBody}）。</p>
+     */
+    public synchronized void writeTrailers(Http2Stream stream, Map<String, String> trailers) {
+        if (trailers == null || trailers.isEmpty()) {
+            endStream(stream);
+            return;
+        }
+        if (stream.hasPendingBody()) {
+            stream.setPendingTrailers(trailers);
+            stream.setPendingEnd();
+            return;
+        }
+        List<HpackHeader> headers = new ArrayList<>(trailers.size());
+        for (Map.Entry<String, String> e : trailers.entrySet()) {
+            headers.add(new HpackHeader(lower(e.getKey()), e.getValue()));
+        }
+        writeHeaders(stream, headers, Http2Flags.END_HEADERS | Http2Flags.END_STREAM);
+        stream.markClosedLocally();
+        removeIfFullyClosed(stream);
+    }
+
+    private static String lower(String name) {
+        return name == null ? null : name.toLowerCase(Locale.ENGLISH);
     }
 
     /**
@@ -296,8 +415,8 @@ public class Http2Connection implements HttpConnection {
     /**
      * NIO 层把写队列头写完之后回调 —— 继续发剩下的帧。
      *
-     * <p>★ 没有这个回调，socket 写满后挂起的帧永远发不出去：
-     * socket 发送缓冲只有 16KB，而一个发送窗口是 64KB。</p>
+     * <p>★ 没有这个回调，socket 写满后挂起的帧永远发不出去 ——
+     * 内核的发送缓冲不保证一次收得下一整条响应（自动调优也不是无限的）。</p>
      */
     @Override
     public void onWriteBufDrained() {
@@ -313,6 +432,10 @@ public class Http2Connection implements HttpConnection {
         if (remain <= 0) {
             return;
         }
+        if (Http2WriteStats.ENABLED) {
+            Http2WriteStats.inboundAppends.increment();
+            Http2WriteStats.inboundBytes.add(remain);
+        }
         if (inLen + remain > inBuf.length) {
             compactInbound();
             int cap = inBuf.length;
@@ -322,10 +445,13 @@ public class Http2Connection implements HttpConnection {
             byte[] nb = new byte[cap];
             System.arraycopy(inBuf, 0, nb, 0, inLen);
             inBuf = nb;
+            if (Http2WriteStats.ENABLED) {
+                Http2WriteStats.inboundGrowths.increment();
+            }
         }
-        byte[] tmp = new byte[remain];
-        buf.get(tmp);
-        System.arraycopy(tmp, 0, inBuf, inLen, remain);
+        // 直接落到累积缓冲的空闲区 —— 一次 copyMemory 到位，不分配临时数组。
+        // （原来先 new byte[remain] 再 System.arraycopy，等于每读一次多一次分配 + 一次整块拷贝）
+        buf.get(inBuf, inLen, remain);
         inLen += remain;
     }
 
@@ -394,7 +520,7 @@ public class Http2Connection implements HttpConnection {
             // 流级错误：只关这一条流，连接继续可用（RFC 9113 §5.4.2）
             int streamId = header.getStreamId();
             sendRstStream(streamId, e.getErrorCode());
-            Http2Stream stream = streams.remove(streamId);
+            Http2Stream stream = removeStream(streamId);
             if (stream != null) {
                 stream.markClosedLocally();
             }
@@ -469,11 +595,11 @@ public class Http2Connection implements HttpConnection {
                 // RFC 9113 §5.1.2：超过并发上限 → RST_STREAM(REFUSED_STREAM)
                 stream = new Http2Stream(streamId, this);
                 stream.markRefused();
-                streams.put(streamId, stream);
+                addStream(streamId, stream);
                 sendRstStream(streamId, Http2ErrorCode.REFUSED_STREAM);
             } else {
                 stream = new Http2Stream(streamId, this);
-                streams.put(streamId, stream);
+                addStream(streamId, stream);
             }
         }
 
@@ -521,9 +647,9 @@ public class Http2Connection implements HttpConnection {
         if (header.hasFlag(Http2Flags.END_HEADERS)) {
             headerBlockStream = null;
             stream.completeHeaders();
-            if (stream.isEndStream()) {
-                dispatchIfReady(stream);
-            }
+            // ★ 总是试一次派发：协议处理器接管时「header 收齐即可派发」（不等 body）。
+            //   普通 HTTP 流走 isReadyToDispatch() 的 endStream 条件，这里仍然是 no-op。
+            dispatchIfReady(stream);
         }
     }
 
@@ -558,9 +684,25 @@ public class Http2Connection implements HttpConnection {
         // ★ 流控：整个 DATA 载荷（含 padding）都受流控约束（RFC 9113 §6.9）
         flowController.consumeConnRecvWindow(length);
         stream.consumeRecvWindow(length);
-        stream.appendBody(inBuf, pos, end - pos - padLength);
+        try {
+            stream.appendBody(inBuf, pos, end - pos - padLength);
+        } catch (Throwable t) {
+            // 协议处理器处理请求体时抛异常 —— 流级错误，不要干掉整个连接
+            LOG.error("http2 stream body error: ", t);
+            sendRstStream(streamId, Http2ErrorCode.INTERNAL_ERROR);
+            removeStream(streamId);
+            stream.markClosedLocally();
+            return;
+        }
         if (header.hasFlag(Http2Flags.END_STREAM)) {
             stream.markEndStream();
+            // ★ 协议处理器接管时，响应可能已经在上面 appendBody 的过程中写完了
+            //   （gRPC 的业务 handler 是同步回应的）。那时 closedRemotely 还是 false，
+            //   writeTrailers 里的 removeIfFullyClosed 摘不掉这条流；等 END_STREAM
+            //   在这里被标记时才真正「两侧都关闭」—— 必须补一次检查，
+            //   否则流会永久留在 streams map 里，累积到 MAX_CONCURRENT_STREAMS
+            //   之后新流全被 REFUSED_STREAM。
+            removeIfFullyClosed(stream);
         }
         grantRecvCredit(stream);
         dispatchIfReady(stream);
@@ -600,9 +742,7 @@ public class Http2Connection implements HttpConnection {
                 stream.adjustSendWindow(delta);
             }
             // 窗口变大 ⇒ 之前挂起的 body 可以继续发
-            for (Http2Stream stream : streams.values()) {
-                flushPendingBody(stream);
-            }
+            flushPendingBodies();
         }
         writeFrame(Http2FrameType.SETTINGS, Http2Flags.ACK, 0, EMPTY, 0, 0);
     }
@@ -624,7 +764,7 @@ public class Http2Connection implements HttpConnection {
             throw new Http2Exception(Http2ErrorCode.FRAME_SIZE_ERROR, "RST_STREAM 载荷必须是 4 字节");
         }
         int streamId = header.getStreamId();
-        Http2Stream stream = streams.remove(streamId);
+        Http2Stream stream = removeStream(streamId);
         if (stream != null) {
             stream.markClosedLocally();
         }
@@ -662,11 +802,18 @@ public class Http2Connection implements HttpConnection {
                     "WINDOW_UPDATE 增量不能为 0", true);
         }
         if (streamId == 0) {
+            if (Http2WriteStats.ENABLED) {
+                Http2WriteStats.connWuCount.increment();
+                Http2WriteStats.connWuBytes.add(increment);
+                if (connIdleSince != 0L) {
+                    // 「连接级窗口见底 → 收到下一个 WU」之间的空等时长
+                    Http2WriteStats.connIdleNanos.add(System.nanoTime() - connIdleSince);
+                    connIdleSince = 0L;
+                }
+            }
             flowController.increaseConnSendWindow(increment);
             // 连接级窗口放开 ⇒ 所有挂起的流都试一次
-            for (Http2Stream stream : streams.values()) {
-                flushPendingBody(stream);
-            }
+            flushPendingBodies();
             return;
         }
         Http2Stream stream = streams.get(streamId);
@@ -674,8 +821,14 @@ public class Http2Connection implements HttpConnection {
             // 已关闭的流上的 WINDOW_UPDATE 直接忽略（RFC 9113 §6.9）
             return;
         }
+        if (Http2WriteStats.ENABLED) {
+            Http2WriteStats.streamWuCount.increment();
+            Http2WriteStats.streamWuBytes.add(increment);
+        }
         stream.increaseSendWindow(increment);
-        flushPendingBody(stream);
+        // 走同一套「公平轮转」：这条流的额度刚放开，但连接级额度是共享的 ——
+        // 让它单独吃光会把其它挂起的流饿死。
+        flushPendingBodies();
     }
 
     // ------------------------------------------------------------------
@@ -690,32 +843,110 @@ public class Http2Connection implements HttpConnection {
      * @return 本次实际能发的字节数（0 表示窗口耗尽）
      */
     int reserveSend(Http2Stream stream, int want) {
-        // ★ 单帧上限取 min(对端 MAX_FRAME_SIZE, 本端写缓冲能装下的最大值) ——
-        //   对端可以通告到 16MB，但本端的写缓冲只有 32KB，装不下超大的帧。
+        // ★ 单帧上限取 min(对端 MAX_FRAME_SIZE, 协议上限 16KB) ——
+        //   对端可以通告到 16MB，但 RFC 9113 §4.2 的帧载荷上限是 16,384 字节。
         int n = Math.min(want, getPeerMaxFrameSize());
         n = Math.min(n, MAX_FRAME_PAYLOAD);
-        n = Math.min(n, stream.getSendWindow());
+        int streamLimit = stream.getSendWindow();
+        n = Math.min(n, streamLimit);
+        int connLimit = flowController.connSendWindow();
         n = flowController.consumeConnSendWindow(n);
         stream.consumeSendWindow(n);
+        if (Http2WriteStats.ENABLED && n <= 0 && want > 0) {
+            // 窗口耗尽 —— 这次发送被流控挡住，响应要拆成多段
+            Http2WriteStats.fcStalls.increment();
+            if (connLimit <= 0) {
+                Http2WriteStats.connStalls.increment();
+                if (connIdleSince == 0L) {
+                    connIdleSince = System.nanoTime();
+                    Http2WriteStats.connWindowEmpty.increment();
+                }
+            } else if (streamLimit <= 0) {
+                Http2WriteStats.streamStalls.increment();
+            }
+        }
         return n;
     }
 
     /**
-     * 把因流控挂起的 body 继续发出去。
+     * 连接级窗口见底的那一刻（纳秒）—— 0 表示窗口还没见底过。
+     *
+     * <p>诊断用：量「服务端空等额度」等了多久。</p>
      */
-    private void flushPendingBody(Http2Stream stream) {
-        while (stream.hasPendingBody()) {
-            int n = reserveSend(stream, stream.pendingBodyLength());
-            if (n <= 0) {
-                return;
+    private volatile long connIdleSince;
+
+    /**
+     * 补发所有因流控挂起的 body。
+     *
+     * <p><b>★ 必须两遍</b>：补发 DATA 之后的收尾（{@code endStream} /
+     * {@code writeTrailers} → {@code removeIfFullyClosed} → {@code streams.remove(...)}）
+     * <b>本身就在改 streams 表</b>。一边遍历一边改，遍历器会在下一轮 {@code next()}
+     * 时发现表被改过，抛 {@link ConcurrentModificationException}。
+     * 这个异常从 decode 一路抛出去，连接状态就此损坏，对端永远等不到响应
+     * （表现就是并发一上来全部超时）。</p>
+     *
+     * <p>第一遍只收集、不改表；第二遍才补发。绝大多数时候没有任何挂起 body，
+     * 第一遍扫完就返回，一个 ArrayList 都不分配。</p>
+     *
+     * <p><b>★ 必须轮转，不能让一条流把额度吃光</b>：连接级发送窗口是<b>所有流共享</b>的。
+     * 如果第一条流就把额度用光，剩下的流要等<b>下一次</b> {@code WINDOW_UPDATE} ——
+     * 而下一次 {@code WINDOW_UPDATE} 要等客户端把数据消费掉才会来。
+     * 于是 N 条并发的响应被<b>串行化</b>：最后一条要多等 N-1 个往返。
+     * 实测（grpc-java 客户端，它只给 1MB 的连接级窗口；32 并发 / 64KB 负载）：
+     * 串行化时 p50 3.9ms、p99 19ms；轮转后与 grpc-java 服务端持平。</p>
+     */
+    private synchronized void flushPendingBodies() {
+        List<Http2Stream> pending = null;
+        for (Http2Stream stream : streams.values()) {
+            if (stream.hasPendingBody() || stream.isPendingEnd()) {
+                if (pending == null) {
+                    pending = new ArrayList<>();
+                }
+                pending.add(stream);
             }
-            writeFrame(Http2FrameType.DATA, 0, stream.getStreamId(),
-                    stream.pendingBodyArray(), stream.pendingBodyOffset(), n);
-            stream.advancePendingBody(n);
         }
-        if (stream.isPendingEnd()) {
+        if (pending == null) {
+            return;
+        }
+        // 轮转：每轮每条流只发一帧，走完一圈再看还有没有额度 ——
+        // 保证额度在流之间<b>公平</b>分配，而不是被第一条流吃光。
+        boolean progress = true;
+        while (progress) {
+            progress = false;
+            for (Http2Stream stream : pending) {
+                if (!stream.hasPendingBody()) {
+                    continue;
+                }
+                int n = reserveSend(stream, stream.pendingBodyLength());
+                if (n <= 0) {
+                    // 这条流的额度用完了（流级窗口或连接级窗口耗尽）—— 下一轮再说
+                    continue;
+                }
+                writeFrame(Http2FrameType.DATA, 0, stream.getStreamId(),
+                        stream.pendingBodyArray(), stream.pendingBodyOffset(), n);
+                stream.advancePendingBody(n);
+                progress = true;
+            }
+        }
+        // body 发完的流再收尾（trailers / END_STREAM）——
+        // 这一步会改 streams 表，但遍历的是上面收集好的 ArrayList，安全。
+        for (Http2Stream stream : pending) {
+            if (stream.hasPendingBody() || !stream.isPendingEnd()) {
+                continue;
+            }
+            if (Http2WriteStats.ENABLED) {
+                long since = stream.takePendingSinceNanos();
+                if (since > 0L) {
+                    Http2WriteStats.fcStallNanos.add(System.nanoTime() - since);
+                }
+            }
             stream.clearPendingEnd();
-            endStream(stream);
+            Map<String, String> trailers = stream.takePendingTrailers();
+            if (trailers != null) {
+                writeTrailers(stream, trailers);
+            } else {
+                endStream(stream);
+            }
         }
     }
 
@@ -724,7 +955,7 @@ public class Http2Connection implements HttpConnection {
      *
      * <p>body 还没发完（流控挂起）时不能发 END_STREAM，否则对端会认为响应提前结束。</p>
      */
-    public void endStream(Http2Stream stream) {
+    public synchronized void endStream(Http2Stream stream) {
         if (stream.hasPendingBody()) {
             stream.setPendingEnd();
             return;
@@ -745,13 +976,36 @@ public class Http2Connection implements HttpConnection {
     }
 
     private void dispatchIfReady(Http2Stream stream) {
-        if (stream != null && stream.isReadyToDispatch()) {
+        if (stream == null) {
+            return;
+        }
+        if (stream.isReadyToDispatch()) {
             try {
+                long t0 = Http2WriteStats.ENABLED ? System.nanoTime() : 0L;
                 stream.dispatch();
+                if (Http2WriteStats.ENABLED) {
+                    // 业务 handler 的整段耗时（解码请求 → 组响应 → 编码 → 写帧）
+                    Http2WriteStats.handlerNanos.add(System.nanoTime() - t0);
+                    Http2WriteStats.handlerCalls.increment();
+                }
             } catch (Throwable t) {
                 LOG.error("http2 stream dispatch error: ", t);
                 sendRstStream(stream.getStreamId(), Http2ErrorCode.INTERNAL_ERROR);
-                streams.remove(stream.getStreamId());
+                removeStream(stream.getStreamId());
+                stream.markClosedLocally();
+                return;
+            }
+        }
+        // 协议处理器接管时：请求侧的 END_STREAM 到达 → 通知它请求体结束。
+        // 这一步必须独立于 dispatch —— 协议流在 header 收齐时就派发了，
+        // 最后一个 DATA 帧带 END_STREAM 到达时流已经是 dispatched 状态。
+        if (stream.isDispatched() && stream.hasProtocolHandler() && stream.isEndStream()) {
+            try {
+                stream.endProtocol();
+            } catch (Throwable t) {
+                LOG.error("http2 protocol end error: ", t);
+                sendRstStream(stream.getStreamId(), Http2ErrorCode.INTERNAL_ERROR);
+                removeStream(stream.getStreamId());
                 stream.markClosedLocally();
             }
         }
@@ -765,6 +1019,13 @@ public class Http2Connection implements HttpConnection {
         localSettingsSent = true;
         byte[] payload = localSettings.encode();
         writeFrame(Http2FrameType.SETTINGS, 0, 0, payload, 0, payload.length);
+        // ★ 主动把连接级接收窗口撑到 CONN_WINDOW（RFC 9113 §6.9.2：连接级窗口不受
+        //   SETTINGS_INITIAL_WINDOW_SIZE 影响，只能由接收方用 WINDOW_UPDATE 撑大）。
+        //   不撑的话一条连接上只能有 64KB 在途 —— 并发再高也没有意义。
+        int increment = flowController.growConnRecvWindow();
+        if (increment > 0) {
+            writeFrame(Http2FrameType.WINDOW_UPDATE, 0, 0, Http2FrameCodec.intPayload(increment));
+        }
     }
 
     /**
@@ -794,8 +1055,28 @@ public class Http2Connection implements HttpConnection {
      */
     private void removeIfFullyClosed(Http2Stream stream) {
         if (stream.isFullyClosed()) {
-            streams.remove(stream.getStreamId());
+            removeStream(stream.getStreamId());
         }
+    }
+
+    /**
+     * 把流登记进 {@code streams} 表。
+     */
+    private void addStream(int streamId, Http2Stream stream) {
+        streams.put(streamId, stream);
+        Http2WriteStats.liveStreams.incrementAndGet();
+    }
+
+    /**
+     * 把流从 {@code streams} 表摘掉 —— <b>只有真的摘掉了才减计数</b>
+     * （同一条流可能被摘两次）。
+     */
+    private Http2Stream removeStream(int streamId) {
+        Http2Stream removed = streams.remove(streamId);
+        if (removed != null) {
+            Http2WriteStats.liveStreams.decrementAndGet();
+        }
+        return removed;
     }
 
     public boolean isGoAwayReceived() {
