@@ -274,22 +274,6 @@ public class JavaBuilder {
                 impMsgs.add("io.edap.rpc.annotation.EdapService");
             }
         }
-        if (buildOps.getDtoPrefix() != null && !buildOps.getDtoPrefix().isEmpty()
-                && methods != null && !methods.isEmpty()) {
-            methods.stream()
-                    .forEach(m -> {
-                        String respType = m.getResponse();
-                        String respName = fillDtoPackName(
-                                buildOps.getJavaPackage() + "."
-                                        + m.getResponse(), buildOps);
-                        addImport(impMsgs, respName);
-                        String reqType = m.getRequest();
-                        String reqName = fillDtoPackName(
-                                buildOps.getJavaPackage() + "."
-                                        + m.getRequest(), buildOps);
-                        addImport(impMsgs, reqName);
-                    });
-        }
         if (methods != null && !methods.isEmpty()) {
             methods.stream()
                     .forEach(m -> {
@@ -315,49 +299,33 @@ public class JavaBuilder {
                                 addImport(impMsgs, "io.edap.rpc.StreamObserver");
                                 break;
                         }
-                        String reqType = m.getRequest();
-                        if (impMessages.containsKey(reqType)) {
-                            Proto impProto = impMessages.get(reqType);
-                            String impJavaPack = impProto.getOptionValue("java_package");
-                            if (!impProto.getProtoPackage().equals(impJavaPack)) {
-                                reqType = impJavaPack + reqType.substring(impProto.getProtoPackage().length());
+                        String reqType = dtoJavaType(m.getRequest(), proto, impMessages, buildOps);
+                        if (reqType != null) {
+                            addImport(impMsgs, reqType);
+                            Message reqMsg = dtoMessage(m.getRequest(), proto, impMessages);
+                            if (reqMsg != null && impMessages.containsKey(stripStreamPrefix(m.getRequest()))) {
+                                needSaveJavaFiles.put(reqType, reqMsg);
                             }
-                            String msgName;
-                            int index = reqType.lastIndexOf('.');
-                            if (index == -1) {
-                                msgName = reqType;
-                            } else {
-                                msgName = reqType.substring(index + 1);
-                            }
-                            needSaveJavaFiles.put(reqType, impProto.getMessage(msgName));
-                        } else {
-                            reqType = getDepType(proto, reqType);
                         }
-                        addImport(impMsgs, reqType);
-                        String respType = m.getResponse();
-                        if (impMessages.containsKey(respType)) {
-                            Proto impProto = impMessages.get(respType);
-                            String impJavaPack = impProto.getOptionValue("java_package");
-                            if (!impProto.getProtoPackage().equals(impJavaPack)) {
-                                respType = impJavaPack + respType.substring(impProto.getProtoPackage().length());
+                        String respType = dtoJavaType(m.getResponse(), proto, impMessages, buildOps);
+                        if (respType != null) {
+                            addImport(impMsgs, respType);
+                            Message respMsg = dtoMessage(m.getResponse(), proto, impMessages);
+                            if (respMsg != null && impMessages.containsKey(stripStreamPrefix(m.getResponse()))) {
+                                needSaveJavaFiles.put(respType, respMsg);
                             }
-                            String msgName;
-                            int index = respType.lastIndexOf('.');
-                            if (index == -1) {
-                                msgName = respType;
-                            } else {
-                                msgName = respType.substring(index + 1);
-                            }
-                            needSaveJavaFiles.put(respType, impProto.getMessage(msgName));
-                        } else {
-                            respType = getDepType(proto, respType);
                         }
-                        addImport(impMsgs, respType);
                     });
         }
         String pserviceName = ProtoService.class.getName();
         if (!impMsgs.contains(pserviceName)) {
             impMsgs.add(pserviceName);
+        }
+        if (methods != null && !methods.isEmpty()) {
+            String pgrpcName = ProtoGrpc.class.getName();
+            if (!impMsgs.contains(pgrpcName)) {
+                impMsgs.add(pgrpcName);
+            }
         }
         String pubAccessName = PublicAccess.class.getName();
         if (!impMsgs.contains(pubAccessName)) {
@@ -370,6 +338,129 @@ public class JavaBuilder {
         impMsgs.stream()
                 .sorted(String::compareTo)
                 .forEach(e -> cb.e("import $msg$;").arg(e).ln());
+    }
+
+    /**
+     * 剥离 proto 中流式方法类型串的 {@code "stream "} 前缀。
+     *
+     * <p>proto 中 {@code rpc Foo(stream Bar)} 的请求类型串为 {@code "stream Bar"}，
+     * {@code rpc Foo(Bar) returns (stream Baz)} 的响应类型串为 {@code "stream Baz"}。
+     *
+     * @param rawType proto 中的原始类型串
+     * @return 剥离后的类型串（可能带 proto package 前缀）
+     */
+    private static String stripStreamPrefix(String rawType) {
+        if (rawType == null) {
+            return null;
+        }
+        String type = rawType.trim();
+        int index = type.indexOf(' ');
+        if (index != -1) {
+            type = type.substring(index + 1).trim();
+        }
+        return type;
+    }
+
+    /**
+     * 查找类型所属的 proto 文件：优先是导入的 proto，其次是当前 proto 文件。
+     *
+     * <p>proto 中同包的消息可以不加包名限定（如 {@code rpc Foo(Bar)}），此时按 proto 的
+     * 名字解析规则归属于当前 proto 文件。
+     *
+     * @param rawType    proto 中的原始类型串
+     * @param proto      当前 proto 文件
+     * @param impMessages 导入的 proto 中定义的消息，key 为 {@code protoPackage + "." + msgName}
+     * @return 所属的 proto 文件，未找到时返回 null
+     */
+    private Proto dtoOwnerProto(String rawType, Proto proto, Map<String, Proto> impMessages) {
+        String type = stripStreamPrefix(rawType);
+        if (type == null || type.isEmpty()) {
+            return null;
+        }
+        Proto owner = impMessages.get(type);
+        if (owner != null) {
+            return owner;
+        }
+        String protoPackage = proto.getProtoPackage();
+        if (protoPackage != null && !protoPackage.isEmpty() && type.startsWith(protoPackage + ".")) {
+            return proto;
+        }
+        if (type.indexOf('.') == -1 && proto.getMessage(type) != null) {
+            // proto 中未限定包名的类型，解析为当前 proto 文件中的消息
+            return proto;
+        }
+        return null;
+    }
+
+    /**
+     * 解析 proto 方法的请求/响应类型对应的 Java 类全名。
+     *
+     * <p>Java 类的包名由所属 proto 文件决定：优先取 {@code java_package} option，
+     * 未设置时取 proto package（proto 的 {@code java_package} option 可以把 Java 包名与
+     * proto package 解耦，所以不能直接拿 proto package 当 Java 包名）。
+     *
+     * @param rawType     proto 中的原始类型串（流式方法带 {@code "stream "} 前缀）
+     * @param proto       当前 proto 文件
+     * @param impMessages 导入的 proto 中定义的消息
+     * @param buildOps    代码生成选项
+     * @return Java 类全名，无法解析时返回 null
+     */
+    private String dtoJavaType(String rawType, Proto proto, Map<String, Proto> impMessages,
+                               JavaBuildOption buildOps) {
+        String type = stripStreamPrefix(rawType);
+        if (type == null || type.isEmpty()) {
+            return null;
+        }
+        Proto owner = dtoOwnerProto(rawType, proto, impMessages);
+        if (owner == null) {
+            return getDepType(proto, type);
+        }
+        String javaPackage = getJavaPackage(owner);
+        if (javaPackage == null || javaPackage.isEmpty()) {
+            javaPackage = owner.getProtoPackage();
+        }
+        if (javaPackage == null || javaPackage.isEmpty()) {
+            return type;
+        }
+        String msgName = type.substring(type.lastIndexOf('.') + 1);
+        String javaType = javaPackage + "." + formatTypeName(msgName, Service.ServiceType.UNARY);
+        if (owner == proto) {
+            // 当前 proto 定义的消息，DTO 生成在 dtoPrefix 指定的子包中
+            javaType = fillDtoPackName(javaType, buildOps);
+        }
+        return javaType;
+    }
+
+    /**
+     * 解析 proto 方法的请求/响应类型对应的 Message 定义。
+     *
+     * @param rawType     proto 中的原始类型串
+     * @param proto       当前 proto 文件
+     * @param impMessages 导入的 proto 中定义的消息
+     * @return Message 定义，未找到时返回 null
+     */
+    private Message dtoMessage(String rawType, Proto proto, Map<String, Proto> impMessages) {
+        Proto owner = dtoOwnerProto(rawType, proto, impMessages);
+        if (owner == null) {
+            return null;
+        }
+        String type = stripStreamPrefix(rawType);
+        String msgName = type.substring(type.lastIndexOf('.') + 1);
+        return owner.getMessage(msgName);
+    }
+
+    /**
+     * 取 DTO 类型的 Java 简单类名（首字母大写），用于生成 {@code Xxx.class} 形式的类引用。
+     *
+     * @param rawType proto 中的原始类型串
+     * @return Java 简单类名，无法解析时返回 null
+     */
+    private static String dtoClassName(String rawType) {
+        String type = stripStreamPrefix(rawType);
+        if (type == null || type.isEmpty()) {
+            return null;
+        }
+        return formatTypeName(type, Service.ServiceType.UNARY);
     }
 
     private String getDepType(Proto proto, String dtoType) {
@@ -458,15 +549,40 @@ public class JavaBuilder {
         if (buildOps.isEdapRpc()) {
             cb.e("@EdapService(proto = \"$protoName$\")").arg(proto.getFile().getName()).ln();
         }
-        cb.e("@ProtoService(protoFile = \"$protoName$\")").arg(proto.getName()).ln();
+        cb.e("@ProtoService(protoFile = \"$protoName$\", serviceName = \"$serviceName$\")")
+                .arg(proto.getName()).arg(grpcServiceName(proto, service)).ln();
         cb.e("public interface $name$ {").arg(name).ln();
 
-        buildMethodCode(cb, methods, msgComments, level);
+        buildMethodCode(cb, methods, msgComments, level, grpcServiceName(proto, service));
         cb.c("}").ln();
         return cb.toString();
     }
 
-    private void buildMethodCode(CodeBuilder cb, List<ServiceMethod> methods, Map<String, String> msgComments, int level) {
+    /**
+     * 计算 gRPC 的服务全名：{@code protoPackage + "." + proto 中的 service 名}。
+     *
+     * <p>gRPC 的 {@code :path} 为 {@code /<serviceName>/<Method>}，其中 serviceName 取自
+     * proto 定义（proto 的 {@code java_package} option 可以把 Java 包名与 proto package 解耦，
+     * 因此不能从 Java 包名反推）。
+     *
+     * @param proto   当前 proto 文件
+     * @param service proto 中定义的服务
+     * @return gRPC 服务全名
+     */
+    private static String grpcServiceName(Proto proto, Service service) {
+        String serviceName = service.getName();
+        if (serviceName == null || serviceName.isEmpty()) {
+            return "";
+        }
+        String protoPackage = proto.getProtoPackage();
+        if (protoPackage == null || protoPackage.isEmpty()) {
+            return serviceName;
+        }
+        return protoPackage + "." + serviceName;
+    }
+
+    private void buildMethodCode(CodeBuilder cb, List<ServiceMethod> methods, Map<String, String> msgComments, int level,
+                                 String grpcServiceName) {
         if (methods == null) {
             return;
         }
@@ -474,6 +590,11 @@ public class JavaBuilder {
                 .sorted(Comparator.comparing(ServiceMethod::getName))
                 .forEach(m -> {
                     Comment comment = m.getComment();
+                    if (comment == null) {
+                        // proto 中未写注释的方法，解析器不会生成 Comment
+                        comment = new Comment();
+                        comment.setType(Comment.CommentType.INLINE);
+                    }
                     if (comment.getType() == Comment.CommentType.DOCUMENT) {
                         cb.t(level).c("/**").ln();
                         for (String c : comment.getLines()) {
@@ -491,13 +612,36 @@ public class JavaBuilder {
                         }
                     }
 
-                    String[] params = new String[4];
-                    params[0] = formatTypeName(m.getResponse(), m.getType());
-                    params[1] = formatParamName(m.getName(), m.getType());
-                    params[2] = formatTypeName(m.getRequest(), m.getType());
-                    params[3] = formatParamName(m.getRequest(), m.getType());
-                    cb.t(level).e(" * @param $param$ ").arg(params[3]).ln();
-                    cb.t(level).e(" * @return").arg(params[3]).ln();
+                    // gRPC 服务端采用 grpc-java 的四种形态：
+                    //   一元        Resp m(Req req)
+                    //   服务端流式  void m(Req req, StreamObserver<Resp> responseObserver)
+                    //   客户端流式  StreamObserver<Req> m(StreamObserver<Resp> responseObserver)
+                    //   双向流式    StreamObserver<Req> m(StreamObserver<Resp> responseObserver)
+                    Service.ServiceType methodType = m.getType();
+                    String reqMsgType = dtoClassName(m.getRequest());
+                    String respMsgType = dtoClassName(m.getResponse());
+                    String funcName = formatParamName(m.getName(), methodType);
+                    String reqParamName = formatParamName(m.getRequest(), methodType);
+                    String signature;
+                    String[] signatureArgs;
+                    if (methodType == Service.ServiceType.SERVER_STREAM) {
+                        signature = "$return$ $func$($param$ $arg$, StreamObserver<$resp$> $respArg$);";
+                        signatureArgs = new String[]{"void", funcName, reqMsgType, reqParamName,
+                                respMsgType, "responseObserver"};
+                        cb.t(level).e(" * @param $param$ ").arg(reqParamName).ln();
+                        cb.t(level).e(" * @param $respArg$ ").arg("responseObserver").ln();
+                    } else if (methodType == Service.ServiceType.CLIENT_STREAM
+                            || methodType == Service.ServiceType.BIDIRECTIONAL) {
+                        signature = "$return$ $func$(StreamObserver<$resp$> $respArg$);";
+                        signatureArgs = new String[]{"StreamObserver<" + reqMsgType + ">", funcName,
+                                respMsgType, "responseObserver"};
+                        cb.t(level).e(" * @param $respArg$ ").arg("responseObserver").ln();
+                    } else {
+                        signature = "$return$ $func$($param$ $arg$);";
+                        signatureArgs = new String[]{respMsgType, funcName, reqMsgType, reqParamName};
+                        cb.t(level).e(" * @param $param$ ").arg(reqParamName).ln();
+                    }
+                    cb.t(level).e(" * @return").arg(reqParamName).ln();
                     cb.t(level).c(" */").ln();
                     List<Option> options = m.getOptions();
                     Map<String, String> paramConfigs = new HashMap<>();
@@ -614,9 +758,61 @@ public class JavaBuilder {
                             cb.ln();
                         }
                     }
-                    cb.t(level).e("$return$ $func$($param$ $arg$);")
-                            .arg(params).ln();
+                    String reqClass = dtoClassName(m.getRequest());
+                    String respClass = dtoClassName(m.getResponse());
+                    if (reqClass != null && respClass != null) {
+                        cb.t(level).c("@ProtoGrpc(type = ProtoGrpc.MethodType.")
+                                .c(grpcMethodType(m.getType()))
+                                .c(", req = ").c(reqClass).c(".class, resp = ")
+                                .c(respClass).c(".class");
+                        String grpcPath = grpcMethodPath(grpcServiceName, m.getName());
+                        if (grpcPath != null) {
+                            cb.c(", path = \"").c(grpcPath).c("\"");
+                        }
+                        cb.c(")").ln();
+                    }
+                    cb.t(level).e(signature).arg(signatureArgs).ln();
                 });
+    }
+
+    /**
+     * proto 的服务方法类型 → gRPC 的方法类型名。
+     *
+     * @param type proto 服务方法类型
+     * @return {@code ProtoGrpc.MethodType} 的枚举常量名
+     */
+    private static String grpcMethodType(Service.ServiceType type) {        if (type == null) {
+            return "UNARY";
+        }
+        switch (type) {
+            case SERVER_STREAM:
+                return "SERVER_STREAM";
+            case CLIENT_STREAM:
+                return "CLIENT_STREAM";
+            case BIDIRECTIONAL:
+                return "BIDIRECTIONAL";
+            default:
+                return "UNARY";
+        }
+    }
+
+    /**
+     * 计算 gRPC 的 {@code :path}：{@code /<serviceName>/<proto 方法名>}。
+     *
+     * <p>这里用的是 <b>proto 中的方法名</b> 而不是生成的 Java 方法名——生成的 Java 方法名
+     * 会把首字母改成小写（{@code GetReview} → {@code getReview}），而 gRPC 客户端发送的是
+     * proto 中的原始方法名，无法从 Java 方法名可靠还原。
+     *
+     * @param grpcServiceName gRPC 服务全名
+     * @param methodName       proto 中的方法名
+     * @return gRPC 的 {@code :path}，无法计算时返回 null
+     */
+    private static String grpcMethodPath(String grpcServiceName, String methodName) {
+        if (grpcServiceName == null || grpcServiceName.isEmpty()
+                || methodName == null || methodName.isEmpty()) {
+            return null;
+        }
+        return "/" + grpcServiceName + "/" + methodName;
     }
 
     public static String formatParamName(String name, Service.ServiceType serviceType) {

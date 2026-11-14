@@ -159,7 +159,7 @@ public class ProtoUtil {
                 pfi.hasSetAccessed = Modifier.isPublic(f.getModifiers()) || pfi.setMethod != null;
                 ProtoField pf = getProtoAnnotation(f, em);
                 if (pf != null) {
-                    pfi.protoField = pf;
+                    pfi.protoField = withRepeatedCardinalityIfNeeded(f, pf);
                     hasProtoAnn = true;
                 }
                 profields.add(pfi);
@@ -170,6 +170,104 @@ public class ProtoUtil {
         }
 
         return profields;
+    }
+
+    /**
+     * 注解里没写 {@code cardinality}（默认 {@link Cardinality#OPTIONAL}）、
+     * 但 Java 字段是 List/Set/数组/Iterable，且 protobuf 类型是<b>可 packed 的标量</b>
+     * ⇒ 把 cardinality 合成成 {@link Cardinality#REPEATED}。
+     *
+     * <p><b>为什么必须合成</b>：proto3 规定 repeated 的标量字段用 packed 编码
+     * （wire type = 2，LENGTH_DELIMITED），单值标量用 varint（wire type = 0）。
+     * 而 {@code JavaBuilder}（proto → Java 代码生成器）生成 {@code @ProtoField} 时
+     * <b>从不输出 {@code cardinality}</b> ⇒ 运行时拿到注解默认值 OPTIONAL
+     * ⇒ 算出 varint tag（0x08），但载荷写的又是 packed（长度前缀 + 内容）
+     * ⇒ <b>tag 与载荷不一致</b> ⇒ protobuf-java 解析时抛 {@code invalid tag (zero)}。
+     * edap 自身往返不炸是因为解码侧的 tag 表用的是同一个（错的）cardinality，
+     * 而解码分支只看「类型是否 packable」不看 cardinality ⇒ 歪打正着。</p>
+     *
+     * <p><b>为什么改这一处就够</b>：编码侧（{@code ProtoBufEncoderGenerator}）与
+     * 解码侧（{@code ProtoBufDecoderGenerator}）的 {@code ProtoFieldInfo} 都来自这里
+     * ⇒ 两侧同时自洽，且不需要重新生成任何 POJO。</p>
+     *
+     * <p><b>影响面</b>：只影响「注解里没写 cardinality + 字段是集合/数组 + 类型可 packed」的 POJO
+     * —— 也就是 {@code JavaBuilder} 生成的形状。{@code repeated string/bytes/message/map}
+     * 本来就是 LENGTH_DELIMITED（{@code type().packable()} 为 false），不受影响；
+     * 单值标量字段不是集合，也不受影响。</p>
+     */
+    private static ProtoField withRepeatedCardinalityIfNeeded(Field field, ProtoField pf) {
+        if (pf.cardinality() != Cardinality.OPTIONAL) {
+            return pf;
+        }
+        // 只有可 packed 的标量（int32/int64/uint*/sint*/bool/enum/fixed*/sfixed*/float/double）
+        // 才有「单值 vs packed」之分；string/bytes/message/map 恒为 LENGTH_DELIMITED
+        if (!pf.type().packable()) {
+            return pf;
+        }
+        java.lang.reflect.Type gt = field.getGenericType();
+        if (!AsmUtil.isList(gt) && !AsmUtil.isSet(gt)
+                && !isRepeatedArray(gt) && !isIterable(gt)) {
+            return pf;
+        }
+        return new RepeatedCardinalityProtoField(pf);
+    }
+
+    /**
+     * 只覆盖 {@code cardinality()} 的 {@link ProtoField} 委托 ——
+     * 其余属性（name/jsonType/oneOf/comment/options）必须原样透传
+     * （oneOf 编码侧要用，见 {@code ProtoBufEncoderGenerator}）。
+     */
+    private static final class RepeatedCardinalityProtoField implements ProtoField {
+        private final ProtoField delegate;
+
+        RepeatedCardinalityProtoField(ProtoField delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public Cardinality cardinality() {
+            return Cardinality.REPEATED;
+        }
+
+        @Override
+        public int tag() {
+            return delegate.tag();
+        }
+
+        @Override
+        public Type type() {
+            return delegate.type();
+        }
+
+        @Override
+        public String[] options() {
+            return delegate.options();
+        }
+
+        @Override
+        public String comment() {
+            return delegate.comment();
+        }
+
+        @Override
+        public String name() {
+            return delegate.name();
+        }
+
+        @Override
+        public String jsonType() {
+            return delegate.jsonType();
+        }
+
+        @Override
+        public String oneOf() {
+            return delegate.oneOf();
+        }
+
+        @Override
+        public Class<? extends Annotation> annotationType() {
+            return ProtoField.class;
+        }
     }
 
     private static boolean isIgnore(Field f, Method getMethod) {

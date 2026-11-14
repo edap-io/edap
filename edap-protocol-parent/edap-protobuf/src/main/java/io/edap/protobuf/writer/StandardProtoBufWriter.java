@@ -41,80 +41,148 @@ public class StandardProtoBufWriter extends AbstractWriter {
         super(out);
     }
 
+    /**
+     * packed 字段的公共写法：<b>单遍</b>写内容 + 写完回填长度前缀。
+     *
+     * <p>结构：长度前缀先<b>预留 {@code reserve} 字节</b>，内容从 {@code oldPos + reserve} 开始
+     * 用<b>局部下标</b>连续写（不读写 {@code pos} 字段 ⇒ 每个元素省一次字段读 + 一次字段写），
+     * 写完算出实际长度 {@code contentLen}，再由
+     * {@link #writeLenPrefixReserve(int, int, int)} 把前缀补上（长度不一致时整块平移，
+     * 长度一致时<b>一次都不搬</b>）。</p>
+     *
+     * <p>★ 为什么不用 protobuf-java 的「两遍法（先算长度 → 写长度 → 写内容）」：
+     * 两遍法要多扫一遍载荷（装箱 {@code List<Integer>} 上实测 <b>≈1.3 ns/元素</b>），
+     * 而省下的只是「按差值平移」——实测在常见负载上<b>差值为 0，一次都不搬</b>
+     * ⇒ 两遍法是<b>纯亏</b>（packed int32 实测 +67%~+83%）。详见
+     * {@code edap-grpc-parent/edap-grpc-benchmark/doc/bench/proto-codec-20261113-string.md} 第二十八~三十节。</p>
+     *
+     * <p>★ 每元素的字节数上界：<b>uint32 / int32 正数</b> 都按无符号 32 位 varint 写 ⇒ 最多
+     * <b>5 字节</b>（{@link #MAX_VARINT_SIZE}）；只有 <b>int32 的负数</b>要符号扩展成 64 位 varint
+     * ⇒ 最多 <b>10 字节</b>（{@link #MAX_VARLONG_SIZE}）。
+     * 旧实现一律按 5 字节预留 ⇒ <b>int32 元素里有负数时缓冲会越界</b>
+     * （实测 {@code ArrayIndexOutOfBoundsException}）。
+     * ⇒ 这里仍然按 <b>5 字节/元素</b>预留（与旧实现同，不多占内存），
+     * <b>只在「负数」这条冷分支上</b>检查容量（实测：每个元素都查 ⇒ 慢 15%~50%；
+     * 只在负数上查 ⇒ 常见负载零成本）。</p>
+     */
+    /**
+     * 开始写一个 packed 整型字段：写 tag、预留长度前缀，返回<b>长度前缀</b>的位置。
+     *
+     * @param reserve        长度前缀预留的字节数
+     * @param contentReserve 内容的预留字节数（按每元素 {@link #MAX_VARINT_SIZE} 估）
+     */
+    private int writePackedIntStart(byte[] fieldData, int reserve, int contentReserve) {
+        expand((MAX_VARINT_SIZE << 1) + contentReserve + reserve);
+        writeFieldData(fieldData);
+        return pos;
+    }
+
+    /**
+     * 结束写一个 packed 字段：按实际内容长度回填长度前缀，并推进 {@code pos}。
+     */
+    private void writePackedIntEnd(int oldPos, int reserve, int contentEnd) {
+        int contentLen = contentEnd - oldPos - reserve;
+        // ★ expand() 用 pos 判断剩余容量，必须先同步成「内容末尾」再回填前缀
+        pos = contentEnd;
+        pos = oldPos + writeLenPrefixReserve(oldPos, reserve, contentLen);
+    }
+
     @Override
     public void writePackedInts(byte[] fieldData, int[] values, Field.Type type) {
         if (values == null || values.length == 0) {
             return;
         }
         int size = values.length;
-        int len;
         switch (type) {
-            case INT32:
-            case UINT32:
-                size = values.length;
-                len = size * MAX_VARINT_SIZE;
-                expand((MAX_VARLONG_SIZE << 1) + len);
-                writeFieldData(fieldData);
-                int oldPos = pos;
-
-                pos += 1;
-                int i = 0;
-                writeInt32_0(values[i++]);
-                if (size > 1) {
-                    writeInt32_0(values[i++]);
-                }
-                if (size > 2) {
-                    writeInt32_0(values[i++]);
-                }
-                if (size > 3) {
-                    writeInt32_0(values[i++]);
-                }
-                if (size > 4) {
-                    writeInt32_0(values[i++]);
-                }
-                if (size > 5) {
-                    writeInt32_0(values[i++]);
-                }
-                if (size > 6) {
-                    writeInt32_0(values[i++]);
-                }
-                if (size > 7) {
-                    writeInt32_0(values[i++]);
-                }
-                if (size > 8) {
-                    writeInt32_0(values[i++]);
-                }
-                if (size > 9) {
-                    writeInt32_0(values[i++]);
-                }
-                if (size > 10) {
-                    for (i=10;i<size;i++) {
-                        writeInt32_0(values[i]);
+            case INT32: {
+                // ★ 单遍写法（见 writePackedIntStart 的说明）
+                // int32 的负数要符号扩展成 64 位 varint ⇒ 最多 10 字节
+                int reserve = varintLen(size * MAX_VARINT_SIZE);
+                int oldPos = writePackedIntStart(fieldData, reserve, size * MAX_VARINT_SIZE);
+                byte[] _bs = bs;
+                int cap = _bs.length;
+                int p = oldPos + reserve;
+                for (int i = 0; i < size; i++) {
+                    int v = values[i];
+                    if (v >= 0) {
+                        // ≤5 字节 ⇒ 预留已够
+                        if ((v >>> 14) == 0) {
+                            if ((v >>> 7) == 0) {
+                                _bs[p++] = (byte) v;
+                            } else {
+                                _bs[p++] = (byte) (v | -128);
+                                _bs[p++] = (byte) (v >>> 7);
+                            }
+                        } else {
+                            p = writeVarintAt3to5(_bs, p, v);
+                        }
+                    } else {
+                        // ★ int32 负数 ⇒ 10 字节 ⇒ 这里才查容量
+                        if (p + MAX_VARLONG_SIZE > cap) {
+                            pos = p;
+                            expand(MAX_VARLONG_SIZE);
+                            _bs = bs;
+                            cap = _bs.length;
+                        }
+                        p = writeVarint64At(_bs, p, v);
                     }
                 }
-                len = pos - oldPos - 1;
-                pos += writeLenMoveBytes(bs, oldPos, len);
+                writePackedIntEnd(oldPos, reserve, p);
                 return;
-            case SINT32:
-                expand(MAX_VARINT_SIZE << 1 + size*MAX_VARINT_SIZE);
-                writeFieldData(fieldData);
-                oldPos = pos;
-                pos++;
-                //writeUInt32_0(len);
-                for (i=0;i<size;i++) {
-                    writeUInt32_0(encodeZigZag32(values[i]));
+            }
+            case UINT32: {
+                // uint32 是无符号语义（-1 ⇒ FF FF FF FF 0F）⇒ 永远 ≤5 字节 ⇒ 不需要检查容量
+                int reserve = varintLen(size * MAX_VARINT_SIZE);
+                int oldPos = writePackedIntStart(fieldData, reserve, size * MAX_VARINT_SIZE);
+                byte[] _bs = bs;
+                int p = oldPos + reserve;
+                for (int i = 0; i < size; i++) {
+                    int v = values[i];
+                    if ((v >>> 14) == 0) {
+                        if ((v >>> 7) == 0) {
+                            _bs[p++] = (byte) v;
+                        } else {
+                            _bs[p++] = (byte) (v | -128);
+                            _bs[p++] = (byte) (v >>> 7);
+                        }
+                    } else {
+                        p = writeVarintAt3to5(_bs, p, v);
+                    }
                 }
-                len = pos - oldPos - 1;
-                pos += writeLenMoveBytes(bs, oldPos, len);
+                writePackedIntEnd(oldPos, reserve, p);
                 return;
+            }
+            case SINT32: {
+                // zigzag 后的 int32 最多 5 字节 ⇒ 预留已够，不需要检查容量
+                int reserve = varintLen(size * MAX_VARINT_SIZE);
+                int oldPos = writePackedIntStart(fieldData, reserve, size * MAX_VARINT_SIZE);
+                byte[] _bs = bs;
+                int p = oldPos + reserve;
+                for (int i = 0; i < size; i++) {
+                    int v = encodeZigZag32(values[i]);
+                    if ((v >>> 14) == 0) {
+                        if ((v >>> 7) == 0) {
+                            _bs[p++] = (byte) v;
+                        } else {
+                            _bs[p++] = (byte) (v | -128);
+                            _bs[p++] = (byte) (v >>> 7);
+                        }
+                    } else {
+                        p = writeVarintAt3to5(_bs, p, v);
+                    }
+                }
+                writePackedIntEnd(oldPos, reserve, p);
+                return;
+            }
             case FIXED32:
             case SFIXED32:
-                expand(MAX_VARINT_SIZE << 1 + size << 2);
+                expand((MAX_VARINT_SIZE << 1) + (size << 2));
                 writeFieldData(fieldData);
                 writeUInt32_0(size << 2);
-                for (i=0;i<size;i++) {
+                for (int i = 0; i < size; i++) {
                     writeFixed32_0(values[i]);
                 }
+                return;
             default:
                 break;
         }
@@ -126,75 +194,96 @@ public class StandardProtoBufWriter extends AbstractWriter {
             return;
         }
         int size = values.length;
-        int len;
         switch (type) {
-            case INT32:
-            case UINT32:
-                size = values.length;
-                len = size * MAX_VARINT_SIZE;
-                expand((MAX_VARINT_SIZE << 1) + len);
-                writeFieldData(fieldData);
-                int oldPos = pos;
-
-                pos += 1;
-                int i = 0;
-                writeInt32_0(values[i++]);
-                if (size > 1) {
-                    writeInt32_0(values[i++]);
-                }
-                if (size > 2) {
-                    writeInt32_0(values[i++]);
-                }
-                if (size > 3) {
-                    writeInt32_0(values[i++]);
-                }
-                if (size > 4) {
-                    writeInt32_0(values[i++]);
-                }
-                if (size > 5) {
-                    writeInt32_0(values[i++]);
-                }
-                if (size > 6) {
-                    writeInt32_0(values[i++]);
-                }
-                if (size > 7) {
-                    writeInt32_0(values[i++]);
-                }
-                if (size > 8) {
-                    writeInt32_0(values[i++]);
-                }
-                if (size > 9) {
-                    writeInt32_0(values[i++]);
-                }
-                if (size > 10) {
-                    for (i=10;i<size;i++) {
-                        writeInt32_0(values[i]);
+            case INT32: {
+                // ★ 单遍写法（见 writePackedIntStart 的说明）
+                // int32 的负数要符号扩展成 64 位 varint ⇒ 最多 10 字节
+                int reserve = varintLen(size * MAX_VARINT_SIZE);
+                int oldPos = writePackedIntStart(fieldData, reserve, size * MAX_VARINT_SIZE);
+                byte[] _bs = bs;
+                int cap = _bs.length;
+                int p = oldPos + reserve;
+                for (int i = 0; i < size; i++) {
+                    int v = values[i].intValue();
+                    if (v >= 0) {
+                        // ≤5 字节 ⇒ 预留已够
+                        if ((v >>> 14) == 0) {
+                            if ((v >>> 7) == 0) {
+                                _bs[p++] = (byte) v;
+                            } else {
+                                _bs[p++] = (byte) (v | -128);
+                                _bs[p++] = (byte) (v >>> 7);
+                            }
+                        } else {
+                            p = writeVarintAt3to5(_bs, p, v);
+                        }
+                    } else {
+                        // ★ int32 负数 ⇒ 10 字节 ⇒ 这里才查容量
+                        if (p + MAX_VARLONG_SIZE > cap) {
+                            pos = p;
+                            expand(MAX_VARLONG_SIZE);
+                            _bs = bs;
+                            cap = _bs.length;
+                        }
+                        p = writeVarint64At(_bs, p, v);
                     }
                 }
-
-                len = pos - oldPos - 1;
-                pos += writeLenMoveBytes(bs, oldPos, len);
+                writePackedIntEnd(oldPos, reserve, p);
                 return;
-            case SINT32:
-                len = size * MAX_VARINT_SIZE;
-                expand(MAX_VARINT_SIZE << 1 + len);
-                writeFieldData(fieldData);
-                oldPos = pos;
-                pos++;
-                for (i=0;i<size;i++) {
-                    writeUInt32_0(encodeZigZag32(values[i]));
+            }
+            case UINT32: {
+                // uint32 是无符号语义（-1 ⇒ FF FF FF FF 0F）⇒ 永远 ≤5 字节 ⇒ 不需要检查容量
+                int reserve = varintLen(size * MAX_VARINT_SIZE);
+                int oldPos = writePackedIntStart(fieldData, reserve, size * MAX_VARINT_SIZE);
+                byte[] _bs = bs;
+                int p = oldPos + reserve;
+                for (int i = 0; i < size; i++) {
+                    int v = values[i].intValue();
+                    if ((v >>> 14) == 0) {
+                        if ((v >>> 7) == 0) {
+                            _bs[p++] = (byte) v;
+                        } else {
+                            _bs[p++] = (byte) (v | -128);
+                            _bs[p++] = (byte) (v >>> 7);
+                        }
+                    } else {
+                        p = writeVarintAt3to5(_bs, p, v);
+                    }
                 }
-                len = pos - oldPos - 1;
-                pos += writeLenMoveBytes(bs, oldPos, len);
+                writePackedIntEnd(oldPos, reserve, p);
                 return;
+            }
+            case SINT32: {
+                // zigzag 后的 int32 最多 5 字节 ⇒ 预留已够，不需要检查容量
+                int reserve = varintLen(size * MAX_VARINT_SIZE);
+                int oldPos = writePackedIntStart(fieldData, reserve, size * MAX_VARINT_SIZE);
+                byte[] _bs = bs;
+                int p = oldPos + reserve;
+                for (int i = 0; i < size; i++) {
+                    int v = encodeZigZag32(values[i].intValue());
+                    if ((v >>> 14) == 0) {
+                        if ((v >>> 7) == 0) {
+                            _bs[p++] = (byte) v;
+                        } else {
+                            _bs[p++] = (byte) (v | -128);
+                            _bs[p++] = (byte) (v >>> 7);
+                        }
+                    } else {
+                        p = writeVarintAt3to5(_bs, p, v);
+                    }
+                }
+                writePackedIntEnd(oldPos, reserve, p);
+                return;
+            }
             case FIXED32:
             case SFIXED32:
-                expand(MAX_VARINT_SIZE << 1 + size << 2);
+                expand((MAX_VARINT_SIZE << 1) + (size << 2));
                 writeFieldData(fieldData);
                 writeUInt32_0(size << 2);
-                for (i=0;i<size;i++) {
+                for (int i = 0; i < size; i++) {
                     writeFixed32_0(values[i]);
                 }
+                return;
             default:
                 break;
         }
@@ -205,77 +294,97 @@ public class StandardProtoBufWriter extends AbstractWriter {
         if (isEmpty(values)) {
             return;
         }
-        int len;
-        int size;
+        int size = values.size();
         switch (type) {
-            case INT32:
-            case UINT32:
-                size = values.size();
-                len = size * 5;
-                expand((MAX_VARLONG_SIZE << 1) + len);
-                writeFieldData(fieldData);
-                int oldPos = pos;
-
-                pos += 1;
-                int i = 0;
-                writeInt32_0(values.get(i++));
-                if (size > 1) {
-                    writeInt32_0(values.get(i++));
-                }
-                if (size > 2) {
-                    writeInt32_0(values.get(i++));
-                }
-                if (size > 3) {
-                    writeInt32_0(values.get(i++));
-                }
-                if (size > 4) {
-                    writeInt32_0(values.get(i++));
-                }
-                if (size > 5) {
-                    writeInt32_0(values.get(i++));
-                }
-                if (size > 6) {
-                    writeInt32_0(values.get(i++));
-                }
-                if (size > 7) {
-                    writeUInt32_0(values.get(i++));
-                }
-                if (size > 8) {
-                    writeInt32_0(values.get(i++));
-                }
-                if (size > 9) {
-                    writeInt32_0(values.get(i++));
-                }
-                if (size > 10) {
-                    for (i=10;i<size;i++) {
-                        writeInt32_0(values.get(i));
+            case INT32: {
+                // ★ 单遍写法（见 writePackedIntStart 的说明）
+                // int32 的负数要符号扩展成 64 位 varint ⇒ 最多 10 字节
+                int reserve = varintLen(size * MAX_VARINT_SIZE);
+                int oldPos = writePackedIntStart(fieldData, reserve, size * MAX_VARINT_SIZE);
+                byte[] _bs = bs;
+                int cap = _bs.length;
+                int p = oldPos + reserve;
+                for (int i = 0; i < size; i++) {
+                    int v = values.get(i).intValue();
+                    if (v >= 0) {
+                        // ≤5 字节 ⇒ 预留已够
+                        if ((v >>> 14) == 0) {
+                            if ((v >>> 7) == 0) {
+                                _bs[p++] = (byte) v;
+                            } else {
+                                _bs[p++] = (byte) (v | -128);
+                                _bs[p++] = (byte) (v >>> 7);
+                            }
+                        } else {
+                            p = writeVarintAt3to5(_bs, p, v);
+                        }
+                    } else {
+                        // ★ int32 负数 ⇒ 10 字节 ⇒ 这里才查容量
+                        if (p + MAX_VARLONG_SIZE > cap) {
+                            pos = p;
+                            expand(MAX_VARLONG_SIZE);
+                            _bs = bs;
+                            cap = _bs.length;
+                        }
+                        p = writeVarint64At(_bs, p, v);
                     }
                 }
-
-                len = pos - oldPos - 1;
-                pos += writeLenMoveBytes(bs, oldPos, len);
+                writePackedIntEnd(oldPos, reserve, p);
                 return;
-            case SINT32:
-                len = values.size() * MAX_VARINT_SIZE;
-                expand(MAX_VARINT_SIZE << 1 + len);
-                writeFieldData(fieldData);
-                oldPos = pos;
-                pos++;
-                for (Integer v : values) {
-                    writeUInt32_0(encodeZigZag32(v));
+            }
+            case UINT32: {
+                // uint32 是无符号语义（-1 ⇒ FF FF FF FF 0F）⇒ 永远 ≤5 字节 ⇒ 不需要检查容量
+                int reserve = varintLen(size * MAX_VARINT_SIZE);
+                int oldPos = writePackedIntStart(fieldData, reserve, size * MAX_VARINT_SIZE);
+                byte[] _bs = bs;
+                int p = oldPos + reserve;
+                for (int i = 0; i < size; i++) {
+                    int v = values.get(i).intValue();
+                    if ((v >>> 14) == 0) {
+                        if ((v >>> 7) == 0) {
+                            _bs[p++] = (byte) v;
+                        } else {
+                            _bs[p++] = (byte) (v | -128);
+                            _bs[p++] = (byte) (v >>> 7);
+                        }
+                    } else {
+                        p = writeVarintAt3to5(_bs, p, v);
+                    }
                 }
-                len = pos - oldPos - 1;
-                pos += writeLenMoveBytes(bs, oldPos, len);
+                writePackedIntEnd(oldPos, reserve, p);
                 return;
+            }
+            case SINT32: {
+                // zigzag 后的 int32 最多 5 字节 ⇒ 预留已够，不需要检查容量
+                int reserve = varintLen(size * MAX_VARINT_SIZE);
+                int oldPos = writePackedIntStart(fieldData, reserve, size * MAX_VARINT_SIZE);
+                byte[] _bs = bs;
+                int p = oldPos + reserve;
+                for (int i = 0; i < size; i++) {
+                    int v = encodeZigZag32(values.get(i).intValue());
+                    if ((v >>> 14) == 0) {
+                        if ((v >>> 7) == 0) {
+                            _bs[p++] = (byte) v;
+                        } else {
+                            _bs[p++] = (byte) (v | -128);
+                            _bs[p++] = (byte) (v >>> 7);
+                        }
+                    } else {
+                        p = writeVarintAt3to5(_bs, p, v);
+                    }
+                }
+                writePackedIntEnd(oldPos, reserve, p);
+                return;
+            }
             case FIXED32:
             case SFIXED32:
-                size = values.size();
-                expand(MAX_VARINT_SIZE << 1 + size << 2);
+                expand((MAX_VARINT_SIZE << 1) + (size << 2));
                 writeFieldData(fieldData);
                 writeUInt32_0(size << 2);
                 for (Integer v : values) {
                     writeFixed32_0(v);
                 }
+                return;
             default:
                 break;
         }
@@ -286,96 +395,105 @@ public class StandardProtoBufWriter extends AbstractWriter {
         if (isEmpty(values)) {
             return;
         }
-        int len;
-        int size;
-        size = 0;
+        int size = 0;
         Iterator<Integer> itr = values.iterator();
         while (itr.hasNext()) {
             itr.next();
             size++;
         }
         switch (type) {
-            case INT32:
-            case UINT32:
-                len = size * 5;
-                expand((MAX_VARLONG_SIZE << 1) + len);
-                writeFieldData(fieldData);
-                int oldPos = pos;
-
-                pos += 1;
-                int i = 0;
-                Iterator<Integer> iterator = values.iterator();
-                writeInt32_0(iterator.next());
-                if (size > 1) {
-                    writeInt32_0(iterator.next());
-                }
-                if (size > 2) {
-                    writeInt32_0(iterator.next());
-                }
-                if (size > 3) {
-                    writeInt32_0(iterator.next());
-                }
-                if (size > 4) {
-                    writeInt32_0(iterator.next());
-                }
-                if (size > 5) {
-                    writeInt32_0(iterator.next());
-                }
-                if (size > 6) {
-                    writeInt32_0(iterator.next());
-                }
-                if (size > 7) {
-                    writeUInt32_0(iterator.next());
-                }
-                if (size > 8) {
-                    writeInt32_0(iterator.next());
-                }
-                if (size > 9) {
-                    writeInt32_0(iterator.next());
-                }
-                if (size > 10) {
-                    while (iterator.hasNext()) {
-                        writeInt32_0(iterator.next());
+            case INT32: {
+                // ★ 单遍写法（见 writePackedIntStart 的说明）
+                // int32 的负数要符号扩展成 64 位 varint ⇒ 最多 10 字节
+                int reserve = varintLen(size * MAX_VARINT_SIZE);
+                int oldPos = writePackedIntStart(fieldData, reserve, size * MAX_VARINT_SIZE);
+                byte[] _bs = bs;
+                int cap = _bs.length;
+                int p = oldPos + reserve;
+                Iterator<Integer> it = values.iterator();
+                while (it.hasNext()) {
+                    int v = it.next().intValue();
+                    if (v >= 0) {
+                        // ≤5 字节 ⇒ 预留已够
+                        if ((v >>> 14) == 0) {
+                            if ((v >>> 7) == 0) {
+                                _bs[p++] = (byte) v;
+                            } else {
+                                _bs[p++] = (byte) (v | -128);
+                                _bs[p++] = (byte) (v >>> 7);
+                            }
+                        } else {
+                            p = writeVarintAt3to5(_bs, p, v);
+                        }
+                    } else {
+                        // ★ int32 负数 ⇒ 10 字节 ⇒ 这里才查容量
+                        if (p + MAX_VARLONG_SIZE > cap) {
+                            pos = p;
+                            expand(MAX_VARLONG_SIZE);
+                            _bs = bs;
+                            cap = _bs.length;
+                        }
+                        p = writeVarint64At(_bs, p, v);
                     }
                 }
-
-                len = pos - oldPos - 1;
-                pos += writeLenMoveBytes(bs, oldPos, len);
-
-//                ProtoWriter twriter = getLocalWriter();
-//                try {
-//                    int size = values.size();
-//                    for (int i = 0; i < size; i++) {
-//                        twriter.writeInt32(values.get(i));
-//                    }
-//                    len = twriter.getBufOut().getWriteBuf().start;
-//                    writeByteArray(fieldData, 0, fieldData.length);
-//                    writeUInt32(len);
-//                    writeByteArray(twriter.getBufOut().getWriteBuf().bs, 0, len);
-//                } finally {
-//                    releaseLocalWriter(twriter);
-//                }
+                writePackedIntEnd(oldPos, reserve, p);
                 return;
-            case SINT32:
-                len = size * MAX_VARINT_SIZE;
-                expand(MAX_VARINT_SIZE << 1 + len);
-                writeFieldData(fieldData);
-                oldPos = pos;
-                pos++;
-                for (Integer v : values) {
-                    writeUInt32_0(encodeZigZag32(v));
+            }
+            case UINT32: {
+                // uint32 是无符号语义（-1 ⇒ FF FF FF FF 0F）⇒ 永远 ≤5 字节 ⇒ 不需要检查容量
+                int reserve = varintLen(size * MAX_VARINT_SIZE);
+                int oldPos = writePackedIntStart(fieldData, reserve, size * MAX_VARINT_SIZE);
+                byte[] _bs = bs;
+                int p = oldPos + reserve;
+                Iterator<Integer> it = values.iterator();
+                while (it.hasNext()) {
+                    int v = it.next().intValue();
+                    if ((v >>> 14) == 0) {
+                        if ((v >>> 7) == 0) {
+                            _bs[p++] = (byte) v;
+                        } else {
+                            _bs[p++] = (byte) (v | -128);
+                            _bs[p++] = (byte) (v >>> 7);
+                        }
+                    } else {
+                        p = writeVarintAt3to5(_bs, p, v);
+                    }
                 }
-                len = pos - oldPos - 1;
-                pos += writeLenMoveBytes(bs, oldPos, len);
+                writePackedIntEnd(oldPos, reserve, p);
                 return;
+            }
+            case SINT32: {
+                // zigzag 后的 int32 最多 5 字节 ⇒ 预留已够，不需要检查容量
+                int reserve = varintLen(size * MAX_VARINT_SIZE);
+                int oldPos = writePackedIntStart(fieldData, reserve, size * MAX_VARINT_SIZE);
+                byte[] _bs = bs;
+                int p = oldPos + reserve;
+                Iterator<Integer> it = values.iterator();
+                while (it.hasNext()) {
+                    int v = encodeZigZag32(it.next().intValue());
+                    if ((v >>> 14) == 0) {
+                        if ((v >>> 7) == 0) {
+                            _bs[p++] = (byte) v;
+                        } else {
+                            _bs[p++] = (byte) (v | -128);
+                            _bs[p++] = (byte) (v >>> 7);
+                        }
+                    } else {
+                        p = writeVarintAt3to5(_bs, p, v);
+                    }
+                }
+                writePackedIntEnd(oldPos, reserve, p);
+                return;
+            }
             case FIXED32:
             case SFIXED32:
-                expand(MAX_VARINT_SIZE << 1 + size << 2);
+                expand((MAX_VARINT_SIZE << 1) + (size << 2));
                 writeFieldData(fieldData);
                 writeUInt32_0(size << 2);
                 for (Integer v : values) {
                     writeFixed32_0(v);
                 }
+                return;
             default:
                 break;
         }
@@ -387,7 +505,7 @@ public class StandardProtoBufWriter extends AbstractWriter {
             return;
         }
         int len = values.length << 2;
-        expand(MAX_VARINT_SIZE << 1 + len);
+        expand((MAX_VARINT_SIZE << 1) + len);
         writeFieldData(fieldData);
         writeUInt32_0(len);
         for (float value : values) {
@@ -401,7 +519,7 @@ public class StandardProtoBufWriter extends AbstractWriter {
             return;
         }
         int len = values.length << 2;
-        expand(MAX_VARINT_SIZE << 1 + len);
+        expand((MAX_VARINT_SIZE << 1) + len);
         writeFieldData(fieldData);
         writeUInt32_0(len);
         for (float value : values) {
@@ -415,7 +533,7 @@ public class StandardProtoBufWriter extends AbstractWriter {
             return;
         }
         int len = values.size() << 2;
-        expand( MAX_VARINT_SIZE << 1 + len);
+        expand((MAX_VARINT_SIZE << 1) + len);
         writeFieldData(fieldData);
         writeUInt32(len);
         for (Float value : values) {
@@ -433,7 +551,7 @@ public class StandardProtoBufWriter extends AbstractWriter {
             size++;
         }
         int len = size << 2;
-        expand( MAX_VARINT_SIZE << 1 + len);
+        expand((MAX_VARINT_SIZE << 1) + len);
         writeFieldData(fieldData);
         writeUInt32(len);
         for (Float value : values) {
@@ -504,35 +622,37 @@ public class StandardProtoBufWriter extends AbstractWriter {
         }
         int len;
         int size = values.length;
+        // ★ 长度前缀的预留字节数（见 writePackedInts(int[]) 的说明）
+        int reserve = varintLen(size * MAX_VARLONG_SIZE);
         switch (type) {
             case INT64:
             case UINT64:
-                expand(MAX_VARINT_SIZE);
+                expand(MAX_VARINT_SIZE + reserve);
                 writeFieldData(fieldData);
                 int oldPos = pos;
-                pos++;
+                pos += reserve;
                 expand(MAX_VARLONG_SIZE * values.length);
                 for (int i=0;i<size;i++) {
                     writeUInt64_0(values[i]);
                 }
-                len = pos - oldPos - 1;
-                pos += writeLenMoveBytes(bs, oldPos, len);
+                len = pos - oldPos - reserve;
+                pos = oldPos + writeLenPrefixReserve(oldPos, reserve, len);
                 return;
             case SINT64:
-                expand(MAX_VARINT_SIZE);
+                expand(MAX_VARINT_SIZE + reserve);
                 writeFieldData(fieldData);
                 oldPos = pos;
-                pos++;
+                pos += reserve;
                 expand(MAX_VARLONG_SIZE * values.length);
                 for (int i=0;i<size;i++) {
                     writeUInt64_0(encodeZigZag64(values[i]));
                 }
-                len = pos - oldPos - 1;
-                pos += writeLenMoveBytes(bs, oldPos, len);
+                len = pos - oldPos - reserve;
+                pos = oldPos + writeLenPrefixReserve(oldPos, reserve, len);
                 return;
             case FIXED64:
             case SFIXED64:
-                expand(MAX_VARINT_SIZE << 1 + size << 3);
+                expand((MAX_VARINT_SIZE << 1) + (size << 3));
                 writeFieldData(fieldData);
                 writeUInt32_0(size << 3);
                 for (int i=0;i<size;i++) {
@@ -550,33 +670,35 @@ public class StandardProtoBufWriter extends AbstractWriter {
         }
         int len;
         int size = values.length;
+        // ★ 长度前缀的预留字节数（见 writePackedInts(int[]) 的说明）
+        int reserve = varintLen(size * MAX_VARLONG_SIZE);
         switch (type) {
             case INT64:
             case UINT64:
-                expand(MAX_VARINT_SIZE << 1 + MAX_VARLONG_SIZE * values.length);
+                expand((MAX_VARINT_SIZE << 1) + MAX_VARLONG_SIZE * values.length + reserve);
                 writeFieldData(fieldData);
                 int oldPos = pos;
-                pos++;
+                pos += reserve;
                 for (int i=0;i<size;i++) {
                     writeUInt64_0(values[i]);
                 }
-                len = pos - oldPos - 1;
-                pos += writeLenMoveBytes(bs, oldPos, len);
+                len = pos - oldPos - reserve;
+                pos = oldPos + writeLenPrefixReserve(oldPos, reserve, len);
                 return;
             case SINT64:
-                expand(MAX_VARINT_SIZE << 1 + MAX_VARLONG_SIZE * values.length);
+                expand((MAX_VARINT_SIZE << 1) + MAX_VARLONG_SIZE * values.length + reserve);
                 writeFieldData(fieldData);
                 oldPos = pos;
-                pos++;
+                pos += reserve;
                 for (int i=0;i<size;i++) {
                     writeUInt64_0(encodeZigZag64(values[i]));
                 }
-                len = pos - oldPos - 1;
-                pos += writeLenMoveBytes(bs, oldPos, len);
+                len = pos - oldPos - reserve;
+                pos = oldPos + writeLenPrefixReserve(oldPos, reserve, len);
                 return;
             case FIXED64:
             case SFIXED64:
-                expand(MAX_VARINT_SIZE << 1 + size << 3);
+                expand((MAX_VARINT_SIZE << 1) + (size << 3));
                 writeFieldData(fieldData);
                 writeUInt32_0(size << 3);
                 for (int i=0;i<size;i++) {
@@ -593,34 +715,36 @@ public class StandardProtoBufWriter extends AbstractWriter {
             return;
         }
         int len;
+        // ★ 长度前缀的预留字节数（见 writePackedInts(int[]) 的说明）
+        int reserve = varintLen(values.size() * MAX_VARLONG_SIZE);
         switch (type) {
             case INT64:
             case UINT64:
-                expand(MAX_VARINT_SIZE << 1 + MAX_VARLONG_SIZE * values.size());
+                expand((MAX_VARINT_SIZE << 1) + MAX_VARLONG_SIZE * values.size() + reserve);
                 writeFieldData(fieldData);
                 int oldPos = pos;
-                pos++;
+                pos += reserve;
                 for (long l : values) {
                     writeUInt64_0(l);
                 }
-                len = pos - oldPos - 1;
-                pos += writeLenMoveBytes(bs, oldPos, len);
+                len = pos - oldPos - reserve;
+                pos = oldPos + writeLenPrefixReserve(oldPos, reserve, len);
                 return;
             case SINT64:
-                expand(MAX_VARINT_SIZE << 1 + MAX_VARLONG_SIZE * values.size());
+                expand((MAX_VARINT_SIZE << 1) + MAX_VARLONG_SIZE * values.size() + reserve);
                 writeFieldData(fieldData);
                 oldPos = pos;
-                pos++;
+                pos += reserve;
                 for (long l : values) {
                     writeUInt64_0(encodeZigZag64(l));
                 }
-                len = pos - oldPos - 1;
-                pos += writeLenMoveBytes(bs, oldPos, len);
+                len = pos - oldPos - reserve;
+                pos = oldPos + writeLenPrefixReserve(oldPos, reserve, len);
                 return;
             case FIXED64:
             case SFIXED64:
                 int size = values.size();
-                expand(MAX_VARINT_SIZE << 1 + size << 3);
+                expand((MAX_VARINT_SIZE << 1) + (size << 3));
                 writeFieldData(fieldData);
                 writeUInt32_0(size << 3);
                 for (long l : values) {
@@ -644,7 +768,7 @@ public class StandardProtoBufWriter extends AbstractWriter {
                 for (long l : values) {
                     len += computeRawVarint64Size(l);
                 }
-                expand(MAX_VARINT_SIZE << 1 + len);
+                expand((MAX_VARINT_SIZE << 1) + len);
                 writeFieldData(fieldData);
                 writeUInt32_0(len);
                 for (long l : values) {
@@ -656,7 +780,7 @@ public class StandardProtoBufWriter extends AbstractWriter {
                 for (long l : values) {
                     len += computeRawVarint64Size(encodeZigZag64(l));
                 }
-                expand(MAX_VARINT_SIZE << 1 + len);
+                expand((MAX_VARINT_SIZE << 1) + len);
                 writeFieldData(fieldData);
                 writeUInt32_0(len);
                 for (long l : values) {
@@ -669,7 +793,7 @@ public class StandardProtoBufWriter extends AbstractWriter {
                 for (long l : values) {
                     size++;
                 }
-                expand(MAX_VARINT_SIZE << 1 + size << 3);
+                expand((MAX_VARINT_SIZE << 1) + (size << 3));
                 writeFieldData(fieldData);
                 writeUInt32_0(size << 3);
                 for (long l : values) {
@@ -686,7 +810,7 @@ public class StandardProtoBufWriter extends AbstractWriter {
             return;
         }
         int len = values.length << 3;
-        expand(MAX_VARINT_SIZE << 1 + len);
+        expand((MAX_VARINT_SIZE << 1) + len);
         writeFieldData(fieldData);
         writeUInt32_0(len);
         for (double value : values) {
@@ -700,7 +824,7 @@ public class StandardProtoBufWriter extends AbstractWriter {
             return;
         }
         int len = values.length << 3;
-        expand(MAX_VARINT_SIZE << 1 + len);
+        expand((MAX_VARINT_SIZE << 1) + len);
         writeFieldData(fieldData);
         writeUInt32_0(len);
         for (Double value : values) {
@@ -715,7 +839,7 @@ public class StandardProtoBufWriter extends AbstractWriter {
             return;
         }
         int len = values.size() << 3;
-        expand(MAX_VARINT_SIZE << 1 + len);
+        expand((MAX_VARINT_SIZE << 1) + len);
         writeFieldData(fieldData);
         writeUInt32_0(len);
         for (Double value : values) {
@@ -732,7 +856,7 @@ public class StandardProtoBufWriter extends AbstractWriter {
         for (Double value : values) {
             len++;
         }
-        expand(MAX_VARINT_SIZE << 1 + len);
+        expand((MAX_VARINT_SIZE << 1) + len);
         writeFieldData(fieldData);
         writeUInt32_0(len);
         for (Double value : values) {
@@ -743,12 +867,14 @@ public class StandardProtoBufWriter extends AbstractWriter {
     @Override
     public <E extends Enum<E>> void writeArrayEnum(byte[] fieldData, E[] values) {
         int size = values.length;
-        int len = size * 5;
-        expand((MAX_VARLONG_SIZE << 1) + len);
+        int len;
+        // ★ 长度前缀的预留字节数（见 writePackedInts(int[]) 的说明）
+        int reserve = varintLen(size * MAX_VARINT_SIZE);
+        expand((MAX_VARINT_SIZE << 1) + size * MAX_VARINT_SIZE + reserve);
         writeFieldData(fieldData);
         int oldPos = pos;
 
-        pos += 1;
+        pos += reserve;
         int i = 0;
         writeInt32_0(values[i++].ordinal());
         if (size > 1) {
@@ -783,8 +909,8 @@ public class StandardProtoBufWriter extends AbstractWriter {
                 writeInt32_0(values[i].ordinal());
             }
         }
-        len = pos - oldPos - 1;
-        pos += writeLenMoveBytes(bs, oldPos, len);
+        len = pos - oldPos - reserve;
+        pos = oldPos + writeLenPrefixReserve(oldPos, reserve, len);
     }
 
     @Override
@@ -842,6 +968,12 @@ public class StandardProtoBufWriter extends AbstractWriter {
 
         int outOldPos = pos;
 
+        // ★ 这里<b>不能</b>用「预留 NESTED_LEN_RESERVE 字节 + 回填」的写法：
+        //   旧实现是「不预留前缀字节，写完内容后把长度前缀写到 outOldPos，
+        //   正好覆盖掉内容的第一个字节（map entry 的 tag）」，
+        //   而解码侧（ByteArrayReader.readMap → MapEntryDecoder）<b>不读</b>这个 entry tag
+        //   ⇒ 编码与解码是这么对上的。
+        //   一旦改成「预留 2 字节」，entry tag 就会<b>多出来一个</b> ⇒ 解码侧错位。
         byte[] mapMsgTagData = ProtoUtil.buildFieldData(1, Field.Type.MAP, Field.Cardinality.REPEATED);
         boolean needFieldData = true;
         for (Map.Entry<K, V> entry : map.entrySet()) {
@@ -850,11 +982,7 @@ public class StandardProtoBufWriter extends AbstractWriter {
                 writeFieldData(mapMsgTagData);
                 needFieldData = false;
             }
-//            int oldPos = pos;
-//            pos += 1;
             mapEncoder.encode(this, entry);
-//            int len = pos - oldPos - 1;
-//            pos += writeLenMoveBytes(bs, oldPos, len);
         }
         int len = pos - outOldPos - 1;
         pos += writeLenMoveBytes(bs, outOldPos, len);
@@ -863,10 +991,13 @@ public class StandardProtoBufWriter extends AbstractWriter {
     @Override
     public <T> void writeMessage(T v, ProtoBufEncoder<T> codec) throws EncodeException {
         int oldPos = pos;
-        pos += 1;
+        // ★ 预留 2 字节给长度前缀：嵌套消息载荷绝大多数落在 128..16383 ⇒ 前缀正好 2 字节
+        //   ⇒ 写完不用整块搬移（旧实现只预留 1 字节 ⇒ 载荷 ≥128 字节时必然右移一次）
+        expand(NESTED_LEN_RESERVE - 1);
+        pos += NESTED_LEN_RESERVE;
         codec.encode(this, v);
-        int len = pos - oldPos - 1;
-        pos += writeLenMoveBytes(bs, oldPos, len);
+        int len = pos - oldPos - NESTED_LEN_RESERVE;
+        pos = oldPos + writeLenPrefixReserve(oldPos, NESTED_LEN_RESERVE, len);
     }
 
     @Override
@@ -879,13 +1010,14 @@ public class StandardProtoBufWriter extends AbstractWriter {
 
     public <T> void writeMessage0(byte[] fieldData, int tag, T v, ProtoBufEncoder<T> codec) throws EncodeException {
         int len;
-        expand(MAX_VARINT_SIZE);
+        // tag(≤5 字节) + 预留的 2 字节长度前缀
+        expand(MAX_VARINT_SIZE + NESTED_LEN_RESERVE);
         writeFieldData(fieldData);
         int oldPos = pos;
-        pos += 1;
+        pos += NESTED_LEN_RESERVE;
         codec.encode(this, v);
-        len = pos - oldPos - 1;
-        pos += writeLenMoveBytes(bs, oldPos, len);
+        len = pos - oldPos - NESTED_LEN_RESERVE;
+        pos = oldPos + writeLenPrefixReserve(oldPos, NESTED_LEN_RESERVE, len);
     }
 
     @Override

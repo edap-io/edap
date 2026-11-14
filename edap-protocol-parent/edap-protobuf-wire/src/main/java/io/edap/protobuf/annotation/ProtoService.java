@@ -32,4 +32,17 @@ public @interface ProtoService {
      * @return
      */
     String protoFile();
+
+    /**
+     * proto 中定义的服务的全名，形如 {@code pkg.SvcName}（proto package + "." + service 名）。
+     *
+     * <p><b>为什么需要</b>：gRPC 的 {@code :path} 为 {@code /<serviceName>/<Method>}，
+     * 而 {@code serviceName} 必须取自 proto 定义——proto 的 {@code java_package} option
+     * 可以把 Java 包名与 proto package 解耦，<b>不能</b>从 Java 包名反推。
+     *
+     * <p>为空串表示该服务不经 gRPC 暴露。
+     *
+     * @return proto 服务全名
+     */
+    String serviceName() default "";
 }

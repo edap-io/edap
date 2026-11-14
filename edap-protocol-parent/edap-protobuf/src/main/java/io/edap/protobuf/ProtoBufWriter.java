@@ -39,6 +39,14 @@ public interface ProtoBufWriter extends BufWriter {
 
     void expand(int minLength);
 
+    /**
+     * 当前写入缓冲的底层数组 —— 已经写进去的字节在 {@code [0, size())}。
+     *
+     * <p>★ {@link #expand(int)} 扩容时会<b>换一块更大的数组</b> ⇒
+     * 用完必须重新取一次，不能缓存编码前的引用。</p>
+     */
+    byte[] buffer();
+
     void writeBool(byte[] fieldData, Boolean value);
     void writeBool(byte[] fieldData, boolean value);
     void writePackedBools(byte[] fieldData, List<Boolean> values);
