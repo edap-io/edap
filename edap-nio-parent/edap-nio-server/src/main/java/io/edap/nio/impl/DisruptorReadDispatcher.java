@@ -23,11 +23,12 @@ import io.edap.buffer.FastBuf;
 import io.edap.log.Logger;
 import io.edap.log.LoggerManager;
 import io.edap.nio.DisruptorManager;
+import io.edap.nio.NioSession;
 import io.edap.nio.NioSessionCloser;
 import io.edap.nio.ReadDispatcher;
 import io.edap.nio.event.BizEvent;
 import io.edap.pool.Pool;
-import io.edap.pool.impl.ThreadLocalPool;
+import io.edap.pool.impl.ArrayBlockingQueueMpscPool;
 import io.edap.util.EdapTime;
 
 import java.io.IOException;
@@ -52,11 +53,13 @@ public class DisruptorReadDispatcher implements ReadDispatcher {
 
     public DisruptorReadDispatcher(Server server, DisruptorManager<BizEvent> disruptorManager) {
         this.server           = server;
-        this.bbPool           = new ThreadLocalPool<>();
+        // ★ 写缓冲池必须线程安全：HTTP/2 的写缓冲可能在 IO 线程借出、
+        //   在业务线程归还（服务端流式在别的线程推消息），无锁数组实现会互相踩。
+        this.bbPool           = new ArrayBlockingQueueMpscPool<>();
         this.disruptorManager = disruptorManager;
 
-        for (int i = 0;i < 16; i++) {
-            bbPool.requite(new FastBuf(32768));
+        for (int i = 0;i < 8; i++) {
+            bbPool.requite(new FastBuf(NioSession.WRITE_BUFFER_SIZE));
         }
     }
 
@@ -66,7 +69,10 @@ public class DisruptorReadDispatcher implements ReadDispatcher {
 		if (readKey.isReadable()) {
 			FastBuf buf = readBuf;
 			if (buf == null) {
-				readBuf = new FastBuf(16384);
+				// 读缓冲用 NioSession.READ_BUFFER_SIZE（默认 256KB）：必须装得下
+				// HTTP/2 最大帧（16384 载荷 + 9 字节帧头 = 16393），否则每个帧跨两次读、
+				// 入站累积缓冲每次整体搬移；且一次读能带回更多请求，响应才能批量成一次 socket 写。
+				readBuf = new FastBuf(NioSession.READ_BUFFER_SIZE);
 				buf = readBuf;
 			}
 			try {
