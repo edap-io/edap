@@ -20,10 +20,8 @@ import io.edap.io.BufOut;
 import io.edap.protobuf.EncodeException;
 import io.edap.protobuf.MapEntryEncoder;
 import io.edap.protobuf.ProtoBufEncoder;
-import io.edap.protobuf.ProtoBufWriter;
 import io.edap.protobuf.ext.AnyCodec;
 import io.edap.protobuf.model.ProtoBufOption;
-import io.edap.protobuf.wire.Field;
 import io.edap.protobuf.wire.WireFormat;
 import io.edap.protobuf.wire.WireType;
 import io.edap.util.CollectionUtils;
@@ -34,9 +32,7 @@ import java.util.List;
 import java.util.Map;
 
 import static io.edap.protobuf.wire.WireFormat.*;
-import static io.edap.util.CollectionUtils.isEmpty;
 import static io.edap.util.StringUtil.*;
-import static io.edap.util.StringUtil.getCharValue;
 import static io.edap.util.UnsafeUtil.copyUtf16le;
 
 public class FastProtoBufWriter extends StandardProtoBufWriter {
@@ -48,6 +44,17 @@ public class FastProtoBufWriter extends StandardProtoBufWriter {
     public static final byte LATIN1_BYTE  = 0;
     public static final byte UTF16LE_BYTE = 1;
     public static final byte UTF8_BYTE    = 2;
+    /**
+     * ★ UTF-16 大端。
+     *
+     * <p><b>UTF16 标记携带的是「发送方的字节序」，不是「协议规定的字节序」</b>：
+     * JDK 的 String 内部 UTF-16 字节序 = <b>原生端序</b>（{@code StringUTF16} 的 {@code <clinit>}
+     * 调 native {@code isBigEndian()}），本类把 String 的内部 byte[] 原样写出去
+     * ⇒ 写出去的字节序 = 本机端序 ⇒ 读端必须知道对方的端序才能正确还原。
+     * ⇒ 写端按本机端序选标记（<b>写端一次字节序转换都不做</b>），
+     * 读端只在「对方端序 ≠ 自己端序」时才翻一次。</p>
+     */
+    public static final byte UTF16BE_BYTE = 3;
 
     public FastProtoBufWriter(BufOut out) {
         super(out);
@@ -102,7 +109,9 @@ public class FastProtoBufWriter extends StandardProtoBufWriter {
      */
     protected final void writeString0(final String value) {
         String v = value;
-        // 如果jvm是9以上版本，并且字符串为Latin1的编码，长度大于5时直接copy字符串对象额value字节数组
+        // ★ UTF16 串写出去的字节 = String 内部 byte[] 原样拷贝 ⇒ 字节序 = 本机端序
+        //   ⇒ 标记必须带上「本机端序」，读端才知道要不要翻（见 UTF16BE_BYTE 的注释）。
+        //   写端不翻字节：跨端序的转换全部由读端承担 ⇒ 同端序时两端都零成本。
         if (IS_BYTE_ARRAY) {
             byte[] data = StringUtil.getValue(v);
             int length = data.length;
@@ -112,7 +121,7 @@ public class FastProtoBufWriter extends StandardProtoBufWriter {
             if (isLatin1(v)) {
                 bs[_pos++] = LATIN1_BYTE;
             } else {
-                bs[_pos++] = UTF16LE_BYTE;
+                bs[_pos++] = NATIVE_LITTLE_ENDIAN ? UTF16LE_BYTE : UTF16BE_BYTE;
             }
             System.arraycopy(data, 0, bs, _pos, length);
             pos = _pos + length;
@@ -120,7 +129,8 @@ public class FastProtoBufWriter extends StandardProtoBufWriter {
             int charLen = v.length();
             expand(charLen * 2 + 6);
             int _pos = pos;
-            bs[_pos++] = UTF16LE_BYTE;
+            bs[_pos++] = NATIVE_LITTLE_ENDIAN ? UTF16LE_BYTE : UTF16BE_BYTE;
+            // copyUtf16le 其实是「整块拷贝 char[] 的原生字节」（名字有误导），字节序同样是本机端序
             copyUtf16le((char[]) UnsafeUtil.getValue(value, VALUE_FIELD_OFFSET), 0, bs, _pos, charLen);
             pos += charLen * 2+1;
         }
@@ -131,6 +141,8 @@ public class FastProtoBufWriter extends StandardProtoBufWriter {
         if (v == null) {
             return;
         }
+        // ★ writeFieldData 是裸写（不检查容量）⇒ 必须先预留 fieldData 的长度，否则缓冲写满时越界
+        expand(fieldData.length);
         writeFieldData(fieldData);
         codec.encode(this, v);
         writeUInt32(WireFormat.makeTag(tag, WireType.END_GROUP));
@@ -138,6 +150,9 @@ public class FastProtoBufWriter extends StandardProtoBufWriter {
 
     @Override
     public <T> void writeMessages(byte[] fieldData, int tag, List<T> vs, ProtoBufEncoder<T> codec) throws EncodeException {
+        if (vs == null) {
+            return;
+        }
         int size = vs.size();
         for (int i=0;i<size;i++) {
             expand(MAX_VARINT_SIZE);
@@ -162,6 +177,8 @@ public class FastProtoBufWriter extends StandardProtoBufWriter {
     }
 
     public <T> void writeMessage0(byte[] fieldData, int tag, T v, ProtoBufEncoder<T> codec, int end) throws EncodeException {
+        // ★ writeFieldData 是裸写（不检查容量）⇒ 必须先预留 fieldData 的长度，否则缓冲写满时越界
+        expand(fieldData.length);
         writeFieldData(fieldData);
         codec.encode(this, v);
         writeUInt32(end);

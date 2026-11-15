@@ -51,7 +51,12 @@ public class ProtoBuf {
 
     private static final ThreadLocal<ProtoBufWriter> THREAD_FAST_WRITER;
 
+    private static final ProtoBufOption FAST_PROTOBUF_TYPE;
+
     static {
+        ProtoBufOption pbo = new ProtoBufOption();
+        pbo.setCodecType(CodecType.FAST);
+        FAST_PROTOBUF_TYPE = pbo;
         THREAD_WRITER = ThreadLocal.withInitial(() -> {
             BufOut out    = new ProtoBufOut();
             ProtoBufWriter writer = new StandardProtoBufWriter(out);
@@ -85,6 +90,28 @@ public class ProtoBuf {
             int len = writer.size();
             bs = new byte[len];
             System.arraycopy(out.getWriteBuf().bs, 0, bs, 0, len);
+            return bs;
+        } catch (EncodeException e) {
+            //throw e;
+        } finally {
+            //THREAD_WRITER.set(writer);
+        }
+        return null;
+    }
+
+    public static byte[] fastToByteArray(Object obj) {
+        if (obj == null) {
+            return null;
+        }
+        ProtoBufEncoder codec = REGISTER.getEncoder(obj.getClass(), FAST_PROTOBUF_TYPE);
+        ProtoBufWriter writer = THREAD_FAST_WRITER.get();
+        writer.reset();
+        byte[] bs;
+        try {
+            codec.encode(writer, obj);
+            int len = writer.size();
+            bs = new byte[len];
+            System.arraycopy(writer.buffer(), 0, bs, 0, len);
             return bs;
         } catch (EncodeException e) {
             //throw e;
@@ -243,6 +270,23 @@ public class ProtoBuf {
     public static <T> T toObject(byte [] bs, Class<T> cls) {
         try {
             return toObject(bs, 0, bs.length, cls);
+        } catch (Exception e) {
+
+        }
+        return null;
+    }
+
+    /**
+     * 将protobuf的字节数组，反序列化为对象，如果protobuf字节数组和给定的java类的数据类型不一致
+     * 则报错
+     * @param <T> 对象类型
+     * @param bs 自己数组
+     * @param cls 给定的java对象的class
+     * @return 返回java对象
+     */
+    public static <T> T fastToObject(byte[] bs, Class<T> cls) {
+        try {
+            return toObject(bs, 0, bs.length, cls, FAST_PROTOBUF_TYPE);
         } catch (Exception e) {
 
         }
