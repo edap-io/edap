@@ -15,6 +15,9 @@ import io.edap.util.StringUtil;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 
+import static io.edap.protobuf.writer.FastProtoBufWriter.UTF16BE_BYTE;
+import static io.edap.protobuf.writer.FastProtoBufWriter.UTF16LE_BYTE;
+
 /**
  * FAST codec 的**端序一致性**自检。
  *
@@ -26,11 +29,11 @@ import java.util.Arrays;
  * 写端按本机端序选标记（{@code UTF16LE_BYTE}=1 / {@code UTF16BE_BYTE}=3），
  * 读端只在「对方端序 ≠ 自己端序」时才翻一次。</p>
  *
- * <p><b>本机没有大端 JVM</b>，所以大端侧是「模拟」的：
- * 大端写端写出的东西 = 「把 LE 字节翻成 BE + 标记换成 3」，
- * 本检查直接构造这种字节，喂给真实的读端代码路径，验证它能还原。</p>
+ * <p>★ 本检查<b>不假设本机端序</b>：LE 机与 BE 机跑出的是同一套断言。
+ * 「对端」= 本机端序的相反者；对端写端的产出 = 「把本机写端的 payload 翻成对端序
+ * + 标记换成对端序对应的那个」。</p>
  *
- * <p>用法：{@code java ... io.edap.protobuf.benchmark.FastEndianCheck}</p>
+ * <p>用法：{@code java --add-opens ... io.edap.protobuf.benchmark.FastEndianCheck}</p>
  */
 public final class FastEndianCheck {
 
@@ -39,8 +42,12 @@ public final class FastEndianCheck {
 
     private static int failed = 0;
 
+    /** 本机是否小端。 */
+    private static final boolean LOCAL_LE = StringUtil.NATIVE_LITTLE_ENDIAN;
+
     public static void main(String[] args) {
-        System.out.println("本机原生端序 = " + (StringUtil.NATIVE_LITTLE_ENDIAN ? "小端 (LE)" : "大端 (BE)"));
+        System.out.println("本机原生端序 = " + (LOCAL_LE ? "小端 (LE)" : "大端 (BE)"));
+        System.out.println("对端端序     = " + (LOCAL_LE ? "大端 (BE)" : "小端 (LE)"));
         System.out.println();
 
         String cn = "中文测试abc中文";
@@ -55,27 +62,33 @@ public final class FastEndianCheck {
         int markerPos = enc.length - payloadLen - 1;
         byte marker = enc[markerPos];
 
-        check("写端标记 = 1(LE) 或 3(BE)", marker == 1 || marker == 3);
-        check("标记与本机端序一致", (marker == 1) == StringUtil.NATIVE_LITTLE_ENDIAN);
+        check("写端标记 = 1(LE) 或 3(BE)", marker == UTF16LE_BYTE || marker == UTF16BE_BYTE);
+        check("写端标记 = 本机端序对应的标记", marker == (LOCAL_LE ? UTF16LE_BYTE : UTF16BE_BYTE));
         check("payload 长度正确", payloadLen == enc.length - markerPos - 1);
         check("wire 字节序 = 本机端序",
-                StringUtil.NATIVE_LITTLE_ENDIAN ? isLittleEndianPayload(enc, markerPos + 1) : isBigEndianPayload(enc, markerPos + 1));
+                LOCAL_LE ? isLittleEndianPayload(enc, markerPos + 1) : isBigEndianPayload(enc, markerPos + 1));
 
         // ── 1. 本机 round-trip ──────────────────────────────────────────
         check("本机 round-trip 内容相等", cn.equals(decode(enc)));
 
-        // ── 2. 模拟「大端写端 + 新协议」（标记 3 + BE 字节）────────────
-        byte[] beNew = enc.clone();
-        beNew[markerPos] = 3;
-        StringUtil.swapUtf16ByteOrder(beNew, markerPos + 1, payloadLen);
-        check("大端写端（新协议）产出 BE 字节", isBigEndianPayload(beNew, markerPos + 1));
-        check("★ 跨端序读端能正确还原（大端写 + 小端读）", cn.equals(decode(beNew)));
+        // ── 2. 模拟「对端写端 + 新协议」（对端序字节 + 对端序标记）─────
+        byte[] remote = payloadAs(enc, markerPos, payloadLen, !LOCAL_LE);
+        remote[markerPos] = LOCAL_LE ? UTF16BE_BYTE : UTF16LE_BYTE;
+        check("对端写端（新协议）产出对端端序的字节",
+                LOCAL_LE ? isBigEndianPayload(remote, markerPos + 1) : isLittleEndianPayload(remote, markerPos + 1));
+        check("★ 跨端序读端能正确还原（对端写 + 本机读）", cn.equals(decode(remote)));
 
-        // ── 3. 模拟「旧大端写端」（标记 1 + BE 字节）—— 已知是坏的 ────
-        byte[] beOld = enc.clone();
-        StringUtil.swapUtf16ByteOrder(beOld, markerPos + 1, payloadLen);
-        String oldRes = decode(beOld);
-        check("旧大端写端（标记1+BE字节）解出乱码（已知缺陷，记录在案）", oldRes != null && !cn.equals(oldRes));
+        // ── 3. 旧协议（写端永远标 1 = LE，字节却是本机原生序）────────
+        //    (a) 旧小端写端：LE 字节 + 标记1 ⇒ 新读端读得对（向后兼容）
+        byte[] legacyLe = payloadAs(enc, markerPos, payloadLen, true);
+        legacyLe[markerPos] = UTF16LE_BYTE;
+        check("旧小端写端（标记1+LE字节）仍能正确还原（向后兼容）", cn.equals(decode(legacyLe)));
+
+        //    (b) 旧大端写端：BE 字节 + 标记1 ⇒ 必然乱码（已知缺陷，记录在案）
+        byte[] legacyBe = payloadAs(enc, markerPos, payloadLen, false);
+        legacyBe[markerPos] = UTF16LE_BYTE;
+        String legacyRes = decode(legacyBe);
+        check("旧大端写端（标记1+BE字节）解出乱码（已知缺陷，记录在案）", legacyRes != null && !cn.equals(legacyRes));
 
         // ── 4. 未知标记 ⇒ fail-fast（不再当 UTF-8 静默解）──────────────
         byte[] badMarker = enc.clone();
@@ -99,6 +112,19 @@ public final class FastEndianCheck {
     }
 
     // ── 工具 ────────────────────────────────────────────────────────────
+
+    /**
+     * 把本机写端产出的 payload 改成「指定端序」的结果（只动 payload，不动标记）。
+     *
+     * @param littleEndian true = 小端序，false = 大端序
+     */
+    private static byte[] payloadAs(byte[] enc, int markerPos, int payloadLen, boolean littleEndian) {
+        byte[] out = enc.clone();
+        if (LOCAL_LE != littleEndian) {
+            StringUtil.swapUtf16ByteOrder(out, markerPos + 1, payloadLen);
+        }
+        return out;
+    }
 
     private static byte[] encode(String s) {
         BenchStr b = new BenchStr();
