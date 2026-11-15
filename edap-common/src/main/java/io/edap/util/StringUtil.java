@@ -16,7 +16,11 @@
 
 package io.edap.util;
 
+import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.nio.ByteOrder;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.Locale;
@@ -140,10 +144,41 @@ public class StringUtil {
                 UnsafeUtil.putObject(s, VALUE_FIELD_OFFSET, data);
                 return (String) s;
             } catch (InstantiationException e) {
-				throw new RuntimeException(e);
-			}
-		} else {
+                throw new RuntimeException(e);
+            }
+        } else {
             return new String(data);
+        }
+    }
+
+    /**
+     * 本机字节序是否是小端。
+     *
+     * <p>★ <b>JDK 的 String 内部 UTF-16 字节序 = 原生端序</b>：
+     * {@code java.lang.StringUTF16} 的 {@code <clinit>} 调用 native 的 {@code isBigEndian()}
+     * 决定 {@code HI_BYTE_SHIFT}/{@code LO_BYTE_SHIFT}
+     * ⇒ 小端机上 String 的 {@code value} 是「低字节在前」，大端机上是「高字节在前」。</p>
+     *
+     * <p>⇒ 把 String 的内部 byte[] 原样搬到协议里时，<b>协议字节序 = 生产方机器的端序</b>，
+     * 跨端序的机器直接还原会得到「每个字符高低字节互换」的乱码（且不报错）。</p>
+     */
+    public static final boolean NATIVE_LITTLE_ENDIAN = ByteOrder.nativeOrder() == ByteOrder.LITTLE_ENDIAN;
+
+    /**
+     * 翻转一段 UTF-16 数据的字节序（每 2 字节一组交换，即 BE ⇄ LE）。
+     *
+     * <p>用于「协议里固定一种字节序，落到本机 String 内部布局时按需转换」：
+     * 大端机读到小端协议数据（或反之）才需要翻，<b>同端序时一次都不用翻</b>。</p>
+     *
+     * @param b   缓冲区
+     * @param off 起始下标
+     * @param len 字节数（奇数长度时最后一个字节不处理）
+     */
+    public static void swapUtf16ByteOrder(byte[] b, int off, int len) {
+        for (int i = off, end = off + (len & ~1); i < end; i += 2) {
+            byte t = b[i];
+            b[i] = b[i + 1];
+            b[i + 1] = t;
         }
     }
 
@@ -154,6 +189,77 @@ public class StringUtil {
      */
     public static boolean isEmpty(String str) {
         return str==null || str.isEmpty();
+    }
+
+    /**
+     * JDK 内部 {@code java.lang.StringCoding.hasNegatives(byte[],int,int)} 的 MethodHandle。
+     *
+     * <p>JDK 17 的 {@code String.getBytes(UTF_8)} 对 Latin1 串正是靠它判断「是不是纯 ASCII」：
+     * <pre>{@code if (!hasNegatives(val,0,val.length)) return Arrays.copyOf(val, val.length);}</pre>
+     * ⇒ 纯 ASCII 走整块 memcpy（<b>但必然分配一个新数组</b>）。</p>
+     *
+     * <p>★ 用 {@code MethodHandle.invokeExact} 调用时，C2 <b>照样</b>会把它替换成 intrinsic
+     * （实测 {@code -XX:+PrintIntrinsics} 打出
+     * {@code java.lang.StringCoding::hasNegatives (25 bytes) (intrinsic)}），
+     * 所以这个「SIMD 判定」在 Java 侧<b>可用</b>。</p>
+     *
+     * <p>⚠ 需要 {@code --add-opens java.base/java.lang=ALL-UNNAMED}（edap-protobuf 本来就需要它）。
+     * 拿不到（没加 flag / JDK 版本没有这个方法）时为 null ⇒ {@link #hasHighBytes} 保守返回 true
+     * ⇒ 调用方走原来的 {@code getBytes(UTF_8)} 路径，<b>行为不变</b>。</p>
+     */
+    private static final MethodHandle HAS_NEGATIVES;
+
+    static {
+        MethodHandle mh = null;
+        try {
+            Method m = Class.forName("java.lang.StringCoding")
+                    .getDeclaredMethod("hasNegatives", byte[].class, int.class, int.class);
+            m.setAccessible(true);
+            mh = MethodHandles.lookup().unreflect(m);
+        } catch (Throwable t) {
+            mh = null;
+        }
+        HAS_NEGATIVES = mh;
+    }
+
+    /**
+     * 判断这段字节里有没有负数（= 有没有 ≥ 0x80 的字节）。
+     *
+     * <p>对 Latin1 编码的 String 而言：内部字节为负 ⇔ 字符 ≥ 0x80 ⇔ UTF-8 里要占 2 个字节；
+     * 没有负数字节 ⇔ <b>纯 ASCII</b> ⇔ UTF-8 字节与内部字节<b>完全相同</b>。</p>
+     *
+     * <p>拿不到 JDK 的 SIMD intrinsic 时返回 {@code true}（保守 ⇒ 调用方走回退路径，行为不变）。</p>
+     */
+    public static boolean hasHighBytes(byte[] b, int off, int len) {
+        if (HAS_NEGATIVES == null) {
+            return true;
+        }
+        try {
+            return (boolean) HAS_NEGATIVES.invokeExact(b, off, len);
+        } catch (Throwable t) {
+            return true;
+        }
+    }
+
+    /**
+     * 取 String 内部的 Latin1 {@code byte[]}（<b>只读</b>，与 String 共享，<b>不可修改</b>）。
+     *
+     * <p>用于「纯 ASCII 的字符串直接按 UTF-8 原样写出」——省掉
+     * {@code getBytes(UTF_8)} 的一次分配 + 一次拷贝。</p>
+     *
+     * @param s 字符串
+     * @return 内部字节数组；不是 Latin1 编码（或取不到）时返回 {@code null}
+     */
+    public static byte[] getLatin1Bytes(String s) {
+        if (s == null || !IS_BYTE_ARRAY || !isLatin1(s)) {
+            return null;
+        }
+        try {
+            Object o = UnsafeUtil.getValue(s, VALUE_FIELD_OFFSET);
+            return (o instanceof byte[]) ? (byte[]) o : null;
+        } catch (Throwable t) {
+            return null;
+        }
     }
 
     /**
