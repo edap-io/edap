@@ -48,6 +48,14 @@ import java.util.Locale;
  *   <li>{@code native.mac64} —— 同样 64B 载荷走 JNI 多少钱？</li>
  * </ul>
  *
+ * <p><b>还有一组「key 导入归因」项</b>（{@code mac.initFreshKey} /
+ * {@code mac.initNewInstanceSameKey} / {@code mac.initNewInstanceFreshKey} /
+ * {@code mac.realPathPooled} / {@code mac.realPathCachedKeySpec} /
+ * {@code mac.realPathNewInstance}）—— 用来回答：
+ * Solaris 上 JCE HMAC 那 ~130μs 到底付在<b>哪一次 key 相关调用</b>上。
+ * 变量只有三个：Mac 实例是不是新的、{@code SecretKeySpec} 对象是不是同一个、
+ * key 字节是不是同一份。逐项交叉就能定位。</p>
+ *
  * <p><b>还顺手回答一个更基础的问题：用的哪个 provider？</b>
  * Solaris 的 JDK 可能把 {@code HmacSHA256} 解析到 {@code SunPKCS11}（走加密守护进程的
  * IPC），也可能解析到 {@code SUN}（纯软件）。两者的每次操作开销能差一个数量级 ——
@@ -334,6 +342,36 @@ public final class CryptoCostProbe {
                     return mac().doFinal()[0] & 0xff;
                 }));
 
+        // ---- key 导入归因（Solaris 的 SunPKCS11 会把 key 导进 token）----
+        // 背景：JCE HMAC 在 Solaris 上有 ~130μs 的固定开销，而探针量到的
+        // mac.init 只有 ~10μs ⇒ 差的 ~107μs 藏在 init 里面。
+        // edap-crypto 的真实写法每次操作都 new 一个 SecretKeySpec（同一个 key 字节），
+        // 而探针的 mac.init 用的是同一个静态对象 ⇒ 下面几项用来分叉：
+        //   「key 对象是不是同一个」 vs 「key 字节是不是同一份」 vs 「Mac 实例是不是新的」。
+        list.add(new Item("mac.initFreshKey", 5000,
+                "★ Mac.init(每次新建 SecretKeySpec，字节相同)", "",
+                CryptoCostProbe::initMacFreshKey));
+
+        list.add(new Item("mac.initNewInstanceSameKey", 2000,
+                "Mac.getInstance + Mac.init(同一个 SecretKeySpec 对象)", "",
+                CryptoCostProbe::initNewInstanceSameKey));
+
+        list.add(new Item("mac.initNewInstanceFreshKey", 2000,
+                "Mac.getInstance + Mac.init(每次新建 SecretKeySpec)", "",
+                CryptoCostProbe::initNewInstanceFreshKey));
+
+        list.add(new Item("mac.realPathPooled", 2000,
+                "★ edap-crypto 真实路径：池化实例 + 每次新建 SecretKeySpec + update + doFinal", "",
+                CryptoCostProbe::realPathPooled));
+
+        list.add(new Item("mac.realPathCachedKeySpec", 2000,
+                "★ 同上，但 SecretKeySpec 复用同一个对象（候选修法的效果）", "",
+                CryptoCostProbe::realPathCachedKeySpec));
+
+        list.add(new Item("mac.realPathNewInstance", 2000,
+                "不池化：每次 getInstance + 每次新建 SecretKeySpec + update + doFinal", "",
+                CryptoCostProbe::realPathNewInstance));
+
         // ---- native 对照 ----
         list.add(new Item("native.digest64", 20000,
                 "一次完整 native 摘要（64B）", "",
@@ -395,6 +433,93 @@ public final class CryptoCostProbe {
         try {
             mac().init(KEY_SPEC);
             return 0;
+        } catch (Exception e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    /**
+     * 对池化实例 init，但<b>每次都新建</b>一个 {@link SecretKeySpec}（key 字节相同）。
+     *
+     * <p>这是 edap-crypto 的真实写法 —— 用来分辨「JDK 缓存的是 key 对象本身
+     * 还是 key 字节」。</p>
+     */
+    private static long initMacFreshKey() {
+        try {
+            mac().init(new SecretKeySpec(KEY, "HmacSHA256"));
+            return 0;
+        } catch (Exception e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    /**
+     * 全新 Mac 实例 + 同一个 {@link SecretKeySpec} 对象。
+     */
+    private static long initNewInstanceSameKey() {
+        try {
+            Mac fresh = Mac.getInstance("HmacSHA256");
+            fresh.init(KEY_SPEC);
+            return 0;
+        } catch (Exception e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    /**
+     * 全新 Mac 实例 + 每次新建 {@link SecretKeySpec}。
+     */
+    private static long initNewInstanceFreshKey() {
+        try {
+            Mac fresh = Mac.getInstance("HmacSHA256");
+            fresh.init(new SecretKeySpec(KEY, "HmacSHA256"));
+            return 0;
+        } catch (Exception e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    /**
+     * edap-crypto 的真实路径：池化实例 + 每次新建 SecretKeySpec + 喂数据 + 收尾。
+     *
+     * <p>这个数应当与 {@code JvmVsJniPerfTest} 里 JCE HMAC 的 full 段对上 ——
+     * 对上了才说明归因模型闭合。</p>
+     */
+    private static long realPathPooled() {
+        try {
+            Mac m = mac();
+            m.init(new SecretKeySpec(KEY, "HmacSHA256"));
+            m.update(PAYLOAD_64, 0, PAYLOAD_64.length);
+            return m.doFinal()[0] & 0xff;
+        } catch (Exception e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    /**
+     * 同 {@link #realPathPooled()}，但复用同一个 {@link SecretKeySpec} 对象
+     * —— 这是「缓存 SecretKeySpec」这个候选修法的实测效果。
+     */
+    private static long realPathCachedKeySpec() {
+        try {
+            Mac m = mac();
+            m.init(KEY_SPEC);
+            m.update(PAYLOAD_64, 0, PAYLOAD_64.length);
+            return m.doFinal()[0] & 0xff;
+        } catch (Exception e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    /**
+     * 完全不池化：每次 {@code getInstance} + 每次新建 {@link SecretKeySpec}。
+     */
+    private static long realPathNewInstance() {
+        try {
+            Mac m = Mac.getInstance("HmacSHA256");
+            m.init(new SecretKeySpec(KEY, "HmacSHA256"));
+            m.update(PAYLOAD_64, 0, PAYLOAD_64.length);
+            return m.doFinal()[0] & 0xff;
         } catch (Exception e) {
             throw new IllegalStateException(e);
         }

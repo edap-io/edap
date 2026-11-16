@@ -938,8 +938,10 @@ cd /tmp/edap-head-clean && mvn -o -pl <模块> -am install -DskipTests=false
    （与载荷大小无关 —— 4 个载荷的 setup 分别是 132.1 / 158.0 / 187.4 / 177.6 μs），
    而 native 同一段 ≈ 0（`setup − session` = 4 / −19 / 75 / 681 ns）。
    ⇒ 差的是「JCE 每次操作都要重新准备一次 HMAC 实例」，**不是** OpenSSL 的 HMAC 更快。
-   **具体是哪一次 JDK 调用付的**（`Mac.init`? `getInstance`? provider 归属?）
-   → 用 `CryptoCostProbe` 在目标机上逐个 API 归因（见下「待测」）。
+   **具体是哪一次 JDK 调用付的**：`CryptoCostProbe` 已把账缩到 **`Mac.init`** 里的 ~107μs，
+   且 Solaris 上 `HmacSHA256` 落在 **`SunPKCS11-Solaris`**（key 要进 token）——
+   怀疑是「每次操作都 `new SecretKeySpec` ⇒ 每次都要把 key 重新导进 token」。
+   最后一分叉由探针的 6 个新测点交叉定位（见下「待测」）。
 2. **纯吞吐上 JCE 并不慢**：SHA-256@64KB，JCE **556.6 MB/s** vs JNI **426.8 MB/s** ——
    JNI 在这一格输掉，**主因不是 OpenSSL 慢，而是 edap-crypto 的 native 路径多搬了一次载荷**：
    `ByteAccumulator` 从 256 字节起按 1.5 倍几何增长 ⇒ 追加 64KB 要扩容 13 次、
@@ -958,10 +960,62 @@ cd /tmp/edap-head-clean && mvn -o -pl <模块> -am install -DskipTests=false
 | **预热次数随载荷大小变化** | `warmup = max(iters/4, 1000)`，而 `iters = 4MB/size` ⇒ 64B 预热 16384 次、其余只有 1000 次。HotSpot 调用阈值是 Tier3=200 / **Tier4=5000** ⇒ 大载荷的「session」段（**根本不碰载荷**）只跑到 C1：读出来 64B 是 36.9ns、64KB 是 1447.2ns —— 差 40 倍，差的全在 JIT 状态 | 预热次数改成**固定 20000 次**（`--warmup`），与载荷大小、阶段无关 |
 | **辅助阶段用更少的批次** | 辅助阶段 `--batches=2`、头条阶段 5 批 ⇒ 两个阶段的「批内 min」不在同一口径，`full − hash` 被系统性偏置（实测 JCE 的 hash 段一度读出**比 full 还慢** —— 荒谬，但完全由口径造成） | 所有阶段批次数一律相同（不再单独传 `--batches`） |
 
-**待测（目标机上跑 `CryptoCostProbe` 回答）**：
-① JCE 的 ~130μs 固定成本具体落在哪一次 JDK 调用上；
-② `MessageDigest(SHA-256)` / `Mac(HmacSHA256)` 在 Solaris 上落到哪个 provider
-（`SUN` 还是 `SunPKCS11` —— 后者每次操作要走加密守护进程的 IPC，是「每次操作固定成本」的经典来源）。
+**★ 归因探针在 build-01 上的结果**（`CryptoCostProbe`，一个测点一个 JVM）：
+
+| provider 归属 | 值 |
+|---|---|
+| `MessageDigest(SHA-256)` | **OracleUcrypto (UcryptoProvider)** —— 无 token，纯用户态 |
+| `Mac(HmacSHA256)` | **SunPKCS11-Solaris (SunPKCS11)** —— PKCS#11 provider，key 要进 token |
+
+| op | ns/op | 备注 |
+|---|---|---|
+| md.getInstance | 13376.5 | ★ 极贵，但被 `InstancePool` 躲开（不每次付） |
+| md.update64 | 1284.5 | |
+| md.digestEmpty | 5129.6 | 收尾固定成本（SPARC 上比 macOS 的 301ns 慢 17 倍） |
+| md.digest64 | 6496.1 | = update64 + digestEmpty，自洽 |
+| md.digest64k | 108633.6 | 纯吞吐 ≈ 642 MB/s |
+| mac.getInstance | 4136.9 | |
+| mac.keySpec | 307.0 | |
+| **mac.init** | **10474.9** | ★ 嫌疑：账对不上 |
+| mac.reset | 38.9 | |
+| mac.doFinal64 | 11796.5 | |
+| mac.doFinal64k | 105762.8 | |
+| native.digest64 | 10142.7 | |
+| native.mac64 | 2915.1 | |
+
+**探针读数与用例逐项对齐**（互相印证口径已修好）：
+native 摘要 10142.7 vs 用例 JNI 10221.7；JCE 摘要 6496.1 vs 用例 6613.5；
+native HMAC 2915.1 vs 用例 3043.2 —— 三项都在 1% 以内。
+
+**★ 摘要侧已经算平**：JCE 没有 key 概念，`md.digest64`(6496) = `update64`(1284) + `digestEmpty`(5130)。
+`MessageDigest.getInstance` 要 13.4μs，但 `InstancePool` 让它不每次付 —— **池化在 Solaris 上比在 macOS 上重要 26 倍**。
+⇒ **Solaris 上 JCE 的 64B 摘要（6496ns）比 native（10143ns）还快**（OracleUcrypto 无 token 开销），
+而 64KB 上 JCE 也更快（117736 vs 153550）—— **native 的摘要路径在 Solaris 上没有优势**。
+
+**★★ HMAC 侧的账还差 ~107μs，嫌疑锁定在 `Mac.init`**：
+把 133208ns 拆开 —— `getInstance` 被池化躲开（0）、`keySpec` 307、
+`update(64B)` ≈1284、`doFinal` ≈10512、`init` 探针实测 **10475** ⇒ 合计 **≈25.8μs**，
+但用例测到 **133.2μs** ⇒ **~107μs 藏在 `Mac.init` 里面**，而探针量到的 init 只要 10.5μs。
+**两者唯一的差别是传进去的 `SecretKeySpec` 对象**：
+探针用**同一个静态对象**（`KEY_SPEC`），而 edap-crypto 每次操作都 `new SecretKeySpec(...)`
+（`JceMacProvider.java:126`）⇒ 怀疑 **SunPKCS11 每次 init 都要把 key 重新导进 token**
+（Solaris 的 PKCS#11 软 token 落盘 ⇒ 一次 import 就是一次文件操作）。
+
+**待测（已加进 `CryptoCostProbe` 的 6 个新测点，交叉定位）**：
+变量只有三个 —— Mac 实例是不是新的、`SecretKeySpec` 对象是不是同一个、key 字节是不是同一份。
+
+| 测点 | 实例 | key 对象 | 作用 |
+|---|---|---|---|
+| `mac.initFreshKey` | 池化复用 | 每次新建（字节同） | 区分「缓存的是对象还是字节」 |
+| `mac.initNewInstanceSameKey` | 全新 | 同一个 | 隔离「实例是不是新的」 |
+| `mac.initNewInstanceFreshKey` | 全新 | 每次新建 | 两者都变 |
+| `mac.realPathPooled` | 池化复用 | 每次新建 | **必须复现用例里的 133μs**，否则模型不成立 |
+| `mac.realPathCachedKeySpec` | 池化复用 | 同一个 | **候选修法的实测效果** |
+| `mac.realPathNewInstance` | 全新 | 每次新建 | 不池化的代价 |
+
+（macOS 上的同一组读数：`initFreshKey` 79.7 / `realPathPooled` 1766.5 /
+`realPathCachedKeySpec` 1717.6 / `realPathNewInstance` 3064.7 ns ——
+**SunJCE 没有 key 导入成本**，所以这组数在 macOS 上分不出叉，只有 Solaris 上才有判别力。）
 
 ---
 
