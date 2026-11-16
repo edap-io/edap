@@ -216,11 +216,12 @@ EXPECTED_SYMBOLS=(
     Java_io_edap_jni_crypto_NativeMac_hmacSha10
 )
 
-# nm 的参数各家不同：GNU 认 -g / -D，Solaris 的 nm 不认 -g（-g 在那边是别的意思，
-# 裸 nm 与 -D 才是对的）。逐个尝试、合并有输出的结果；
-# 若 nm 完全不可用 ⇒ 只跳过符号自检，绝不误判成「符号缺失」把构建打断。
+# nm 的参数各家不同：GNU 认 -g / -D，Solaris(elftools) 的 nm 认 -D，但**不认 -g**
+#（而且 Solaris 的 -u 是「只显示未定义符号」，语义与 GNU 相反，绝不能拿来当 -g 用）。
+# 逐个尝试、合并有输出的结果；若 nm 完全不可用 ⇒ 只跳过符号自检，
+# 绝不误判成「符号缺失」把构建打断。
 NM_OUT=""
-for nm_opt in "" "-D" "-g"; do
+for nm_opt in "" "-D"; do
     # shellcheck disable=SC2086
     nm_out=$(nm ${nm_opt} "${OUT_DIR}/${LIB_NAME}" 2>/dev/null || true)
     if [ -n "${nm_out}" ]; then
@@ -228,24 +229,21 @@ for nm_opt in "" "-D" "-g"; do
     fi
 done
 
-# 判断符号是否「已定义」：nm 输出里未定义符号的类型字母是 U。
-# 兼容 GNU（"0000000000001159 T sym"）与 Solaris（"    3e0 T sym"）两种格式。
+# 判断符号是否已定义：**只要 nm 输出里出现该符号名就算通过**。
+#   —— 不用 grep -F：Solaris 的 grep 是老式的，只认 [-c|-l|-q] -bhinsvw，**没有 -F**
+#      （用它会把「好产物」误判成「符号缺失」，直接中断构建 —— 踩过）。
+#   —— 也不解析类型字母：GNU 与 Solaris 的 nm 输出格式（地址位置、类型列宽）不同，
+#      解析规则一漂移就会误判。链接成功 ⇒ 这些 C 函数必然已导出，名字在 nm 里就够了。
 symbol_defined() {
-    printf '%s\n' "${NM_OUT}" \
-        | grep -F -- "$1" \
-        | awk '{
-              line = $0
-              sub(/^[ \t]+/, "", line)
-              sub(/^[0-9a-fA-F]+[ \t]+/, "", line)
-              t = substr(line, 1, 1)
-              if (t != "U" && t != "u") { print "yes"; exit }
-          }' \
-        | grep -q "yes"
+    printf '%s\n' "${NM_OUT}" | awk -v sym="$1" '
+        index($0, sym) > 0 { found = 1; exit }
+        END { exit(found ? 0 : 1) }'
 }
 
 if [ -z "${NM_OUT}" ]; then
     echo "  warn: nm 在本平台不可用，跳过符号自检"
 else
+    echo "  (nm 输出样例: $(printf '%s\n' "${NM_OUT}" | sed -n '2p'))"
     MISSING=0
     for sym in "${EXPECTED_SYMBOLS[@]}"; do
         if symbol_defined "${sym}"; then
