@@ -99,6 +99,38 @@ public class JvmVsJniPerfTest {
     /** 候选：JCE / JNI。 */
     private static final String[] IMPLS = {"jce", "native"};
 
+    /**
+     * 测量阶段 —— 把「一次操作」拆成可归因的几段。
+     *
+     * <p><b>为什么要拆</b>：总时间可以写成「固定成本 + 每字节成本」，
+     * 但哪一段占大头只有拆开才知道。Solaris/SPARC 上实测 JCE 的 HMAC 有
+     * 一段<b>与载荷大小无关的 ~130μs 固定开销</b>，不知道它在哪一段，
+     * 就无法判断「该不该开 JNI」—— 因为那笔开销可能是 edap-crypto 封装的问题，
+     * 而不是 JCE 本身慢。</p>
+     *
+     * <ul>
+     *   <li>{@code full}：建 session + update + doFinal（= 生产用法，头条数字）；</li>
+     *   <li>{@code hash}：建 session + update + 关闭（⇒ 差值 = 纯喂数据成本）；</li>
+     *   <li>{@code setup}：建 session + update(0 字节) + 关闭（⇒ 差值 = 实例初始化成本）；</li>
+     *   <li>{@code session}：建 session + 关闭（⇒ 差值 = session 对象分配成本）。</li>
+     * </ul>
+     */
+    private static final String[] PHASES = {
+            JvmVsJniProbe.PHASE_FULL,
+            JvmVsJniProbe.PHASE_HASH,
+            JvmVsJniProbe.PHASE_SETUP,
+            JvmVsJniProbe.PHASE_SESSION
+    };
+
+    /**
+     * 辅助阶段的批次数（头条数字仍用探针默认的 5 批）。
+     *
+     * <p><b>字节预算与 full 保持一致</b>（不改 {@code --bytes}）：只有迭代数与预热
+     * 都一样，{@code full − hash} 这种差值才是干净的；差值里混进「预算不同的
+     * JIT 形态差异」会让人把噪声当成结论。</p>
+     */
+    private static final int AUX_BATCHES = 2;
+
     /** 轮次（每轮 = 每个候选各起一次子 JVM）。 */
     private static final int ROUNDS = Integer.getInteger("edap.crypto.perf.rounds", 3);
 
@@ -152,13 +184,19 @@ public class JvmVsJniPerfTest {
             for (String impl : order) {
                 for (String alg : ALGS) {
                     for (int size : SIZES) {
-                        ProbeResult result = runProbe(impl, alg, size);
-                        String key = key(impl, alg, size);
-                        samples.computeIfAbsent(key, k -> new ArrayList<>()).add(result.minNs);
-                        String previous = digests.putIfAbsent(key, result.digest);
-                        if (previous != null) {
-                            assertEquals(previous, result.digest,
-                                    "同一负载下 " + impl + "/" + alg + "/" + size + " 的结果字节在不同轮次间不一致");
+                        for (String phase : PHASES) {
+                            ProbeResult result = runProbe(impl, alg, size, phase);
+                            String key = key(impl, alg, size, phase);
+                            samples.computeIfAbsent(key, k -> new ArrayList<>()).add(result.minNs);
+                            // 只有 full 阶段产出真实摘要字节 —— 其余阶段是占位结果，不参与比对
+                            if (!JvmVsJniProbe.PHASE_FULL.equals(phase)) {
+                                continue;
+                            }
+                            String previous = digests.putIfAbsent(key, result.digest);
+                            if (previous != null) {
+                                assertEquals(previous, result.digest,
+                                        "同一负载下 " + impl + "/" + alg + "/" + size + " 的结果字节在不同轮次间不一致");
+                            }
                         }
                     }
                 }
@@ -168,8 +206,8 @@ public class JvmVsJniPerfTest {
         // ---- 跨实现比对：JCE 与 JNI 必须算出同一个值 ----
         for (String alg : ALGS) {
             for (int size : SIZES) {
-                String jce = digests.get(key("jce", alg, size));
-                String jni = digests.get(key("native", alg, size));
+                String jce = digests.get(key("jce", alg, size, JvmVsJniProbe.PHASE_FULL));
+                String jni = digests.get(key("native", alg, size, JvmVsJniProbe.PHASE_FULL));
                 assertEquals(jce, jni, alg + "/" + size + "：JNI 与 JCE 的结果不一致");
             }
         }
@@ -185,8 +223,8 @@ public class JvmVsJniPerfTest {
         List<String> jsonResults = new ArrayList<>();
         for (String alg : ALGS) {
             for (int size : SIZES) {
-                Stats jce = stats(samples.get(key("jce", alg, size)));
-                Stats jni = stats(samples.get(key("native", alg, size)));
+                Stats jce = stats(samples.get(key("jce", alg, size, JvmVsJniProbe.PHASE_FULL)));
+                Stats jni = stats(samples.get(key("native", alg, size, JvmVsJniProbe.PHASE_FULL)));
                 double ratio = jni.median > 0 ? jce.median / jni.median : 0d;
                 double jceMbps = jce.median > 0 ? size * 1000d / jce.median : 0d;
                 double jniMbps = jni.median > 0 ? size * 1000d / jni.median : 0d;
@@ -194,10 +232,21 @@ public class JvmVsJniPerfTest {
                         alg, size, jce.median, jni.median, ratio, jceMbps, jniMbps);
                 System.out.printf(Locale.ROOT, "%-11s %8s %12s %12s   (CV %5.1f%% / %5.1f%%)%n",
                         "", "", "min " + fmt(jce.min), "min " + fmt(jni.min), jce.cv, jni.cv);
+                StringBuilder phasesJson = new StringBuilder();
+                for (String phase : PHASES) {
+                    Stats ps = stats(samples.get(key("jce", alg, size, phase)));
+                    Stats pn = stats(samples.get(key("native", alg, size, phase)));
+                    if (phasesJson.length() > 0) {
+                        phasesJson.append(",");
+                    }
+                    phasesJson.append("\"").append(phase).append("\":{\"jceNs\":").append(fmt(ps.median))
+                            .append(",\"jniNs\":").append(fmt(pn.median)).append("}");
+                }
                 jsonResults.add("{\"alg\":\"" + alg + "\",\"size\":" + size
                         + ",\"jceNs\":" + fmt(jce.median) + ",\"jniNs\":" + fmt(jni.median)
                         + ",\"jniOverJce\":" + fmt(ratio)
-                        + ",\"jceCv\":" + fmt(jce.cv) + ",\"jniCv\":" + fmt(jni.cv) + "}");
+                        + ",\"jceCv\":" + fmt(jce.cv) + ",\"jniCv\":" + fmt(jni.cv)
+                        + ",\"phases\":{" + phasesJson + "}}");
                 table.add(alg + "/" + size + " ratio=" + String.format(Locale.ROOT, "%.2f", ratio));
 
                 if (MIN_SPEEDUP != null) {
@@ -210,6 +259,28 @@ public class JvmVsJniPerfTest {
         System.out.println("----------------------------------------------------------------------------");
         System.out.println("（JNI/JCE > 1 表示 JNI 更快；ns/op = 单次摘要/MAC 的平均耗时，"
                 + "跨 " + ROUNDS + " 轮取中位数，CV = 变异系数）");
+
+        // ---- 阶段分解：把「一次操作」拆开，看固定成本落在哪一段 ----
+        System.out.println();
+        System.out.println("================ 阶段分解（ns/op，中位数）================");
+        System.out.printf(Locale.ROOT, "%-11s %8s %-7s %12s %12s %12s %12s%n",
+                "alg", "size", "impl", "session", "setup", "hash", "full");
+        System.out.println("----------------------------------------------------------------------------");
+        for (String alg : ALGS) {
+            for (int size : SIZES) {
+                for (String impl : IMPLS) {
+                    System.out.printf(Locale.ROOT, "%-11s %8d %-7s %12.1f %12.1f %12.1f %12.1f%n",
+                            alg, size, impl,
+                            med(samples, impl, alg, size, JvmVsJniProbe.PHASE_SESSION),
+                            med(samples, impl, alg, size, JvmVsJniProbe.PHASE_SETUP),
+                            med(samples, impl, alg, size, JvmVsJniProbe.PHASE_HASH),
+                            med(samples, impl, alg, size, JvmVsJniProbe.PHASE_FULL));
+                }
+            }
+        }
+        System.out.println("----------------------------------------------------------------------------");
+        System.out.println("session=只建/销毁 session；setup=+取到实例并初始化好；hash=+喂入全部数据；full=完整一次操作");
+        System.out.println("（full − hash ≈ 收尾成本；hash − setup ≈ 纯数据处理成本；setup − session ≈ 实例初始化成本）");
 
         // ---- 报告落盘 ----
         Path report = writeReport(osName, osArch, nativeAvail, jsonResults);
@@ -306,9 +377,9 @@ public class JvmVsJniPerfTest {
     // ------------------------------------------------------------------
 
     /**
-     * 起一个子 JVM 跑 {@link JvmVsJniProbe}，只测一个候选。
+     * 起一个子 JVM 跑 {@link JvmVsJniProbe}，只测一个候选的一个阶段。
      */
-    private static ProbeResult runProbe(String impl, String alg, int size) throws Exception {
+    private static ProbeResult runProbe(String impl, String alg, int size, String phase) throws Exception {
         List<String> cmd = new ArrayList<>();
         cmd.add(javaBin());
         cmd.add("-cp");
@@ -317,6 +388,11 @@ public class JvmVsJniPerfTest {
         cmd.add("--impl=" + impl);
         cmd.add("--alg=" + alg);
         cmd.add("--size=" + size);
+        cmd.add("--phase=" + phase);
+        if (!JvmVsJniProbe.PHASE_FULL.equals(phase)) {
+            // 辅助阶段只减批次数，字节预算与 full 一致（保证差值干净）
+            cmd.add("--batches=" + AUX_BATCHES);
+        }
 
         ProcessBuilder pb = new ProcessBuilder(cmd);
         // 合并 stderr —— 避免管道写满导致子进程卡死
@@ -481,8 +557,20 @@ public class JvmVsJniPerfTest {
     // 杂项
     // ------------------------------------------------------------------
 
-    private static String key(String impl, String alg, int size) {
-        return impl + "|" + alg + "|" + size;
+    private static String key(String impl, String alg, int size, String phase) {
+        return impl + "|" + alg + "|" + size + "|" + phase;
+    }
+
+    /**
+     * 某个阶段的 ns/op 中位数（没有样本时返回 0）。
+     */
+    private static double med(Map<String, List<Double>> samples, String impl, String alg,
+            int size, String phase) {
+        List<Double> values = samples.get(key(impl, alg, size, phase));
+        if (values == null || values.isEmpty()) {
+            return 0d;
+        }
+        return stats(values).median;
     }
 
     private static String[] rotate(String[] values, int round) {

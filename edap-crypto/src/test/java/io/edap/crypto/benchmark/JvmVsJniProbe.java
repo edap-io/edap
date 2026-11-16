@@ -64,6 +64,48 @@ public final class JvmVsJniProbe {
     public static final String MARKER = "@@EDAP_PERF@@";
 
     /**
+     * 阶段：只建/销毁 session（不含任何数据处理）。
+     *
+     * <p>用来量「session 对象本身的分配成本」—— 这一步两边都该接近 0；
+     * 若某一边的 session 阶段就很贵，说明问题在 provider 的封装上。</p>
+     */
+    public static final String PHASE_SESSION = "session";
+
+    /**
+     * 阶段：建 session + {@code update(0 字节)} + 关闭。
+     *
+     * <p>与 {@link #PHASE_SESSION} 的差 = <b>「取到实例并把它初始化好」的成本</b>：
+     * <ul>
+     *   <li>JCE digest：{@code pool.acquire()} + {@code MessageDigest.reset()}；</li>
+     *   <li>JCE mac：{@code pool.acquire()} + {@code Mac.init(SecretKeySpec)}
+     *       —— 这一步会重算 ipad/opad；</li>
+     *   <li>native：只是累加器准备，接近 0。</li>
+     * </ul>
+     * 这一段是<b>与载荷大小无关</b>的固定成本。</p>
+     */
+    public static final String PHASE_SETUP = "setup";
+
+    /**
+     * 阶段：建 session + {@code update(全部数据)} + 关闭（<b>不做</b> {@code doFinal}）。
+     *
+     * <p>与 {@link #PHASE_SETUP} 的差 = <b>纯数据处理成本</b>（喂数据进去）。</p>
+     */
+    public static final String PHASE_HASH = "hash";
+
+    /**
+     * 阶段：完整一次操作（建 session + update + doFinal）—— 也就是生产用法。
+     */
+    public static final String PHASE_FULL = "full";
+
+    /**
+     * 非 {@link #PHASE_FULL} 阶段返回的占位结果（长度够 {@code r[0]} 用）。
+     *
+     * <p>必须是个<b>真实对象</b>而不是 {@code null}：探针用它做逃逸锚点
+     * （{@code checksum += r[0]}），防止 JIT 把整段计算当死代码消掉。</p>
+     */
+    private static final byte[] ANCHOR = new byte[32];
+
+    /**
      * MAC 用的 key（≥ 32 字节，够 SHA-256 的 block size）。
      */
     private static final byte[] KEY = ("edap-perf-key-0123456789abcdef-0123456789abcdef")
@@ -84,6 +126,7 @@ public final class JvmVsJniProbe {
     public static void main(String[] args) {
         String impl = arg(args, "impl", "jce");
         String alg = arg(args, "alg", "sha256");
+        String phase = arg(args, "phase", PHASE_FULL);
         int size = Integer.parseInt(arg(args, "size", "1024"));
         int batches = Integer.parseInt(arg(args, "batches", "5"));
         // 每批处理的总字节数 —— 固定「每批处理多少数据」而不是固定迭代次数，
@@ -93,7 +136,7 @@ public final class JvmVsJniProbe {
 
         byte[] payload = payload(size);
 
-        CryptoOp op = opFor(impl, alg);
+        CryptoOp op = opFor(impl, alg, phase);
 
         // 迭代次数：每批按字节预算折算，并设下限避免小载荷的批太短（噪声压不住）
         int iters = (int) Math.max(minIters, batchBytes / Math.max(1, size));
@@ -133,6 +176,7 @@ public final class JvmVsJniProbe {
         System.out.println(MARKER
                 + "{\"impl\":\"" + impl + "\""
                 + ",\"alg\":\"" + alg + "\""
+                + ",\"phase\":\"" + phase + "\""
                 + ",\"size\":" + size
                 + ",\"iters\":" + iters
                 + ",\"batches\":" + batches
@@ -149,9 +193,15 @@ public final class JvmVsJniProbe {
      *
      * @param impl {@code jce} 或 {@code native}
      * @param alg  {@code sha256} 或 {@code hmacsha256}
+     * @param phase 见 {@link #PHASE_SESSION} / {@link #PHASE_SETUP} /
+     *              {@link #PHASE_HASH} / {@link #PHASE_FULL}
      */
-    private static CryptoOp opFor(String impl, String alg) {
+    private static CryptoOp opFor(String impl, String alg, String phase) {
         boolean nativeImpl = "native".equals(impl);
+        // setup 阶段只喂 0 字节 —— 「实例准备好」但还没碰数据
+        int updateLen = PHASE_SETUP.equals(phase) ? 0 : -1;
+        boolean noFinal = PHASE_SETUP.equals(phase) || PHASE_HASH.equals(phase);
+        boolean noUpdate = PHASE_SESSION.equals(phase);
         if ("sha256".equals(alg)) {
             DigestProvider provider = nativeImpl
                     ? NativeDigestProvider.tryCreate("SHA-256")
@@ -162,7 +212,15 @@ public final class JvmVsJniProbe {
             }
             return payload -> {
                 DigestSession session = provider.newSession();
-                session.update(payload, 0, payload.length);
+                if (noUpdate) {
+                    session.close();
+                    return ANCHOR;
+                }
+                session.update(payload, 0, updateLen < 0 ? payload.length : updateLen);
+                if (noFinal) {
+                    session.close();
+                    return ANCHOR;
+                }
                 return session.digest();
             };
         }
@@ -176,7 +234,15 @@ public final class JvmVsJniProbe {
             }
             return payload -> {
                 MacSession session = provider.newSession(KEY);
-                session.update(payload, 0, payload.length);
+                if (noUpdate) {
+                    session.close();
+                    return ANCHOR;
+                }
+                session.update(payload, 0, updateLen < 0 ? payload.length : updateLen);
+                if (noFinal) {
+                    session.close();
+                    return ANCHOR;
+                }
                 return session.doFinal();
             };
         }
