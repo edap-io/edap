@@ -17,6 +17,7 @@
 package io.edap.raft.transport;
 
 import io.edap.Edap;
+import io.edap.ServerGroup;
 import io.edap.log.Logger;
 import io.edap.log.LoggerManager;
 import io.edap.raft.Peer;
@@ -36,6 +37,7 @@ public class NioRaftTransport implements RaftTransport, TransportStats {
     private final RaftServer        server;
     private final Edap              edap;
     private final boolean           ownEdap;
+    private final ServerGroup       group;
     private final SocketPeerClient  client;
 
     private volatile RaftMessageHandler handler;
@@ -46,8 +48,24 @@ public class NioRaftTransport implements RaftTransport, TransportStats {
      * @param edap    共享的 Edap 实例，为 null 时自己创建一个
      */
     public NioRaftTransport(String host, int port, Edap edap) {
+        this(host, port, edap, null);
+    }
+
+    /**
+     * @param host    监听地址
+     * @param port    监听端口
+     * @param edap    共享的 Edap 实例，为 null 时自己创建一个
+     * @param group   入站 server 挂哪个 ServerGroup；null 时走
+     *                {@link Edap#addServerAndBind(Server)}（挂到 Edap 的 "default" 组）。
+     *                <p><b>共享宿主 Edap 时必须给一个已经 {@code run()} 过的组</b>：
+     *                {@code ServerGroup.addServerAndBind} 只有在 {@code run()} 缓存过
+     *                acceptor/provider 之后才会真的 bind；没 run 过的组只会把 server
+     *                入队，端口永远不监听。</p>
+     */
+    public NioRaftTransport(String host, int port, Edap edap, ServerGroup group) {
         this.ownEdap = edap == null;
         this.edap = ownEdap ? new Edap() : edap;
+        this.group = group;
         this.server = new RaftServer();
         this.server.name("raft-server");
         this.server.listen(host, port);
@@ -64,7 +82,11 @@ public class NioRaftTransport implements RaftTransport, TransportStats {
     public void start() {
         server.setHandler(handler);
         // run 之前只是入队，run 之后立即 bind
-        edap.addServerAndBind(server);
+        if (group != null) {
+            group.addServerAndBind(server);
+        } else {
+            edap.addServerAndBind(server);
+        }
         if (ownEdap) {
             try {
                 edap.run();

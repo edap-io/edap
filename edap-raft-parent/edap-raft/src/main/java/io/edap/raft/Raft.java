@@ -134,6 +134,21 @@ public class Raft {
      */
     private long pendingConfIndex;
 
+    /**
+     * 应用层是不是已经把 {@link #pendingConfIndex} 那条成员变更应用掉了。
+     *
+     * <p>★ <b>为什么不能只看 {@code pendingConfIndex > raftLog.applied()}</b>：
+     * {@code raftLog.applied()} 是靠 {@code MSG_STORAGE_APPLY_RESP} 推进的，
+     * 比应用层真正的 apply 晚一拍。应用层 apply 完立刻提下一条成员变更时，
+     * 这一拍里内核会以为「上一条还没 apply」，把新成员变更<b>静默降级成普通条目</b>
+     * —— 提案看起来成功，成员却永远进不了集群。</p>
+     *
+     * <p>应用层才是「apply 完了」的事实来源：它调用
+     * {@link #applyConfChange(ConfChangeV2)} 就意味着这条变更已经落到状态机上了，
+     * 这个标志由那条路径置位。</p>
+     */
+    private volatile boolean pendingConfApplied;
+
     /** 是否关闭提案时的成员变更合法性校验 */
     private final boolean disableConfChangeValidation;
 
@@ -672,6 +687,8 @@ public class Raft {
         // 保守地把待处理的成员变更位置设成日志末尾，
         // 这样在提交完已有日志之前不会再提出新的成员变更
         pendingConfIndex = raftLog.lastIndex();
+        // 新任期重新开始等：上一任的「已应用」确认不再作数
+        pendingConfApplied = false;
 
         // 新 leader 的第一条空日志，用来确认自己在本任期内拥有多数派
         List<Entry> emptyEnt = Collections.singletonList(new Entry(0, 0, EntryType.NORMAL, null));
@@ -1060,7 +1077,12 @@ public class Raft {
             if (cc == null) {
                 continue;
             }
-            boolean alreadyPending = pendingConfIndex > raftLog.applied();
+            // ★ 「上一条成员变更还没 apply」的判据要加上应用层的确认：
+            //   raftLog.applied() 靠 MSG_STORAGE_APPLY_RESP 推进，比应用层真正的
+            //   apply 晚一拍 —— 这一拍里提的成员变更会被白白降级掉（静默丢成员）。
+            //   pendingConfApplied 由 applyConfChange 置位：应用层调用它就意味着
+            //   那条成员变更已经落到状态机上了。
+            boolean alreadyPending = pendingConfIndex > raftLog.applied() && !pendingConfApplied;
             boolean alreadyJoint = trk.getConfig().getVoters().getOutgoing().size() > 0;
             boolean wantsLeaveJoint = cc.asV2().getChanges().isEmpty();
 
@@ -1081,6 +1103,7 @@ public class Raft {
                 proposal.set(i, new Entry(entry.getIndex(), entry.getTerm(), EntryType.NORMAL, null, entry.getRequestId()));
             } else {
                 pendingConfIndex = raftLog.lastIndex() + i + 1;
+                pendingConfApplied = false;
             }
         }
 
@@ -1516,6 +1539,21 @@ public class Raft {
     /**
      * 应用一次成员变更，返回变更后的集群配置。
      *
+     * <p><b>★ 这里会置位 {@code pendingConfApplied}</b>：
+     * 应用层调用本方法，就意味着它<b>已经把这条成员变更应用到状态机了</b>
+     * （内核的配置此刻也真的切过去了）。</p>
+     *
+     * <p>为什么必须置位：内核在提案时用
+     * {@code pendingConfIndex > raftLog.applied()} 判断
+     * 「上一条成员变更还没 apply」，命中就把新成员变更<b>降级成普通条目</b> ——
+     * 而且不告诉调用方：表面上提案成功，成员却永远进不了集群。
+     * 而 {@code raftLog.applied()} 是靠 {@code MSG_STORAGE_APPLY_RESP} 推进的，
+     * 比应用层的 apply 晚一拍；这一拍里提的成员变更会被白白丢掉
+     * （etcd 就是这么丢的：应用层 apply 完立刻提下一条，会踩到这一拍）。</p>
+     *
+     * <p>应用层才是「apply 完了」的事实来源，由它来解除这个等待，
+     * 语义更准，也没有那一拍的窗口。</p>
+     *
      * @param cc 成员变更
      * @return 变更生效后的配置
      */
@@ -1536,7 +1574,10 @@ public class Raft {
                 cfg = changer.simple(changes.toArray(new ConfChangeSingle[0]));
             }
         }
-        return switchToConfig(cfg);
+        ConfState cs = switchToConfig(cfg);
+        // 应用层已经把它应用掉了 ⇒ 「上一条成员变更还没 apply」不再成立。
+        pendingConfApplied = true;
+        return cs;
     }
 
     /**
@@ -1905,6 +1946,7 @@ public class Raft {
         }
 
         pendingConfIndex = 0;
+        pendingConfApplied = false;
         uncommittedSize = 0;
         readOnly = new ReadOnly(readOnly.getOption());
     }
