@@ -1,0 +1,8 @@
+# ★ 故意登记一个**不存在的**编解码器类，用来验证「扩展装载失败不影响内置实现」。
+#
+# ServiceLoader 在迭代到这里时会抛 ServiceConfigurationError，
+# ErpcCodecRegistry 必须把它吃掉（并记一条 warn 日志），
+# 否则整个注册表的静态初始化就炸了 ⇒ 连 protobuf / json 都用不了。
+#
+# ★ 这个文件只在 edap-erpc-api 自己的 test classpath 上（不进主 jar、不发布）。
+io.edap.erpc.codec.MissingErpcCodec

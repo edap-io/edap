@@ -32,6 +32,11 @@
             <groupId>io.edap</groupId>
             <artifactId>edap-erpc-api</artifactId>
         </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
 </project>

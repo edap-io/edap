@@ -16,6 +16,27 @@
             <groupId>io.edap</groupId>
             <artifactId>edap-protobuf-wire</artifactId>
         </dependency>
+        <!-- protobuf 序列化实现需要 ProtoBuf / ProtoBufCodecRegister（运行时），
+             edap-protobuf-wire 只有注解 + wire AST + 代码生成，拿不到它们 -->
+        <dependency>
+            <groupId>io.edap</groupId>
+            <artifactId>edap-protobuf</artifactId>
+        </dependency>
+        <!-- 第二个序列化实现：json -->
+        <dependency>
+            <groupId>io.edap</groupId>
+            <artifactId>edap-json</artifactId>
+        </dependency>
+        <!-- 日志 API：ServiceLoader 装载扩展编解码器失败时要能说清楚为什么 -->
+        <dependency>
+            <groupId>io.edap</groupId>
+            <artifactId>edap-log-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
 </project>
