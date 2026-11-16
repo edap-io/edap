@@ -312,7 +312,7 @@ CryptoDiagnostics.setSink(msg -> myLogger.warn("[edap-crypto] {}", msg));
 | Provider | 实现要点 |
 |---|---|
 | `JceDigestProvider` | `InstancePool<MessageDigest>`，每线程复用一个实例 |
-| `JceMacProvider` | `InstancePool<Mac>` + `SecretKeySpec`；session 存 `key.clone()` |
+| `JceMacProvider` | `InstancePool<KeyedMac>`（**实例记住自己是哪把 key init 的**）+ `SecretKeySpec`；session 存 `key.clone()` |
 | `JceCipherProvider` | `InstancePool<Cipher>`；`newSession` 校验 key/iv 长度 |
 | `JceRandomProvider` | `ThreadLocal<SecureRandom>` 绕开 `NativePRNG` 引擎级 `synchronized` |
 
@@ -336,6 +336,21 @@ session 独占实例；`digest()` / `doFinal()` 算完即归还池；`reset()` /
 再次使用时重新 `acquire` + `init`。
 
 **这是本次最重要的正确性修复**，有专门的回归测试。
+
+### 5.2 ★★ MAC 的 key 不重复 init（Solaris 上的 ~130μs/次）
+
+`JceMacProvider` 早期版本每次操作都 `new SecretKeySpec(key, algorithm)`。
+在 Solaris 上 `HmacSHA256` 落在 `SunPKCS11-Solaris`（PKCS#11 provider，key 要导进 token），
+**JDK 的 token 导入缓存按 key *对象身份* 走、跟字节无关** ⇒ 每次 `new` 就等于每次重新导一次 key
+⇒ 一次 HMAC 的固定成本从 ~12μs 涨到 ~136μs。
+
+**修法**：池里的实例记住「自己是哪把 key init 的」（`KeyedMac`）——
+key 字节相同就**跳过 `init`**（`Mac.doFinal()` 之后实例已经回到「init 完、无待算数据」的状态）；
+换 key 才 `init` 并记录新 key；`init` 失败则把实例标记成「无 key」后归还，保证下次重新 init。
+
+**回归测试用「数 init 次数」而不是测时间**（Solaris 与开发机的时间差是 3000 倍，
+时间断言在任一台机器上都不可靠）⇒ `CountingMacProvider` + `JceMacProviderKeyReuseTest`。
+实测数据与完整归因见 §10.8。
 
 ---
 
@@ -916,33 +931,34 @@ cd /tmp/edap-head-clean && mvn -o -pl <模块> -am install -DskipTests=false
 | JDK | Oracle **17.0.19** |
 | native | `edap-native-sunos_sparcv9.o`（目标机现场 `build-native.sh --commit` 构建） |
 | 用例 | `io.edap.crypto.test.JvmVsJniPerfTest`（`@Tag("perf")`） |
-| 报告 | `edap-crypto/target/crypto-perf/jvm-vs-jni-sunos-sparcv9-20261116-210157.json` |
+| 报告 | `edap-crypto/target/crypto-perf/jvm-vs-jni-sunos-sparcv9-20261116-225731.json` |
+
+> **⚠ 旧表（`…-210157.json`）已作废**：那轮的 JCE 侧预热不足（见下「口径缺陷」两行），
+> JCE 的读数系统性偏高 18%~43%，连「sha256@8192 JNI 快 1.32x」这种**方向性相反**的结论都是
+> 口径造成的假象。下面这张表是**口径修好后**（commit `655111c7`）重跑的结果。
 
 **头条数字**（ns/op，跨 3 轮取中位数；JNI/JCE > 1 = JNI 更快）：
 
 | alg | size | JCE ns/op | JNI ns/op | JNI/JCE | JCE MB/s | JNI MB/s |
 |---|---|---|---|---|---|---|
-| sha256 | 64 | 6613.5 | 10221.7 | 0.65x | 9.7 | 6.3 |
-| sha256 | 1024 | 11255.1 | 12738.8 | 0.88x | 91.0 | 80.4 |
-| sha256 | 8192 | 31946.9 | 24242.0 | 1.32x | 256.4 | 337.9 |
-| sha256 | 65536 | 117736.7 | 153550.6 | 0.77x | 556.6 | 426.8 |
-| hmacsha256 | 64 | 133208.4 | 3043.2 | **43.77x** | 0.5 | 21.0 |
-| hmacsha256 | 1024 | 132362.4 | 5423.2 | **24.41x** | 7.7 | 188.8 |
-| hmacsha256 | 8192 | 172207.7 | 17978.0 | 9.58x | 47.6 | 455.7 |
-| hmacsha256 | 65536 | 269911.2 | 145780.9 | 1.85x | 242.8 | 449.6 |
+| sha256 | 64 | 6563.8 | 10248.4 | 0.64x | 10.0 | 6.4 |
+| sha256 | 1024 | 8807.3 | 12656.4 | 0.70x | 116.3 | 80.9 |
+| sha256 | 8192 | 18236.6 | 22354.9 | 0.82x | 449.2 | 366.4 |
+| sha256 | 65536 | 96985.4 | 143731.5 | 0.67x | 675.8 | 456.0 |
+| hmacsha256 | 64 | 134352.4 | 3067.0 | **43.81x** | 0.5 | 21.4 |
+| hmacsha256 | 1024 | 132562.8 | 4971.0 | **26.67x** | 7.7 | 206.0 |
+| hmacsha256 | 8192 | 141693.2 | 14641.2 | 9.68x | 57.8 | 559.6 |
+| hmacsha256 | 65536 | 220627.3 | 95882.5 | 2.30x | 297.1 | 683.7 |
 
-**三条结论**：
+**四条结论**：
 
 1. **「JNI 快 43 倍」是固定成本差，不是「哈希快 43 倍」。**
    阶段分解显示：JCE 的 HMAC 把 ~130μs 固定成本付在 **setup 段**
-   （与载荷大小无关 —— 4 个载荷的 setup 分别是 132.1 / 158.0 / 187.4 / 177.6 μs），
-   而 native 同一段 ≈ 0（`setup − session` = 4 / −19 / 75 / 681 ns）。
+   （与载荷大小无关 —— 4 个载荷的 `setup − session` 分别是
+   **132128 / 129358 / 126769 / 125540 ns**，跨度只有 5%），而 native 同一段 ≈ 0。
    ⇒ 差的是「JCE 每次操作都要重新准备一次 HMAC 实例」，**不是** OpenSSL 的 HMAC 更快。
-   **具体是哪一次 JDK 调用付的**：`CryptoCostProbe` 已把账缩到 **`Mac.init`** 里的 ~107μs，
-   且 Solaris 上 `HmacSHA256` 落在 **`SunPKCS11-Solaris`**（key 要进 token）——
-   怀疑是「每次操作都 `new SecretKeySpec` ⇒ 每次都要把 key 重新导进 token」。
-   最后一分叉由探针的 6 个新测点交叉定位（见下「待测」）。
-2. **纯吞吐上 JCE 并不慢**：SHA-256@64KB，JCE **556.6 MB/s** vs JNI **426.8 MB/s** ——
+   **根因已定位并修复**（见下「★★ 根因与修法」）：`Mac.init` 每次都要把 key 导进 PKCS#11 token。
+2. **纯吞吐上 JCE 并不慢**：SHA-256@64KB，JCE **675.8 MB/s** vs JNI **456.0 MB/s** ——
    JNI 在这一格输掉，**主因不是 OpenSSL 慢，而是 edap-crypto 的 native 路径多搬了一次载荷**：
    `ByteAccumulator` 从 256 字节起按 1.5 倍几何增长 ⇒ 追加 64KB 要扩容 13 次、
    把已攒下的数据反复搬一遍（总搬运量约 **3 倍**载荷）；
@@ -950,8 +966,13 @@ cd /tmp/edap-head-clean && mvn -o -pl <模块> -am install -DskipTests=false
    ⇒ 已把首次分配改成「按需分配」、后续按 2 倍增长（搬运量 3 倍 → 1 倍）。
    **这处拷贝本身是语义要求**：JCE 是在 `update()` 那一刻取数据的，
    native 侧要等到 `digest()` 才有完整数据 ⇒ 不拷贝就会算到「被改写后的内容」。
-3. **JNI 的收益集中在 HMAC 与中大载荷**；SHA-256 小载荷（64B/1KB）上 JNI 不占优
-   （0.65x / 0.88x）—— 固定开销（JNI 调用 + OpenSSL 一次性 API 的准备）吃掉了全部收益。
+3. **纯算法速度 OpenSSL ≈ ucrypto**（~713 vs 714 MB/s @64KB）——
+   阶段分解显示 native 的 hash 段只有 **17436 ns**，而 `full − hash` 高达 **126295 ns**：
+   差值是「toArray 拷贝 + JNI 数组拷贝 + OpenSSL 一次性 API 的准备」，
+   **不是** OpenSSL 的 SHA-256 算得慢。⇒ native 摘要路径的差距来自**架构**（一次性 API +
+   多一次拷贝），不是算法。
+4. **JNI 的收益集中在 HMAC 与中大载荷**；SHA-256 全部四档 JNI 都输（0.64x~0.82x）——
+   固定开销（JNI 调用 + OpenSSL 一次性 API 的准备）吃掉了全部收益。
 
 **★ 阶段分解本身也修了两个口径缺陷**（不修的话，上面的差值全是噪声）：
 
@@ -976,46 +997,72 @@ cd /tmp/edap-head-clean && mvn -o -pl <模块> -am install -DskipTests=false
 | md.digest64k | 108633.6 | 纯吞吐 ≈ 642 MB/s |
 | mac.getInstance | 4136.9 | |
 | mac.keySpec | 307.0 | |
-| **mac.init** | **10474.9** | ★ 嫌疑：账对不上 |
+| **mac.init** | **10384.9** | ★ 同一个 key 对象 ⇒ 命中 JDK 的 token 导入缓存 |
 | mac.reset | 38.9 | |
 | mac.doFinal64 | 11796.5 | |
 | mac.doFinal64k | 105762.8 | |
-| native.digest64 | 10142.7 | |
-| native.mac64 | 2915.1 | |
+| native.digest64 | 10150.0 | |
+| native.mac64 | 2908.2 | |
 
 **探针读数与用例逐项对齐**（互相印证口径已修好）：
-native 摘要 10142.7 vs 用例 JNI 10221.7；JCE 摘要 6496.1 vs 用例 6613.5；
-native HMAC 2915.1 vs 用例 3043.2 —— 三项都在 1% 以内。
+native 摘要 10150.0 vs 用例 JNI 10248.4；JCE 摘要 6576.4 vs 用例 6563.8；
+native HMAC 2908.2 vs 用例 3067.0 —— 三项都在 1% 以内。
 
 **★ 摘要侧已经算平**：JCE 没有 key 概念，`md.digest64`(6496) = `update64`(1284) + `digestEmpty`(5130)。
 `MessageDigest.getInstance` 要 13.4μs，但 `InstancePool` 让它不每次付 —— **池化在 Solaris 上比在 macOS 上重要 26 倍**。
 ⇒ **Solaris 上 JCE 的 64B 摘要（6496ns）比 native（10143ns）还快**（OracleUcrypto 无 token 开销），
 而 64KB 上 JCE 也更快（117736 vs 153550）—— **native 的摘要路径在 Solaris 上没有优势**。
 
-**★★ HMAC 侧的账还差 ~107μs，嫌疑锁定在 `Mac.init`**：
-把 133208ns 拆开 —— `getInstance` 被池化躲开（0）、`keySpec` 307、
-`update(64B)` ≈1284、`doFinal` ≈10512、`init` 探针实测 **10475** ⇒ 合计 **≈25.8μs**，
-但用例测到 **133.2μs** ⇒ **~107μs 藏在 `Mac.init` 里面**，而探针量到的 init 只要 10.5μs。
+**★★ HMAC 侧的账：根因已锁定在 `Mac.init` 里的「key 重新导入 token」**：
+把 134352ns 拆开 —— `getInstance` 被池化躲开（0）、`keySpec` 307、
+`update(64B)` ≈1284、`doFinal` ≈10512、`init` 探针实测 **10385** ⇒ 合计 **≈23.5μs**，
+但用例测到 **134.4μs** ⇒ **~111μs 藏在 `Mac.init` 里面**，而探针量到的 init 只要 10.4μs。
 **两者唯一的差别是传进去的 `SecretKeySpec` 对象**：
 探针用**同一个静态对象**（`KEY_SPEC`），而 edap-crypto 每次操作都 `new SecretKeySpec(...)`
-（`JceMacProvider.java:126`）⇒ 怀疑 **SunPKCS11 每次 init 都要把 key 重新导进 token**
-（Solaris 的 PKCS#11 软 token 落盘 ⇒ 一次 import 就是一次文件操作）。
+⇒ **SunPKCS11 每次 init 都要把 key 重新导进 token**（Solaris 的 PKCS#11 软 token 落盘
+⇒ 一次 import 就是一次文件操作）。
 
-**待测（已加进 `CryptoCostProbe` 的 6 个新测点，交叉定位）**：
-变量只有三个 —— Mac 实例是不是新的、`SecretKeySpec` 对象是不是同一个、key 字节是不是同一份。
+**★ 交叉定位结果**（`CryptoCostProbe` 的 6 个新测点，build-01 实测，ns/op）：
 
-| 测点 | 实例 | key 对象 | 作用 |
-|---|---|---|---|
-| `mac.initFreshKey` | 池化复用 | 每次新建（字节同） | 区分「缓存的是对象还是字节」 |
-| `mac.initNewInstanceSameKey` | 全新 | 同一个 | 隔离「实例是不是新的」 |
-| `mac.initNewInstanceFreshKey` | 全新 | 每次新建 | 两者都变 |
-| `mac.realPathPooled` | 池化复用 | 每次新建 | **必须复现用例里的 133μs**，否则模型不成立 |
-| `mac.realPathCachedKeySpec` | 池化复用 | 同一个 | **候选修法的实测效果** |
-| `mac.realPathNewInstance` | 全新 | 每次新建 | 不池化的代价 |
+| 测点 | Mac 实例 | key 对象 | ns/op | 读出来的含义 |
+|---|---|---|---|---|
+| `mac.init` | 池化复用 | **同一个** | **10384.9** | 同 key 对象 ⇒ JDK 缓存了 token 导入 |
+| `mac.initFreshKey` | 池化复用 | **每次 new**（字节同） | **133667.5** | ★ **差 12.9 倍** ⇒ 缓存按**对象身份**走，跟字节无关 |
+| `mac.initNewInstanceSameKey` | 全新 | 同一个 | 18351.1 | 全新实例也要导一次（但 key 对象命中 ⇒ 比 133667 便宜） |
+| `mac.initNewInstanceFreshKey` | 全新 | 每次 new | 151212.3 | 两者都变 |
+| `mac.realPathPooled` | 池化复用 | 每次 new | **136788.4** | ★ **≈ 用例里的 134352 ⇒ 模型闭合** |
+| `mac.realPathCachedKeySpec` | 池化复用 | 同一个 | **16296.5** | ★ **复用 key 对象 ⇒ 快 8.4 倍** |
+| `mac.realPathNewInstance` | 全新 | 每次 new | 145875.8 | 不池化的代价 |
 
 （macOS 上的同一组读数：`initFreshKey` 79.7 / `realPathPooled` 1766.5 /
 `realPathCachedKeySpec` 1717.6 / `realPathNewInstance` 3064.7 ns ——
-**SunJCE 没有 key 导入成本**，所以这组数在 macOS 上分不出叉，只有 Solaris 上才有判别力。）
+**SunJCE 没有 key 导入成本**，所以这组数在 macOS 上分不出叉，只有 Solaris 上才有判别力。
+⇒ **这条性能缺陷在开发机上完全看不出来**，必须靠「init 次数」这个结构性事实来守，见下。）
+
+**★★ 根因与修法**：
+
+| | 内容 |
+|---|---|
+| **根因** | `JceMacProvider` 每次操作都 `new SecretKeySpec(key, algorithm)` ⇒ **`Mac.init` 每次都把 key 重新导进 PKCS#11 token** ⇒ 一次 HMAC 的固定成本从 ~12μs 涨到 ~136μs（**比一次 OpenSSL HMAC 还贵 40 倍**） |
+| **修法** | 池里的实例**记住自己是哪把 key init 的**（`KeyedMac`）：<br>① key 字节相同 ⇒ **跳过 `init`**（`Mac.doFinal()` 之后实例已经回到「init 完、无待算数据」的状态 —— 这正是 `MacSession#doFinal()` 契约里「key 保留」的含义）；<br>② key 不同 ⇒ `init(new SecretKeySpec(...))` 并记录新 key；<br>③ `init` 抛 `InvalidKeyException` ⇒ 把实例的 key 置 `null` 后归还池子（保证下次一定重新 init，不复用状态不可知的实例） |
+| **预期收益** | Solaris 上 `mac.realPathPooled` 从 **136788 → ~1.2 万 ns**（≈8.4 倍）；用例里 hmacsha256 的 JCE 侧从 134352 → ~1.2~1.9 万 ns ⇒ **JNI/JCE 从 43.81x 降到 ~2~4x** |
+| **影响面** | 三条热路径全部汇到 `JceMacProvider` 一个点 ⇒ 改一处三个路径一起修好：<br>① `edap-s3-core` 的 `SigV4Verifier`（**一次请求算 5 次 HMAC ⇒ ≈667μs/请求**）<br>② `edap-auth-jwt` 的 `HmacSha256`（**≈133μs/签一个 token**）<br>③ `edap-crypto` 自身的 `MacProvider` 调用方 |
+| **同类问题（本次不改）** | `JceCipherProvider.java:189` 每次也 `new SecretKeySpec` ⇒ 同类问题；但 cipher 当前**零用量**，改动收益为零、风险未知 ⇒ 留待有真实调用方时一并处理 |
+
+**★ 为什么用「数 init 次数」守这条不变量，而不是测时间**：
+Solaris 上一次 `Mac.init(new SecretKeySpec(...))` ≈ 130μs，开发机（SunJCE 软件路径）只要 ~40ns ——
+**同一个缺陷在两台机器上的时间差是 3000 倍** ⇒ 时间断言要么在开发机上永远绿、要么在 Solaris 上永远 flaky。
+能跨平台守住它的只有「`init` 被调了几次」这个**结构性事实**。
+⇒ 新增 `io.edap.crypto.test.spi.CountingMacProvider`：往 JCE provider 列表**头部**插一个自己的 provider，
+`Mac.getInstance("HmacSHA256")` 就拿到它；它把真正的计算转交给「另一个」真实 `Mac`，自己只数 `engineInit` 的次数。
+⇒ 新增 `JceMacProviderKeyReuseTest`（5 个用例）：同一 key 连续 5 次 ⇒ 只 init 1 次；
+换 key ⇒ 重新 init 且结果跟着变；A→B→A ⇒ 每次切换都 init；
+同一 session 连续 doFinal ⇒ 第二个是空数据的 MAC；同一 key 两个 session 交替用 ⇒ 结果一致。
+**反向验证**：把 `JceMacProvider` 换回修复前 ⇒ `testSameKeyDoesNotReInit` 如期失败（`expected: <1> but was: <5>`）。
+
+**★ `Provider.Service` 在 JDK 17 只认无参构造**（`setConstructorParameter` 不存在，`javap` 已确认）
+⇒ 计数 provider 的 SPI **只能有无参构造器**，替身与计数器只能由 SPI 自己去 `Security` 里按
+provider 名字找（把自己排除掉）。这是写这类测试 provider 时的第一个坑。
 
 ---
 
