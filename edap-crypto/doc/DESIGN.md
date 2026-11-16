@@ -355,18 +355,23 @@ key 字节相同就**跳过 `init`**（`Mac.doFinal()` 之后实例已经回到�
 ### 5.3 ★★ cipher 的 key 对象复用（只复用 key 对象，不复用 init）
 
 `JceCipherProvider` 早期版本同样每次 `new SecretKeySpec(key, algorithm)`。
-在 Solaris 上 `AES/GCM/NoPadding` 也可能落在 PKCS#11 provider（`SunPKCS11-Solaris`），
-key 同样要导进 token ⇒ 与 §5.2 同一条机制、同一个数量级的代价。
 
-**但 cipher 与 `Mac` 有一处关键差别**：
+> ⚠️ **但实测推翻了「cipher 也走 PKCS#11」的假设**：Solaris 上
+> `Cipher(AES/GCM/NoPadding)` 落在 **`OracleUcrypto`（纯用户态）**，**不是** `SunPKCS11-Solaris`
+> ⇒ **cipher 侧没有「key 导进 token」这笔钱** ⇒ 本节修法的收益只有 **534 ns/次（4.9%）**，
+> 而不是 Mac 侧的 12.9 倍。详见 §10.10。
+> 修法本身**语义上仍然正确**（key 对象身份是 JDK 的通用契约，不依赖平台），
+> 只是**别把它当成 Mac 那样的大幅提升**。
+
+**cipher 与 `Mac` 的关键差别**：
 
 | | `Mac.init(key)` | `Cipher.init(opmode, key, iv)` |
 |---|---|---|
 | 是否带 IV | 否 | **是** |
 | 能否整体跳过 init | **能**（key 字节相同就跳过） | **不能** —— AEAD 每条消息必须换 nonce |
 
-⇒ cipher 侧**只复用 `SecretKeySpec` 对象**（让 JDK 的 token 导入缓存能命中），
-**不复用整个 `init`**。实现上池里的实例记���自己是哪把 key（`KeyedCipher`），
+⇒ cipher 侧**只复用 `SecretKeySpec` 对象**，**不复用整个 `init`**。
+实现上池里的实例记住自己是哪把 key（`KeyedCipher`），
 key 字节相同 ⇒ 返回**同一个** `SecretKeySpec` 对象；key 变了 ⇒ 新建并替换。
 
 **回归测试用「数 init 见过几个 key 对象」** ⇒ `CountingCipherProvider` +
@@ -402,9 +407,11 @@ key 字节相同 ⇒ 返回**同一个** `SecretKeySpec` 对象；key 变了 ⇒
 **⇒ 结论：调用方绝不能复用 nonce。** 调用方自己保证 nonce 唯一；
 本层**原样透出** JDK 的 `InvalidAlgorithmParameterException`，不静默吞掉。
 
-> **待决策**：是否要让 AEAD 路径**每次用全新 `Cipher` 实例**以换取「同 IV 必抛」的确定性
-> （代价：放弃实例池化，且 `Cipher.getInstance` 每次 1~3μs）。
-> 当前**未做** —— 见 §10.9 的实测读数。
+> **★ 已定案（2026-11-16，Solaris 实测后）**：**保持池化，不为确定性放弃它。**
+> 代价对比：`Cipher.getInstance` 在 Solaris 上是 **32302 ns**（32μs）
+> ⇒ 每次用全新实例 ⇒ 一次完整加密 ≈ **42.6μs**，比现在（**10.3μs**）**慢 4.1 倍**。
+> ⇒ 那个不确定性**维持现状**，由**调用方保证 nonce 唯一**（GCM 的硬性要求）。
+> 完整数据见 §10.10。
 
 ---
 
@@ -1172,11 +1179,10 @@ provider 名字找（把自己排除掉）。这是写这类测试 provider 时�
 与 §5.1「每方法最多一把锁、按最小粒度隔离」的取向冲突；
 而且**复用 nonce 本来就是调用方的错**（GCM 的硬性要求）⇒ 本层**原样透出** JDK 的异常，不静默吞掉。
 
-> **待决策**：是否让 AEAD 路径**每次用全新 `Cipher` 实例**以换取「同 IV 必抛」的确定性
-> （代价：放弃实例池化 + 每次 `getInstance`）。
-> 本机读数 `cipher.getInstance` = **3848.3 ns**（macOS/arm64，SunJCE 软件路径）——
-> 这个代价在 Solaris 上会**大得多**（`md.getInstance` 在 Solaris 上是 macOS 的 26 倍）
-> ⇒ **在拿到 Solaris 的 `cipher.getInstance` 读数之前不做这个决定**。
+> **★ 已定案（Solaris 实测后，见 §10.10）**：**保持池化**。
+> Solaris 上 `cipher.getInstance` = **32302 ns（32μs）** ⇒ 每次全新实例 ⇒ 一次完整加密
+> ≈ **42.6μs**，比现在（10.3μs）**慢 4.1 倍** ⇒ **代价太大，不换**。
+> ⇒ 那个不确定性**维持现状**，由**调用方保证 nonce 唯一**。
 
 **★ macOS 上的读数**（`CryptoCostProbe`，一个测点一个 JVM，ns/op）：
 
@@ -1193,11 +1199,70 @@ provider 名字找（把自己排除掉）。这是写这类测试 provider 时�
 （`SunJCE` 是软件路径，没有 token 导入）⇒ 与 §10.8 的 `mac` 侧完全一样，
 **只能靠「key 对象身份」这个结构性事实来守**。
 
-**⚠ Solaris 上的读数待补**（探针测点已就位，命令见 §8.3）——
-**先测再改的规矩**：在确认 Solaris 把 `AES/GCM/NoPadding` 解析到哪个 provider
-（`SunPKCS11-Solaris`？还是纯软件路径？）之前，**不能**断言 cipher 侧也要付那笔 token 导入成本。
-本节记的是**机制同源**（同一个 `SecretKeySpec` 对象 ⇒ 同一个 token 导入缓存）与**本地读数**，
-**Solaris 的绝对值待实测后补入**。
+### 10.10 ★★ Solaris 上的 cipher 归因（2026-11-16，build-01 实测）—— **推翻了「机制同源」的假设**
+
+**先看 provider 归属**（这一行决定了后面所有结论）：
+
+| 原语 | provider | 有 token 导入吗 |
+|---|---|---|
+| `MessageDigest(SHA-256)` | **OracleUcrypto** | 否 |
+| `Mac(HmacSHA256)` | **SunPKCS11-Solaris** | **是** ← §10.8 那笔 ~130μs 的来源 |
+| `Cipher(AES/GCM/NoPadding)` | **OracleUcrypto** | **否** ← ★ 与 Mac **不同** |
+
+⇒ ★★ **cipher 走的是 `OracleUcrypto`（纯用户态），不是 PKCS#11**
+⇒ **cipher 侧根本没有「key 导进 token」这笔钱** ⇒
+**§5.3 的修法在 Solaris 上没有 Mac 侧那种 12.9 倍的收益**。
+**先测再改的规矩救了这个结论** —— 如果照着「机制同源」直接下结论，
+就会把「修了一个不存在的性能缺陷」当成成果汇报。
+
+**Solaris 上的 cipher 读数**（`CryptoCostProbe`，一个测点一个 JVM，ns/op）：
+
+| 测点 | Solaris | macOS/arm64 | 读出来的含义 |
+|---|---|---|---|
+| `cipher.getInstance` | **32302.4** | 3848.3 | ★ **32μs** —— 是 init 的 **45 倍**！ |
+| `cipher.keySpec` | 210.5 | 45.1 | `new SecretKeySpec` 的构造成本 |
+| `cipher.init`（同一 key 对象） | **718.2** | 93.9 | |
+| `cipher.initFreshKey`（每次 new） | **969.0** | 95.4 | ★ **只差 250.8 ns** |
+| `cipher.realPathPooled`（修前） | **10796.8** | 2443.3 | |
+| `cipher.realPathCachedKeySpec`（修后） | **10262.8** | 2201.2 | ★ 修后**快 534 ns（4.9%）** |
+
+**归因**：
+- `initFreshKey − init` = **250.8 ns** ≈ `cipher.keySpec` 的 **210.5 ns**
+  ⇒ **这 250ns 就是 `new SecretKeySpec` 的构造成本**（外加一点 init 内部的重复准备）
+  ⇒ **不是** token 导入（`OracleUcrypto` 没有 token）。
+  ⇒ 对照 Mac 侧的 `initFreshKey − init` = **123258 ns**（130μs，token 导入）
+  ⇒ **同一台机器上，Mac 差 250ns，cipher 也差 250ns，但 Mac 的绝对值是 cipher 的 500 倍。**
+- ⇒ **修法的收益 = 534 ns/次（4.9%）** —— 真实但很小。
+  修法**语义上仍然正确**（不依赖平台：key 对象身份是 JDK 的通用契约），
+  但**别把它说成「性能大幅提升」**。
+
+**★★ 但真正的 cipher 大头是 `cipher.getInstance` = 32.3μs**（是 init 的 45 倍、是完整
+加密路径 10.3μs 的 **3 倍**）⇒ **池化才是 cipher 侧的性能命脉**，而池化恰恰就是
+「同 IV 复用会抛」的那个设计（§5.4）。
+
+**⇒ §5.4 的待决策就此定案：保持池化，不为「同 IV 必抛」的确定性放弃它。**
+代价对比（Solaris 实测）：
+
+| 方案 | 一次完整加密 | 相对现在 |
+|---|---|---|
+| **现在**：池化 + 复用 key 对象 | **10262.8 ns** | 1.00× |
+| 每次全新 `Cipher` 实例（放弃池化） | ≈ 32302 + 10263 ≈ **42565 ns** | **≈ 4.1× 慢** |
+
+⇒ **32μs 的代价太大** ⇒ 「同 IV 复用 ⇒ 同线程抛 / 换线程不抛」这个不确定性
+**维持现状**，由**调用方保证 nonce 唯一**（GCM 的硬性要求，本就该由调用方负责）。
+
+**★ 顺带印证了 mac 侧的修复（同一份探针输出）**：
+
+| 测点 | Solaris | 读出来的含义 |
+|---|---|---|
+| `mac.init`（同一 key 对象） | **10325.9** | 命中 token 导入缓存 |
+| `mac.initFreshKey`（每次 new） | **133643.5** | ★ **差 12.9 倍** |
+| `mac.realPathPooled`（修前写法） | **145403.3** | |
+| `mac.realPathCachedKeySpec`（修后写法） | **15120.9** | ★ **快 9.6 倍** |
+
+⇒ **mac 侧修复在 Solaris 上确认有效**（145403 → 15121 ns）。
+⚠️ `mac.realPathPooled` 两次运行读出 136788.4 / 145403.3（**差 6%**）
+⇒ **探针读数跨运行有几个百分点的波动**（build-01 上有其它负载）⇒ 引用时带上这一点。
 
 ---
 
