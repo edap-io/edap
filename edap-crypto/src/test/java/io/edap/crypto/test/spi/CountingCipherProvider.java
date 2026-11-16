@@ -83,7 +83,7 @@ public final class CountingCipherProvider extends Provider {
     /**
      * 见过多少个<b>不同的 key 对象</b>（按对象身份，不是按字节）。
      *
-     * <p>用 {@link IdentityHashMap} 的原因正是这里要守的��量：
+     * <p>用 {@link IdentityHashMap} 的原因正是这里要守的不变量：
      * 按 {@code equals} 比的话，{@code SecretKeySpec} 的 {@code equals} 比的是
      * <b>字节</b>，那就分不出「同一个对象」与「字节相同但对象不同」了。</p>
      */
