@@ -17,6 +17,7 @@
 package io.edap.container;
 
 import io.edap.container.app.RouterHub;
+import io.edap.container.app.ErpcMethodDef;
 import io.edap.container.app.asm.HandlerAsmGenerator;
 import io.edap.container.event.ApplicationEvent;
 import io.edap.container.event.ContextClosedEvent;
@@ -43,7 +44,14 @@ import io.edap.microservice.annotation.MicroServiceBean;
 import io.edap.microservice.annotation.Primary;
 import io.edap.nio.codec.FastBufDataRange;
 import io.edap.props.Props;
+import io.edap.erpc.ErpcHandler;
+import io.edap.erpc.ErpcMethodIds;
+import io.edap.grpc.GrpcHandler;
+import io.edap.grpc.GrpcMethod;
+import io.edap.protobuf.annotation.ProtoErpc;
+import io.edap.protobuf.annotation.ProtoGrpc;
 import io.edap.protobuf.annotation.ProtoHttp;
+import io.edap.protobuf.annotation.ProtoService;
 import io.edap.protobuf.annotation.ProtoWebSocket;
 import io.edap.protobuf.annotation.Sharded;
 import io.edap.tx.EdapTransactionManager;
@@ -56,6 +64,7 @@ import java.io.IOException;
 import java.lang.reflect.AnnotatedElement;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
@@ -134,6 +143,28 @@ public class AppContext implements Lifecycle {
      * dispatch 阶段不走此字段——只走 ServiceWSHandler.msgHandlers()。
      */
     private final Map<String, WSServiceMsgHandler<?>> wsMsgHandlers = new HashMap<>();
+
+    /**
+     * gRPC 的 {@code :path} → {@link GrpcMethod}（方法定义 + 字节码生成的 handler）。
+     *
+     * <p>与 {@link #httpHandlersByPath} 对称，但键不是 HTTP path 而是 gRPC 的
+     * {@code /pkg.Svc/Method}（由 {@code @ProtoGrpc.path()} 或
+     * {@code @ProtoService.serviceName()} + 方法名派生）。</p>
+     *
+     * <p>Container 在 deploy / undeploy / switchVersion / restoreToSlot 末尾聚合各 app 的
+     * 这张表，整张替换 {@code GrpcServer} 的路由表（volatile 写，dispatch 热路径无锁读）。</p>
+     */
+    private final Map<String, GrpcMethod> grpcMethodsByPath = new HashMap<>();
+
+    /**
+     * eRPC 的方法键（{@code serviceName.methodName}）→ {@link ErpcMethodDef}。
+     *
+     * <p>与 {@link #grpcMethodsByPath} 对称，但键不是路径而是 <b>methodId 的计算输入</b>。
+     * per-app 阶段<b>不定</b> methodId（{@code increment} 策略要全局排序才能分配），
+     * 只记录「方法是什么」；{@link Container#rebuildErpcMapping()} 在合并所有 CURRENT 槽时
+     * 统一按策略分配号、检测冲突，整张发布到 {@code ErpcServer}。</p>
+     */
+    private final Map<String, ErpcMethodDef> erpcMethodsByKey = new HashMap<>();
 
     /**
      * WS 固定路径。第一期约定：所有 {@code @ProtoWebSocket} 标注的方法共用同一 path（与 HTTP per-method
@@ -443,6 +474,8 @@ public class AppContext implements Lifecycle {
         try {
             //routers.unbindAll();
             httpHandlersByPath.clear();
+            grpcMethodsByPath.clear();
+            erpcMethodsByKey.clear();
             // 共享 ServiceWSHandler 的 msgHandlers 按 appId 二级分片 —— 本 ctx stop 时按需摘
             // 自己 appId 的 method 表（避免 method 残留或跨 app 误伤）。
             // unbindFromShared=false 时：保留 shared method 表（PREVIOUS 槽 demote 释放场景，
@@ -821,7 +854,7 @@ public class AppContext implements Lifecycle {
                     // AppContext 只负责按 proto 接口生成 Handler 类 + 实例化；
                     // bean 由 Handler 构造时自己从 BeanContainer 查（缺失 → 抛 → deploy 失败）。
                     Class<?> ifaceClass = Class.forName(psi.getTypeName(), false, appCL);
-                    generateMethodsHandlers(ifaceClass, psi.getMethodInfos());
+                    generateMethodsHandlers(ifaceClass, psi.getMethodInfos(), protoServiceName(psi));
                 }
             }
         } catch (ClassNotFoundException e) {
@@ -1016,7 +1049,8 @@ public class AppContext implements Lifecycle {
         }
     }
 
-    private void generateMethodsHandlers(Class<?> protoIf, List<ProtoMethodData> protoMethodDatas)
+    private void generateMethodsHandlers(Class<?> protoIf, List<ProtoMethodData> protoMethodDatas,
+                                         String serviceName)
             throws ClassNotFoundException {
 //        List<HttpHandler>            httpH = routers.httpHandlers();
 //        List<WSServiceMsgHandler<?>> wsH   = routers.wsHandlers();
@@ -1025,12 +1059,13 @@ public class AppContext implements Lifecycle {
 
         String protoHttpAnn = ProtoHttp.class.getName();
         String protoWsAnn   = ProtoWebSocket.class.getName();
+        String protoGrpcAnn = ProtoGrpc.class.getName();
         String shardedAnn   = Sharded.class.getName();
         for (ProtoMethodData pmd : protoMethodDatas) {
             // Method 从 proto 接口上取（不是 bean 实例）—— Handler 字节码后续自己按 protoIf 查 bean
             Method m;
             try {
-                m = protoIf.getMethod(pmd.getName(), pmdParamTypes(pmd));
+                m = resolveProtoMethod(protoIf, pmd);
             } catch (NoSuchMethodException ex) {
                 throw new RouteBindException(null, pmd.getName(), pmdParamTypes(pmd), ex);
             }
@@ -1040,6 +1075,12 @@ public class AppContext implements Lifecycle {
                     shard = true;
                     break;
                 }
+            }
+
+            // 0. eRPC：绑定不依赖方法级协议注解 —— 一元方法自动经 eRPC 暴露。
+            //    放在 anno 循环之外：没写任何协议注解的方法也要能被 eRPC 调用。
+            if (container.hasCapability(Capability.ERPC)) {
+                bindErpcMethod(protoIf, pmd, m, serviceName, shards);
             }
 
             for (AnnoData anno : pmd.getAnnoDatas()) {
@@ -1074,13 +1115,206 @@ public class AppContext implements Lifecycle {
                         }
                         wsMsgHandlers.put(methodName, h);
                     }
+                    // 3. gRPC：方法上有 @ProtoGrpc 才生成；节点具备 GRPC 能力
+                } else if (protoGrpcAnn.equals(t)) {
+                    if (container.hasCapability(Capability.GRPC)) {
+                        GrpcHandler h = generateHandler(GrpcHandler.class, protoIf, pmd.getAnnoDatas(), anno, m, shards);
+                        String path = deriveGrpcPath(serviceName, protoIf, m, anno);
+                        grpcMethodsByPath.put(path, new GrpcMethod(path, h,
+                                readGrpcMethodType(anno), loadGrpcDtoType(anno, "req"), loadGrpcDtoType(anno, "resp")));
+                    }
                 }
-                // eRPC / gRPC option 解析尚未在 EarScanner 落地——对应 Capability 检查留待后续 PR
             }
         }
         // 注意：ServiceWSHandler.rebindMsgHandlers 不再在本方法调用 —— wsHandler 是
         // Container 持有的 per-path 单例，rebind 统一在 Container.deploy / switchVersion
         // / restoreToSlot 末尾由 rebindCurrentWsHandlers(currentCtx.wsMsgHandlers()) 调。
+    }
+
+    /**
+     * 把一个 proto 方法绑成 eRPC 方法。
+     *
+     * <p><b>只支持一元调用</b>（v1 的硬约束）：恰好 1 个参数 + 非 void 返回值，
+     * 且参数/返回值都不是基本类型（基本类型没法走 protobuf / json 的 DTO 编解码）。
+     * 不满足条件的方法<b>跳过</b>（不报错）—— 同一个接口完全可以同时提供 gRPC 流式方法，
+     * 那类方法只是不经 eRPC 暴露而已。</p>
+     *
+     * <p><b>methodId 在这里不算</b>：per-app 阶段看不到全局方法集合
+     * （{@code increment} 策略要全局排序），所以只把「方法是什么」记进
+     * {@link #erpcMethodsByKey}，号由 {@link Container#rebuildErpcMapping()} 统一分配。</p>
+     */
+    private void bindErpcMethod(Class<?> protoIf, ProtoMethodData pmd, Method m,
+                                String serviceName, ShardRegistry shards) {
+        Class<?>[] params = m.getParameterTypes();
+        if (params.length != 1) {
+            return;                                     // 非一元（流式 / 多参）—— 不经 eRPC 暴露
+        }
+        if (m.getReturnType() == void.class) {
+            return;                                     // 无返回值 —— 不经 eRPC 暴露
+        }
+        if (params[0].isPrimitive() || m.getReturnType().isPrimitive()) {
+            return;                                     // 基本类型没法编解码 —— 不经 eRPC 暴露
+        }
+        if (Modifier.isStatic(m.getModifiers())) {
+            return;
+        }
+        // serviceName 取 proto 的服务全名（proto package + "." + service 名）——
+        // 不能从 java 包名反推（proto 的 java_package option 可以覆盖 proto package）。
+        // 没有 @ProtoService.serviceName() 时退化为 proto 接口 FQCN（至少保证键唯一）。
+        String svcName = (serviceName != null && !serviceName.isEmpty()) ? serviceName : protoIf.getName();
+        int explicitId = readExplicitErpcMethodId(pmd);
+        ErpcHandler h = generateHandler(ErpcHandler.class, protoIf, pmd.getAnnoDatas(),
+                erpcAnnoData(pmd), m, shards);
+        String key = ErpcMethodIds.key(svcName, m.getName());
+        erpcMethodsByKey.put(key, new ErpcMethodDef(svcName, m.getName(), h,
+                params[0], m.getReturnType(), explicitId));
+    }
+
+    /**
+     * 取 {@code @ProtoErpc(methodId = ...)} 的显式 methodId；没有该注解 ⇒ {@code -1}（自动分配）。
+     */
+    private static int readExplicitErpcMethodId(ProtoMethodData pmd) {
+        String type = ProtoErpc.class.getName();
+        for (AnnoData anno : pmd.getAnnoDatas()) {
+            if (!type.equals(anno.getType())) {
+                continue;
+            }
+            Object v = anno.getValues().get("methodId");
+            if (v == null) {
+                continue;
+            }
+            try {
+                int id = Integer.parseInt(v.toString().trim());
+                if (id > 0) {
+                    return id;
+                }
+            } catch (NumberFormatException ignore) {
+                // 注解值不是合法整数 —— 按「没写」处理，交给自动分配
+            }
+        }
+        return -1;
+    }
+
+    /**
+     * 给 {@code generateHandler} 用的注解数据。
+     *
+     * <p>{@code generateHandler} 的 cache key 用 {@code annoData.getType()}，不能传 null ——
+     * 方法上没写 {@code @ProtoErpc} 时合成一个（类型名一致 ⇒ cache key 稳定）。</p>
+     */
+    private static AnnoData erpcAnnoData(ProtoMethodData pmd) {
+        String type = ProtoErpc.class.getName();
+        for (AnnoData anno : pmd.getAnnoDatas()) {
+            if (type.equals(anno.getType())) {
+                return anno;
+            }
+        }
+        return new AnnoData(type);
+    }
+
+    /**
+     * 从类级 {@code @ProtoService} 注解里取 proto 的服务全名（{@code protoPackage.ServiceName}）。
+     *
+     * <p>gRPC 的 {@code :path} = {@code /<服务全名>/<方法名>}；eRPC 的 methodId 计算输入
+     * = {@code <服务全名>.<方法名>} —— 两者都<b>不能</b>从 Java 包名反推
+     * （proto 的 {@code java_package} option 可以覆盖 proto package）。代码生成器
+     * 已经把完整的 {@code :path} 写进 {@code @ProtoGrpc.path()}，这个值只作为手写注解时的兜底。</p>
+     *
+     * @return 服务全名；没有 {@code @ProtoService.serviceName()} 时返回 null
+     */
+    private static String protoServiceName(ProtoServiceData psi) {
+        String type = ProtoService.class.getName();
+        for (AnnoData anno : psi.getAnnoDatas()) {
+            if (!type.equals(anno.getType())) {
+                continue;
+            }
+            Object name = anno.getValues().get("serviceName");
+            if (name != null && !name.toString().isEmpty()) {
+                return name.toString();
+            }
+        }
+        return null;
+    }
+
+    /**
+     * 解析 proto 接口上的目标方法。
+     *
+     * <p>优先按「参数类型完全匹配」找 —— 一元方法只有 1 个参数，{@code pmd.getParamType()}
+     * 拿得到。</p>
+     *
+     * <p><b>服务端流式方法有 2 个参数</b>（Req + StreamObserver），而扫描器只记了第一个
+     * （{@code ProtoMethodData.paramType} 是单值），按参数匹配必然找不到 —— 退化成
+     * 「按方法名找」。proto service 内方法不重载，名字唯一。</p>
+     */
+    private Method resolveProtoMethod(Class<?> protoIf, ProtoMethodData pmd)
+            throws ClassNotFoundException, NoSuchMethodException {
+        try {
+            return protoIf.getMethod(pmd.getName(), pmdParamTypes(pmd));
+        } catch (NoSuchMethodException ex) {
+            for (Method candidate : protoIf.getMethods()) {
+                if (candidate.getName().equals(pmd.getName())) {
+                    return candidate;
+                }
+            }
+            throw ex;
+        }
+    }
+
+    /**
+     * 派生 gRPC 的 {@code :path}：优先用 {@code @ProtoGrpc.path()}（代码生成器填的是
+     * proto 里的原始方法名）；未填则按 {@code /<serviceName>/<methodName>} 派生。
+     *
+     * @param serviceName {@code @ProtoService.serviceName()}（proto 包名 + 服务名）
+     */
+    private static String deriveGrpcPath(String serviceName, Class<?> protoIf, Method m, AnnoData anno) {
+        Object p = anno.getValues().get("path");
+        if (p != null) {
+            String s = p.toString();
+            if (!s.isEmpty()) {
+                return s;
+            }
+        }
+        if (serviceName != null && !serviceName.isEmpty()) {
+            return "/" + serviceName + "/" + m.getName();
+        }
+        // 没有 serviceName 也没有 path —— 用接口简单名兜底（至少路由是可用的）
+        return "/" + protoIf.getSimpleName() + "/" + m.getName();
+    }
+
+    /**
+     * 读 {@code @ProtoGrpc.type()} —— 注解扫描器把枚举值存成字面名字（{@code "UNARY"}）。
+     */
+    private static ProtoGrpc.MethodType readGrpcMethodType(AnnoData anno) {
+        Object value = anno.getValues().get("type");
+        if (value == null) {
+            return ProtoGrpc.MethodType.UNARY;
+        }
+        String name = value.toString();
+        for (ProtoGrpc.MethodType t : ProtoGrpc.MethodType.values()) {
+            if (t.name().equals(name)) {
+                return t;
+            }
+        }
+        throw new IllegalArgumentException("未知的 @ProtoGrpc.type(): " + name);
+    }
+
+    /**
+     * 读 {@code @ProtoGrpc.req()/resp()} 里的 DTO 类。
+     *
+     * <p>注解扫描器把 {@code Class} 值归一化成 FQCN 字符串，要用 appCL 加载 ——
+     * DTO 归 appCL 管，生成类的 ClassLoader 也是 appCL 的子类。</p>
+     *
+     * @param key {@code "req"} 或 {@code "resp"}
+     */
+    private Class<?> loadGrpcDtoType(AnnoData anno, String key) {
+        Object value = anno.getValues().get(key);
+        if (value == null) {
+            throw new IllegalArgumentException("@ProtoGrpc 缺少 " + key + " 类型");
+        }
+        try {
+            return Class.forName(value.toString(), false, appCL);
+        } catch (ClassNotFoundException e) {
+            throw new IllegalArgumentException("加载 gRPC DTO 类失败: " + value, e);
+        }
     }
 
     /**
@@ -1219,6 +1453,21 @@ public class AppContext implements Lifecycle {
     /** WS method → 业务 {@link WSServiceMsgHandler}。dispatch 阶段不走此字段（走 Container 持有的 ServiceWSHandler.msgHandlers()）。 */
     public Map<String, WSServiceMsgHandler<?>> wsMsgHandlers() {
         return Collections.unmodifiableMap(wsMsgHandlers);
+    }
+    /**
+     * 本 app 的 gRPC {@code :path} → 方法定义（Container.rebuildGrpcMapping 聚合来源）。
+     * 不可修改视图：返回的 Map 由本 AppContext 独占，外部只读。
+     */
+    public Map<String, GrpcMethod> grpcMethodsByPath() {
+        return Collections.unmodifiableMap(grpcMethodsByPath);
+    }
+    /**
+     * 本 app 的 eRPC 方法键（{@code serviceName.methodName}）→ 方法定义
+     * （{@link Container#rebuildErpcMapping} 聚合来源）。
+     * 不可修改视图：返回的 Map 由本 AppContext 独占，外部只读。
+     */
+    public Map<String, ErpcMethodDef> erpcMethodsByKey() {
+        return Collections.unmodifiableMap(erpcMethodsByKey);
     }
     /**
      * 本 ctx 是否处于 PREVIOUS 槽（被 demote 的 current）。true 表示等待 {@link #releaseFuture}

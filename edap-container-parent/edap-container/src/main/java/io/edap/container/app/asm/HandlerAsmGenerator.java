@@ -7,7 +7,7 @@ import io.edap.container.ws.WSServiceMsgHandler;
 import io.edap.grpc.GrpcHandler;
 import io.edap.http.HttpHandler;
 import io.edap.protobuf.annotation.ParamParseConfig;
-import io.edap.rpc.ErpcHandler;
+import io.edap.erpc.ErpcHandler;
 import io.edap.util.CollectionUtils;
 
 import java.lang.reflect.Method;
@@ -240,6 +240,13 @@ public final class HandlerAsmGenerator {
             }
         } else if (targetIf == WSServiceMsgHandler.class) {
             WsHandlerGenerator generator = new WsHandlerGenerator(annoDatas, protoIf, method);
+            return generator.generate();
+        } else if (targetIf == GrpcHandler.class) {
+            GrpcHandlerGenerator generator = new GrpcHandlerGenerator(annoDatas, protoIf, method, loader);
+            return generator.generate();
+        } else if (targetIf == ErpcHandler.class) {
+            // eRPC 的 DTO 类型来自方法签名（一元调用），不需要从注解里读 req()/resp()
+            ErpcHandlerGenerator generator = new ErpcHandlerGenerator(protoIf, method);
             return generator.generate();
         }
         return new byte[0];

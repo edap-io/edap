@@ -29,9 +29,35 @@
             <groupId>io.edap</groupId>
             <artifactId>edap-erpc-api</artifactId>
         </dependency>
+        <!--
+            eRPC 服务端实现（ErpcServer extends Server<ErpcRequest, ErpcServerSession>）。
+            容器 attach 时按 Capability.ERPC 创建 ErpcServer 实例并 listen 到
+            container.erpc.port（默认 9090）。
+        -->
+        <dependency>
+            <groupId>io.edap</groupId>
+            <artifactId>edap-erpc-server</artifactId>
+        </dependency>
+        <!--
+            eRPC 客户端 —— 仅 test scope：容器接入的端到端测试要真的走一遍
+            「容器生成的 handler → ErpcServer → socket → 客户端」。
+        -->
+        <dependency>
+            <groupId>io.edap</groupId>
+            <artifactId>edap-erpc-client</artifactId>
+            <scope>test</scope>
+        </dependency>
         <dependency>
             <groupId>io.edap</groupId>
             <artifactId>edap-grpc-api</artifactId>
+        </dependency>
+        <!--
+            gRPC 服务端实现（GrpcServer extends HttpServer）。容器 attach 时按
+            Capability.GRPC 创建 GrpcServer 实例并 listen 到 container.grpc.port（默认 9091）。
+        -->
+        <dependency>
+            <groupId>io.edap</groupId>
+            <artifactId>edap-grpc-server</artifactId>
         </dependency>
         <dependency>
             <groupId>io.edap</groupId>
@@ -75,6 +101,23 @@
         <dependency>
             <groupId>io.edap</groupId>
             <artifactId>edap-nio-server</artifactId>
+        </dependency>
+        <!--
+            edap-raft —— 容器的进程级 raft 节点。
+            容器按 container.raft.* 配置自动成组（自动发现主、成员上限），
+            使用者不需要写任何 @RaftNode 之类的注解。
+        -->
+        <dependency>
+            <groupId>io.edap</groupId>
+            <artifactId>edap-raft</artifactId>
+        </dependency>
+        <!--
+            edap-json —— raft 编排层的 HTTP 端点要收发 JSON
+            （/raft/claim、/raft/join、/raft/cluster、/raft/propose）。
+        -->
+        <dependency>
+            <groupId>io.edap</groupId>
+            <artifactId>edap-json</artifactId>
         </dependency>
         <dependency>
             <groupId>javax.inject</groupId>

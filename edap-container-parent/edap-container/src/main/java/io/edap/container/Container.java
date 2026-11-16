@@ -5,13 +5,26 @@ import io.edap.ServerGroup;
 import io.edap.auth.jwt.DefaultJwtService;
 import io.edap.auth.jwt.JwtService;
 import io.edap.container.event.EventPublisher;
+import io.edap.container.app.ErpcMethodDef;
+import io.edap.container.exc.RouteBindException;
 import io.edap.container.mw.*;
+import io.edap.container.consts.CoreConstant;
+import io.edap.container.raft.ContainerRaftBootstrap;
 import io.edap.container.scan.EarScanner;
+import io.edap.container.tls.ContainerTlsConfig;
 import io.edap.container.ws.ServiceWSHandler;
 import io.edap.container.ws.WSServiceMsgHandler;
+import io.edap.erpc.ErpcMethod;
+import io.edap.erpc.ErpcMethodIds;
+import io.edap.erpc.server.ErpcServer;
+import io.edap.grpc.GrpcMethod;
+import io.edap.grpc.server.GrpcServer;
 import io.edap.http.server.HttpServer;
 import io.edap.http.PathInfo;
 import io.edap.http.server.PathInfoMatcher;
+import io.edap.http.server.tls.TlsConfig;
+import io.edap.http.server.tls.TlsContext;
+import io.edap.http.server.tls.TlsHttpServer;
 import io.edap.http.ws.HeaderTokenAuthenticator;
 import io.edap.http.HttpHandler;
 import io.edap.http.ws.WSAuthenticator;
@@ -24,6 +37,7 @@ import io.edap.log.Logger;
 import io.edap.log.LoggerManager;
 import io.edap.nio.util.ConfigUtils;
 import io.edap.props.Props;
+import io.edap.raft.cluster.RaftClusterNode;
 import io.edap.util.timing.TimerHandle;
 import io.edap.util.timing.Timers;
 
@@ -37,6 +51,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
@@ -64,7 +79,40 @@ public class Container {
      * 整体替换 path → handler 映射（dispatch 热路径无锁读）。
      */
     private HttpServer    httpServer;
+    /**
+     * TLS 版 HTTP Server 实例（HTTPS + HTTP/2 over TLS）。
+     * attach() 阶段按 {@code container.http.tls.*} 配置创建并加入 appServerGroup；
+     * 没配 {@code container.http.tls.enabled} 时为 null —— 此时容器只有明文端口。
+     *
+     * <p>与 {@link #httpServer} <b>分端口</b>（明文 8080 / TLS 8443），但<b>共用同一张路由表</b>：
+     * {@link #rebuildHttpMapping()} 会把同一个 {@link PathInfoMatcher} 发布给两个 server，
+     * 所以部署/切换版本对两个端口同时生效。</p>
+     */
+    private TlsHttpServer tlsHttpServer;
+    /**
+     * gRPC 协议 Server 实例。attach() 阶段按 Capability.GRPC 创建并加入 appServerGroup；
+     * deploy / undeploy / switchVersion / 启动恢复时通过 {@link GrpcServer#setMethods}
+     * 整体替换 {@code :path → GrpcMethod} 映射（dispatch 热路径无锁读）。
+     *
+     * <p>与 {@link #httpServer} 分端口：HTTP/WS 走 8080，gRPC 走 9091（容器级 HTTP/2 prior-knowledge，
+     * 客户端直发 h2 preface，不做 h2c 升级探测）。</p>
+     */
+    private GrpcServer    grpcServer;
+    /**
+     * eRPC 协议 Server 实例。attach() 阶段按 Capability.ERPC 创建并加入 appServerGroup；
+     * deploy / undeploy / switchVersion / 启动恢复时通过 {@link ErpcServer#setMethods}
+     * 整体替换 {@code methodId → ErpcMethod} 映射（dispatch 热路径无锁读）。
+     *
+     * <p>与 {@link #httpServer} / {@link #grpcServer} 分端口：HTTP/WS 走 8080、gRPC 走 9091、
+     * eRPC 走 9090（eRPC 是自定义二进制协议，与 HTTP/2 不共处一个端口）。</p>
+     */
+    private ErpcServer    erpcServer;
     private Props         env;
+    /**
+     * 根配置（{@code edap.getProps()}）。{@link #env} 是它的 {@code container} 子树；
+     * eRPC 的绑定规则（{@code edap.binding.erpc.*}）不在 container 子树里，单独留一份根引用。
+     */
+    private Props         rootProps;
 
     private volatile ContainerState state;
 
@@ -155,6 +203,14 @@ public class Container {
      */
     private final Set<Capability> capabilities;
 
+    /**
+     * 进程级 raft 的启动器。没设就是不起 raft（container.raft.enabled=false）。
+     *
+     * <p>由 Bootstrap 注入 —— 它同时持有管理端口上的四个 raft HTTP 端点
+     * （管理服务器比容器先建，端点必须先于容器存在）。</p>
+     */
+    private ContainerRaftBootstrap raftBootstrap;
+
 
     public Container(File appsDir) {
         this(appsDir, parseDefaultCapabilities());
@@ -196,6 +252,28 @@ public class Container {
         return capabilities.contains(c);
     }
 
+    /**
+     * @return gRPC Server 实例；节点未启用 GRPC 能力时返回 null
+     */
+    public GrpcServer grpcServer() {
+        return grpcServer;
+    }
+
+    /**
+     * @return TLS 版 HTTP Server 实例（HTTPS + HTTP/2 over TLS）；
+     *         未配置 {@code container.http.tls.enabled} 时返回 null
+     */
+    public TlsHttpServer tlsHttpServer() {
+        return tlsHttpServer;
+    }
+
+    /**
+     * @return eRPC Server 实例；节点未启用 ERPC 能力时返回 null
+     */
+    public ErpcServer erpcServer() {
+        return erpcServer;
+    }
+
     public Props env() {
         return env;
     }
@@ -212,6 +290,7 @@ public class Container {
             state.checkTransitionTo(ContainerState.ATTACHED);  // NEW -> ATTACHED
             this.edap = edap;
             this.env  = edap.getProps().child("container");
+            this.rootProps = edap.getProps();
             this.appServerGroup = sg;
 
             // 按 capabilities 建对应协议 Server 实例。所有 app 共享端口（同一 Container 内
@@ -219,16 +298,42 @@ public class Container {
             // 不同端口需求 → 起多个 Container（每个 Container 独立进程、独立 classloader、
             // 互不干扰）。
             //
-            // 当前依赖只覆盖 edap-http-server；WS / eRPC / gRPC Server impl 暂缺，留 TODO
-            // 等对应 server impl jar 加入依赖后再启用。
+            // 当前依赖覆盖 edap-http-server（HTTP/WS）与 edap-grpc-server（gRPC）；
+            // eRPC Server impl 暂缺，留 TODO 等对应 server impl jar 加入依赖后再启用。
             if (capabilities.contains(Capability.HTTP)) {
                 int httpPort = env.getInt("http.port", 8080);
                 HttpServer http = new HttpServer();
                 http.listen(httpPort);
                 sg.addServer(http);
                 this.httpServer = http;                          // rebuildHttpMapping 时引用
+
+                // ★ TLS 端口：按 container.http.tls.* 加载证书，起一个 HTTPS 端口。
+                //   ALPN 默认是 h2,http/1.1 ⇒ 同一个端口上既跑 HTTP/2 over TLS，
+                //   也跑 HTTP/1.1 over TLS（老客户端）。
+                //   不开 container.http.tls.enabled 就不起这个端口 —— 行为与改造前完全一致。
+                if (ContainerTlsConfig.enabled(env)) {
+                    this.tlsHttpServer = createTlsHttpServer();
+                    sg.addServer(this.tlsHttpServer);
+                }
             }
-            // TODO: Capability.WS / ERPC / GRPC Server 实例创建
+            if (capabilities.contains(Capability.GRPC)) {
+                // gRPC 独立端口：客户端直发 HTTP/2 prior-knowledge（不做 h2c 升级探测），
+                // 与 HTTP/WS 的 8080 端口互不干扰。
+                int grpcPort = env.getInt("grpc.port", 9091);
+                GrpcServer grpc = new GrpcServer();
+                grpc.listen(grpcPort);
+                sg.addServer(grpc);
+                this.grpcServer = grpc;                          // rebuildGrpcMapping 时引用
+            }
+            if (capabilities.contains(Capability.ERPC)) {
+                // eRPC 独立端口：自定义二进制帧协议，与 HTTP/WS(8080)、gRPC(9091) 都不同端口。
+                int erpcPort = env.getInt("erpc.port", CoreConstant.ERPC_PORT);
+                ErpcServer erpc = new ErpcServer();
+                erpc.listen(erpcPort);
+                sg.addServer(erpc);
+                this.erpcServer = erpc;                          // rebuildErpcMapping 时引用
+            }
+            // TODO: Capability.WS Server 实例创建
 
             // 框架级 Bean 容器：注册 edap 内置功能默认实现（开箱即用，应用 bean 可覆盖）
             initContainerBeans();
@@ -246,6 +351,54 @@ public class Container {
 
     public Edap getEdap() {
         return this.edap;
+    }
+
+    /**
+     * 按 {@code container.http.tls.*} 配置创建 TLS 版 HTTP Server。
+     *
+     * <p><b>★ 证书不可用 ⇒ 启动失败（fail-fast）</b>：PEM 文件读不出来、keystore 缺失、
+     * 口令错、类型不对，都会抛 {@link IllegalStateException}。
+     * 这里<b>不吞异常、不静默降级成明文</b> —— 配了 TLS 却悄悄跑明文是最难查的失败模式
+     * （客户端会报「SSL 握手失败」，而服务端日志里什么都看不出来）。</p>
+     *
+     * <p>端口与明文端口<b>分端口</b>（框架既定模型，不做同端口 mux）；路由表共用，
+     * 由 {@link #rebuildHttpMapping()} 把同一个 {@link PathInfoMatcher} 发布给两个 server。</p>
+     */
+    private TlsHttpServer createTlsHttpServer() {
+        TlsConfig cfg;
+        TlsContext context;
+        try {
+            cfg = ContainerTlsConfig.from(env);
+            context = TlsContext.create(cfg);
+        } catch (RuntimeException e) {
+            log.error("TLS 端口启动失败（container.http.tls.*）：", l -> l.threw(e));
+            throw e;
+        }
+        int tlsPort = env.getInt("http.tls.port", 8443);
+        TlsHttpServer tls = new TlsHttpServer(context);
+        tls.listen(tlsPort);
+        log.info("TLS 端口已就绪：{}，ALPN={}", l -> l.arg(tlsPort).arg(Arrays.toString(cfg.getAlpnProtocols())));
+        return tls;
+    }
+
+    /**
+     * 注入进程级 raft 启动器（Bootstrap 调）。
+     *
+     * <p>不注入 = 容器不起 raft 节点 —— {@code container.raft.enabled} 只在
+     * 启动器存在时才有意义。</p>
+     */
+    public void setRaftBootstrap(ContainerRaftBootstrap raftBootstrap) {
+        this.raftBootstrap = raftBootstrap;
+    }
+
+    /**
+     * 当前容器里的 raft 节点。
+     *
+     * <p>没起 raft（{@code container.raft.enabled=false}）、集群已满只能做客户端、
+     * 或者还没启动完成时都可能拿不到节点。</p>
+     */
+    public RaftClusterNode raftNode() {
+        return raftBootstrap == null ? null : raftBootstrap.node();
     }
 
     /**
@@ -630,6 +783,10 @@ public class Container {
             lifecycleLock.unlock();
         }
 
+        // 进程级 raft：按 container.raft.* 配置自动成组 —— 使用者不需要写任何注解。
+        // 放在 app 恢复之前：集群身份要先定下来，app 恢复期间的写才有地方落。
+        startRaft();
+
         // 锁外做恢复；restoreToSlot() 内部用各自 appId 的 appLock 串行（不同 appId 并行）
         List<String> appIds = readDeployAppIds();
         for (String appId : appIds) {
@@ -664,6 +821,10 @@ public class Container {
         }
         // 启动恢复末位 rebuild HTTP mapping：所有 current 指针已就位，dispatch 必须 ready 才接受流量
         rebuildHttpMapping();
+        // gRPC 路由表同理：启动恢复结束时 current 槽的 ctx 已全部就位，一次性发布
+        rebuildGrpcMapping();
+        // eRPC 路由表同理（表只从 CURRENT 槽读）
+        rebuildErpcMapping();
         // 把所有 current 槽 ctx 的 wsMsgHandlers rebind 到共享 wsHandler —— 老连接 session.wsHandler
         // 引用不变，但启动期第一次握手后 decode 即能命中新方法表（不存在"上次运行残留"问题，但
         // 保持与运行时一致的 rebind 路径，避免后续切版本时的代码差异）。
@@ -680,6 +841,28 @@ public class Container {
             state = ContainerState.RUNNING;                // STARTING -> RUNNING
         } finally {
             lifecycleLock.unlock();
+        }
+    }
+
+    /**
+     * 启动进程级 raft 节点。
+     *
+     * <p>没注入启动器（{@code raftBootstrap == null}）时什么都不做 ——
+     * {@code container.raft.enabled} 由启动器自己读。</p>
+     *
+     * <p><b>失败不阻断容器启动</b>：raft 起不来（网络不通、dataDir 不可写……）时
+     * 容器照常提供服务，但管理端口上的 {@code /raft/*} 端点会返回 503，
+     * 依赖 raft 落库的业务会失败 —— 这一点会打在启动日志里，别让它静悄悄过去。</p>
+     */
+    private void startRaft() {
+        ContainerRaftBootstrap rb = raftBootstrap;
+        if (rb == null) {
+            return;
+        }
+        try {
+            rb.start(edap, env, appsDir.getParentFile());
+        } catch (Throwable t) {
+            log.error("raft 节点启动失败：容器继续运行，但 /raft/* 端点会返回 503", l -> l.threw(t));
         }
     }
 
@@ -786,12 +969,23 @@ public class Container {
         }
         // 最终 rebuild HTTP mapping：所有 appId 已停 → 重建结果为空 mapping，dispatch 兜底 404
         rebuildHttpMapping();
+        // gRPC 路由表同样清空（所有 ctx 已 stop → CURRENT 槽为空 → 整表替换为空）
+        rebuildGrpcMapping();
+        // eRPC 路由表同样清空（所有 ctx 已 stop → CURRENT 槽为空 → 整表替换为空）
+        rebuildErpcMapping();
         // 清空 wsHandlers map：所有 AppContext 已 stop，map entry 的 ServiceWSHandler 实例
         // 无外部引用（dispatch 路径已空），显式 clear 让 wsHandler 随 map 一起释放。
         wsHandlers.clear();
         // PREVIOUS 槽的延迟 stop 已经在上面的循环里逐个 cancelRelease() 撤掉了 ——
         // 平台时间轮是全平台共享的，不能像以前那样 shutdown 整个调度器，
         // 否则会连带干掉别的消费方（Raft tick / NIO 空闲回收）的任务。
+
+        // 停进程级 raft：放在业务之后 —— 先让 app 把在途的 raft 写入收完，
+        // 再停 raft 节点（停节点会把 applied index 落盘，供下次启动去重）。
+        ContainerRaftBootstrap rb = raftBootstrap;
+        if (rb != null) {
+            rb.stop();
+        }
 
         lifecycleLock.lock();
         try {
@@ -938,6 +1132,11 @@ public class Container {
             //     deploy() 路径 target 只可能是 STAGING（firstEmptySlot 永不返回 CURRENT/PREVIOUS），
             //     不拨 currentRouters —— STAGING 不接流量，需 switchVersion(staging → current) 才上线
             rebuildHttpMapping();
+            // gRPC 路由表同样 rebuild —— STAGING 槽不参与（表只从 CURRENT 槽读），
+            // 所以这里的重建结果与上一版一致（no-op 语义），保持与 HTTP 侧同一条发布路径。
+            rebuildGrpcMapping();
+            // eRPC 路由表同样 rebuild —— STAGING 槽不参与，语义与 gRPC 侧一致
+            rebuildErpcMapping();
             // 注意：deploy() 末尾不 rebind 共享 wsHandler.msgHandlers —— STAGING 不接流量，
             // 此时 rebind 会让 STAGING 的 method 表被 dispatch 路径看到，与"STAGING 不接流量"
             // 语义冲突。rebind 时机推迟到 switchVersion(staging → current) 末尾。
@@ -1034,6 +1233,10 @@ public class Container {
 //                currentRouters.put(appId, ctx.routers());
 //            }
             rebuildHttpMapping();
+            // gRPC 路由表同理（表只从 CURRENT 槽读）
+            rebuildGrpcMapping();
+            // eRPC 路由表同理（表只从 CURRENT 槽读）
+            rebuildErpcMapping();
             // 只在恢复 CURRENT 槽时 rebind —— PREVIOUS / STAGING 不接流量，与 deploy() 同理。
             if (slot == Slot.CURRENT) {
                 rebindCurrentWsHandlers(registry.get(appId));
@@ -1140,6 +1343,10 @@ public class Container {
             // 3. 清掉 currentRouters 指针：被卸的是 current → 业务不再接流量；非 current 不动
             // 3.5 rebuild HTTP mapping：current 变动必触发；非 current 变动 → 重建是 no-op（指针未动）
             rebuildHttpMapping();
+            // 3.55 rebuild gRPC 路由表：current 变动必触发
+            rebuildGrpcMapping();
+            // eRPC 路由表同理（表只从 CURRENT 槽读）
+            rebuildErpcMapping();
             // 3.6 rebind 共享 wsHandler.msgHandlers：被卸的若是 current，新 current（如果有）
             //     已经接过 ctx.stop() 之外的 slot 切换；dispatch 表换了，但 wsHandler 内的
             //     msgHandlers 还是老 ctx 的 method 表 —— 用新 current 的 wsMsgHandlers 覆盖。
@@ -1214,6 +1421,10 @@ public class Container {
             //currentRouters.put(appId, next.current().routers());
             // rebuild HTTP mapping：current 指针动了 → 必须重建 dispatch 表
             rebuildHttpMapping();
+            // rebuild gRPC 路由表：current 指针动了 → 必须重建 dispatch 表（表只从 CURRENT 槽读）
+            rebuildGrpcMapping();
+            // eRPC 路由表同理（表只从 CURRENT 槽读）
+            rebuildErpcMapping();
             // 把 next.current() 的 wsMsgHandlers rebind 到 /ws 共享 wsHandler —— 老连接
             // session.wsHandler 引用不变，靠 msgHandlers 被替换感知新版本方法表。
             rebindCurrentWsHandlers(next);
@@ -1608,6 +1819,165 @@ public class Container {
         }
         pathInfoMatcher.setCache(combined);
         httpServer.setPathInfoMatcher(pathInfoMatcher);
+        // ★ TLS 端口共用同一张路由表 —— 两个 server 各自的 PathDecoder 都指向这个
+        //   PathInfoMatcher 实例，所以部署/切换版本对明文与 TLS 两个端口同时生效。
+        if (tlsHttpServer != null) {
+            tlsHttpServer.setPathInfoMatcher(pathInfoMatcher);
+        }
+    }
+
+    /**
+     * 重建 gRPC 路由表（{@code :path → GrpcMethod}），整张发布到 {@link GrpcServer#setMethods}。
+     *
+     * <p><b>数据来源</b>：直接读 registry <b>CURRENT 槽</b>的 {@link AppContext#grpcMethodsByPath()}。
+     * 不用「Container 侧再存一份 per-app 表」的写法（HTTP 侧的 {@link #appPathTables} 就是那么做的）：
+     * 那张表按 appId 覆盖，STAGING 槽的 ctx 一 start 就把老 CURRENT 版本的表顶掉 → STAGING
+     * 提前接流量。gRPC 不复制这个坑 —— 表的归属权留在 AppContext（谁部署谁持有），
+     * Container 只在发布时刻读 CURRENT 槽的那一份。</p>
+     *
+     * <p>STAGING / PREVIOUS 槽不参与：前者已部署但未上线，后者只为承接 in-flight。</p>
+     *
+     * <p><b>发布时机</b>：与 {@link #rebuildHttpMapping()} 完全对称 —— start 恢复末尾、
+     * Container.stop 末尾、deploy 末尾、restoreToSlot、undeploy、switchVersion 六处。
+     * dispatch 热路径无锁读（{@code GrpcServer.methods} 是 volatile 整表替换）。</p>
+     */
+    private void rebuildGrpcMapping() {
+        if (grpcServer == null) {
+            return;                                        // GRPC capability 未启用
+        }
+        Map<String, GrpcMethod> combined = new HashMap<>();
+        for (Map.Entry<String, SlotEntry> appEntry : registry.entrySet()) {
+            AppContext cur = appEntry.getValue().current();
+            if (cur == null) {
+                continue;                                  // 该 appId 暂无 current 槽位
+            }
+            Map<String, GrpcMethod> t = cur.grpcMethodsByPath();
+            if (t == null || t.isEmpty()) {
+                continue;
+            }
+            // 同 path 跨 app 冲突：后注册者覆盖前者（gRPC 的 :path 全局唯一，
+            // 与 HTTP 的「按 method 下标合并」不同 —— gRPC 没有 method 维度）。
+            combined.putAll(t);
+        }
+        grpcServer.setMethods(combined);
+    }
+
+    /**
+     * 重建 eRPC 路由表（{@code methodId → ErpcMethod}），整张发布到 {@link ErpcServer#setMethods}。
+     *
+     * <p><b>数据来源</b>：直接读 registry <b>CURRENT 槽</b>的 {@link AppContext#erpcMethodsByKey()}。
+     * 与 gRPC 侧同构 —— 表的归属权留在 AppContext（谁部署谁持有），Container 只在发布时刻读
+     * CURRENT 槽的那一份。</p>
+     *
+     * <p><b>methodId 在这里才定下来</b>：per-app 阶段只记录「方法是什么」（服务名 / 方法名 /
+     * handler / DTO 类型），因为 {@code increment} 策略需要<b>全局</b>方法键集合才能排序，
+     * 单个 app 看不到全局。合并时按 {@code edap.binding.erpc.methodIdStrategy} 统一分配。</p>
+     *
+     * <p><b>冲突 ⇒ fail-fast</b>：31 位空间下方法多了必然有生日碰撞；两个不同的方法算到同一个
+     * methodId ⇒ 请求会串 ⇒ 部署期直接失败（{@link RouteBindException}），不等运行期发现。</p>
+     *
+     * <p><b>发布时机</b>：与 {@link #rebuildGrpcMapping()} 完全对称 —— start 恢复末尾、
+     * Container.stop 末尾、deploy 末尾、restoreToSlot、undeploy、switchVersion 六处。
+     * dispatch 热路径无锁读（{@code ErpcServer.methods} 是 volatile 整表替换）。</p>
+     */
+    private void rebuildErpcMapping() {
+        if (erpcServer == null) {
+            return;                                        // ERPC capability 未启用
+        }
+        Map<String, ErpcMethodDef> byKey = new HashMap<>();
+        for (Map.Entry<String, SlotEntry> appEntry : registry.entrySet()) {
+            AppContext cur = appEntry.getValue().current();
+            if (cur == null) {
+                continue;                                  // 该 appId 暂无 current 槽位
+            }
+            Map<String, ErpcMethodDef> t = cur.erpcMethodsByKey();
+            if (t == null || t.isEmpty()) {
+                continue;
+            }
+            // 同方法键跨 app 冲突：后注册者覆盖前者（methodId 是方法键的纯函数 ——
+            // 两个 app 提供同一个服务方法 ⇒ 同一个 methodId ⇒ 本来就是同一个方法）。
+            byKey.putAll(t);
+        }
+        erpcServer.setMethods(buildErpcMethods(byKey));
+    }
+
+    /**
+     * 给一批 eRPC 方法分配 methodId 并组装成路由表。
+     *
+     * <p><b>显式 id 优先</b>：方法上写了 {@code @ProtoErpc(methodId = ...)}（对应 proto 的
+     * {@code option (edap.rpc).method = ...}）时用那个号，其余方法按策略自动分配 ——
+     * 自动分配的那批会把显式号排除在外，避免「显式号刚好落在自动号区间里」的无谓冲突。</p>
+     */
+    private Map<Integer, ErpcMethod> buildErpcMethods(Map<String, ErpcMethodDef> byKey) {
+        if (byKey.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        ErpcMethodIds.Strategy strategy =
+                ErpcMethodIds.Strategy.of(erpcBindingString("methodIdStrategy", "hash"));
+        long seed = erpcBindingLong("hashSeed", ErpcMethodIds.DEFAULT_SEED);
+
+        Map<String, Integer> explicit = new HashMap<>();
+        List<String> autoKeys = new ArrayList<>();
+        for (Map.Entry<String, ErpcMethodDef> e : byKey.entrySet()) {
+            if (e.getValue().getExplicitMethodId() > 0) {
+                explicit.put(e.getKey(), e.getValue().getExplicitMethodId());
+            } else {
+                autoKeys.add(e.getKey());
+            }
+        }
+        Map<String, Integer> assigned = ErpcMethodIds.assignAll(strategy, autoKeys, seed);
+
+        Map<Integer, ErpcMethod> out = new HashMap<>();
+        Map<Integer, String> owner = new HashMap<>();
+        for (Map.Entry<String, ErpcMethodDef> e : byKey.entrySet()) {
+            String key = e.getKey();
+            ErpcMethodDef def = e.getValue();
+            Integer id = explicit.get(key);
+            if (id == null) {
+                id = assigned.get(key);
+            }
+            if (id == null || id <= 0) {
+                throw new RouteBindException(null, def.getMethodName(), new Class<?>[0],
+                        new IllegalStateException("eRPC 方法 " + key + " 没有分配到 methodId"));
+            }
+            String prev = owner.put(id, key);
+            if (prev != null && !prev.equals(key)) {
+                throw new RouteBindException(null, def.getMethodName(), new Class<?>[0],
+                        new IllegalStateException("eRPC methodId 冲突：" + prev + " 与 " + key + " 都算到了 " + id));
+            }
+            out.put(id, new ErpcMethod(id, def.getServiceName(), def.getMethodName(),
+                    def.getHandler(), def.getReqType(), def.getRespType()));
+        }
+        return out;
+    }
+
+    /**
+     * 读 {@code edap.binding.erpc.<key>}。
+     *
+     * <p>绑定规则不在 {@code container} 子树里（{@link #env} 只覆盖 container），
+     * 所以走根配置 {@link #rootProps} 的完整路径。</p>
+     */
+    private String erpcBindingString(String key, String defaultValue) {
+        if (rootProps == null) {
+            return defaultValue;
+        }
+        try {
+            return rootProps.getString("binding.erpc." + key, defaultValue);
+        } catch (RuntimeException e) {
+            return defaultValue;
+        }
+    }
+
+    /** 读 {@code edap.binding.erpc.<key>}（数值型）。 */
+    private long erpcBindingLong(String key, long defaultValue) {
+        if (rootProps == null) {
+            return defaultValue;
+        }
+        try {
+            return rootProps.getLong("binding.erpc." + key, defaultValue);
+        } catch (RuntimeException e) {
+            return defaultValue;
+        }
     }
 
     /**

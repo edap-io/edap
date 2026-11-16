@@ -3,7 +3,7 @@ package io.edap.container.app;
 import io.edap.container.ws.WSServiceMsgHandler;
 import io.edap.grpc.GrpcHandler;
 import io.edap.http.HttpHandler;
-import io.edap.rpc.ErpcHandler;
+import io.edap.erpc.ErpcHandler;
 
 import java.util.ArrayList;
 import java.util.List;

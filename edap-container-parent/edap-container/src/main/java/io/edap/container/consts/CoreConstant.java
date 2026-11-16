@@ -15,9 +15,12 @@ public class CoreConstant {
      */
     public static final int HTTP_PORT = 8080;
     /**
-     * edap自定义微服务的默认端口号
+     * edap自定义微服务（eRPC）的默认端口号。
+     *
+     * <p>与 README §5 的「ERPC[eRPC :9090]」一致 —— eRPC 是自定义二进制帧协议，
+     * 与 HTTP/WS(8080)、gRPC(9091) 都不同端口。</p>
      */
-    public static final int ERPC_PORT = 8081;
+    public static final int ERPC_PORT = 9090;
 
     public static final String APP_SERVER_GROUO_KEY = "app_server";
     /**
