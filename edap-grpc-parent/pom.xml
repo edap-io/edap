@@ -15,8 +15,12 @@
         <module>edap-grpc-api</module>
         <module>edap-grpc-server</module>
         <module>edap-grpc-client</module>
-        <!-- 性能对比基准模块：唯一引入 google 系依赖的地方，不进任何运行时产物 -->
-        <module>edap-grpc-benchmark</module>
+        <!--
+            ★ 性能对比基准模块（唯一引入 google 系依赖的地方，不进任何运行时产物）
+              不在这里直接挂载，而是挂到下面的 profiles 里 ——
+              原因见 profiles 前的说明：它需要 google 的 protoc 可执行文件，
+              而 protoc 没有 Solaris/SPARC 的预编译产物。
+        -->
     </modules>
 
     <properties>
@@ -24,5 +28,89 @@
         <maven.compiler.target>17</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
+
+    <!--
+        ★★ 为什么 edap-grpc-benchmark 要按平台挂载（而不是无条件放在 <modules> 里）
+        ──────────────────────────────────────────────────────────────────────
+        本模块要用 **google 的 protoc**（protobuf-maven-plugin）生成两份代码：
+          · Bench.java           —— protobuf-java 的消息类
+          · BenchServiceGrpc.java —— grpc-java 的服务 stub
+        而 protoc 是**预编译二进制**分发，官方只发布 5 个平台：
+          linux-x86_64 / linux-aarch_64 / osx-x86_64 / osx-aarch_64 / windows-x86_64
+        ⇒ **Solaris/SPARC（CI 的 build-01）上根本没有 protoc**，
+          os-maven-plugin 解析出的 classifier 是 `sunos-sparc_64`
+          ⇒ `com.google.protobuf:protoc:exe:sunos-sparc_64:3.25.9` 解析不到
+          ⇒ 插件在 generate-sources 阶段直接失败（protoc-gen-grpc-java 同理）。
+
+        而本模块是**开发期工具**（不进 edap-container-boot-lib.txt，不进任何运行时产物），
+        在没有 protoc 的平台上**它整个建不出来** ⇒ 正确的处理是
+        **在那些平台上把它踢出 reactor**，而不是让 CI 在这一步红掉。
+
+        判定口径：os.arch ∈ {amd64, x86_64, aarch64} 且 os.family ∈ {unix, windows}
+        —— 恰好就是 protoc 有预编译产物的那几种 CPU 架构。
+        ★ os.arch 的坑：Linux/Windows 上是 **amd64**，macOS 上是 **x86_64**，
+          ARM 上是 **aarch64** ⇒ 三个都要写，漏一个就少一个平台。
+        ★ Solaris/SPARC 的 os.arch 是 **sparc**（或 sparcv9）⇒ 天然不在名单里。
+        ★ 这几个 profile 的 arch 取值互斥 ⇒ 同一时刻最多命中一个
+          ⇒ 不会出现「两个 profile 都往 <modules> 里加同一个模块」的重复声明。
+
+        注：本模块自己的 pom 里仍然保留 protoc 插件配置 ——
+            万一有人在不支持的平台上单独构建本模块（mvn -f edap-grpc-benchmark/pom.xml），
+            会看到 protoc 解析失败的原始报错（而不是被静默跳过）。
+    -->
+    <profiles>
+        <profile>
+            <id>benchmark-unix-amd64</id>
+            <!-- Linux x86_64 → protoc:exe:linux-x86_64 -->
+            <activation>
+                <os>
+                    <family>unix</family>
+                    <arch>amd64</arch>
+                </os>
+            </activation>
+            <modules>
+                <module>edap-grpc-benchmark</module>
+            </modules>
+        </profile>
+        <profile>
+            <id>benchmark-unix-x86_64</id>
+            <!-- macOS Intel → protoc:exe:osx-x86_64 -->
+            <activation>
+                <os>
+                    <family>unix</family>
+                    <arch>x86_64</arch>
+                </os>
+            </activation>
+            <modules>
+                <module>edap-grpc-benchmark</module>
+            </modules>
+        </profile>
+        <profile>
+            <id>benchmark-unix-aarch64</id>
+            <!-- Linux/macOS ARM → protoc:exe:{linux,osx}-aarch_64 -->
+            <activation>
+                <os>
+                    <family>unix</family>
+                    <arch>aarch64</arch>
+                </os>
+            </activation>
+            <modules>
+                <module>edap-grpc-benchmark</module>
+            </modules>
+        </profile>
+        <profile>
+            <id>benchmark-windows-amd64</id>
+            <!-- Windows x86_64 → protoc:exe:windows-x86_64 -->
+            <activation>
+                <os>
+                    <family>windows</family>
+                    <arch>amd64</arch>
+                </os>
+            </activation>
+            <modules>
+                <module>edap-grpc-benchmark</module>
+            </modules>
+        </profile>
+    </profiles>
 
 </project>
