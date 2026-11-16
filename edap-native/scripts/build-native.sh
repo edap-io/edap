@@ -27,54 +27,75 @@ for arg in "$@"; do
     esac
 done
 
-# 解析 JAVA_HOME
+# --- JAVA_HOME ---
+# macOS 有 /usr/libexec/java_home；Solaris 没有（/usr/java/jdk*）⇒ 逐个来源兜底。
 if [ -z "$JAVA_HOME" ]; then
-    JAVA_HOME=$(/usr/libexec/java_home)
+    if [ -x /usr/libexec/java_home ]; then
+        JAVA_HOME=$(/usr/libexec/java_home)
+    elif command -v java >/dev/null 2>&1; then
+        JAVA_HOME=$(dirname "$(dirname "$(command -v java)")")
+    fi
+fi
+if [ -z "$JAVA_HOME" ] || [ ! -x "${JAVA_HOME}/bin/java" ]; then
+    echo "找不到可用的 JDK：请先 export JAVA_HOME=<JDK17 路径>" >&2
+    echo "  (macOS: /usr/libexec/java_home -v 17；Solaris: /usr/java/jdk17)" >&2
+    exit 1
 fi
 JAVA="${JAVA_HOME}/bin/java"
+JAVAC="${JAVA_HOME}/bin/javac"
+if [ ! -x "${JAVAC}" ]; then
+    echo "需要 JDK（javac 缺失）：${JAVAC}" >&2
+    exit 1
+fi
 
-# --- os / arch ---
-# ★ 必须以「JVM 看到的 os.name / os.arch」为准，不能用 uname：
-#   运行时 Native.java 是按 System.getProperty("os.name"/"os.arch") 归一化后
-#   去取 edap-native-{os}_{arch}.o 的 —— 名字对不上，产物就白编译。
-#   Solaris 上 uname -m 与 JVM 的 os.arch 未必一致（sparc vs sparcv9），
-#   这里直接问 JVM；uname 只作为兜底（JVM 起不来时）。
-jvm_property() {
-    "$JAVA" -XshowSettings:properties -version 2>&1 \
-        | awk -F'= ' -v key="$1" '$1 == key {gsub(/^[ \t]+|[ \t]+$/, "", $2); print $2; exit}'
+# --- 平台识别：直接问 JVM ---
+# ★ 唯一事实源 = io.edap.jni.Platform（运行时 Native 用的就是它）：
+#   这里用 javac 把它编译出来再运行，拿到与运行时**逐字节一致**的 os / arch / 产物名。
+#   ★ 为什么不能问 uname：Solaris/SPARC 上 `uname -m` 恒为 sun4v，
+#     而 JVM 的 os.arch 是 sparcv9（64 位 JDK）—— 两者不是一回事，
+#     按 uname 取名 ⇒ 运行时按 os.arch 找文件必然找不到 ⇒ native 静默不加载，
+#     所有加密悄悄退回 JVM 内置实现。
+#   （历史教训：本脚本曾用 awk 解析 `-XshowSettings:properties`，但 $1 带前导空格
+#     永远匹配不上 key ⇒ 一直静默退回 uname，macOS 上碰巧对、Solaris 上直接错。）
+PLATFORM_SRC="src/main/java/io/edap/jni/Platform.java"
+PLATFORM_CLASSES="target/platform-classes"
+rm -rf "${PLATFORM_CLASSES}"
+mkdir -p "${PLATFORM_CLASSES}"
+"${JAVAC}" -d "${PLATFORM_CLASSES}" "${PLATFORM_SRC}"
+PLATFORM_INFO=$("${JAVA}" -cp "${PLATFORM_CLASSES}" io.edap.jni.Platform)
+
+platform_field() {
+    printf '%s\n' "${PLATFORM_INFO}" | sed -n "s/^$1=//p" | head -1
 }
-RAW_OS_NAME=$(jvm_property os.name || true)
-RAW_OS_ARCH=$(jvm_property os.arch || true)
-[ -z "$RAW_OS_NAME" ] && RAW_OS_NAME=$(uname -s)
-[ -z "$RAW_OS_ARCH" ] && RAW_OS_ARCH=$(uname -m)
 
-# 归一化规则与 io.edap.jni.Native.normalizeOs / normalizeArch 逐条对齐
-OS_RAW=$(echo "$RAW_OS_NAME" | tr '[:upper:]' '[:lower:]')
-case "$OS_RAW" in
-    *mac*|*darwin*)   OS="macos" ;;
-    *linux*)          OS="linux" ;;
-    *sunos*|*solaris*) OS="sunos" ;;
-    *win*)            OS="windows" ;;
-    *freebsd*)        OS="freebsd" ;;
-    *) echo "unsupported OS: $RAW_OS_NAME" >&2; exit 1 ;;
+RAW_OS_NAME=$(platform_field os.name)
+RAW_OS_ARCH=$(platform_field os.arch)
+OS=$(platform_field os)
+ARCH=$(platform_field arch)
+LIB_NAME=$(platform_field name)
+
+if [ -z "${LIB_NAME}" ]; then
+    echo "无法从 JVM 解析平台信息（Platform 没有输出）：" >&2
+    printf '%s\n' "${PLATFORM_INFO}" >&2
+    exit 1
+fi
+
+case "${OS}" in
+    macos|linux|sunos) ;;
+    *)
+        echo "unsupported OS: ${RAW_OS_NAME}（归一化结果 '${OS}'）" >&2
+        echo "  本脚本只支持 macos / linux / sunos" >&2
+        exit 1
+        ;;
 esac
-
-ARCH_RAW=$(echo "$RAW_OS_ARCH" | tr '[:upper:]' '[:lower:]')
-case "$ARCH_RAW" in
-    amd64|x86_64)          ARCH="x86_64" ;;
-    aarch64|arm64)         ARCH="aarch64" ;;
-    x86|i386|i486|i586|i686) ARCH="x86" ;;
-    sparc|sparcv9)         ARCH="$ARCH_RAW" ;;   # Solaris/SPARC：透传，与 Native.normalizeArch 一致
-    *) echo "unsupported arch: $RAW_OS_ARCH" >&2; exit 1 ;;
-esac
-
-LIB_NAME="edap-native-${OS}_${ARCH}.o"
 
 # --- 编译器 ---
 # Solaris 上 gcc 与 Sun Studio cc 的共享库参数不同：
 #   gcc → -shared -fPIC；cc(Sun Studio) → -shared -KPIC（不认 -fPIC）
 CC_BIN=""
-CC_FAMILY=""
+# ★ 保留调用方通过环境变量传入的 CC_FAMILY（Solaris 上区分 gcc 与 Sun Studio cc 需要它）：
+#   这里若直接清空，CC_FAMILY=studio 会被静默丢掉 ⇒ 用错共享库参数（-fPIC vs -KPIC）。
+CC_FAMILY="${CC_FAMILY:-}"
 case "$OS" in
     sunos)
         if [ -n "${CC:-}" ]; then
@@ -85,8 +106,8 @@ case "$OS" in
             CC_BIN="cc"; CC_FAMILY="studio"
         fi
         ;;
-    macos) CC_BIN="${CC:-clang}"; CC_FAMILY="clang" ;;
-    linux) CC_BIN="${CC:-gcc}"; CC_FAMILY="gcc" ;;
+    macos) CC_BIN="${CC:-clang}"; CC_FAMILY="${CC_FAMILY:-clang}" ;;
+    linux) CC_BIN="${CC:-gcc}"; CC_FAMILY="${CC_FAMILY:-gcc}" ;;
 esac
 
 case "$CC_FAMILY" in
@@ -194,19 +215,50 @@ EXPECTED_SYMBOLS=(
     Java_io_edap_jni_crypto_NativeMac_hmacSha2560
     Java_io_edap_jni_crypto_NativeMac_hmacSha10
 )
-NM_OUT=$(nm -gU "${OUT_DIR}/${LIB_NAME}" 2>/dev/null || nm -g "${OUT_DIR}/${LIB_NAME}" 2>/dev/null || true)
-MISSING=0
-for sym in "${EXPECTED_SYMBOLS[@]}"; do
-    if echo "${NM_OUT}" | grep -q "${sym}"; then
-        echo "  ok   ${sym}"
-    else
-        echo "  MISS ${sym}" >&2
-        MISSING=1
+
+# nm 的参数各家不同：GNU 认 -g / -D，Solaris 的 nm 不认 -g（-g 在那边是别的意思，
+# 裸 nm 与 -D 才是对的）。逐个尝试、合并有输出的结果；
+# 若 nm 完全不可用 ⇒ 只跳过符号自检，绝不误判成「符号缺失」把构建打断。
+NM_OUT=""
+for nm_opt in "" "-D" "-g"; do
+    # shellcheck disable=SC2086
+    nm_out=$(nm ${nm_opt} "${OUT_DIR}/${LIB_NAME}" 2>/dev/null || true)
+    if [ -n "${nm_out}" ]; then
+        NM_OUT="${NM_OUT}${nm_out}"$'\n'
     fi
 done
-if [ "$MISSING" != "0" ]; then
-    echo "missing JNI symbols — aborting" >&2
-    exit 1
+
+# 判断符号是否「已定义」：nm 输出里未定义符号的类型字母是 U。
+# 兼容 GNU（"0000000000001159 T sym"）与 Solaris（"    3e0 T sym"）两种格式。
+symbol_defined() {
+    printf '%s\n' "${NM_OUT}" \
+        | grep -F -- "$1" \
+        | awk '{
+              line = $0
+              sub(/^[ \t]+/, "", line)
+              sub(/^[0-9a-fA-F]+[ \t]+/, "", line)
+              t = substr(line, 1, 1)
+              if (t != "U" && t != "u") { print "yes"; exit }
+          }' \
+        | grep -q "yes"
+}
+
+if [ -z "${NM_OUT}" ]; then
+    echo "  warn: nm 在本平台不可用，跳过符号自检"
+else
+    MISSING=0
+    for sym in "${EXPECTED_SYMBOLS[@]}"; do
+        if symbol_defined "${sym}"; then
+            echo "  ok   ${sym}"
+        else
+            echo "  MISS ${sym}" >&2
+            MISSING=1
+        fi
+    done
+    if [ "$MISSING" != "0" ]; then
+        echo "missing JNI symbols — aborting" >&2
+        exit 1
+    fi
 fi
 
 file "${OUT_DIR}/${LIB_NAME}"
