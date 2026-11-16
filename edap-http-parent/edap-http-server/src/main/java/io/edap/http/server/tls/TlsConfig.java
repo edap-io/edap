@@ -42,9 +42,15 @@ import java.util.List;
  *   <tr><td>{@code edap.http.tls.keyStoreType}</td><td>keystore 类型</td><td>取 {@code javax.net.ssl.keyStoreType}，否则 {@code PKCS12}</td></tr>
  *   <tr><td>{@code edap.http.tls.keyAlias}</td><td>私钥别名</td><td>取 {@code javax.net.ssl.key.alias}，否则用 keystore 里第一个</td></tr>
  *   <tr><td>{@code edap.http.tls.keyPassword}</td><td>私钥口令</td><td>取 keyStorePassword</td></tr>
+ *   <tr><td>{@code edap.http.tls.certificate}</td><td>PEM 证书链路径（{@code fullchain.cer}）</td><td>无</td></tr>
+ *   <tr><td>{@code edap.http.tls.privateKey}</td><td>PEM 私钥路径（{@code www.example.com.key}）</td><td>无</td></tr>
  *   <tr><td>{@code edap.http.tls.protocols}</td><td>逗号分隔的 TLS 版本</td><td>{@code TLSv1.3,TLSv1.2}</td></tr>
  *   <tr><td>{@code edap.http.tls.alpn}</td><td>逗号分隔的 ALPN 协议</td><td>{@code h2,http/1.1}</td></tr>
  * </table>
+ *
+ * <p><b>★ keystore 与 PEM 两条路</b>：配了 {@code certificate} + {@code privateKey}
+ * 就走 PEM（CA 签发证书的原生交付形态）；否则走 keystore。两条路互斥，
+ * <b>PEM 优先</b>。</p>
  */
 public final class TlsConfig {
 
@@ -61,6 +67,15 @@ public final class TlsConfig {
     private String keyStoreType = "PKCS12";
     private String keyAlias;
     private String keyPassword;
+    /**
+     * PEM 证书链路径（{@code fullchain.cer}）。与 {@link #keyStorePath} 二选一，
+     * 配了它就走 PEM 路线（{@link PemKeyManager}）。
+     */
+    private String certificatePath;
+    /**
+     * PEM 私钥路径（{@code www.example.com.key}）。与 {@link #certificatePath} 配套使用。
+     */
+    private String privateKeyPath;
     private String[] protocols = {"TLSv1.3", "TLSv1.2"};
     private String[] alpnProtocols = {ALPN_H2, ALPN_HTTP_1_1};
     private String[] cipherSuites;
@@ -88,6 +103,8 @@ public final class TlsConfig {
         if (keyPwd != null) {
             config.keyPassword = keyPwd;
         }
+        config.certificatePath = System.getProperty(PROP_PREFIX + "certificate");
+        config.privateKeyPath = System.getProperty(PROP_PREFIX + "privateKey");
         String protos = System.getProperty(PROP_PREFIX + "protocols");
         if (protos != null) {
             config.protocols = split(protos);
@@ -144,6 +161,20 @@ public final class TlsConfig {
         return keyPassword;
     }
 
+    /**
+     * @return PEM 证书链路径；null 表示不走 PEM 路线
+     */
+    public String getCertificatePath() {
+        return certificatePath;
+    }
+
+    /**
+     * @return PEM 私钥路径；null 表示不走 PEM 路线
+     */
+    public String getPrivateKeyPath() {
+        return privateKeyPath;
+    }
+
     public String[] getProtocols() {
         return protocols;
     }
@@ -161,6 +192,8 @@ public final class TlsConfig {
         return "TlsConfig{keyStore=" + keyStorePath
                 + ", type=" + keyStoreType
                 + ", alias=" + keyAlias
+                + ", certificate=" + certificatePath
+                + ", privateKey=" + privateKeyPath
                 + ", protocols=" + Arrays.toString(protocols)
                 + ", alpn=" + Arrays.toString(alpnProtocols) + '}';
     }
@@ -190,6 +223,22 @@ public final class TlsConfig {
 
         public Builder keyPassword(String password) {
             config.keyPassword = password;
+            return this;
+        }
+
+        /**
+         * PEM 证书链路径（{@code fullchain.cer}）—— 与 {@link #privateKey(String)} 配套。
+         */
+        public Builder certificate(String path) {
+            config.certificatePath = path;
+            return this;
+        }
+
+        /**
+         * PEM 私钥路径（{@code www.example.com.key}）—— 与 {@link #certificate(String)} 配套。
+         */
+        public Builder privateKey(String path) {
+            config.privateKeyPath = path;
             return this;
         }
 

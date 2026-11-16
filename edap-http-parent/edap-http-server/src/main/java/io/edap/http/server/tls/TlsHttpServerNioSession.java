@@ -17,7 +17,10 @@
 package io.edap.http.server.tls;
 
 import io.edap.buffer.FastBuf;
+import io.edap.http.server.Http1Connection;
+import io.edap.http.server.HttpConnection;
 import io.edap.http.server.HttpServerNioSession;
+import io.edap.http.server.http2.Http2Connection;
 import io.edap.log.Logger;
 import io.edap.log.LoggerManager;
 
@@ -532,6 +535,39 @@ public class TlsHttpServerNioSession extends HttpServerNioSession {
     // ------------------------------------------------------------------
     // 应用层
     // ------------------------------------------------------------------
+
+    /**
+     * ★ 按 ALPN 协商结果选协议连接对象，<b>不嗅探</b>。
+     *
+     * <p>基类 {@code HttpServerNioSession#createConnection} 的默认实现是「嗅探前 3 字节，
+     * 看是不是 {@code "PRI"}」—— 那是明文 h2c 的做法（明文下没有别的信号）。
+     * 但 TLS 握手里 ALPN 已经<b>明确</b>协商出应用层协议（RFC 7301 / RFC 9113 §3.4）：
+     * 协商成 {@code h2} 就必须走 HTTP/2，协商成 {@code http/1.1} 就必须走 HTTP/1.1。</p>
+     *
+     * <p><b>★ 为什么必须以 ALPN 为准（而不是继续嗅探）</b>：嗅探会把「ALPN 协商成
+     * http/1.1、却发了 h2 连接前言」的客户端误判成 HTTP/2 —— 这违反 RFC 9113 §3.4
+     * （ALPN 协商结果与应用层协议必须一致）。</p>
+     *
+     * <p><b>为什么 carry 传空</b>：嗅探路径下 {@code HttpConnectionFactory} 会把「已经比对过的
+     * 前缀字节」交给连接对象（h2 用它推进 {@code prefacePos}，http/1.1 用它回放给解码器）。
+     * 走 ALPN 路径时<b>一个字节都还没比对过</b> ⇒ carry 必须为空：
+     * {@code Http2Connection} 会从输入缓冲完整比对 24 字节连接前言，
+     * {@code Http1Connection} 不回放任何字节、解码器直接吃整个缓冲。</p>
+     *
+     * <p><b>ALPN 为空 ⇒ 回退嗅探</b>：客户端没发 ALPN 扩展（老客户端、curl 默认不带 ALPN）
+     * 时协商不出协议，这时只能靠字节判断。</p>
+     */
+    @Override
+    protected HttpConnection createConnection(FastBuf buf) throws IOException {
+        String alpn = negotiatedProtocol;
+        if (TlsConfig.ALPN_H2.equals(alpn)) {
+            return new Http2Connection(this, null);
+        }
+        if (TlsConfig.ALPN_HTTP_1_1.equals(alpn)) {
+            return new Http1Connection(this, null);
+        }
+        return super.createConnection(buf);
+    }
 
     /**
      * 握手没完成之前没有应用层明文 —— 直接返回 false（不产出消息）。

@@ -56,13 +56,26 @@ public final class TlsContext {
     /**
      * 按配置创建 TLS 上下文。
      *
-     * @throws IllegalStateException keystore 不可用 / 证书不可读（配置错误属于启动期致命错误）
+     * <p><b>两条装配路线</b>（PEM 优先）：</p>
+     * <ol>
+     *   <li>配了 {@code certificate} + {@code privateKey} ⇒ 读 PEM 文件
+     *       （CA 签发证书的原生形态：{@code fullchain.cer} + {@code www.example.com.key}）；</li>
+     *   <li>否则 ⇒ 读 keystore（{@code javax.net.ssl.keyStore} 约定）。</li>
+     * </ol>
+     *
+     * @throws IllegalStateException keystore/PEM 不可用 / 证书不可读（配置错误属于启动期致命错误）
      */
     public static TlsContext create(TlsConfig config) {
+        String cert = config.getCertificatePath();
+        String key = config.getPrivateKeyPath();
+        if (cert != null && !cert.trim().isEmpty()) {
+            return createFromPem(config);
+        }
         String path = config.getKeyStorePath();
         if (path == null || path.isEmpty()) {
-            throw new IllegalStateException("TLS 缺少 keystore 配置（"
-                    + TlsConfig.PROP_PREFIX + "keyStore 或 javax.net.ssl.keyStore）");
+            throw new IllegalStateException("TLS 缺少证书配置（"
+                    + TlsConfig.PROP_PREFIX + "certificate + " + TlsConfig.PROP_PREFIX + "privateKey，"
+                    + "或 " + TlsConfig.PROP_PREFIX + "keyStore / javax.net.ssl.keyStore）");
         }
         try {
             KeyStore keyStore = KeyStore.getInstance(config.getKeyStoreType());
@@ -83,6 +96,21 @@ public final class TlsContext {
             return new TlsContext(ctx, config);
         } catch (Exception e) {
             throw new IllegalStateException("初始化 TLS 上下文失败: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * PEM 路线：证书链 + 私钥两个文件。
+     */
+    private static TlsContext createFromPem(TlsConfig config) {
+        KeyManager[] kms = PemKeyManager.create(config.getCertificatePath(), config.getPrivateKeyPath());
+        try {
+            SSLContext ctx = SSLContext.getInstance("TLS");
+            ctx.init(kms, null, null);
+            LOG.info("TLS context ready (PEM): {}", l -> l.arg(config.toString()));
+            return new TlsContext(ctx, config);
+        } catch (Exception e) {
+            throw new IllegalStateException("初始化 TLS 上下文失败(PEM): " + e.getMessage(), e);
         }
     }
 
