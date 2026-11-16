@@ -23,7 +23,9 @@ import io.edap.crypto.mac.MacProvider;
 import io.edap.crypto.mac.MacSession;
 import io.edap.crypto.mac.NativeMacProvider;
 
+import javax.crypto.Cipher;
 import javax.crypto.Mac;
+import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import java.security.MessageDigest;
 import java.security.Provider;
@@ -61,6 +63,11 @@ import java.util.Locale;
  * IPC），也可能解析到 {@code SUN}（纯软件）。两者的每次操作开销能差一个数量级 ——
  * 而「用哪个 provider」决定了上面所有数字的解释。
  * 所以探针会把 provider 名字一并打出来。</p>
+ *
+ * <p><b>Cipher 侧同理</b>（{@code cipher.*} 那几项）：Mac 付的那笔「key 导进 token」
+ * 成本，Cipher 到底要不要付？取决于 Solaris 把 {@code AES/GCM/NoPadding} 解析到哪个
+ * provider —— 表头会一并打出来。<b>这是先测后改的规矩</b>：不先确认 cipher 走的是
+ * PKCS#11，就不能说「cipher 有同样的问题」。</p>
  *
  * <p><b>测量口径</b>（遵 memory {@code feedback_benchmark_isolated_jvm}）：
  * <b>一个被测项一个 JVM</b>（父进程起子 JVM）—— 同 JVM 里连测多项，
@@ -140,6 +147,21 @@ public final class CryptoCostProbe {
     private static final SecretKeySpec KEY_SPEC = new SecretKeySpec(KEY, "HmacSHA256");
 
     /**
+     * cipher 用的 transformation（与 {@code JceCipherProvider.forTransformation} 一致）。
+     */
+    private static final String CIPHER_TRANSFORMATION = "AES/GCM/NoPadding";
+
+    /**
+     * cipher 用的 key（AES-256 ⇒ 32 字节）。
+     */
+    private static final byte[] CIPHER_KEY = new byte[32];
+
+    /**
+     * 预先建好的 cipher key spec —— 测 {@code Cipher.init} 时不把 key spec 的构造算进去。
+     */
+    private static final SecretKeySpec CIPHER_KEY_SPEC = new SecretKeySpec(CIPHER_KEY, "AES");
+
+    /**
      * 池化的 MessageDigest —— 放在静态字段里，JIT 逃逸分析消不掉它。
      */
     private static MessageDigest md;
@@ -148,6 +170,16 @@ public final class CryptoCostProbe {
      * 池化的 Mac —— 同上。
      */
     private static Mac mac;
+
+    /**
+     * 池化的 Cipher —— 同上。
+     */
+    private static Cipher cipher;
+
+    /**
+     * GCM IV 的自增计数（每次 init 都要一个新的 nonce）。
+     */
+    private static long cipherIvCounter;
 
     /**
      * native provider（不可用时为 null，对应的项标记为「跳过」）。
@@ -184,6 +216,7 @@ public final class CryptoCostProbe {
         System.out.println("provider 归属（JCE 每次操作的固定成本由它决定）：");
         System.out.println("  MessageDigest(SHA-256) -> " + providerOf("SHA-256"));
         System.out.println("  Mac(HmacSHA256)        -> " + providerOf("HmacSHA256"));
+        System.out.println("  Cipher(AES/GCM)        -> " + cipherProviderOf(CIPHER_TRANSFORMATION));
         System.out.println();
 
         List<Item> items = items();
@@ -372,6 +405,34 @@ public final class CryptoCostProbe {
                 "不池化：每次 getInstance + 每次新建 SecretKeySpec + update + doFinal", "",
                 CryptoCostProbe::realPathNewInstance));
 
+        // ---- Cipher (AES/GCM/NoPadding) ----
+        // 背景：Mac 那笔 ~130μs 的 key 导入成本来自 SunPKCS11 把 key 导进 token。
+        // Cipher 要不要付同一笔？取决于 Solaris 把 AES/GCM 解析到哪个 provider
+        // （父进程表头会打出来）。下面几项把「init 本身」和「key 对象是不是同一个」分开。
+        list.add(new Item("cipher.getInstance", 2000,
+                "Cipher.getInstance(\"AES/GCM/NoPadding\") 每次的代价", "",
+                CryptoCostProbe::newCipher));
+
+        list.add(new Item("cipher.keySpec", 20000,
+                "new SecretKeySpec(key, \"AES\")", "",
+                () -> new SecretKeySpec(CIPHER_KEY, "AES").hashCode()));
+
+        list.add(new Item("cipher.init", 20000,
+                "★ Cipher.init(同一个 SecretKeySpec 对象，每次新 IV) —— 含 GCM 参数设置", "",
+                CryptoCostProbe::initCipher));
+
+        list.add(new Item("cipher.initFreshKey", 20000,
+                "★ Cipher.init(每次新建 SecretKeySpec，字节相同，每次新 IV)", "",
+                CryptoCostProbe::initCipherFreshKey));
+
+        list.add(new Item("cipher.realPathPooled", 2000,
+                "★ edap-crypto 真实路径(修前)：池化实例 + 每次新建 SecretKeySpec + init + doFinal", "",
+                CryptoCostProbe::cipherRealPathPooled));
+
+        list.add(new Item("cipher.realPathCachedKeySpec", 2000,
+                "★ 同上(修后)：SecretKeySpec 复用同一个对象", "",
+                CryptoCostProbe::cipherRealPathCachedKeySpec));
+
         // ---- native 对照 ----
         list.add(new Item("native.digest64", 20000,
                 "一次完整 native 摘要（64B）", "",
@@ -525,6 +586,94 @@ public final class CryptoCostProbe {
         }
     }
 
+    /**
+     * 每次都新建一个 Cipher（测 getInstance 的代价）。
+     */
+    private static long newCipher() {
+        try {
+            return Cipher.getInstance(CIPHER_TRANSFORMATION).getBlockSize();
+        } catch (Exception e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    /**
+     * 对池化实例 init（测 init 的代价 —— 含 GCM 参数设置）。
+     *
+     * <p><b>每次都用新的 IV</b>：SunJCE 的 GCM 在<b>同一个 {@code Cipher} 实例</b>上
+     * 用同一个 IV 做第二次加密会抛
+     * {@code InvalidAlgorithmParameterException: Cannot reuse iv for GCM encryption}
+     * ⇒ 探针里固定 IV 会直接把这个测点打成 SKIP。</p>
+     */
+    private static long initCipher() {
+        try {
+            cipher().init(Cipher.ENCRYPT_MODE, CIPHER_KEY_SPEC, new GCMParameterSpec(128, cipherIv()));
+            return 0;
+        } catch (Exception e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    /**
+     * 同 {@link #initCipher()}，但<b>每次都新建</b>一个 {@link SecretKeySpec}（key 字节相同）。
+     *
+     * <p>这是 edap-crypto 修复前的写法 —— 用来分辨「JDK 缓存的是 key 对象本身
+     * 还是 key 字节」。</p>
+     */
+    private static long initCipherFreshKey() {
+        try {
+            cipher().init(Cipher.ENCRYPT_MODE, new SecretKeySpec(CIPHER_KEY, "AES"),
+                    new GCMParameterSpec(128, cipherIv()));
+            return 0;
+        } catch (Exception e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    /**
+     * edap-crypto 修复前的真实路径：池化实例 + 每次新建 SecretKeySpec + init + doFinal。
+     */
+    private static long cipherRealPathPooled() {
+        try {
+            Cipher c = cipher();
+            c.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(CIPHER_KEY, "AES"),
+                    new GCMParameterSpec(128, cipherIv()));
+            return c.doFinal(PAYLOAD_64)[0] & 0xff;
+        } catch (Exception e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    /**
+     * 同 {@link #cipherRealPathPooled()}，但复用同一个 {@link SecretKeySpec} 对象
+     * —— 这是「缓存 SecretKeySpec」这个候选修法的实测效果。
+     */
+    private static long cipherRealPathCachedKeySpec() {
+        try {
+            Cipher c = cipher();
+            c.init(Cipher.ENCRYPT_MODE, CIPHER_KEY_SPEC, new GCMParameterSpec(128, cipherIv()));
+            return c.doFinal(PAYLOAD_64)[0] & 0xff;
+        } catch (Exception e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    /**
+     * 每次给一个新的 GCM IV（12 字节）—— counter 编码在前 8 字节 ⇒ 全局唯一。
+     *
+     * <p>必须每次都新：GCM 的 nonce 复用保护是<b>按 {@code Cipher} 实例</b>的
+     * ⇒ 池化实例上重复用同一个 IV 会直接抛
+     * {@code InvalidAlgorithmParameterException: Cannot reuse iv for GCM encryption}。</p>
+     */
+    private static byte[] cipherIv() {
+        byte[] iv = new byte[12];
+        long n = cipherIvCounter++;
+        for (int i = 0; i < 8; i++) {
+            iv[i] = (byte) (n >>> (8 * (7 - i)));
+        }
+        return iv;
+    }
+
     private static MessageDigest md() {        if (md == null) {
             try {
                 md = MessageDigest.getInstance("SHA-256");
@@ -545,6 +694,18 @@ public final class CryptoCostProbe {
             }
         }
         return mac;
+    }
+
+    private static Cipher cipher() {
+        if (cipher == null) {
+            try {
+                cipher = Cipher.getInstance(CIPHER_TRANSFORMATION);
+                cipher.init(Cipher.ENCRYPT_MODE, CIPHER_KEY_SPEC, new GCMParameterSpec(128, cipherIv()));
+            } catch (Exception e) {
+                throw new IllegalStateException(e);
+            }
+        }
+        return cipher;
     }
 
     private static DigestProvider nativeDigestProvider() {
@@ -569,6 +730,18 @@ public final class CryptoCostProbe {
             Provider provider = algorithm.startsWith("Hmac")
                     ? Mac.getInstance(algorithm).getProvider()
                     : MessageDigest.getInstance(algorithm).getProvider();
+            return provider.getName() + " (" + provider.getClass().getSimpleName() + ")";
+        } catch (Exception e) {
+            return "未知: " + e;
+        }
+    }
+
+    /**
+     * Cipher 的 provider 归属 —— 决定它要不要付「key 导进 PKCS#11 token」那一笔。
+     */
+    private static String cipherProviderOf(String transformation) {
+        try {
+            Provider provider = Cipher.getInstance(transformation).getProvider();
             return provider.getName() + " (" + provider.getClass().getSimpleName() + ")";
         } catch (Exception e) {
             return "未知: " + e;

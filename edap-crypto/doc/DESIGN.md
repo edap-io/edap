@@ -313,7 +313,7 @@ CryptoDiagnostics.setSink(msg -> myLogger.warn("[edap-crypto] {}", msg));
 |---|---|
 | `JceDigestProvider` | `InstancePool<MessageDigest>`，每线程复用一个实例 |
 | `JceMacProvider` | `InstancePool<KeyedMac>`（**实例记住自己是哪把 key init 的**）+ `SecretKeySpec`；session 存 `key.clone()` |
-| `JceCipherProvider` | `InstancePool<Cipher>`；`newSession` 校验 key/iv 长度 |
+| `JceCipherProvider` | `InstancePool<KeyedCipher>`（**实例记住自己是哪把 key**）+ `SecretKeySpec`；`newSession` 校验 key/iv 长度 |
 | `JceRandomProvider` | `ThreadLocal<SecureRandom>` 绕开 `NativePRNG` 引擎级 `synchronized` |
 
 ### 5.1 ★★ 实例必须被 session 独占（踩过的坑）
@@ -351,6 +351,60 @@ key 字节相同就**跳过 `init`**（`Mac.doFinal()` 之后实例已经回到�
 **回归测试用「数 init 次数」而不是测时间**（Solaris 与开发机的时间差是 3000 倍，
 时间断言在任一台机器上都不可靠）⇒ `CountingMacProvider` + `JceMacProviderKeyReuseTest`。
 实测数据与完整归因见 §10.8。
+
+### 5.3 ★★ cipher 的 key 对象复用（只复用 key 对象，不复用 init）
+
+`JceCipherProvider` 早期版本同样每次 `new SecretKeySpec(key, algorithm)`。
+在 Solaris 上 `AES/GCM/NoPadding` 也可能落在 PKCS#11 provider（`SunPKCS11-Solaris`），
+key 同样要导进 token ⇒ 与 §5.2 同一条机制、同一个数量级的代价。
+
+**但 cipher 与 `Mac` 有一处关键差别**：
+
+| | `Mac.init(key)` | `Cipher.init(opmode, key, iv)` |
+|---|---|---|
+| 是否带 IV | 否 | **是** |
+| 能否整体跳过 init | **能**（key 字节相同就跳过） | **不能** —— AEAD 每条消息必须换 nonce |
+
+⇒ cipher 侧**只复用 `SecretKeySpec` 对象**（让 JDK 的 token 导入缓存能命中），
+**不复用整个 `init`**。实现上池里的实例记���自己是哪把 key（`KeyedCipher`），
+key 字节相同 ⇒ 返回**同一个** `SecretKeySpec` 对象；key 变了 ⇒ 新建并替换。
+
+**回归测试用「数 init 见过几个 key 对象」** ⇒ `CountingCipherProvider` +
+`JceCipherProviderKeyReuseTest`。这里必须按 **key 对象身份**（`IdentityHashMap`）而不是
+按字节统计 —— `SecretKeySpec.equals()` 比的是**字节**，按字节比就分不出
+「同一个对象」与「字节相同但对象不同」，正是要守的那条不变量。
+
+> ⚠️ `CountingCipherProvider` 与 `CountingMacProvider` 共用同一个 JDK 坑：
+> **`Provider.Service` 在 JDK 17 上只认无参构造**（`setConstructorParameter` 不存在）
+> ⇒ SPI 只能有无参构造器，替身与计数器只能由 SPI 自己去 `Security` 里按名字排除自己去找。
+
+### 5.4 ★★ GCM 的 nonce 复用：JDK 的保护是「按实例」的（**已实测**）
+
+本机 JDK 17.0.20.1 上用探针实测 `SunJCE` 的 GCM 语义，三条事实：
+
+1. **同一个 `Cipher` 实例**上用**同一个 IV** 做第二次**加密**
+   ⇒ 抛 `InvalidAlgorithmParameterException: Cannot reuse iv for GCM encryption`；
+2. 换**不同** IV 再 `init` ⇒ **正常**；
+3. `doFinal()` 后**不** re-init 直接再 `doFinal()`
+   ⇒ 抛 `IllegalStateException: Must use either different key or iv for GCM encryption`。
+   （`Cipher` **没有** `reset()` 方法，`Mac` / `MessageDigest` 才有。）
+
+**推论（当前实现的已知行为）**：本实现按线程池化 `Cipher` 实例 ⇒
+**同一线程**上「同 provider + 同 key + 同 IV」连续加密两次 ⇒ **抛异常**；
+**换线程** ⇒ 拿到另一个池化实例 ⇒ **不抛**。
+⇒ **同一个调用在两个线程上行为不同（不确定性）**。
+
+**为什么不在本层兜住**：
+「禁止 nonce 复用」需要**跨线程的共享状态**（例如 provider 级的一个「本 key 上次用的 nonce」表），
+而 §5.1 明确要求**每方法最多一把锁、按最小粒度隔离** ⇒ 为一条本就不该发生的调用
+（复用 nonce 是 GCM 的硬性要求，属于**调用方的错**）引入共享状态不划算。
+
+**⇒ 结论：调用方绝不能复用 nonce。** 调用方自己保证 nonce 唯一；
+本层**原样透出** JDK 的 `InvalidAlgorithmParameterException`，不静默吞掉。
+
+> **待决策**：是否要让 AEAD 路径**每次用全新 `Cipher` 实例**以换取「同 IV 必抛」的确定性
+> （代价：放弃实例池化，且 `Cipher.getInstance` 每次 1~3μs）。
+> 当前**未做** —— 见 §10.9 的实测读数。
 
 ---
 
@@ -1060,7 +1114,7 @@ native HMAC 2908.2 vs 用例 3067.0 —— 三项都在 1% 以内。
 | **修法** | 池里的实例**记住自己是哪把 key init 的**（`KeyedMac`）：<br>① key 字节相同 ⇒ **跳过 `init`**（`Mac.doFinal()` 之后实例已经回到「init 完、无待算数据」的状态 —— 这正是 `MacSession#doFinal()` 契约里「key 保留」的含义）；<br>② key 不同 ⇒ `init(new SecretKeySpec(...))` 并记录新 key；<br>③ `init` 抛 `InvalidKeyException` ⇒ 把实例的 key 置 `null` 后归还池子（保证下次一定重新 init，不复用状态不可知的实例） |
 | **预期收益** | Solaris 上 `mac.realPathPooled` 从 **136788 → ~1.2 万 ns**（≈8.4 倍）；用例里 hmacsha256 的 JCE 侧从 134352 → ~1.2~1.9 万 ns ⇒ **JNI/JCE 从 43.81x 降到 ~2~4x** |
 | **影响面** | 三条热路径全部汇到 `JceMacProvider` 一个点 ⇒ 改一处三个路径一起修好：<br>① `edap-s3-core` 的 `SigV4Verifier`（**一次请求算 5 次 HMAC ⇒ ≈667μs/请求**）<br>② `edap-auth-jwt` 的 `HmacSha256`（**≈133μs/签一个 token**）<br>③ `edap-crypto` 自身的 `MacProvider` 调用方 |
-| **同类问题（本次不改）** | `JceCipherProvider.java:189` 每次也 `new SecretKeySpec` ⇒ 同类问题；但 cipher 当前**零用量**，改动收益为零、风险未知 ⇒ 留待有真实调用方时一并处理 |
+| **同类问题（已单独处理）** | `JceCipherProvider` 每次也 `new SecretKeySpec` ⇒ 同一条机制。**已于 2026-11-16 一并修复**（见 §5.3）：cipher 侧**只复用 key 对象、不复用 init**（cipher 的 init 带 IV，AEAD 每条消息必须换 nonce ⇒ 躲不掉） |
 
 **★ 为什么用「数 init 次数」守这条不变量，而不是测时间**：
 Solaris 上一次 `Mac.init(new SecretKeySpec(...))` ≈ 130μs，开发机（SunJCE 软件路径）只要 ~40ns ——
@@ -1076,6 +1130,74 @@ Solaris 上一次 `Mac.init(new SecretKeySpec(...))` ≈ 130μs，开发机（Su
 **★ `Provider.Service` 在 JDK 17 只认无参构造**（`setConstructorParameter` 不存在，`javap` 已确认）
 ⇒ 计数 provider 的 SPI **只能有无参构造器**，替身与计数器只能由 SPI 自己去 `Security` 里按
 provider 名字找（把自己排除掉）。这是写这类测试 provider 时的第一个坑。
+
+### 10.9 ★ cipher 侧：复用 key 对象（GCM 的特殊之处）
+
+**背景**：`JceCipherProvider` 与 §10.8 的 `JceMacProvider` 是**同一个缺陷** ——
+每次操作都 `new SecretKeySpec(...)` ⇒ 每次 `Cipher.init` 都要把 key 导进 PKCS#11 token。
+**但 cipher 侧修法不一样**：
+
+| | `Mac` | `Cipher`（AEAD） |
+|---|---|---|
+| `init` 是否带 IV | 否 | **是** |
+| 能否整体跳过 `init` | **能**（key 相同就跳过） | **不能** —— 每条消息必须换 nonce |
+| 本次修法 | 复用 key 对象 **+ 跳过 init** | **只复用 key 对象** |
+
+⇒ 池里的实例（`KeyedCipher`）记住「自己是哪把 key」；key 字节相同 ⇒ 返回**同一个**
+`SecretKeySpec` 对象；key 变了 ⇒ 新建并替换。**`init` 照旧每次都调**。
+
+**★ 回归测试用「init 见过几个 key 对象」** ⇒ `CountingCipherProvider` +
+`JceCipherProviderKeyReuseTest`（5 个用例）。统计必须按 **key 对象身份**
+（`IdentityHashMap`）而不是按字节 —— `SecretKeySpec.equals()` 比的是**字节**，
+按字节比就分不出「同一个对象」与「字节相同但对象不同」，而那正是要守的不变量。
+
+> `CountingCipherProvider` 踩到的坑与 `CountingMacProvider` 完全相同：
+> JDK 17 的 `Provider.Service` 只认**无参构造**（`javap` 已确认）⇒ SPI 只能有无参构造器，
+> 替身与计数器只能由 SPI 自己去 `Security` 里按 provider 名字排除自己去找。
+
+**★★ 顺带实测到的三条 JDK GCM 语义**（本机 JDK 17.0.20.1 / `SunJCE`，探针实测）：
+
+1. **同一个 `Cipher` 实例**上用**同一个 IV** 做第二次**加密**
+   ⇒ `InvalidAlgorithmParameterException: Cannot reuse iv for GCM encryption`；
+2. 换**不同** IV 再 `init` ⇒ **正常**；
+3. `doFinal()` 后**不** re-init 直接再 `doFinal()`
+   ⇒ `IllegalStateException: Must use either different key or iv for GCM encryption`
+   （`Cipher` **没有** `reset()`，`Mac` / `MessageDigest` 才有）。
+
+**⇒ 推论（当前实现的已知行为）**：本实现按线程池化 `Cipher` 实例 ⇒
+**同线程**「同 provider + 同 key + 同 IV」连续加密两次 ⇒ **抛异常**；
+**换线程** ⇒ 拿到另一个池化实例 ⇒ **不抛** ⇒ **同一调用在两个线程上行为不同**。
+
+**为什么不在本层兜住**：「禁止 nonce 复用」需要**跨线程共享状态**，
+与 §5.1「每方法最多一把锁、按最小粒度隔离」的取向冲突；
+而且**复用 nonce 本来就是调用方的错**（GCM 的硬性要求）⇒ 本层**原样透出** JDK 的异常，不静默吞掉。
+
+> **待决策**：是否让 AEAD 路径**每次用全新 `Cipher` 实例**以换取「同 IV 必抛」的确定性
+> （代价：放弃实例池化 + 每次 `getInstance`）。
+> 本机读数 `cipher.getInstance` = **3848.3 ns**（macOS/arm64，SunJCE 软件路径）——
+> 这个代价在 Solaris 上会**大得多**（`md.getInstance` 在 Solaris 上是 macOS 的 26 倍）
+> ⇒ **在拿到 Solaris 的 `cipher.getInstance` 读数之前不做这个决定**。
+
+**★ macOS 上的读数**（`CryptoCostProbe`，一个测点一个 JVM，ns/op）：
+
+| 测点 | ns/op | 读出来的含义 |
+|---|---|---|
+| `cipher.getInstance` | 3848.3 | `Cipher.getInstance` 本身就不便宜（被池化躲开） |
+| `cipher.keySpec` | 45.1 | `new SecretKeySpec` 的构造成本 |
+| `cipher.init` | **93.9** | 池化实例 + **同一个** key 对象 + 新 IV |
+| `cipher.initFreshKey` | **95.4** | 池化实例 + **每次 new** key 对象（字节相同） |
+| `cipher.realPathPooled` | 2443.3 | 修前真实路径：池化 + 每次 new key + init + doFinal |
+| `cipher.realPathCachedKeySpec` | 2201.2 | 修后真实路径：池化 + 同一 key 对象 + init + doFinal |
+
+⇒ **`init` 与 `initFreshKey` 只差 1.5 ns** —— **macOS 上这条缺陷完全看不出来**
+（`SunJCE` 是软件路径，没有 token 导入）⇒ 与 §10.8 的 `mac` 侧完全一样，
+**只能靠「key 对象身份」这个结构性事实来守**。
+
+**⚠ Solaris 上的读数待补**（探针测点已就位，命令见 §8.3）——
+**先测再改的规矩**：在确认 Solaris 把 `AES/GCM/NoPadding` 解析到哪个 provider
+（`SunPKCS11-Solaris`？还是纯软件路径？）之前，**不能**断言 cipher 侧也要付那笔 token 导入成本。
+本节记的是**机制同源**（同一个 `SecretKeySpec` 对象 ⇒ 同一个 token 导入缓存）与**本地读数**，
+**Solaris 的绝对值待实测后补入**。
 
 ---
 

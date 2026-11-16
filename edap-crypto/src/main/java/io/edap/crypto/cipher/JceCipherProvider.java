@@ -27,6 +27,7 @@ import java.security.GeneralSecurityException;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
+import java.util.Arrays;
 
 /**
  * JCE 对称加密实现 —— JDK 内置 {@link Cipher}。
@@ -39,9 +40,29 @@ import java.security.NoSuchAlgorithmException;
  * 的 key/iv 覆盖掉 ⇒ 前一个会用<b>别人的 key</b> 加密，而且不报错。
  * 所以每个 session 独占自己的实例，用完（{@code doFinal()}）再还回池子。</p>
  *
+ * <p><b>★★ 同一把 key 复用同一个 {@link SecretKeySpec} 对象</b>：
+ * Solaris 上 {@code HmacSHA256} 落在 {@code SunPKCS11-Solaris}，key 必须<b>导进 token</b>；
+ * 而 <b>JDK 的 token 导入缓存是按 key <i>对象身份</i>走的，跟字节无关</b>
+ * （实测：init 同一个 key 对象 10.4μs vs 每次 new 一个字节相同的对象 133.7μs，<b>差 12.9 倍</b>）。
+ * 早先的实现每次操作都 {@code new SecretKeySpec(...)}
+ * ⇒ 每次 {@code init} 都要把 key 重新导一次 token。
+ * ⇒ 本实现让池里的实例<b>记住自己用的是哪把 key</b>（见 {@link KeyedCipher}）：
+ * 同一把 key 直接复用<b>同一个</b> {@link SecretKeySpec} 对象 ⇒ JDK 的导入缓存能命中。
+ * （cipher 与 {@code Mac} 的差别：<b>cipher 的 {@code init} 带 IV，躲不掉</b> ——
+ * AEAD 每条消息必须换 nonce ⇒ 这里只复用 key 对象，不复用整个 init。）</p>
+ *
  * <p><b>AEAD</b>：GCM 用 {@link GCMParameterSpec}；tag 校验失败时 JCE 抛
  * {@code AEADBadTagException} —— 本层<b>原样透出</b>，调用方据此区分
  * 「密文被篡改」与「IO 错误」。</p>
+ *
+ * <p><b>★★ GCM 的 nonce 复用会被 JDK 拒绝（调用方要注意）</b>：
+ * SunJCE 的 {@code GaloisCounterMode} 在<b>同一个 {@link Cipher} 实例</b>上
+ * 用<b>同一个 IV</b> 做第二次加密时会抛
+ * {@code InvalidAlgorithmParameterException: Cannot reuse iv for GCM encryption}。
+ * 由于本实现按线程池化实例，<b>这个异常是否发生取决于调用落在哪个线程</b>
+ * （同线程 ⇒ 抛；换线程 ⇒ 拿到另一个实例，不抛）。
+ * ⇒ <b>调用方绝不能复用 nonce</b>（那本来就是 GCM 的硬性要求）；
+ * 本层不额外加「禁止 nonce 复用」的检查，因为那需要跨线程的共享状态。</p>
  */
 public class JceCipherProvider implements CipherProvider {
 
@@ -57,7 +78,7 @@ public class JceCipherProvider implements CipherProvider {
 
     private final boolean aead;
 
-    private final InstancePool<Cipher> pool;
+    private final InstancePool<KeyedCipher> pool;
 
     /**
      * @param transformation JCE transformation（如 {@code "AES/GCM/NoPadding"}）
@@ -80,7 +101,7 @@ public class JceCipherProvider implements CipherProvider {
         this.aead = transformation.toUpperCase(java.util.Locale.ENGLISH).contains("/GCM/");
         this.pool = new InstancePool<>(() -> {
             try {
-                return Cipher.getInstance(transformation);
+                return new KeyedCipher(Cipher.getInstance(transformation));
             } catch (NoSuchAlgorithmException | NoSuchPaddingException e) {
                 throw new IllegalArgumentException("unsupported cipher transformation: " + transformation, e);
             }
@@ -148,11 +169,53 @@ public class JceCipherProvider implements CipherProvider {
     }
 
     /**
+     * 池里的实例 —— 除了 {@link Cipher} 本身，还记住「当前用的是哪把 key」。
+     *
+     * <p><b>为什么需要记</b>：JDK 的 PKCS#11 token 导入缓存按 key <b>对象身份</b>走，
+     * 跟字节无关 ⇒ 每次操作都 {@code new SecretKeySpec(...)} 就等于每次都重新导一次 key
+     * （Solaris 上实测差 12.9 倍）。让实例记住自己的 key，同一把 key 就复用同一个
+     * {@link SecretKeySpec} 对象 ⇒ JDK 的导入缓存能命中。</p>
+     *
+     * <p><b>线程安全</b>：实例由 {@link InstancePool} 按线程独占，
+     * 同一时刻只有一个线程碰它 ⇒ 无需同步。</p>
+     */
+    private static final class KeyedCipher {
+
+        private final Cipher cipher;
+
+        /**
+         * 当前 {@link #keySpec} 对应的 key 字节；{@code null} 表示还没建过。
+         */
+        private byte[] key;
+
+        /**
+         * 由 {@link #key} 构造出来的 {@link SecretKeySpec}（<b>复用同一个对象</b>）。
+         */
+        private SecretKeySpec keySpec;
+
+        KeyedCipher(Cipher cipher) {
+            this.cipher = cipher;
+        }
+
+        /**
+         * 拿到「这把 key 对应的 {@link SecretKeySpec}」—— 同一把 key 返回<b>同一个对象</b>。
+         */
+        SecretKeySpec keySpec(byte[] candidate, String algorithm) {
+            if (key != null && Arrays.equals(key, candidate)) {
+                return keySpec;
+            }
+            this.keySpec = new SecretKeySpec(candidate, algorithm);
+            this.key = candidate.clone();
+            return this.keySpec;
+        }
+    }
+
+    /**
      * JCE 加/解密会话 —— 独占一个 {@link Cipher} 实例。
      */
     static final class JceCipherSession implements CipherSession {
 
-        private final InstancePool<Cipher> pool;
+        private final InstancePool<KeyedCipher> pool;
 
         private final String keyAlgorithm;
 
@@ -169,9 +232,9 @@ public class JceCipherProvider implements CipherProvider {
         /**
          * 当前独占的实例；{@code null} 表示还没借（用完已归还）。
          */
-        private Cipher cipher;
+        private KeyedCipher keyed;
 
-        JceCipherSession(InstancePool<Cipher> pool, String keyAlgorithm, byte[] key, byte[] iv,
+        JceCipherSession(InstancePool<KeyedCipher> pool, String keyAlgorithm, byte[] key, byte[] iv,
                 int opmode, boolean aead, int tagLengthBits) {
             this.pool = pool;
             this.keyAlgorithm = keyAlgorithm;
@@ -182,53 +245,54 @@ public class JceCipherProvider implements CipherProvider {
             this.tagLengthBits = tagLengthBits;
         }
 
-        private Cipher cipher() throws GeneralSecurityException {
-            if (cipher == null) {
-                Cipher instance = pool.acquire();
+        private KeyedCipher keyed() throws GeneralSecurityException {
+            if (keyed == null) {
+                KeyedCipher instance = pool.acquire();
                 try {
-                    SecretKeySpec secretKey = new SecretKeySpec(key, keyAlgorithm);
+                    // 同一把 key ⇒ 同一个 SecretKeySpec 对象 ⇒ JDK 的 token 导入缓存能命中
+                    SecretKeySpec secretKey = instance.keySpec(key, keyAlgorithm);
                     if (aead) {
-                        instance.init(opmode, secretKey, new GCMParameterSpec(tagLengthBits, iv));
+                        instance.cipher.init(opmode, secretKey, new GCMParameterSpec(tagLengthBits, iv));
                     } else {
-                        instance.init(opmode, secretKey, new IvParameterSpec(iv));
+                        instance.cipher.init(opmode, secretKey, new IvParameterSpec(iv));
                     }
                 } catch (GeneralSecurityException e) {
                     pool.release(instance);
                     throw e;
                 }
-                cipher = instance;
+                keyed = instance;
             }
-            return cipher;
+            return keyed;
         }
 
         @Override
         public byte[] doFinal(byte[] input) throws GeneralSecurityException {
-            Cipher instance = cipher();
+            KeyedCipher instance = keyed();
             try {
-                return instance.doFinal(input);
+                return instance.cipher.doFinal(input);
             } finally {
                 // 认证失败（AEADBadTagException）也要归还实例，否则池子少一个
                 pool.release(instance);
-                cipher = null;
+                keyed = null;
             }
         }
 
         @Override
         public byte[] doFinal(byte[] input, int offset, int len) throws GeneralSecurityException {
-            Cipher instance = cipher();
+            KeyedCipher instance = keyed();
             try {
-                return instance.doFinal(input, offset, len);
+                return instance.cipher.doFinal(input, offset, len);
             } finally {
                 pool.release(instance);
-                cipher = null;
+                keyed = null;
             }
         }
 
         @Override
         public void close() {
-            if (cipher != null) {
-                pool.release(cipher);
-                cipher = null;
+            if (keyed != null) {
+                pool.release(keyed);
+                keyed = null;
             }
         }
     }
