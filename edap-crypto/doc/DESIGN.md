@@ -883,6 +883,8 @@ jce 中位数 598,973 ns 与 16 线程下其它组差距不大，怀疑是 loada
 | **provider 抽象本身** | **保留**。收益虽只有 1.0x~1.3x，但它是 native / JCE 可切换的**前提**，且零行为变更 |
 | **native 默认开** | **保留但要在文档里说清代价**：小 payload + 高并发场景 native 会输给 JCE（0.24x）。若业务是「大量小包高并发」，应当 `edap.crypto.native=false` |
 | **原计划的 C-10（EVP 缓存版 JMH arm）** | **降级为「已用纯 C 探针回答」**。探针剥离 JNI/JMH 噪声，且能直接看到 `EVP_MAC_fetch` 的 dispatch 成本；探针留在 `edap-native/scripts/evp-vs-legacy-probe.c` 可随时复现 |
+| **native 摘要改流式 API**（`SHA256_Init/Update/Final` 句柄式会话、Java 侧零累积） | **不做**（2026-11-16 实测推翻）。流式能省掉的只是累加器那次拷贝（native `hash − setup` = 17027 ns/64KB），**OpenSSL 算 SHA-256 的 126295 ns/64KB 一点都省不掉** ⇒ 最好情况仍比 JCE/ucrypto（95100 ns/64KB）**慢 1.33 倍**（§10.8 结论 3）⇒ JNI ABI 变更 + Solaris 重建 `.o` 换不来反超 |
+| **Solaris 上的 provider 选型** | **分项拆开选**：摘要走 JCE、MAC 走 native —— `edap.crypto.digest.provider=jce` + `edap.crypto.mac.provider=native`（**现有开关就够，不用改代码**）。依据：Solaris 上摘要 JCE 赢 0.64~0.82×（ucrypto 比 OpenSSL 快 1.34 倍）；MAC 则相反 —— 修掉 key 重复导入后 JCE 约 13μs、native 约 3μs（**待 build-01 复测确认**）。macOS 上反过来（native 两项全赢 1.19×~9.15×），故**选型必须分平台** |
 
 ### 10.7 全 reactor 回归的失败归因（**实测：全部预存在**）
 
@@ -966,11 +968,22 @@ cd /tmp/edap-head-clean && mvn -o -pl <模块> -am install -DskipTests=false
    ⇒ 已把首次分配改成「按需分配」、后续按 2 倍增长（搬运量 3 倍 → 1 倍）。
    **这处拷贝本身是语义要求**：JCE 是在 `update()` 那一刻取数据的，
    native 侧要等到 `digest()` 才有完整数据 ⇒ 不拷贝就会算到「被改写后的内容」。
-3. **纯算法速度 OpenSSL ≈ ucrypto**（~713 vs 714 MB/s @64KB）——
-   阶段分解显示 native 的 hash 段只有 **17436 ns**，而 `full − hash` 高达 **126295 ns**：
-   差值是「toArray 拷贝 + JNI 数组拷贝 + OpenSSL 一次性 API 的准备」，
-   **不是** OpenSSL 的 SHA-256 算得慢。⇒ native 摘要路径的差距来自**架构**（一次性 API +
-   多一次拷贝），不是算法。
+3. **★ native 的摘要路径输在「算法本身」，不是「拷贝」** ——
+   这一条把「要不要给 native 做流式 API」这个决策点的答案**直接否掉**：
+
+   | 侧 | 测点 | ns/64KB | 折算 | 这一段到底在干什么 |
+   |---|---|---|---|---|
+   | JCE | `hash − setup` | **94018.8** | **697 MB/s** | `MessageDigest.update(64KB)` ⇒ **ucrypto 的纯压缩** |
+   | native | `full − hash` | **126295.1** | 519 MB/s | `digest()`：JNI `GetPrimitiveArrayCritical` 取数组（**不拷贝**）+ OpenSSL `SHA256()` + `NewByteArray(32)` ⇒ **≈ OpenSSL 算 SHA-256 的纯时间** |
+
+   ⇒ **OpenSSL 在 SPARC 上算 SHA-256 比 ucrypto 慢 1.34 倍**（126295 vs 94019 ns/64KB）。
+   ⇒ ★★ **改成流式 API（`SHA256_Init/Update/Final`）也追不上**：
+   流式能省掉的只是累加器那次拷贝（native `hash − setup` = 17026.9 ns），
+   **算摘要的那 126295 ns 一点都省不掉** ⇒ native 摘要的最好情况 ≈ 126295 vs JCE ≈ 95100
+   ⇒ **仍是 1.33 倍落后**。
+   ⇒ ⇒ **Solaris 上摘要走 JCE（ucrypto），不要为了 native 去改 JNI ABI。**
+   （这条结论**推翻**了早先「native 输的是拷贝 ⇒ 做流式 API 就能反超」的推演 ——
+   那个推演错在把 `full − hash` 里的 OpenSSL 计算时间当成了拷贝时间。）
 4. **JNI 的收益集中在 HMAC 与中大载荷**；SHA-256 全部四档 JNI 都输（0.64x~0.82x）——
    固定开销（JNI 调用 + OpenSSL 一次性 API 的准备）吃掉了全部收益。
 
