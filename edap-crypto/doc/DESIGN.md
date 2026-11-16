@@ -416,12 +416,12 @@ cc -O2 -o evp_probe edap-native/scripts/evp-vs-legacy-probe.c -lcrypto
 ```
 edap-native/src/main/c/
 ├── edap_jni_common.h                 公共常量 + key 预处理 + HMAC 展开
-├── io_edap_jni_crypto_NativeDigest.c digest0(String alg, byte[] data, int off, int len)
+├── io_edap_jni_crypto_NativeDigest.c digestSha2560 / digestSha10 / digestMd50
 ├── io_edap_jni_crypto_NativeMac.c    hmacSha2560 / hmacSha10
 └── io_edap_jni_crypto_NativeHmacSha256.c  （重构为复用 edap_jni_common.h）
 
 edap-native/src/main/java/io/edap/jni/crypto/
-├── NativeDigest.java     digest0(...)
+├── NativeDigest.java     digestSha2560 / digestSha10 / digestMd50
 └── NativeMac.java        hmacSha2560 / hmacSha10
 ```
 
@@ -442,7 +442,7 @@ edap-native/src/main/java/io/edap/jni/crypto/
 - 编译 `src/main/c/*.c` **全部**成一个共享库（`System.load` 只能加载一个文件）；
 - 输出 `target/openssl_version.h`，版本取**编译时头文件**的版本（不是 PATH 上的 CLI ——
   本机 CLI 是 OpenSSL **4.1.0**，而头文件是 **3.6.4**，两者可能不是同一个安装）；
-- 自检：`nm` 校验 4 个 JNI 符号齐全（缺则中止）、`file`、`shasum -a 256`。
+- 自检：`nm` 校验 6 个 JNI 符号齐全（缺则中止）、`file`、`shasum -a 256`。
 
 **默认路径不变**：`.o` 继续预编译提交到 `src/main/resources/`，当前只有
 `edap-native-macos_aarch64.o`。

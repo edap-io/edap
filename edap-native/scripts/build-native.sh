@@ -211,7 +211,9 @@ EOF
 echo "--- self check ---"
 EXPECTED_SYMBOLS=(
     Java_io_edap_jni_crypto_NativeHmacSha256_sign0
-    Java_io_edap_jni_crypto_NativeDigest_digest0
+    Java_io_edap_jni_crypto_NativeDigest_digestSha2560
+    Java_io_edap_jni_crypto_NativeDigest_digestSha10
+    Java_io_edap_jni_crypto_NativeDigest_digestMd50
     Java_io_edap_jni_crypto_NativeMac_hmacSha2560
     Java_io_edap_jni_crypto_NativeMac_hmacSha10
 )

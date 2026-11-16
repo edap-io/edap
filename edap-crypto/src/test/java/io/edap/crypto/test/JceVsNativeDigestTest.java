@@ -157,6 +157,39 @@ public class JceVsNativeDigestTest {
         assertTrue(nativeProvider("SHA3-256") == null, "SHA3-256 不在 native 支持列表");
     }
 
+    /**
+     * 「预编译产物过期」的文案必须点名缺失的符号并给出重建命令。
+     *
+     * <p>真正触发它需要一份<b>旧版本</b>的 {@code .o} —— 正常构建里构造不出来，
+     * 而这恰恰是排查时最需要的一句话，不能没人验证过。</p>
+     */
+    @Test
+    public void testStaleArtifactMessageNamesSymbolAndBuildCommand() {
+        String message = NativeDigestProvider.staleArtifactMessage("digestSha2560");
+        assertTrue(message.contains("digestSha2560"),
+                "报错里要点名缺失的符号，实际: " + message);
+        assertTrue(message.contains("build-native.sh"),
+                "报错里要给出重建命令，实际: " + message);
+    }
+
+    /**
+     * 探测结果不匹配时的文案：一致 ⇒ 没有问题；不一致 ⇒ 必须说清期望与实际。
+     */
+    @Test
+    public void testProbeMismatchMessageDetectsWrongResult() {
+        byte[] expected = new byte[]{(byte) 0x01, (byte) 0x02};
+        assertTrue(NativeDigestProvider.probeMismatchMessage("digestSha2560", expected, expected) == null,
+                "结果一致时不该报错");
+
+        String message = NativeDigestProvider.probeMismatchMessage("digestSha2560", expected,
+                new byte[]{(byte) 0x03});
+        assertTrue(message != null, "结果不一致时必须报错");
+        assertTrue(message.contains("digestSha2560"),
+                "报错里要点名方法，实际: " + message);
+        assertTrue(message.contains("0102"),
+                "报错里要给出期望值，实际: " + message);
+    }
+
     private static byte[] digest(DigestProvider provider, byte[] data, int offset, int len) {
         DigestSession session = provider.newSession();
         session.update(data, offset, len);

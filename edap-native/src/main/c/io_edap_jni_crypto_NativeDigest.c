@@ -8,6 +8,13 @@
  * - edap-crypto 的 DigestSession 是流式的，但 native 侧一次性、Java 侧累积
  *   （见 io.edap.crypto.digest.NativeDigestProvider）—— 落到 native 时数据已经完整；
  * - 一次性 API 内部没有 provider dispatch，比 EVP 快（详见 NATIVE_DESIGN.md §6.6）。
+ *
+ * ★ 为什么按算法拆成三个入口（digestSha2560 / digestSha10 / digestMd50），
+ *   而不是一个带 jstring 的 digest0(algorithm, ...)：
+ *   老入口每次调用都要 GetStringUTFChars + strcmp + ReleaseStringUTFChars。
+ *   在 Solaris/SPARC 上实测，这段固定开销约 9.5µs/次 —— native digest 的
+ *   固定成本比 native HMAC（无字符串入口）多出的部分几乎全来自这里。
+ *   拆开后算法在 Java 侧一次性绑定，native 侧零字符串 —— 与 NativeMac.c 同一形状。
  */
 #include <jni.h>
 #include <openssl/md5.h>
@@ -17,51 +24,34 @@
 #include "edap_jni_common.h"
 #include "io_edap_jni_crypto_NativeDigest.h"
 
-JNIEXPORT jbyteArray JNICALL Java_io_edap_jni_crypto_NativeDigest_digest0
-  (JNIEnv *env, jclass cls,
-   jstring algorithm, jbyteArray data, jint offset, jint len)
+/*
+ * 三个一次性摘要函数的签名一致（OpenSSL legacy API）：
+ *   unsigned char *SHA256(const unsigned char *d, size_t n, unsigned char *md);
+ *   unsigned char *SHA1  (const unsigned char *d, size_t n, unsigned char *md);
+ *   unsigned char *MD5   (const unsigned char *d, size_t n, unsigned char *md);
+ * ⇒ 用函数指针统一，避免三份几乎一样的 JNI 样板。
+ */
+typedef unsigned char *(*edap_digest_fn)(const unsigned char *, size_t, unsigned char *);
+
+/**
+ * 三个入口的公共实现。
+ *
+ * @param digestSize 输出长度（32 / 20 / 16）
+ */
+static jbyteArray edap_digest_common(JNIEnv *env, jbyteArray data, jint offset, jint len,
+        edap_digest_fn fn, int digestSize)
 {
-    if (algorithm == NULL || data == NULL || offset < 0 || len < 0) {
+    if (data == NULL || offset < 0 || len < 0) {
         return NULL;
     }
-
-    const char *algChars = (*env)->GetStringUTFChars(env, algorithm, NULL);
-    if (algChars == NULL) {
-        return NULL;
-    }
-
-    int digestSize;
-    if (strcmp(algChars, "SHA256") == 0) {
-        digestSize = EDAP_SHA256_DIGEST_SIZE;
-    } else if (strcmp(algChars, "SHA1") == 0) {
-        digestSize = EDAP_SHA1_DIGEST_SIZE;
-    } else if (strcmp(algChars, "MD5") == 0) {
-        digestSize = EDAP_MD5_DIGEST_SIZE;
-    } else {
-        /* 不支持的算法 —— 释放字符串后返回 NULL，调用方按「不可用」处理 */
-        (*env)->ReleaseStringUTFChars(env, algorithm, algChars);
-        return NULL;
-    }
-    (*env)->ReleaseStringUTFChars(env, algorithm, algChars);
 
     jbyte *dataPtr = (jbyte*)(*env)->GetPrimitiveArrayCritical(env, data, NULL);
     if (dataPtr == NULL) {
         return NULL;
     }
 
-    const unsigned char *input = (const unsigned char *)(dataPtr + offset);
     unsigned char result[EDAP_SHA256_DIGEST_SIZE];
-    switch (digestSize) {
-        case EDAP_SHA256_DIGEST_SIZE:
-            SHA256(input, (size_t)len, result);
-            break;
-        case EDAP_SHA1_DIGEST_SIZE:
-            SHA1(input, (size_t)len, result);
-            break;
-        default:
-            MD5(input, (size_t)len, result);
-            break;
-    }
+    fn((const unsigned char *)(dataPtr + offset), (size_t)len, result);
 
     (*env)->ReleasePrimitiveArrayCritical(env, data, dataPtr, JNI_ABORT);
 
@@ -70,4 +60,22 @@ JNIEXPORT jbyteArray JNICALL Java_io_edap_jni_crypto_NativeDigest_digest0
         (*env)->SetByteArrayRegion(env, ret, 0, (jsize)digestSize, (const jbyte *)result);
     }
     return ret;
+}
+
+JNIEXPORT jbyteArray JNICALL Java_io_edap_jni_crypto_NativeDigest_digestSha2560
+  (JNIEnv *env, jclass cls, jbyteArray data, jint offset, jint len)
+{
+    return edap_digest_common(env, data, offset, len, SHA256, EDAP_SHA256_DIGEST_SIZE);
+}
+
+JNIEXPORT jbyteArray JNICALL Java_io_edap_jni_crypto_NativeDigest_digestSha10
+  (JNIEnv *env, jclass cls, jbyteArray data, jint offset, jint len)
+{
+    return edap_digest_common(env, data, offset, len, SHA1, EDAP_SHA1_DIGEST_SIZE);
+}
+
+JNIEXPORT jbyteArray JNICALL Java_io_edap_jni_crypto_NativeDigest_digestMd50
+  (JNIEnv *env, jclass cls, jbyteArray data, jint offset, jint len)
+{
+    return edap_digest_common(env, data, offset, len, MD5, EDAP_MD5_DIGEST_SIZE);
 }

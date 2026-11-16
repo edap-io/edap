@@ -21,7 +21,7 @@ import java.util.Arrays;
 /**
  * 可增长的字节累加器。
  *
- * <p>native 的 digest / HMAC 是<b>一次性</b> API（{@code digest0(alg, data, off, len)}），
+ * <p>native 的 digest / HMAC 是<b>一次性</b> API（{@code digestSha2560(data, off, len)}），
  * 而 SPI 要求流式 —— 所以流式部分在 Java 侧累积，{@code digest()} 时一次性交给 native。</p>
  *
  * <p>不是线程安全的 —— 每个 session 独占一个。</p>

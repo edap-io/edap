@@ -9,11 +9,27 @@ extern "C" {
 #endif
 /*
  * Class:     io_edap_jni_crypto_NativeDigest
- * Method:    digest0
- * Signature: (Ljava/lang/String;[BII)[B
+ * Method:    digestSha2560
+ * Signature: ([BII)[B
  */
-JNIEXPORT jbyteArray JNICALL Java_io_edap_jni_crypto_NativeDigest_digest0
-  (JNIEnv *, jclass, jstring, jbyteArray, jint, jint);
+JNIEXPORT jbyteArray JNICALL Java_io_edap_jni_crypto_NativeDigest_digestSha2560
+  (JNIEnv *, jclass, jbyteArray, jint, jint);
+
+/*
+ * Class:     io_edap_jni_crypto_NativeDigest
+ * Method:    digestSha10
+ * Signature: ([BII)[B
+ */
+JNIEXPORT jbyteArray JNICALL Java_io_edap_jni_crypto_NativeDigest_digestSha10
+  (JNIEnv *, jclass, jbyteArray, jint, jint);
+
+/*
+ * Class:     io_edap_jni_crypto_NativeDigest
+ * Method:    digestMd50
+ * Signature: ([BII)[B
+ */
+JNIEXPORT jbyteArray JNICALL Java_io_edap_jni_crypto_NativeDigest_digestMd50
+  (JNIEnv *, jclass, jbyteArray, jint, jint);
 
 #ifdef __cplusplus
 }
