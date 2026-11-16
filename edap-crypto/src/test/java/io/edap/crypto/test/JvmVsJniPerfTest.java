@@ -17,6 +17,7 @@
 package io.edap.crypto.test;
 
 import io.edap.crypto.benchmark.JvmVsJniProbe;
+import io.edap.crypto.benchmark.ProbeLauncher;
 import io.edap.crypto.digest.DigestProvider;
 import io.edap.crypto.digest.DigestSession;
 import io.edap.crypto.digest.JceDigestProvider;
@@ -31,11 +32,9 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.io.File;
-import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -44,8 +43,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.jar.JarFile;
-import java.util.jar.Manifest;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -123,15 +120,8 @@ public class JvmVsJniPerfTest {
     };
 
     /**
-     * 辅助阶段的批次数（头条数字仍用探针默认的 5 批）。
-     *
-     * <p><b>字节预算与 full 保持一致</b>（不改 {@code --bytes}）：只有迭代数与预热
-     * 都一样，{@code full − hash} 这种差值才是干净的；差值里混进「预算不同的
-     * JIT 形态差异」会让人把噪声当成结论。</p>
+     * 轮次（每轮 = 每个候选各起一次子 JVM）。
      */
-    private static final int AUX_BATCHES = 2;
-
-    /** 轮次（每轮 = 每个候选各起一次子 JVM）。 */
     private static final int ROUNDS = Integer.getInteger("edap.crypto.perf.rounds", 3);
 
     /** 可选的硬门槛：JNI 至少要比 JCE 快多少倍（不设置 = 只断言正确性）。 */
@@ -380,126 +370,23 @@ public class JvmVsJniPerfTest {
      * 起一个子 JVM 跑 {@link JvmVsJniProbe}，只测一个候选的一个阶段。
      */
     private static ProbeResult runProbe(String impl, String alg, int size, String phase) throws Exception {
-        List<String> cmd = new ArrayList<>();
-        cmd.add(javaBin());
-        cmd.add("-cp");
-        cmd.add(childClasspath());
-        cmd.add(JvmVsJniProbe.class.getName());
-        cmd.add("--impl=" + impl);
-        cmd.add("--alg=" + alg);
-        cmd.add("--size=" + size);
-        cmd.add("--phase=" + phase);
-        if (!JvmVsJniProbe.PHASE_FULL.equals(phase)) {
-            // 辅助阶段只减批次数，字节预算与 full 一致（保证差值干净）
-            cmd.add("--batches=" + AUX_BATCHES);
-        }
+        List<String> args = new ArrayList<>();
+        args.add("--impl=" + impl);
+        args.add("--alg=" + alg);
+        args.add("--size=" + size);
+        args.add("--phase=" + phase);
+        // ★ 批次数与预热次数对所有阶段一律相同：
+        //   「取批内 min」是小样本上的统计量，批次数不同 ⇒ 两个阶段的 min 不在同一口径，
+        //   full − hash 这种差值会被系统性偏置（实测：辅助阶段用 2 批时，
+        //   JCE 的 hash 阶段一度读出比 full 还慢 —— 荒谬但完全由口径造成）。
+        //   字节预算（--bytes）与迭代数也一样，差值里才只剩「多做/少做的那点工作」。
 
-        ProcessBuilder pb = new ProcessBuilder(cmd);
-        // 合并 stderr —— 避免管道写满导致子进程卡死
-        pb.redirectErrorStream(true);
-        Process process = pb.start();
-        String output;
-        try (InputStream in = process.getInputStream()) {
-            output = readAll(in);
-        }
-        int rc = process.waitFor();
-        if (rc != 0) {
-            throw new IllegalStateException("探针进程失败 (rc=" + rc + "): " + output);
-        }
-        String json = null;
-        for (String line : output.split("\\R")) {
-            int idx = line.indexOf(JvmVsJniProbe.MARKER);
-            if (idx >= 0) {
-                json = line.substring(idx + JvmVsJniProbe.MARKER.length()).trim();
-            }
-        }
+        String output = ProbeLauncher.run(JvmVsJniProbe.class.getName(), args);
+        String json = ProbeLauncher.marker(output, JvmVsJniProbe.MARKER);
         if (json == null) {
             throw new IllegalStateException("探针没有产出结果行（" + impl + "/" + alg + "/" + size + "）: " + output);
         }
         return new ProbeResult(Double.parseDouble(field(json, "minNs")), field(json, "digest"));
-    }
-
-    /**
-     * 还原「完整 classpath」。
-     *
-     * <p><b>为什么要还原</b>：surefire 默认 {@code useManifestOnlyJar=true}，
-     * 被测 JVM 的 {@code java.class.path} 只有一个 booter jar，
-     * 真正的依赖都写在该 jar manifest 的 {@code Class-Path} 里 ——
-     * 直接拿 {@code java.class.path} 去起子进程会「什么类都找不到」。</p>
-     */
-    private static synchronized String childClasspath() {
-        if (childClasspath != null) {
-            return childClasspath;
-        }
-        List<String> entries = new ArrayList<>();
-        for (String entry : System.getProperty("java.class.path", "").split(File.pathSeparator)) {
-            if (entry.isEmpty()) {
-                continue;
-            }
-            entries.add(entry);
-            expandManifest(entry, entries);
-        }
-        childClasspath = String.join(File.pathSeparator, entries);
-        return childClasspath;
-    }
-
-    /**
-     * 把 jar manifest 里的 {@code Class-Path} 展开进列表（相对路径按 jar 所在目录解析）。
-     */
-    private static void expandManifest(String path, List<String> out) {
-        if (!path.endsWith(".jar")) {
-            return;
-        }
-        try (JarFile jar = new JarFile(path)) {
-            Manifest manifest = jar.getManifest();
-            if (manifest == null) {
-                return;
-            }
-            String value = manifest.getMainAttributes().getValue("Class-Path");
-            if (value == null) {
-                return;
-            }
-            File base = new File(path).getAbsoluteFile().getParentFile();
-            for (String item : value.trim().split("\\s+")) {
-                if (item.isEmpty()) {
-                    continue;
-                }
-                String absolute = new File(base, item).getAbsolutePath();
-                if (!out.contains(absolute)) {
-                    out.add(absolute);
-                    expandManifest(absolute, out);
-                }
-            }
-        } catch (Exception e) {
-            // 不是 jar / 读不到 manifest —— 忽略，classpath 里少一项总比整个失败好
-        }
-    }
-
-    /**
-     * 读完子进程的输出。
-     *
-     * <p>不用 {@code InputStream.readAllBytes()}：那是 Java 9+ 的 API，
-     * 而目标机（Solaris/SPARC）目前只有 JDK 8。</p>
-     */
-    private static String readAll(InputStream in) throws java.io.IOException {
-        java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
-        byte[] buf = new byte[8192];
-        int len;
-        while ((len = in.read(buf)) != -1) {
-            out.write(buf, 0, len);
-        }
-        return new String(out.toByteArray(), StandardCharsets.UTF_8);
-    }
-
-    private static String javaBin() {
-        String home = System.getProperty("java.home");
-        if (home != null) {
-            Path bin = Paths.get(home, "bin", "java");
-            if (Files.isExecutable(bin)) {
-                return bin.toString();
-            }
-        }
-        return "java";
     }
 
     // ------------------------------------------------------------------

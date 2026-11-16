@@ -24,6 +24,14 @@ import java.util.Arrays;
  * <p>native 的 digest / HMAC 是<b>一次性</b> API（{@code digestSha2560(data, off, len)}），
  * 而 SPI 要求流式 —— 所以流式部分在 Java 侧累积，{@code digest()} 时一次性交给 native。</p>
  *
+ * <p><b>★ 为什么要拷贝一份（而不是直接持有调用方的数组）</b>：JCE 的
+ * {@code MessageDigest.update()} 是<b>在调用那一刻</b>取数据的 —— 调用方之后改写
+ * 缓冲区不影响已算出的摘要。native 侧要等到 {@code digest()} 才拿到完整数据，
+ * 若直接持有调用方的数组，摘要就会算到「被改写后的内容」，与 JCE 语义不一致。
+ * ⇒ 这里的拷贝是<b>语义要求</b>，不是可以省掉的浪费。</p>
+ *
+ * <p>正因为拷贝躲不掉，<b>搬运次数就要压到 1 次</b>：见 {@link #ensureCapacity(int)}。</p>
+ *
  * <p>不是线程安全的 —— 每个 session 独占一个。</p>
  */
 public final class ByteAccumulator {
@@ -81,9 +89,19 @@ public final class ByteAccumulator {
         if (required <= buf.length) {
             return;
         }
+        // ★ 第一次追加：直接按「需要多少给多少」分配。
+        //   以前是从 256 字节起按 1.5 倍几何增长 —— 追加 64KB 时要扩容 13 次、
+        //   把已经攒下的数据反复搬一遍（总搬运量约 3 倍载荷）。
+        //   native digest/MAC 是「一次性 API + Java 侧累积」，每次操作都要整份拷贝，
+        //   那多出来的两次搬运在 Solaris/SPARC 上实测与一次 SHA-256 本身同量级。
+        if (len == 0) {
+            buf = new byte[required];
+            return;
+        }
+        // 后续追加：按 2 倍增长（摊还搬运量 ≈ 1 倍载荷，比 1.5 倍少一半）
         int cap = buf.length;
         while (cap < required) {
-            cap = cap + (cap >> 1) + 16;
+            cap = cap << 1;
         }
         buf = Arrays.copyOf(buf, cap);
     }

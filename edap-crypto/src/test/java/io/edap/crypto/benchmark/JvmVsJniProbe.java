@@ -133,6 +133,8 @@ public final class JvmVsJniProbe {
         // 这样 64B 与 64KB 两种载荷的每批耗时量级可比。
         long batchBytes = Long.parseLong(arg(args, "bytes", "4194304"));
         int minIters = Integer.parseInt(arg(args, "minIters", "64"));
+        // 预热次数 —— ★ 必须与载荷大小无关（见 warmupIterations 的注释）
+        int warmupIters = warmupIterations(args);
 
         byte[] payload = payload(size);
 
@@ -144,7 +146,6 @@ public final class JvmVsJniProbe {
         long actualBatchBytes = (long) iters * size;
 
         // ---- 预热：让 JIT 把这条路径编译到 C2，否则第一批全是解释执行 ----
-        int warmupIters = Math.max(iters / 4, 1000);
         long checksum = 0;
         byte[] first = null;
         for (int i = 0; i < warmupIters; i++) {
@@ -268,6 +269,30 @@ public final class JvmVsJniProbe {
             }
         }
         return defaultValue;
+    }
+
+    /**
+     * 预热迭代次数。
+     *
+     * <p><b>★ 必须是「固定次数」，不能随载荷大小变化。</b>HotSpot 的调用计数阈值是
+     * Tier3=200 / Tier4=5000（次调用）—— 预热不足 5000 次时，被测 lambda 停在
+     * C1（Tier 3）解释级别，性能读数里混着「代码编译到什么程度」这一项。</p>
+     *
+     * <p><b>为什么这条特别重要</b>：早先的写法是 {@code max(iters/4, 1000)}，
+     * 而 {@code iters = 4194304 / size} ⇒ 64B 的载荷预热 16384 次、其余载荷只有
+     * 1000 次。于是「session」阶段（<b>根本不碰载荷</b>，两边工作量完全相同）
+     * 读出来 64B 是 36.9ns、64KB 是 1447.2ns —— 差了 40 倍，
+     * 差的全是 JIT 状态，不是工作量。阶段分解一旦这样，差值就全是噪声。</p>
+     *
+     * <p>代价：64KB 载荷每次启动要预热 20000 × 64KB = 1.3GB（几秒），
+     * 换来的是「所有阶段、所有载荷的 JIT 状态一致」，差值才干净。</p>
+     */
+    private static int warmupIterations(String[] args) {
+        int value = Integer.parseInt(arg(args, "warmup", "20000"));
+        if (value < 1) {
+            throw new IllegalArgumentException("warmup 必须 >= 1");
+        }
+        return value;
     }
 
     private static String fmt(double v) {

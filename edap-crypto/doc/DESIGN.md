@@ -582,6 +582,8 @@ nm -gU /opt/homebrew/opt/openssl@4/lib/libcrypto.4.dylib | grep -E 'SHA256_Init|
 | `CryptoBaselineBenchmark` | `edap-crypto` | **修前裸 JCE**（每次 `getInstance`）。**永久保留**以便复现对比 |
 | `CryptoProviderBenchmark` | `edap-crypto` | 修后走 provider（JCE 实现，实例复用） |
 | `NativeVsJceBenchmark` | `edap-crypto` | native vs jce 直接对比 |
+| `JvmVsJniPerfTest` + `JvmVsJniProbe` | `edap-crypto` | **JCE vs JNI 的对比用例（面向 Solaris 生产机）**：一个候选一个 JVM、阶段分解、报告落盘（§10.8） |
+| `CryptoCostProbe` | `edap-crypto` | **固定成本归因**：把「一次操作」拆到 JDK 的具体 API 调用上（`Mac.init` / `getInstance` / `update` / `doFinal`），并打出 provider 归属 |
 | `SigV4HmacBenchmark` | `edap-s3-core` | **SigV4 整条签名链**（1 次 SHA-256 + 5 次 HMAC）的修前 / 修后对比 |
 
 **参数**：payload 64 / 1024 / 8192 / 65536 字节；线程 1 / 4 / 16；
@@ -899,6 +901,67 @@ cd /tmp/edap-head-clean && mvn -o -pl <模块> -am install -DskipTests=false
 - 在**工作区**重复跑该用例 **12 次全过** ⇒ 不是系统性回归，是随机命中。
 
 ⇒ **结论：本次 Crypto 线的改动没有引入任何新的测试失败。** 全 reactor 的红灯全部有独立成因。
+
+### 10.8 ★ Solaris/SPARC 上的 JCE vs JNI（2026-11-16，build-01 实测）
+
+**为什么单独一节**：§10.1~§10.7 的数据全是 **macOS/arm64 开发机** 上的，
+而生产机是 **Solaris 11.4 / SPARC**。跨平台的绝对值不能混用（只能各机各表），
+但**方法**（一个候选一个 JVM、阶段分解、CV）可以复用。
+
+**环境**：
+
+| 项 | 值 |
+|---|---|
+| 机器 | build-01，Solaris 11.4（kernel-zone），SPARC（`uname -m`=sun4v，JDK `os.arch`=sparcv9） |
+| JDK | Oracle **17.0.19** |
+| native | `edap-native-sunos_sparcv9.o`（目标机现场 `build-native.sh --commit` 构建） |
+| 用例 | `io.edap.crypto.test.JvmVsJniPerfTest`（`@Tag("perf")`） |
+| 报告 | `edap-crypto/target/crypto-perf/jvm-vs-jni-sunos-sparcv9-20261116-210157.json` |
+
+**头条数字**（ns/op，跨 3 轮取中位数；JNI/JCE > 1 = JNI 更快）：
+
+| alg | size | JCE ns/op | JNI ns/op | JNI/JCE | JCE MB/s | JNI MB/s |
+|---|---|---|---|---|---|---|
+| sha256 | 64 | 6613.5 | 10221.7 | 0.65x | 9.7 | 6.3 |
+| sha256 | 1024 | 11255.1 | 12738.8 | 0.88x | 91.0 | 80.4 |
+| sha256 | 8192 | 31946.9 | 24242.0 | 1.32x | 256.4 | 337.9 |
+| sha256 | 65536 | 117736.7 | 153550.6 | 0.77x | 556.6 | 426.8 |
+| hmacsha256 | 64 | 133208.4 | 3043.2 | **43.77x** | 0.5 | 21.0 |
+| hmacsha256 | 1024 | 132362.4 | 5423.2 | **24.41x** | 7.7 | 188.8 |
+| hmacsha256 | 8192 | 172207.7 | 17978.0 | 9.58x | 47.6 | 455.7 |
+| hmacsha256 | 65536 | 269911.2 | 145780.9 | 1.85x | 242.8 | 449.6 |
+
+**三条结论**：
+
+1. **「JNI 快 43 倍」是固定成本差，不是「哈希快 43 倍」。**
+   阶段分解显示：JCE 的 HMAC 把 ~130μs 固定成本付在 **setup 段**
+   （与载荷大小无关 —— 4 个载荷的 setup 分别是 132.1 / 158.0 / 187.4 / 177.6 μs），
+   而 native 同一段 ≈ 0（`setup − session` = 4 / −19 / 75 / 681 ns）。
+   ⇒ 差的是「JCE 每次操作都要重新准备一次 HMAC 实例」，**不是** OpenSSL 的 HMAC 更快。
+   **具体是哪一次 JDK 调用付的**（`Mac.init`? `getInstance`? provider 归属?）
+   → 用 `CryptoCostProbe` 在目标机上逐个 API 归因（见下「待测」）。
+2. **纯吞吐上 JCE 并不慢**：SHA-256@64KB，JCE **556.6 MB/s** vs JNI **426.8 MB/s** ——
+   JNI 在这一格输掉，**主因不是 OpenSSL 慢，而是 edap-crypto 的 native 路径多搬了一次载荷**：
+   `ByteAccumulator` 从 256 字节起按 1.5 倍几何增长 ⇒ 追加 64KB 要扩容 13 次、
+   把已攒下的数据反复搬一遍（总搬运量约 **3 倍**载荷）；
+   而 JCE 的 `MessageDigest.update` 直接从调用方的数组取数据，**零拷贝**。
+   ⇒ 已把首次分配改成「按需分配」、后续按 2 倍增长（搬运量 3 倍 → 1 倍）。
+   **这处拷贝本身是语义要求**：JCE 是在 `update()` 那一刻取数据的，
+   native 侧要等到 `digest()` 才有完整数据 ⇒ 不拷贝就会算到「被改写后的内容」。
+3. **JNI 的收益集中在 HMAC 与中大载荷**；SHA-256 小载荷（64B/1KB）上 JNI 不占优
+   （0.65x / 0.88x）—— 固定开销（JNI 调用 + OpenSSL 一次性 API 的准备）吃掉了全部收益。
+
+**★ 阶段分解本身也修了两个口径缺陷**（不修的话，上面的差值全是噪声）：
+
+| 缺陷 | 现象 | 修法 |
+|---|---|---|
+| **预热次数随载荷大小变化** | `warmup = max(iters/4, 1000)`，而 `iters = 4MB/size` ⇒ 64B 预热 16384 次、其余只有 1000 次。HotSpot 调用阈值是 Tier3=200 / **Tier4=5000** ⇒ 大载荷的「session」段（**根本不碰载荷**）只跑到 C1：读出来 64B 是 36.9ns、64KB 是 1447.2ns —— 差 40 倍，差的全在 JIT 状态 | 预热次数改成**固定 20000 次**（`--warmup`），与载荷大小、阶段无关 |
+| **辅助阶段用更少的批次** | 辅助阶段 `--batches=2`、头条阶段 5 批 ⇒ 两个阶段的「批内 min」不在同一口径，`full − hash` 被系统性偏置（实测 JCE 的 hash 段一度读出**比 full 还慢** —— 荒谬，但完全由口径造成） | 所有阶段批次数一律相同（不再单独传 `--batches`） |
+
+**待测（目标机上跑 `CryptoCostProbe` 回答）**：
+① JCE 的 ~130μs 固定成本具体落在哪一次 JDK 调用上；
+② `MessageDigest(SHA-256)` / `Mac(HmacSHA256)` 在 Solaris 上落到哪个 provider
+（`SUN` 还是 `SunPKCS11` —— 后者每次操作要走加密守护进程的 IPC，是「每次操作固定成本」的经典来源）。
 
 ---
 
