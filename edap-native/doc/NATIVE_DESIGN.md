@@ -111,13 +111,20 @@ OpenSSL 1.1.1 可直接编译。
 `edap-crypto` 里有一个专门的对比用例（见 `io.edap.crypto.test.JvmVsJniPerfTest`）：
 
 ```bash
-mvn -pl edap-crypto -am test -DskipTests=false -Dtest=JvmVsJniPerfTest \
-    -Dsurefire.failIfNoSpecifiedTests=false
+# ① 先把「含 .o 的」edap-native 装进本地仓库
+mvn -pl edap-native -am install -DskipTests
+# ② 再单模块跑（不带 -am）
+mvn -pl edap-crypto test -DskipTests=false -Dtest=JvmVsJniPerfTest
 ```
 
-（`-am` 会把上游模块（edap-log-api 等）也拉进来构建，它们没有同名用例 ⇒ 必须带
-`-Dsurefire.failIfNoSpecifiedTests=false`，否则 reactor 在上游就 FAILURE，压根跑不到
-edap-crypto。）
+> ⚠️ **不要用 `-am` + `-Dsurefire.failIfNoSpecifiedTests=false` 的组合**：
+> 那样上游模块（edap-log-api / edap-native 没有同名用例）不报 FAILURE，
+> 而 **edap-crypto 上的「测试类压根不存在」（比如新文件没同步到目标机）也会被同样地
+> 静默吞掉** —— 表现是 `BUILD SUCCESS` 但 `Tests run` 一行都没有。
+> 上面两步的写法里，第 ② 步不带 `-am` ⇒ reactor 里只有 edap-crypto 一个模块 ⇒
+> surefire 的 `failIfNoSpecifiedTests` 保持默认 true ⇒ **测试没找到会直接报错**。
+> 看到输出里没有 `Tests run: ... in io.edap.crypto.test.JvmVsJniPerfTest` 就是没跑，
+> 别把 BUILD SUCCESS 当成通过。
 
 - **Solaris 上若没有 `edap-native-sunos_*.o`，这个用例会直接失败**（而不是静默跳过）——
   「以为在用 JNI 加速、其实一直在跑 JCE」是最难发现的一类问题；
