@@ -46,8 +46,88 @@ edap-auth-jwt                     (应用层，零硬依赖)
 | macOS | x86_64 | `edap-native-macos_x86_64.o` | 待编译 |
 | Linux | x86_64 | `edap-native-linux_x86_64.o` | 待编译 |
 | Linux | aarch64 | `edap-native-linux_aarch64.o` | 待编译 |
+| Solaris | sparc | `edap-native-sunos_sparc.o` | 待编译（目标生产平台） |
+| Solaris | sparcv9 | `edap-native-sunos_sparcv9.o` | 待编译（目标生产平台） |
 
 不在以上平台 → `Native.ENABLE_NATIVE=false` → 自动 fallback JCE。加载逻辑见 `Native.java:60-93`。
+
+### 2.1 产物命名由 JVM 决定，不是 uname
+
+`.o` 的名字是 `edap-native-{os}_{arch}.o`，其中 `{os}` / `{arch}` 是
+**`Native.normalizeOs(os.name)` / `Native.normalizeArch(os.arch)`** 的输出
+（`Native.java:111-160`）。所以：
+
+- **必须在目标机上编译**（在那台机器上跑 `build-native.sh`）——
+  产物与运行时的 `os.arch` 天然对齐；
+- `build-native.sh` 也是**问 JVM**（`-XshowSettings:properties -version`）而不是 `uname`，
+  避免 `uname -m` 与 JVM 的 `os.arch` 不一致（Solaris 上 `sparc` vs `sparcv9` 就是这种情形）。
+
+### 2.2 在 Solaris 上编译
+
+```bash
+export JAVA_HOME=/path/to/jdk17
+# OpenSSL 不在默认搜索路径时显式指定（CSW 或自编译安装）
+OPENSSL_INCLUDE=-I/opt/csw/include OPENSSL_LIB="-L/opt/csw/lib" \
+    ./scripts/build-native.sh --commit
+```
+
+脚本在 Solaris 上的差异：
+
+| 项 | macOS / Linux | Solaris |
+|---|---|---|
+| 编译器 | `clang` / `gcc` | `gcc` 优先，否则 Sun Studio `cc` |
+| 共享库参数 | `-shared -fPIC` | gcc 同左；Sun Studio 用 `-shared -KPIC` |
+| `jni_md.h` | `include/darwin` / `include/linux` | `include/solaris` |
+| 链接附加库 | `-lpthread`（Linux） | `-lpthread -lsocket -lnsl` |
+| sha256 摘要 | `shasum` / `sha256sum` | `digest -a sha256` |
+
+C 侧只用 OpenSSL 的 legacy `SHA256_*` / `SHA1_*` / `MD5_*`（不走 EVP provider dispatch），
+这三组 API 在 OpenSSL 1.0.x / 1.1.x / 3.x 上签名一致，Solaris 11 自带的
+OpenSSL 1.1.1 可直接编译。
+
+### 2.3 在目标机上量「JVM 内置 vs JNI」
+
+`edap-crypto` 里有一个专门的对比用例（见 `io.edap.crypto.test.JvmVsJniPerfTest`）：
+
+```bash
+mvn -pl edap-crypto -am test -DskipTests=false -Dtest=JvmVsJniPerfTest \
+    -Dsurefire.failIfNoSpecifiedTests=false
+```
+
+（`-am` 会把上游模块（edap-log-api 等）也拉进来构建，它们没有同名用例 ⇒ 必须带
+`-Dsurefire.failIfNoSpecifiedTests=false`，否则 reactor 在上游就 FAILURE，压根跑不到
+edap-crypto。）
+
+- **Solaris 上若没有 `edap-native-sunos_*.o`，这个用例会直接失败**（而不是静默跳过）——
+  「以为在用 JNI 加速、其实一直在跑 JCE」是最难发现的一类问题；
+- 其它平台没有预编译产物时跳过 JNI 对比；
+- 测量口径：一个候选一个 JVM（子进程）、候选顺序按轮次轮转、单 JVM 内取 min、
+  跨 launch 取中位数 —— 口径与理由写在用例的 javadoc 里（`JvmVsJniPerfTest` 类头）；
+- 结果同时打印到控制台并落 `edap-crypto/target/crypto-perf/jvm-vs-jni-<os>-<arch>-<ts>.json`。
+
+### 2.4 实测：macOS/aarch64（2026-11-16）
+
+JDK 17.0.20.1，OpenSSL 3.6.4，走 `edap-crypto` 的 provider 抽象（session 复用）：
+
+| 算法 | 载荷 | JCE ns/op | JNI ns/op | JNI/JCE |
+|---|---|---|---|---|
+| SHA-256 | 64 B | 597.1 | 610.0 | **0.98×** |
+| SHA-256 | 1 KB | 4954.1 | 1224.0 | 4.05× |
+| SHA-256 | 8 KB | 36848.6 | 5570.4 | 6.62× |
+| SHA-256 | 64 KB | 286642.6 | 31446.0 | 9.12× |
+| HMAC-SHA256 | 64 B | 1518.2 | 581.7 | 2.61× |
+| HMAC-SHA256 | 1 KB | 5884.7 | 1180.1 | 4.99× |
+| HMAC-SHA256 | 8 KB | 37512.5 | 5361.9 | 7.00× |
+| HMAC-SHA256 | 64 KB | 286836.6 | 31019.5 | 9.25× |
+
+**读法**：JNI 的收益几乎全部来自「大载荷时 OpenSSL 的块级优化」（macOS 上是 ARMv8
+SHA 扩展，JNI 侧 2.1 GB/s vs JCE 侧 0.23 GB/s）；**小载荷时 JNI 的固定开销
+（JNI 调用 + OpenSSL 3.x 一次性 API 的 provider dispatch）会把收益吃光** ——
+64 B 的 SHA-256 上 JNI 与 JCE 持平（0.98×），这条线是「要不要开 JNI」的判据。
+
+**注意**：这组数字是 macOS/aarch64 的，**不能当作 Solaris/SPARC 的结论** ——
+SPARC 没有 ARM 的 SHA 扩展，OpenSSL 走软件实现，JNI 侧不会这么快；
+必须在目标机上用 §2.3 的用例重测。
 
 ---
 
