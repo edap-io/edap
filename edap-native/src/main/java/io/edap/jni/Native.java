@@ -8,7 +8,6 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.util.Locale;
 import java.util.Properties;
 import java.util.UUID;
 
@@ -22,8 +21,12 @@ import java.util.UUID;
  * <ul>
  *   <li>macos x86_64 / aarch64</li>
  *   <li>linux x86_64 / aarch64</li>
+ *   <li>sunos sparcv9 / sparc / sun4v（Solaris/SPARC，产物名按 JVM 的 os.arch 归一化）</li>
  * </ul>
  * 不在以上列表时 {@link #ENABLE_NATIVE} 置为 false，所有 native 调用 fallback 到 Java 实现。</p>
+ *
+ * <p><b>产物名的规则在 {@link Platform}</b>（运行时与构建脚本共用同一份代码），
+ * 详见该类的说明 —— 为什么不能按 uname 取名。</p>
  *
  * <p>每个子模块（如 {@link io.edap.jni.crypto.NativeHmacSha256}）在自己的
  * {@code static {}} 里调用 {@link #loadLibrary()}；多模块复用一份 .o，避免重复加载。</p>
@@ -70,7 +73,7 @@ public final class Native {
 
         String os   = normalizeOs(osName);
         String arch = normalizeArch(archName);
-        if ("unsupported".equals(os)) {
+        if (Platform.UNSUPPORTED.equals(os)) {
             LOG.info("edap-native unsupported os=" + osName + ", skipping native load");
             ENABLE_NATIVE = false;
             return;
@@ -78,7 +81,7 @@ public final class Native {
 
         // 资源名必须带前导斜杠：Class.getResourceAsStream 对以 "/" 开头的是绝对路径语义，
         // 不带斜杠会按本类所在包（io/edap/jni/）相对查找，必然取不到。
-        String libPath = "/edap-native-" + os + "_" + arch + ".o";
+        String libPath = Platform.resourcePath(osName, archName);
 
         try (InputStream in = Native.class.getResourceAsStream(libPath)) {
             if (in == null) {
@@ -105,50 +108,23 @@ public final class Native {
      * {@code os.name} → 资源名里的 os 段。
      *
      * <p>旧实现只区分 MAC / SUNOS，其余一律落到 linux —— Windows 会被误判成 linux，
-     * amd64→x86_64 的归一化也只在 linux 分支内做。这里改成白名单映射，
+     * amd64→x86_64 的归一化也只在 linux 分支内做。现在改成白名单映射，
      * 不认识的平台返回 {@code "unsupported"}，调用方直接跳过加载。</p>
+     *
+     * <p><b>实现委托给 {@link Platform}</b>：构建脚本（build-native.sh）也必须算出
+     * 同一个资源名，两边共用一份代码才不会漂移。</p>
      */
     public static String normalizeOs(String osName) {
-        String os = osName == null ? "" : osName.toUpperCase(Locale.ENGLISH);
-        if (os.contains("MAC") || os.contains("DARWIN")) {
-            return "macos";
-        }
-        if (os.contains("WIN")) {
-            return "windows";
-        }
-        if (os.contains("LINUX")) {
-            return "linux";
-        }
-        if (os.contains("SUNOS") || os.contains("SOLARIS")) {
-            return "sunos";
-        }
-        if (os.contains("FREEBSD")) {
-            return "freebsd";
-        }
-        return "unsupported";
+        return Platform.normalizeOs(osName);
     }
 
     /**
      * {@code os.arch} → 资源名里的 arch 段。归一化对所有平台一视同仁（旧实现只在 linux 分支里做）。
+     *
+     * <p>实现委托给 {@link Platform}，理由同 {@link #normalizeOs(String)}。</p>
      */
     public static String normalizeArch(String archName) {
-        String arch = archName == null ? "" : archName.toLowerCase(Locale.ENGLISH);
-        switch (arch) {
-            case "amd64":
-            case "x86_64":
-                return "x86_64";
-            case "aarch64":
-            case "arm64":
-                return "aarch64";
-            case "x86":
-            case "i386":
-            case "i486":
-            case "i586":
-            case "i686":
-                return "x86";
-            default:
-                return arch;
-        }
+        return Platform.normalizeArch(archName);
     }
 
     /**
