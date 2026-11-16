@@ -92,18 +92,38 @@ public abstract class AbstractWriter implements EprotoWriter {
         if (IS_BYTE_ARRAY) {
             writeByteArrayString(v);
         } else {
-            int len = v.length();
-            if (len <= 10) {
-                writeCharArrayString(v, len);
-            } else {
-                writeUtf16String(v, len);
-            }
+            writeJdk8String(v);
+        }
+    }
+
+    /**
+     * JDK 8 写端（JDK 9+ 走 {@link #writeByteArrayString}）。
+     *
+     * <p>规则：≤10 字符走 UTF-8（{@link #writeCharArrayString}），&gt;10 字符走 UTF-16
+     * （{@link #writeUtf16String}）—— 长串用 UTF-16 更省（中文 2 字节，UTF-8 要 3 字节）。</p>
+     *
+     * <p>★ <b>包级可见是为了能在 JDK 17 上测这条路径</b>：本方法只做字节拼装，
+     * 产出与运行时的 JDK 版本无关 ⇒ 直接调用它就能拿到「JDK 8 会写出的那些字节」。</p>
+     */
+    void writeJdk8String(final String v) {
+        int len = v.length();
+        if (len <= 10) {
+            writeCharArrayString(v, len);
+        } else {
+            writeUtf16String(v, len);
         }
     }
 
     private void writeUtf16String(String v, int len) {
         expand(MAX_VARINT_SIZE + (len*2) + 1);
-        writeUInt32_0(makeStringLenTag(len + 1, ProtoBufStringCharset.UTF8));
+        // ★ 载荷 = char[] 的原始字节（copyUtf16le 其实不做任何字节序转换，名字有误导）
+        //   ⇒ wire 上的字节序 = 本机端序（JDK 的 char 就是按本机序存的）
+        //   ⇒ charset 标记必须带上「本机端序」，读端才知道要不要翻一次。
+        // ★ 原来这里打的是 UTF8 标记 ⇒ 读端会把 UTF-16 字节当 UTF-8 解 ⇒ 必然乱码。
+        //   长度字段 = 字节数 + 1（LATIN1/UTF16 的 len 是字节数，只有 UTF8 才是字符数）。
+        int lenTag = makeStringLenTag(len * 2 + 1,
+                NATIVE_LITTLE_ENDIAN ? ProtoBufStringCharset.UTF16 : ProtoBufStringCharset.UTF16BE);
+        writeUInt32_0(lenTag);
         UnsafeUtil.copyUtf16le(getCharValue(v), 0, bs, pos, len);
         pos += len * 2;
     }
@@ -112,46 +132,69 @@ public abstract class AbstractWriter implements EprotoWriter {
         byte[] data = StringUtil.getValue(v);
         int len = data.length;
         expand(MAX_VARINT_SIZE + len);
-        // latin1编码的byte[]
+        // ★ UTF16 串写出去的字节 = String 内部 byte[] 原样拷贝 ⇒ 字节序 = 本机端序
+        //   （JDK 的 String 内部 UTF-16 字节序 = 原生端序）
+        //   ⇒ charset 标记必须带上「本机端序」，读端才知道要不要翻一次。
+        //   写端一次字节序转换都不做 ⇒ 同端序时两端都零成本。
         int lenTag;
         if (isLatin1(v)) {
             lenTag = makeStringLenTag(len + 1, ProtoBufStringCharset.LATIN1);
         } else {
-            lenTag = makeStringLenTag(len + 1, ProtoBufStringCharset.UTF16);
+            lenTag = makeStringLenTag(len + 1,
+                    NATIVE_LITTLE_ENDIAN ? ProtoBufStringCharset.UTF16 : ProtoBufStringCharset.UTF16BE);
         }
         writeUInt32_0(lenTag);
         System.arraycopy(data, 0, bs, pos, len);
         pos += len;
     }
 
-    private void writeCharArrayString(String v, int charLen) {
+    /**
+     * JDK 8 写端的 UTF-8 编码（{@link ProtoBufStringCharset#UTF8}，长度字段 = <b>字符数</b>）。
+     *
+     * <p>★ <b>包级可见是为了能在 JDK 17 上测这条路径</b>：本方法只做字节拼装，
+     * 产出与运行时的 JDK 版本无关。</p>
+     */
+    void writeCharArrayString(String v, int charLen) {
         // 转为utf8后最大的所需字节数
         int maxBytes = charLen * 3 + 1;
         // 如果所需最大字节数小于3k + 编码int最大字节数 则直接扩容所需最大字节数
         if (maxBytes <= 3072) {
             expand(MAX_VARINT_SIZE + maxBytes);
             writeUInt32_0(makeStringLenTag(charLen + 1, ProtoBufStringCharset.UTF8));
-            if (charLen < 16) {
-                pos += writeChars(getCharValue(v), 0, charLen, pos);
-            } else {
-                pos += writeChars(getCharValue(v), 0, charLen, pos);
-            }
+            pos += writeChars(getCharValue(v), 0, charLen, pos);
             return;
         }
 
         // 每次取最大为1024个字符进行写入
-        int start = 0;
-        int end = Math.min((start + 1024), charLen);
         char[] cs = getCharValue(v);
+        int start = 0;
+        int end = chunkEnd(cs, start, charLen);
 
         expand(maxBytes + MAX_VARINT_SIZE);
-        writeUInt32_0(makeStringLenTag(charLen, ProtoBufStringCharset.UTF8));
+        // ★ 长度字段 = 字符数 + 1（与上面那个分支一致；原来少了 +1 ⇒ 读端会少读一个字符）
+        writeUInt32_0(makeStringLenTag(charLen + 1, ProtoBufStringCharset.UTF8));
         while (start < charLen) {
             expand(3072);
-            pos += writeChars(cs, 0, end, pos);
-            start += 1024;
-            end = Math.min((start + 1024), charLen);
+            // ★ 必须从 start 写（原来写的是 0 ⇒ 每一段都从头写，内容全错）
+            pos += writeChars(cs, start, end, pos);
+            start = end;
+            end = chunkEnd(cs, start, charLen);
         }
+    }
+
+    /**
+     * 下一块的结束下标 —— <b>代理对不跨块</b>。
+     *
+     * <p>★ {@link #writeChars(char[], int, int, int)} 遇到代理对时会把两个 char 一起写成
+     * 4 字节的 UTF-8 序列 ⇒ 如果块边界正好切在代理对中间，低代理会被<b>写两遍</b>
+     * （前一块写对的 4 字节 + 后一块写出的乱码 3 字节）。</p>
+     */
+    private static int chunkEnd(char[] cs, int start, int charLen) {
+        int end = Math.min(start + 1024, charLen);
+        if (end < charLen && Character.isHighSurrogate(cs[end - 1])) {
+            end--;
+        }
+        return end;
     }
 
     protected final int writeChars(final String value, int start, int end, int pos){

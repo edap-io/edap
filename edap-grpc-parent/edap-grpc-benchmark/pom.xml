@@ -18,13 +18,23 @@
         和 google 的 protoc（protobuf-maven-plugin + protoc-gen-grpc-java），
         生成两套 Java 代码后做端到端吞吐/延迟对比与跨框架互操作验证。
 
+        ★ 本模块也是 eRPC vs edap-gRPC 的协议层对比基准（ErpcVsGrpcMain）——
+          两个协议不互通，无法做 2×2 矩阵，只能做「各自端到端」的对比。
+
         ★ 本模块是唯一引入 google 系依赖（grpc-java / protobuf-java）的地方，
           这些依赖不会进入任何 edap 运行时产物（edap-container-boot-lib.txt 不含本模块）。
+
+        ★ 本模块也引入 Apache Thrift（libthrift），用于「Thrift vs eRPC vs edap-gRPC vs grpc-java」
+          的四臂端到端对比（ThriftVsErpcVsGrpcMain）。Thrift 侧的 struct / service 是
+          手写的「thrift 编译器产物形态」代码（环境里没有 thrift 编译器）。
     </description>
 
     <properties>
         <grpc.version>1.85.1</grpc.version>
         <protobuf.version>3.25.9</protobuf.version>
+        <thrift.version>0.14.2</thrift.version>
+        <!-- libthrift 0.14.2 依赖的 slf4j-api 1.7.28 在本地仓库里只有 .pom 没有 .jar ⇒ 覆盖成有 jar 的版本 -->
+        <slf4j.version>1.7.36</slf4j.version>
         <os-maven-plugin.version>1.7.1</os-maven-plugin.version>
         <protobuf-maven-plugin.version>0.6.1</protobuf-maven-plugin.version>
         <!-- 两个生成器共用的唯一 proto 目录（edap 插件只扫 <resourceDir>/proto） -->
@@ -46,6 +56,16 @@
                 <groupId>com.google.protobuf</groupId>
                 <artifactId>protobuf-java</artifactId>
                 <version>${protobuf.version}</version>
+                <scope>compile</scope>
+            </dependency>
+            <!--
+                ★ libthrift 0.14.2 声明的 slf4j-api 1.7.28 在本地仓库里只有 .pom、没有 .jar
+                  （离线构建会直接失败）⇒ 这里覆盖成本地有 jar 的 1.7.36。
+            -->
+            <dependency>
+                <groupId>org.slf4j</groupId>
+                <artifactId>slf4j-api</artifactId>
+                <version>${slf4j.version}</version>
                 <scope>compile</scope>
             </dependency>
         </dependencies>
@@ -70,6 +90,16 @@
             <artifactId>edap-nio-server</artifactId>
         </dependency>
 
+        <!-- ==================== eRPC 侧（协议对比基准用） ==================== -->
+        <dependency>
+            <groupId>io.edap</groupId>
+            <artifactId>edap-erpc-server</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.edap</groupId>
+            <artifactId>edap-erpc-client</artifactId>
+        </dependency>
+
         <!-- ==================== google 侧（仅本模块） ==================== -->
         <dependency>
             <groupId>io.grpc</groupId>
@@ -90,6 +120,32 @@
             <groupId>com.google.protobuf</groupId>
             <artifactId>protobuf-java</artifactId>
             <!-- 版本/scope 由上面的 dependencyManagement 决定（根 pom 的管理项在此被覆盖） -->
+        </dependency>
+
+        <!-- ==================== Thrift 侧（四臂对比基准用） ==================== -->
+        <dependency>
+            <groupId>org.apache.thrift</groupId>
+            <artifactId>libthrift</artifactId>
+            <version>${thrift.version}</version>
+            <exclusions>
+                <!--
+                    ★ httpclient / httpcore / tomcat-embed-core 只服务于 THttpClient / THttpServer
+                      （HTTP 传输），本基准用的是 TSocket 二进制传输 ⇒ 全部排除，
+                      免得引入三个用不到的传递依赖。
+                -->
+                <exclusion>
+                    <groupId>org.apache.httpcomponents</groupId>
+                    <artifactId>httpclient</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>org.apache.httpcomponents</groupId>
+                    <artifactId>httpcore</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>org.apache.tomcat.embed</groupId>
+                    <artifactId>tomcat-embed-core</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
 
         <dependency>

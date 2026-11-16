@@ -19,6 +19,7 @@ import static io.edap.protobuf.util.ProtoUtil.getStringLen;
 import static io.edap.protobuf.wire.WireFormat.FIXED_32_SIZE;
 import static io.edap.util.Constants.EMPTY_STRING;
 import static io.edap.util.StringUtil.IS_BYTE_ARRAY;
+import static io.edap.util.StringUtil.NATIVE_LITTLE_ENDIAN;
 import static io.edap.util.StringUtil.fastInstance;
 import static java.util.Collections.EMPTY_LIST;
 
@@ -886,45 +887,82 @@ public class ByteArrayReader extends AbstractReader {
             int len = getStringLen(lenTag) - 1;
             ProtoBufStringCharset psc = ProtoBufStringCharset.fromValue(getStringCharset(lenTag));
             if (psc == ProtoBufStringCharset.LATIN1) {
+                // ★ len = 字节数（Latin1 一字节一字符）
+                //   读完必须推进 pos，否则下一个字段读到的还是同一个串。
+                if (limit - pos < len) {
+                    throw ProtoException.truncatedMessage();
+                }
                 byte[] data = new byte[len];
                 System.arraycopy(buf, pos, data, 0, len);
-				return fastInstance(data, (byte)0);
-			} else if (psc == ProtoBufStringCharset.UTF16) {
-                byte[] data = new byte[len];
-                System.arraycopy(buf, pos, data, 0, len);
+                pos += len;
                 if (IS_BYTE_ARRAY) {
-					return fastInstance(data, (byte)1);
-				} else {
-
+                    return fastInstance(data, (byte)0);
+                }
+                // JDK 8：fastInstance 的兜底是 new String(data)（按<b>平台默认字符集</b>解）
+                //   ⇒ 这里显式按 Latin1 解，否则默认字符集不是 Latin1 时会乱码。
+                return new String(data, StandardCharsets.ISO_8859_1);
+            } else if (psc == ProtoBufStringCharset.UTF16 || psc == ProtoBufStringCharset.UTF16BE) {
+                // ★ len = 字节数（UTF-16 内部 byte[] 的长度）
+                //   读完必须推进 pos，否则下一个字段读到的还是同一个串。
+                if (limit - pos < len) {
+                    throw ProtoException.truncatedMessage();
+                }
+                byte[] data = new byte[len];
+                System.arraycopy(buf, pos, data, 0, len);
+                pos += len;
+                // ★ charset 标记携带的是「发送方的字节序」（UTF16=小端、UTF16BE=大端）
+                boolean wireLittleEndian = (psc == ProtoBufStringCharset.UTF16);
+                if (IS_BYTE_ARRAY) {
+                    //   ⇒ 与本机不一致时翻一次；同端序一次都不翻。
+                    if (wireLittleEndian != NATIVE_LITTLE_ENDIAN) {
+                        StringUtil.swapUtf16ByteOrder(data, 0, len);
+                    }
+                    // 第二个参数是 JDK 的 coder（1 = UTF16），与 wire 上的字节序无关
+                    return fastInstance(data, (byte)1);
+                } else {
+                    // JDK 8：String 内部是 char[]，塞不进 byte[] ⇒ 按 wire 上的字节序解码
+                    return wireLittleEndian
+                            ? new String(data, StandardCharsets.UTF_16LE)
+                            : new String(data, StandardCharsets.UTF_16BE);
                 }
             } else {
+                // ★ UTF8 标记的 len 是「字符数」，载荷字节数要靠扫描 UTF-8 序列算出来
+                //   （JDK 8 写端 writeCharArrayString 就是这么标的）。
+                //   扫描完必须把结果回写 pos，否则下一个字段读到的还是同一个串。
+                // ★ 计数单位 = UTF-16 码元（= Java 的 char 数）：
+                //   1/2/3 字节序列 = 1 个码元；4 字节序列（代理对）= 2 个码元。
+                //   原来按 code point 计数 ⇒ 含补充平面字符（emoji）时与写端的 char 数对不上。
                 int index = 0;
                 byte[] _buf = buf;
                 int    _pos = pos;
                 int    oPos = _pos;
                 while (index < len) {
+                    if (_pos >= limit) {
+                        throw ProtoException.truncatedMessage();
+                    }
                     int b = _buf[_pos++];
                     if ((b & 0x80) == 0) {
                         index++;
                     } else {
-                        _pos++;
                         if ((b & 0xE0) == 0xC0) {
+                            _pos += 1;
+                            index++;
+                        } else if ((b & 0xF0) == 0xE0) {
+                            _pos += 2;
                             index++;
                         } else {
-                            _pos++;
-                            if ((b & 0xF0) == 0xE0) {
-                                index++;
-                            } else {
-                                _pos++;
-                                index++;
-                            }
+                            _pos += 3;
+                            index += 2;
+                        }
+                        if (_pos > limit) {
+                            throw ProtoException.truncatedMessage();
                         }
                     }
                 }
+                pos = _pos;
                 return new String(_buf, oPos, _pos-oPos, StandardCharsets.UTF_8);
             }
         }
-        return null;
     }
 
     @Override

@@ -419,8 +419,10 @@ mvn -o -pl edap-raft-parent/edap-raft -am test -Dtest=RaftTest
   两份上游测试数据未移植。但 `Node` 层的**三阶段流水线**（框架落盘 + 独立 apply 线程，
   见 §3.2）已经实现并有专项测试覆盖 —— 缺的只是 `RawNode` 这一层的异步落盘 API
   与那两份数据。参考实现见 §9.3。
-- **`edap-container` 没有把 `Edap` 注册为 bean**，容器场景下应用暂时拿不到宿主 `Edap`；
-  `NioRaftTransport` 会自建一组 reactor 线程。这是 `edap-raft` 与容器之间的一个待补接缝。
+- ~~**`edap-container` 没有把 `Edap` 注册为 bean**，容器场景下应用暂时拿不到宿主 `Edap`；
+  `NioRaftTransport` 会自建一组 reactor 线程。这是 `edap-raft` 与容器之间的一个待补接缝。~~
+  —— **已补**（2026-11-15，见 §11）：容器把宿主 `Edap` 传给 `NioRaftTransport`，
+  不再自建 reactor；编排层整体落在 §11。
 - **`edap-nio-server` 的写路径在背压下有多个框架级缺陷**（`flush()` 里重新 register 会丢掉 OP_READ、
   `DisruptorReadDispatcher` 的 OP_WRITE 分支不清 OP_WRITE 兴趣）。raft 的响应体很小（几十字节），
   实际触发概率低；且 raft 的响应走的是出站 `SocketPeerClient`，不经过框架的写队列。
@@ -5532,3 +5534,254 @@ notify 唯一实际生效的作用是**把「碎片批次合并」关掉**
    - **（新）不要用「吞吐中位数」去评价 notify** ——
      换挡是二元事件（§10.14.8.6），中位数会随抽样比例漂
      （B 格两批相差 11 个百分点）⇒ **要报「换挡率 + 两种状态各自的收益」**。
+
+---
+
+## 11. 容器接入与自动成组（编排层）
+
+前面的章节讲的是**协议内核**（etcd raft 的移植）。内核之上还缺一层：**谁来组集群**。
+etcd 的答案是「运维在启动参数里写全量成员表」；本节的做法是**容器按配置自动成组**：
+
+- 使用者**不写任何注解、不写成员名单**，只配几个 `container.raft.*`；
+- **最先起来的容器就是主**；
+- 集群成员数有上限，**满了以后再起的容器只做客户端**（不监听 raft 端口）；
+- 客户端**不填 raft 地址**，靠 seeds/网段自动发现主。
+
+### 11.1 分层
+
+| 层 | 位置 | 职责 |
+|---|---|---|
+| 协议内核 | `io.edap.raft`（§2~§10） | 选举 / 复制 / 提交 / 快照 / 成员变更 |
+| **编排层** | `io.edap.raft.cluster`（edap-raft 内） | 成员发现、仲裁、自举/加入、提案信封与回执、客户端 |
+| **容器接线** | `io.edap.container.raft`（edap-container 内） | Props → 配置、管理端口上的四个 HTTP 端点、传输层挂宿主 `Edap` |
+
+编排层刻意**不依赖 `Props`**（`RaftClusterConfig` 是纯 POJO），
+容器侧负责把配置映射过去 —— 这样编排层能被容器以外的宿主复用，也能用内存实现做单测。
+
+### 11.2 自动成组：CLAIM 广播 + 确定性仲裁
+
+「第一个加入的自举成主」在**多个容器同时启动**时会分裂：谁都探不到「已有集群」⇒ 各自自举 ⇒ 两个主。
+所以启动时先广播一轮 CLAIM，让彼此看见：
+
+```
+新节点启动（本地无身份）
+  ├─ ① 发 CLAIM：POST /raft/claim {host, port, managerPort, instanceId}
+  │     ├─ 显式 seeds → 每个 seed 一次
+  │     └─ 通配网段  → 扇出到网段内每个候选（排除自己），并发 probeConcurrency
+  ├─ ② 收应答，三态：
+  │     ├─ LEADER_ACK  「我是主」        ⇒ 走加入流程
+  │     ├─ PEER_CLAIM  「我也在启动」    ⇒ 记下同伴，进入仲裁窗口
+  │     └─ 无应答                        ⇒ 窗口结束 ⇒ 确实只有自己 ⇒ 自举成主
+  └─ ③ 仲裁（窗口必须等满）：
+        ├─ 同伴里有人地址比我小 ⇒ 我不当主，等他
+        ├─ 同伴里所有人都比我大 ⇒ 我自举成主
+        └─ 等主出现（收到 LEADER_ACK）⇒ 加入
+```
+
+**仲裁规则 = `(host, port)` 字典序最小**：全局一致、**不依赖时钟同步**、不需要中心仲裁者。
+窗口必须**等满**再自举（否则「漏看更小的同伴」会造出第二个主）。
+
+**部分可见也不分裂**：A 能看到 B、B 看不到 A ⇒ A 等 B，B 自举成主，
+A 收到 LEADER_ACK 后加入 ⇒ 仍只有一个主。
+
+**为什么用 HTTP 扇出而不是 UDP 广播**：UDP 在 docker/bridge 网络里常被 iptables 拦掉；
+TCP 一定通，且能复用已有的管理 HTTP server。代价是 254 个候选要 254 次连接
+（并发 32 ⇒ 最坏 ~1.6s），换来的是「可靠传输 + 已有栈」。
+**老集群场景靠短路保持同样的快**：探到 LEADER_ACK 立刻停止等待。
+
+**★ 快路径：显式 seed 排在通配展开之前**（`RaftSeedSet.expand()` 分两组收集，
+显式在前、通配在后，组内按 `(host, port)` 排序）。
+广播是**并发扇出、先到先得** —— 显式地址排在前面意味着「主就在显式地址上」时
+不用等前面两百多个不可达地址各超时一轮。实测（本机，主在 `192.168.2.1:1111`，
+seeds = `10.0.1.*:1112,192.168.2.1:1111`）：**发现主 1.48s → 86ms**。
+反过来，「网段里根本没有集群」（全新部署）时仍要扫完整网段：/24 实测 ~3.7s。
+
+### 11.3 「最先起来的是主」怎么保证
+
+leader 在 raft 里是**选举**产生的，不是启动顺序决定的。唯一能严格保证的做法是：
+
+- 第一个加入的容器**自举成单节点集群（quorum=1）** ⇒ 立刻自选为主；
+- 后来的只能通过**成员变更**加入，永远是从。
+
+自举后**不能立刻 `campaign()`**：`bootstrap()` 追加的成员变更条目在 apply 之前会让
+`Raft.hasUnappliedConfChanges()` 为 true，`hup()` 直接拒绝竞选
+（日志 "cannot campaign ... pending configuration changes"）。
+所以靠 **tick 自然选举**（`Node.startTicker`）—— 单投票节点给自己投票，1/1 满足 quorum。
+
+加入方**不能 `startNode`**（那会自己造成员变更，与现任主冲突），
+只能 `restartNode`（空存储），等主把日志复制过来；
+成员变更条目的 `context` 里编着 `Peer`（地址），随日志复制传播给新成员。
+
+### 11.3.1 ★ 内核修的根因：成员变更必须等 apply
+
+编排层单测里出现过一个只在**全量**跑时复现的失败
+（`RaftNodeTest.nodeProposeAddDuplicateNode`：「第二条成员变更没被应用」，单独跑却通过）。
+根因在**协议内核**，不在编排层：
+
+- 内核校验提案时用 `pendingConfIndex > raftLog.applied()` 判断「上一条成员变更还没 apply」，
+  命中就把**新的成员变更降级成普通条目**，而且**不告诉调用方**；
+- 而 `raftLog.applied()` 靠 `MSG_STORAGE_APPLY_RESP` 推进，**比应用层真正的 apply 晚一拍** ——
+  应用层 apply 完立刻提下一条时，那一条正好落在这个窗口里，被静默丢掉。
+
+修法（**保留 etcd 的 `pendingConfIndex` 语义**，因为移植的 `RawNodeTest` 断言
+`pendingConfIndex == lastIndex`）：内核加一个 `pendingConfApplied` 标志 ——
+`handleProposal` 里判断改成 `pendingConfIndex > raftLog.applied() && !pendingConfApplied`，
+`applyConfChange` 成功后置 `pendingConfApplied = true`（**应用层才是「apply 完了」的事实来源**），
+`reset()` / `becomeLeader()` 里复位。
+
+⇒ 修完 edap-raft 全量 **400 跑 / 0 失败**（连跑多遍确认不再 flake）。
+**教训**：内核把「提案被降级」这件事静默掉，是很难查的失败模式 ——
+编排层看到的只是「成员变更没生效」，看不到降级发生过。
+
+### 11.4 成员上限与「client-only」
+
+`container.raft.nodes` 是**集群总节点数**。主在 `join()` 里检查上限，超了回 `REJECTED_FULL`，
+加入方把状态置为 `CLIENT_ONLY`：
+
+- **不创建 raft 节点** ⇒ **不监听 raft 端口**（容器侧有断言守着这条）；
+- 仍然能通过 `/raft/propose` 走主提交（外部客户端的路子）。
+
+### 11.5 客户端不填 raft 地址
+
+**edap-raft 的协议层没有「提案回执」消息**（`MessageType` 里只有 `MSG_PROP`，没有 `MSG_PROP_RESP`）——
+提交回执必须在**应用层**产生：把 `requestId` 编进提案载荷（信封），
+leader apply 时匹配 `requestId` 完成等待。
+
+所以客户端**不直连 raft 端口**，而是走主的管理端口 `POST /raft/propose`：
+
+```
+非成员客户端
+  ├─ 用同一套 seeds/网段 → 广播 CLAIM（或查 /raft/cluster）
+  │    └─ 得到 LEADER_ACK ⇒ 拿到主的**管理地址**（host:1111，不是 raft 的 9092）⇒ 缓存
+  └─ 提案：POST {leaderManagerAddr}/raft/propose {requestId, payload}
+        ├─ 成功 ⇒ 已提交并已应用
+        └─ 失败/超时 ⇒ 重新发现 leader（主可能换了）⇒ **同 requestId 重试**（幂等）
+```
+
+**重试必须幂等**：同一个 `requestId` 重复提案，业务状态机**只应用一次**
+（`RaftProposalTracker` 登记时去重）。
+
+**回执里的 `duplicate` 字段**：区分「这次是新应用」与「这个 `requestId` 早先就应用过了」。
+成员节点本地提案时由去重表给出（`register` 命中已应用 ⇒ 记一笔「重复回执」）；
+只做客户端的节点由**主**给出（主说重复，本节点如实转述）——
+注意这条**不能**写进本节点的「已应用」表，否则下一次重试会被本地去重挡掉、不再转发给主。
+
+### 11.6 容器接线：管理端口上的四个端点
+
+| 路径 | 方法 | 作用 |
+|---|---|---|
+| `/raft/claim` | POST | 启动广播入口。三态应答：`LEADER_ACK` / `PEER_CLAIM` / `REJECT` |
+| `/raft/join` | POST | 加入集群（只有主处理：分配 nodeId + 提成员变更）；非主回「主在哪」 |
+| `/raft/cluster` | GET | 集群视图（谁是主、有哪些成员、上限）—— 客户端靠它发现主 |
+| `/raft/propose` | POST | 提案（只有主处理：编信封 → 提案 → apply 时按 requestId 回执） |
+
+路由是**静态注册**的（`HttpServerBuilder` 的路由在 `build()` 前固定），
+所以端点由 `Bootstrap` 在建管理服务器时挂上，节点本身由 `Container.start()` 拉起。
+
+**三个必须记住的接线坑**：
+
+1. **先绑端点、再起节点**：`RaftClusterNode.start()` 本身就是「广播 CLAIM 找同伴」，
+   这段时间里本容器必须**已经能应答同伴的 CLAIM**（回 `PEER_CLAIM`），
+   否则同时启动的容器互相看不见 ⇒ 各自自举 ⇒ 两个主。
+   （`ContainerRaftBootstrap` 因此在 `n.start()` **之前** `endpoints.bind(n)`。）
+2. **★ 管理端口比 raft 节点先监听，这段窗口里 CLAIM 也不能回 503**：
+   `Bootstrap` 里 `edap.run()` 先把管理端口监听起来，raft 节点要等 `Container.startRaft()`
+   才拉起来 —— 这中间同伴来问「你是不是也在启动」，如果答 503，
+   同伴就看不见我们 ⇒ 各自自举 ⇒ 两个主。
+   所以 `RaftManagerEndpoints` 有一组「提前登记的本机地址」
+   （`prepareSelf(host, raftPort, managerPort)`）：**raft 节点还没起来也回 `PEER_CLAIM`**，
+   并带上自己的管理地址（同伴才知道往哪找我）。
+   本机地址由 `ContainerRaftBootstrap(Props)` 从根配置算出来
+   （`container.manager.port` / `container.raft.port` / `container.raft.host`，
+   探测失败只 warn，退回 503）。
+3. **raft 入站 server 必须挂一个 `run()` 过的 `ServerGroup`**：
+   `ServerGroup.addServerAndBind` 只有在 `run()` 缓存过 acceptor/provider 之后才会**真的 bind**；
+   没 `run()` 过的组只会把 server 入队，**端口永远不监听**。
+   共享宿主 `Edap` 时宿主的组早就 `run` 完了，不会顺带把这个组也 `run` ——
+   所以容器侧自己建了一个名为 `raft` 的组并显式 `run()`。
+
+**★ `/raft/propose` 会占住一个 IO 线程（已知限制）**：
+edap 的 HTTP server **没有 worker 池** —— handler 直接跑在 selector 线程上
+（`HttpServerNioSession.handle()` → `handler.handle(request, resp)`）。
+提案端点要等「主提交 + 应用」才有回执，所以它会**同步阻塞**到提案超时
+（默认 `proposalTimeoutMillis` = 20s）。后果：
+
+- 阻塞的是**一个** selector 线程（每个 server 有 CPU 数量个），
+  该线程上的其它管理请求（`/raft/claim`、`/raft/cluster`…）会跟着排队；
+- raft 传输层在**另一个** server（自己的 `ServerGroup`）上，**心跳不受影响**；
+- 想缩短阻塞就把 `container.raft.proposalTimeoutMillis` 调小；
+- 真正的解法是给 HTTP 层加「异步响应」能力（handler 返回后由别的线程回写响应），
+  但 `HttpResponse` 在 HTTP/1.1 路径下是**线程级单例**（`reset()` 复用），
+  HTTP/2 才有帧级的 `synchronized writeFrame` —— 跨协议统一之前不要在 handler 里等。
+
+### 11.7 配置
+
+```
+container.raft.enabled            = true            # 默认 false：不开就不起 raft
+container.raft.nodes              = 4               # 集群总节点数（1 主 + 3 从）
+container.raft.seeds              = 192.168.0.*:1111 # 候选地址，支持网段通配
+container.raft.host               = 10.0.0.7        # 本节点对外地址；缺省自动探测
+container.raft.port               = 9092            # raft 传输端口
+container.raft.dataDir            = data/raft       # 节点身份 + raft 日志目录
+container.raft.tickMillis         = 100
+container.raft.electionTick       = 10
+container.raft.heartbeatTick      = 1
+container.raft.joinTimeoutMillis  = 20000
+container.raft.probeTimeoutMillis = 200
+container.raft.probeConcurrency   = 32
+container.raft.maxCandidates      = 256
+container.raft.claimWindowMillis  = 2000
+container.raft.proposalTimeoutMillis = 20000
+```
+
+- **seeds 的端口是「会合端口」**（容器管理端口 1111），不是 raft 的 9092 ——
+  peer 的 raft 传输地址从加入应答里拿（对方自报），通配不必覆盖 9092。
+- **通配只允许最后一段是 `*`**（`192.168.0.*`）；其它位置出现 `*` ⇒ 启动失败并说明。
+- **候选超限要炸、不要静默截断**：超 `maxCandidates` ⇒ 启动失败并打印实际数字 ——
+  截断的后果是「找不到主」，属于极难查的失败。
+- 节点身份落在 `dataDir/node.json`（nodeId 跨重启不变），
+  成员表落在 `dataDir/members.json`；raft 自己的日志在同目录的 `wal.bin` / `snapshot.bin`。
+
+### 11.8 不变量（由测试保证）
+
+1. **第一个启动的容器一定是主**（自举路径：单节点 quorum=1 ⇒ 自选）。
+2. **并发启动不分裂脑**：N 个容器**同时**启动 ⇒ 只有 1 个 leader。
+3. **部分可见也不分裂**：A 看得到 B、B 看不到 A ⇒ 仍只有一个 leader。
+4. **集群成员数 ≤ `container.raft.nodes`**；第 N+1 个容器**不启动 raft 节点**（不监听 raft 端口）。
+5. **nodeId 跨重启不变**（`dataDir/node.json` 持久化；重启走 `restartNode` 从日志恢复成员表）。
+6. **加入方不把自己 bootstrap 进集群**（用 `restartNode` 空存储）。
+7. **raft 节点是进程级**：`Container.stop()` 停掉它（`Edap.doStop()` 里 `Container.stop()`
+   在 `ServerGroup.stop()` 之前 ⇒ 先收业务、再停 raft、最后关 socket）。
+8. **提案重试幂等**：同一个 requestId 重试 ⇒ 业务状态机**只应用一次**。
+9. **载荷/协议格式不变**：本层不改 eRPC/protobuf 任何一行。
+10. **★ 管理端口先于 raft 节点监听的窗口里，CLAIM 也要回 `PEER_CLAIM`**
+    （而不是 503）—— 否则同时启动的容器互相看不见 ⇒ 两个主。
+11. **★ 成员变更必须等 apply**：内核的 `pendingConfApplied` 标志保证
+    「上一条成员变更还没 apply」时不会把新成员变更静默降级成普通条目（§11.3.1）。
+12. **`duplicate` 回执如实**：同一个 requestId 重试 ⇒ 回执 `duplicate=true`，
+    且业务状态机只应用一次。
+
+### 11.9 测试
+
+- **编排层单测**（`edap-raft`，`io.edap.raft.cluster`）：用**内存 `RaftClusterDirectory`**，
+  不依赖 HTTP —— 1 节点自举成主 / 3 节点加入 / 第 4 个被拒 / 重启 nodeId 不变 /
+  并发启动只有一个主 / 部分可见仍只有一个主 / 客户端发现主并提案 / 提案幂等；
+  外加纯函数层（seeds 通配解析、提案信封、仲裁、提案去重表、Peer 编解码）。
+- **容器端到端测试**（`edap-container`，`ContainerRaftEndToEndTest`，4 个用例）：
+  **真起 HTTP server、真走 CLAIM 广播、真跑 raft 协议**（NIO 传输 + 文件存储）——
+  覆盖编排层单测覆盖不到的容器侧接线：
+  1. 第一个节点自举成主、第二个加入成从（两边成员表都是 2）；
+  2. 主能收 `POST /raft/propose` 并被应用，同一 requestId 再提一次仍成功（幂等）；
+  3. 第 3 个容器（集群已满）**只做客户端**、**不监听 raft 端口**，但照样能把提案转给主；
+  4. **CLAIM 在 raft 节点还没起来时也回 `PEER_CLAIM`**（§11.6 坑 2）。
+- **真进程手工验收**（脚手架在 `/tmp/edap-raft-e2e/`，每个节点一个 JVM + 一份 `edap.json5`）：
+
+  | 场景 | 结果 |
+  |---|---|
+  | 4 个容器**同时**起 | **只有一个主**（leaderId=1），四个视图一致，成员表 4 个 —— 不分裂脑 |
+  | 依次起 4 个 + 第 5 个 | 第 5 个「集群已满（上限 4），本节点只做客户端」，raft 端口 **CLOSED**，能从 1115 提案到 1111 |
+  | 提案幂等（端到端） | 同一 requestId 提两次，主上 apply **只发生 1 次** |
+  | 通配 seeds | 主在显式 seed 上时发现主 **86ms**；网段里没集群（全新部署）时扫完 /24 约 **3.7s** |
+
+  > 脚本里 JDK HttpClient **必须显式 HTTP/1.1**：默认的 h2c upgrade 探测会让 edap 的
+  > HttpServer 挂住（被测链路本身的约束，不是脚本问题）。

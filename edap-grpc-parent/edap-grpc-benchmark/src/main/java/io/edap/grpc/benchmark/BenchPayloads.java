@@ -36,8 +36,21 @@ public final class BenchPayloads {
      * @param blobSize blob 的字节数
      */
     public static Payload edap(int blobSize) {
+        return edap(blobSize, BenchConstants.REQUEST_NAME);
+    }
+
+    /**
+     * edap 侧的请求消息（<b>指定 name</b>）。
+     *
+     * <p>★ name 的内容会直接影响编解码成本：ASCII 串走「零搬移的 Latin1 快路径」，
+     * 中文串要走 UTF-8/UTF-16 转换 ⇒ 两种串要分开测。</p>
+     *
+     * @param blobSize blob 的字节数
+     * @param name     name 字段的内容
+     */
+    public static Payload edap(int blobSize, String name) {
         Payload payload = new Payload();
-        payload.setName(BenchConstants.REQUEST_NAME);
+        payload.setName(name);
         payload.setValue(BenchConstants.REQUEST_VALUE);
         payload.setBlob(blob(blobSize));
         return payload;
@@ -49,8 +62,18 @@ public final class BenchPayloads {
      * @param blobSize blob 的字节数
      */
     public static Bench.Payload google(int blobSize) {
+        return google(blobSize, BenchConstants.REQUEST_NAME);
+    }
+
+    /**
+     * google 侧的请求消息（<b>指定 name</b>）。
+     *
+     * @param blobSize blob 的字节数
+     * @param name     name 字段的内容
+     */
+    public static Bench.Payload google(int blobSize, String name) {
         return Bench.Payload.newBuilder()
-                .setName(BenchConstants.REQUEST_NAME)
+                .setName(name)
                 .setValue(BenchConstants.REQUEST_VALUE)
                 .setBlob(ByteString.copyFrom(blob(blobSize)))
                 .build();

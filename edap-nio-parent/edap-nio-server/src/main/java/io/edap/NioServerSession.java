@@ -102,7 +102,14 @@ public abstract class NioServerSession<T> extends NioSession {
      */
     private ServerChannelContext serverChannelContext;
 
-    protected SelectionKey selectionKey;
+    /**
+     * 本会话的 selectionKey。
+     *
+     * <p>★ <b>volatile</b>：IO 线程在 accept 时写它，而 eRPC / HTTP2 的
+     * {@code enableWriteInterest()} 在<b>业务线程</b>上也会写它（懒反查缓存）
+     * ⇒ 没有 volatile 的话关连接路径可能看不到 key（key 没被 cancel）。</p>
+     */
+    protected volatile SelectionKey selectionKey;
 
     protected Selector selector;
     /**
@@ -114,7 +121,15 @@ public abstract class NioServerSession<T> extends NioSession {
      */
     private int maxPipeline;
 
-	private BlockingQueue<FastBuf> writeBufs;
+	/**
+	 * NIO 写队列（上次没写完的字节）。
+	 *
+	 * <p>★ <b>必须是 volatile</b>：队列是<b>懒创建</b>的 —— 谁先写不下谁创建。
+	 * eRPC 的残余交接发生在 <b>业务线程</b>上（创建队列），而 IO 线程
+	 * 无锁读 {@link #getWriteBuf()} ⇒ 没有 volatile 的话 IO 线程可能永远看到 null
+	 * ⇒ 残余永远写不出去 ⇒ 连接卡死。</p>
+	 */
+	private volatile BlockingQueue<FastBuf> writeBufs;
 
 	public boolean writeToChannel(FastBuf buf) throws IOException {
 		// 剩余待写字节数。fastWrite 只写 rpos..limit 并返回本次实际写出的字节数，

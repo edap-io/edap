@@ -9,6 +9,7 @@ import io.edap.protobuf.wire.Field;
 import io.edap.protobuf.wire.Proto;
 import io.edap.protobuf.wire.exceptions.ProtoParseException;
 import io.edap.protobuf.wire.parser.ProtoParser;
+import io.edap.util.StringUtil;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledOnJre;
 
@@ -208,14 +209,20 @@ public class TestWriterAndReader {
             data = writer.toByteArray();
             assertNotNull(data);
             assertEquals(data.length, 202);
-            assertEquals(data[0], -90);
+            // ★ wire 上的字节序 = 本机端序（JDK 的 String 内部 UTF-16 字节序 = 原生端序），
+            //   charset 标记跟着端序走：UTF16(2)=小端、UTF16BE(3)=大端。
+            //   lenTag = (payloadLen+1)<<2 | charset = 804|charset ⇒ varint 两个字节。
+            boolean le = StringUtil.NATIVE_LITTLE_ENDIAN;
+            assertEquals(data[0], le ? -90 : -89);
             assertEquals(data[1], 6);
-            assertArrayEquals(Arrays.copyOfRange(data, 2, 202), s.getBytes(StandardCharsets.UTF_16LE));
+            assertArrayEquals(Arrays.copyOfRange(data, 2, 202),
+                    s.getBytes(le ? StandardCharsets.UTF_16LE : StandardCharsets.UTF_16BE));
 
             reader = new ByteArrayReader(data);
             result = reader.readString();
             assertNotNull(result);
             assertEquals(result.length(), 100);
+            assertEquals(s, result);
         }
     }
 

@@ -65,8 +65,38 @@ public final class BenchConstants {
     /** 服务端给响应 name 加的前缀 —— 两边必须一致，否则互通断言没有意义。 */
     public static final String NAME_PREFIX = "bench:";
 
-    /** 请求里的 name。 */
+    /** 请求里的 name（ASCII 变体）—— 20 个 ASCII 字符。 */
     public static final String REQUEST_NAME = "edap-grpc-benchmark";
+
+    /**
+     * 请求里的 name（<b>中文变体</b>）—— 8 个汉字。
+     *
+     * <p>★ 为什么要单独测中文：name 的内容会决定编解码走哪条路径 ——
+     * ASCII 串在标准版里走「零搬移的 Latin1 快路径」，中文串必须做 UTF-8 ↔ UTF-16 转换；
+     * FAST 版则一律按 String 的内部字节写，<b>永不搬移</b>。
+     * ⇒ 两套编解码器的优劣会随 name 的语言<b>翻转</b>，只测一种语言得出的结论是错的。</p>
+     */
+    public static final String REQUEST_NAME_CN = "基准测试中文名称";
+
+    /** name 变体矩阵 —— 下标即变体号。 */
+    public static final String[] REQUEST_NAME_VARIANTS = {REQUEST_NAME, REQUEST_NAME_CN};
+
+    /** name 变体的短标签（报告里的列名）。 */
+    public static final String[] REQUEST_NAME_VARIANT_LABELS = {"ascii", "cn"};
+
+    /**
+     * 取第 {@code variant} 个 name 变体。
+     *
+     * @param variant 变体下标（0=ASCII，1=中文）
+     */
+    public static String requestName(int variant) {
+        return REQUEST_NAME_VARIANTS[variant];
+    }
+
+    /** 第 {@code variant} 个 name 变体的短标签。 */
+    public static String requestNameLabel(int variant) {
+        return REQUEST_NAME_VARIANT_LABELS[variant];
+    }
 
     /** 请求里的 value（服务端会 ×2 后回显）。 */
     public static final int REQUEST_VALUE = 7;
@@ -76,6 +106,20 @@ public final class BenchConstants {
 
     /** 并发矩阵：共享一条连接的 worker 线程数。 */
     public static final int[] CONCURRENCIES = {1, 8, 32};
+
+    /**
+     * eRPC 侧的方法名 —— 与 gRPC 的 {@code Unary} 对应。
+     */
+    public static final String ERPC_METHOD_NAME = "Unary";
+
+    /**
+     * eRPC 侧的方法号。
+     *
+     * <p>用 eRPC 自己的 hash 策略算出来（{@link io.edap.erpc.ErpcMethodIds#hash}），
+     * 跟容器部署时算的是同一个函数 ⇒ 线上表现一致。</p>
+     */
+    public static final int ERPC_METHOD_ID = io.edap.erpc.ErpcMethodIds.hash(
+        SERVICE_NAME, ERPC_METHOD_NAME, io.edap.erpc.ErpcMethodIds.DEFAULT_SEED);
 
     private BenchConstants() {
     }

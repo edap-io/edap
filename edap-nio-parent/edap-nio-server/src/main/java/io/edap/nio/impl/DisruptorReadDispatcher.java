@@ -97,7 +97,11 @@ public class DisruptorReadDispatcher implements ReadDispatcher {
 //                bbPool.requite(buf);
 //            }
 			}
-        } else if (readKey.isWritable()) {
+        }
+        // ★ 这里必须是**独立的 if**，不能是 else if：
+        //   key 同时可读可写时（对端持续发数据 + socket 写队列里有残余），
+        //   else if 会让写分支永不执行 ⇒ 残余永远写不出去 ⇒ 连接卡死。
+        if (readKey.isWritable()) {
             FastBuf wbuf = nioSession.getWriteBuf();
             try {
                 if (wbuf != null) {

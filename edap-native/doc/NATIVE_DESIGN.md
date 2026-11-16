@@ -48,19 +48,39 @@ edap-auth-jwt                     (应用层，零硬依赖)
 | Linux | aarch64 | `edap-native-linux_aarch64.o` | 待编译 |
 | Solaris | sparc | `edap-native-sunos_sparc.o` | 待编译（目标生产平台） |
 | Solaris | sparcv9 | `edap-native-sunos_sparcv9.o` | 待编译（目标生产平台） |
+| Solaris | sun4v | `edap-native-sunos_sun4v.o` | 待编译（部分 JDK 的 `os.arch` 报这个） |
 
 不在以上平台 → `Native.ENABLE_NATIVE=false` → 自动 fallback JCE。加载逻辑见 `Native.java:60-93`。
 
 ### 2.1 产物命名由 JVM 决定，不是 uname
 
 `.o` 的名字是 `edap-native-{os}_{arch}.o`，其中 `{os}` / `{arch}` 是
-**`Native.normalizeOs(os.name)` / `Native.normalizeArch(os.arch)`** 的输出
-（`Native.java:111-160`）。所以：
+**`io.edap.jni.Platform.normalizeOs(os.name)` / `normalizeArch(os.arch)`** 的输出。
+
+**`Platform` 是这条规则的唯一事实源**：运行时（`Native`）与构建脚本（`build-native.sh`）
+都用它算名字 —— 脚本不再另写一份 bash 映射表（另写一份就一定会漂移）。
+
+所以：
 
 - **必须在目标机上编译**（在那台机器上跑 `build-native.sh`）——
   产物与运行时的 `os.arch` 天然对齐；
-- `build-native.sh` 也是**问 JVM**（`-XshowSettings:properties -version`）而不是 `uname`，
-  避免 `uname -m` 与 JVM 的 `os.arch` 不一致（Solaris 上 `sparc` vs `sparcv9` 就是这种情形）。
+- `build-native.sh` **不再解析 `-XshowSettings:properties`**，而是直接
+  `javac` 编译 `Platform.java` 再运行它 —— 拿到的名字与运行时**逐字节一致**，
+  不可能有偏差；
+- **不能用 `uname -m`**：Solaris/SPARC 上 `uname -m` 恒为 `sun4v`，
+  而 JVM 的 `os.arch` 通常是 `sparcv9`（64 位 JDK）—— 两者不是一回事。
+  按 uname 取名 ⇒ 运行时按 `os.arch` 找文件必然找不到 ⇒ **native 静默不加载**，
+  所有加密悄悄退回 JVM 内置实现（功能全对，只是性能悄悄变差 —— 最难发现的一类问题）。
+
+> **踩过的坑**：脚本原先用 `awk -F'= ' '$1 == key'` 解析 JVM 属性，但 `$1` 带前导空格
+> （`    os.arch`）**永远匹配不上** ⇒ 取到的永远是空串 ⇒ 一直静默退回 `uname -m`。
+> macOS 上 `uname -m`=arm64 恰好映射成 aarch64（蒙对），Solaris 上 `uname -m`=sun4v
+> 则直接撞白名单退出。**教训：脚本里不要另写一份平台映射，也不要用「解析失败就退回
+> uname」这种静默兜底** —— 宁可失败也不要猜。
+
+`Platform.normalizeArch` 对不认识的 arch **原样透传**（不设白名单），
+所以 `sparcv9` / `sparc` / `sun4v` 都成立：只要「运行时算出来的名字」与
+「构建出来的名字」是同一个算法算出来的，具体值是什么都无所谓。
 
 ### 2.2 在 Solaris 上编译
 
@@ -75,11 +95,12 @@ OPENSSL_INCLUDE=-I/opt/csw/include OPENSSL_LIB="-L/opt/csw/lib" \
 
 | 项 | macOS / Linux | Solaris |
 |---|---|---|
-| 编译器 | `clang` / `gcc` | `gcc` 优先，否则 Sun Studio `cc` |
+| 编译器 | `clang` / `gcc` | `gcc` 优先，否则 Sun Studio `cc`（可用 `CC` / `CC_FAMILY=studio` 指定） |
 | 共享库参数 | `-shared -fPIC` | gcc 同左；Sun Studio 用 `-shared -KPIC` |
 | `jni_md.h` | `include/darwin` / `include/linux` | `include/solaris` |
 | 链接附加库 | `-lpthread`（Linux） | `-lpthread -lsocket -lnsl` |
 | sha256 摘要 | `shasum` / `sha256sum` | `digest -a sha256` |
+| 符号自检 `nm` | `nm -g` 可用 | `nm` 不认 `-g`（那是别的含义）⇒ 脚本逐个尝试 `-D`/裸 `nm`，全都不可用时**只跳过自检**、不误判成「符号缺失」 |
 
 C 侧只用 OpenSSL 的 legacy `SHA256_*` / `SHA1_*` / `MD5_*`（不走 EVP provider dispatch），
 这三组 API 在 OpenSSL 1.0.x / 1.1.x / 3.x 上签名一致，Solaris 11 自带的
