@@ -14,19 +14,14 @@
  * under the License.
  */
 
-package io.edap.crypto.test;
+package io.edap.crypto.mac;
 
-import io.edap.crypto.mac.JceMacProvider;
-import io.edap.crypto.mac.MacProvider;
-import io.edap.crypto.mac.MacSession;
-import io.edap.crypto.test.spi.CountingMacProvider;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
-import java.security.Security;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -36,10 +31,11 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
  * {@link JceMacProvider} —— 「同一把 key 不重复 init」这条性能不变量。
  *
  * <p><b>背景</b>：Solaris 上 {@code HmacSHA256} 落在 {@code SunPKCS11-Solaris}，
- * key 必须导进 token。实测（build-01，Oracle JDK 17.0.19）：</p>
+ * key 必须导进 token。实测（build-01，Oracle JDK 17.0.19，
+ * {@code io.edap.crypto.benchmark.CryptoCostProbe}）：</p>
  *
  * <table border="1">
- *   <caption>{@code CryptoCostProbe} 读数</caption>
+ *   <caption>同一台机器上的两种写法</caption>
  *   <tr><th>写法</th><th>ns/op</th></tr>
  *   <tr><td>{@code Mac.init(同一个 SecretKeySpec 对象)}</td><td>10 385</td></tr>
  *   <tr><td>{@code Mac.init(每次 new 一个 SecretKeySpec，字节相同)}</td><td><b>133 667</b></td></tr>
@@ -48,7 +44,14 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
  * <p>⇒ 早先的实现（每次操作 {@code new SecretKeySpec}）<b>每次操作都重新导一次 key</b>，
  * 一次 HMAC 的固定成本从 ~12μs 涨到 ~136μs —— 比一次 OpenSSL HMAC 还贵 40 倍。
  * 这条代价在开发机上完全看不出来（SunJCE 走软件路径，~40ns），
- * 所以只能靠 {@link CountingMacProvider} 数 {@code init} 次数来守。</p>
+ * <b>同一个缺陷在两台机器上的时间差是 3000 倍</b>
+ * ⇒ 时间断言要么在开发机上永远绿、要么在 Solaris 上永远 flaky。
+ * 能跨平台守住它的只有「init 被调了几次 / key 对象造了几个」这个<b>结构性事实</b>。</p>
+ *
+ * <p><b>为什么计数器在 provider 里面</b>：早先的写法是往 JCE provider 列表头部插一个
+ * 替身 provider，靠 JCE 选中它来数 {@code init}。那个办法<b>在 Solaris 上不成立</b>
+ * （JCE 没选中替身 ⇒ 计数恒为 0）⇒ 改成在 provider 内部、<b>init 的调用现场</b>直接计数：
+ * 平台无关，且计数点就是被守的那一行。</p>
  */
 public class JceMacProviderKeyReuseTest {
 
@@ -63,33 +66,27 @@ public class JceMacProviderKeyReuseTest {
     private static final byte[] DATA = "edap-crypto mac".getBytes(StandardCharsets.UTF_8);
 
     /**
-     * ★ 核心不变量：<b>同一把 key 连续多次操作 ⇒ 只 init 一次。</b>
+     * ★ 核心不变量：<b>同一把 key 连续多次操作 ⇒ 只 init 一次、只造一个 key 对象。</b>
      *
      * <p>这是 Solaris 上省掉 ~130μs/操作的那一刀。</p>
      */
     @Test
     @DisplayName("同一把 key 连续 5 次操作 ⇒ 只 init 一次")
     public void testSameKeyDoesNotReInit() throws Exception {
-        // 参照值必须在装计数 provider <b>之前</b>算 —— 装上之后
-        // Mac.getInstance 拿到的就是计数实现，算参照值会污染计数
         byte[] expected = expected(DATA, KEY_A);
 
-        CountingMacProvider counting = new CountingMacProvider();
-        Security.insertProviderAt(counting, 1);
-        try {
-            MacProvider provider = new JceMacProvider(ALGORITHM);
+        JceMacProvider provider = new JceMacProvider(ALGORITHM);
 
-            for (int i = 0; i < 5; i++) {
-                MacSession session = provider.newSession(KEY_A);
-                session.update(DATA);
-                assertArrayEquals(expected, session.doFinal(), "第 " + i + " 次结果必须一致");
-            }
-
-            assertEquals(1, counting.initCount(),
-                    "同一把 key 不该重复 init（Solaris 上每次 init ≈ 130μs 的 token 导入）");
-        } finally {
-            Security.removeProvider(CountingMacProvider.NAME);
+        for (int i = 0; i < 5; i++) {
+            MacSession session = provider.newSession(KEY_A);
+            session.update(DATA);
+            assertArrayEquals(expected, session.doFinal(), "第 " + i + " 次结果必须一致");
         }
+
+        assertEquals(1, provider.initCount(),
+                "同一把 key 不该重复 init（Solaris 上每次 init ≈ 130μs 的 token 导入）");
+        assertEquals(1, provider.keySpecCount(),
+                "同一把 key 不该每次都 new 一个 SecretKeySpec");
     }
 
     /**
@@ -101,21 +98,16 @@ public class JceMacProviderKeyReuseTest {
         byte[] expectedA = expected(DATA, KEY_A);
         byte[] expectedB = expected(DATA, KEY_B);
 
-        CountingMacProvider counting = new CountingMacProvider();
-        Security.insertProviderAt(counting, 1);
-        try {
-            MacProvider provider = new JceMacProvider(ALGORITHM);
+        JceMacProvider provider = new JceMacProvider(ALGORITHM);
 
-            byte[] r1 = sign(provider, KEY_A, DATA);
-            byte[] r2 = sign(provider, KEY_B, DATA);
+        byte[] r1 = sign(provider, KEY_A, DATA);
+        byte[] r2 = sign(provider, KEY_B, DATA);
 
-            assertEquals(2, counting.initCount(), "换 key 必须重新 init");
-            assertArrayEquals(expectedA, r1);
-            assertArrayEquals(expectedB, r2);
-            assertNotEquals(hex(r1), hex(r2));
-        } finally {
-            Security.removeProvider(CountingMacProvider.NAME);
-        }
+        assertEquals(2, provider.initCount(), "换 key 必须重新 init");
+        assertEquals(2, provider.keySpecCount(), "换 key 必须造新的 key 对象");
+        assertArrayEquals(expectedA, r1);
+        assertArrayEquals(expectedB, r2);
+        assertNotEquals(hex(r1), hex(r2));
     }
 
     /**
@@ -126,20 +118,14 @@ public class JceMacProviderKeyReuseTest {
     public void testKeySwitchBackReInits() throws Exception {
         byte[] expectedA = expected(DATA, KEY_A);
 
-        CountingMacProvider counting = new CountingMacProvider();
-        Security.insertProviderAt(counting, 1);
-        try {
-            MacProvider provider = new JceMacProvider(ALGORITHM);
+        JceMacProvider provider = new JceMacProvider(ALGORITHM);
 
-            sign(provider, KEY_A, DATA);
-            sign(provider, KEY_B, DATA);
-            byte[] r3 = sign(provider, KEY_A, DATA);
+        sign(provider, KEY_A, DATA);
+        sign(provider, KEY_B, DATA);
+        byte[] r3 = sign(provider, KEY_A, DATA);
 
-            assertEquals(3, counting.initCount(), "每次换 key 都要重新 init");
-            assertArrayEquals(expectedA, r3, "切回 A 必须还是 A 的 MAC");
-        } finally {
-            Security.removeProvider(CountingMacProvider.NAME);
-        }
+        assertEquals(3, provider.initCount(), "每次换 key 都要重新 init");
+        assertArrayEquals(expectedA, r3, "切回 A 必须还是 A 的 MAC");
     }
 
     /**
@@ -154,12 +140,13 @@ public class JceMacProviderKeyReuseTest {
         byte[] expectedData = expected(DATA, KEY_A);
         byte[] expectedEmpty = expected(new byte[0], KEY_A);
 
-        MacProvider provider = new JceMacProvider(ALGORITHM);
+        JceMacProvider provider = new JceMacProvider(ALGORITHM);
         MacSession session = provider.newSession(KEY_A);
         session.update(DATA);
         assertArrayEquals(expectedData, session.doFinal());
         assertArrayEquals(expectedEmpty, session.doFinal(),
                 "doFinal 之后 session 回到初始状态（key 保留、无数据）");
+        assertEquals(1, provider.initCount(), "两次 doFinal 不该重新 init");
     }
 
     /**
@@ -170,7 +157,7 @@ public class JceMacProviderKeyReuseTest {
     public void testTwoSessionsSameKey() throws Exception {
         byte[] expected = expected(DATA, KEY_A);
 
-        MacProvider provider = new JceMacProvider(ALGORITHM);
+        JceMacProvider provider = new JceMacProvider(ALGORITHM);
         MacSession s1 = provider.newSession(KEY_A);
         MacSession s2 = provider.newSession(KEY_A);
 

@@ -23,6 +23,7 @@ import javax.crypto.spec.SecretKeySpec;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * JCE MAC 实现 —— JDK 内置 {@link Mac}。
@@ -64,6 +65,29 @@ public class JceMacProvider implements MacProvider {
     private final InstancePool<KeyedMac> pool;
 
     /**
+     * 至今调用过几次 {@code Mac.init} —— <b>仅供测试</b>。
+     *
+     * <p><b>为什么要有这个计数器</b>：Solaris 上 {@code HmacSHA256} 落在
+     * {@code SunPKCS11-Solaris}，每次 {@code init} 一个<b>新</b> key 对象都要把 key
+     * 导进 PKCS#11 token（实测 ~130μs/次，比复用同一个 key 对象贵 12.9 倍）。
+     * 这条代价在开发机上（SunJCE 软件路径，~40ns）<b>完全看不出来</b>
+     * ⇒ 只能靠「init 了几次」这个<b>结构性事实</b>来守，时间断言必 flaky。</p>
+     *
+     * <p>计数点就落在 {@code init} 的<b>调用现场</b> ⇒ 任何让 init 次数变多的改动
+     * 都会被它看见。</p>
+     */
+    private final AtomicInteger initCounter = new AtomicInteger();
+
+    /**
+     * 至今构造过几个 {@link SecretKeySpec} —— <b>仅供测试</b>。
+     *
+     * <p>JDK 的 token 导入缓存按 key <b>对象身份</b>走 ⇒ 同一把 key 必须是<b>同一个对象</b>
+     * 才谈得上「复用」。这个计数器数的是「造了几个 key 对象」，
+     * 与「传给 init 的是不是同一个对象」等价。</p>
+     */
+    private final AtomicInteger keySpecCounter = new AtomicInteger();
+
+    /**
      * MAC 长度 —— 每个算法的常量，构造期取一次即可。
      */
     private final int macLength;
@@ -91,13 +115,27 @@ public class JceMacProvider implements MacProvider {
         return algorithm;
     }
 
+    /**
+     * 至今调用过几次 {@code Mac.init} —— <b>仅供测试</b>（守「同一把 key 不重复 init」）。
+     */
+    int initCount() {
+        return initCounter.get();
+    }
+
+    /**
+     * 至今构造过几个 {@link SecretKeySpec} —— <b>仅供测试</b>。
+     */
+    int keySpecCount() {
+        return keySpecCounter.get();
+    }
+
     @Override
     public MacSession newSession(byte[] key) {
         if (key == null || key.length == 0) {
             throw new IllegalArgumentException("mac key required");
         }
         // 拷贝一份 —— 调用方可能复用/改写原数组
-        return new JceMacSession(pool, algorithm, key.clone());
+        return new JceMacSession(pool, algorithm, key.clone(), initCounter, keySpecCounter);
     }
 
     @Override
@@ -146,14 +184,27 @@ public class JceMacProvider implements MacProvider {
         private final byte[] key;
 
         /**
+         * init 次数计数器（<b>仅供测试</b>）—— 与 provider 共用同一个。
+         */
+        private final AtomicInteger initCounter;
+
+        /**
+         * key 对象计数计数器（<b>仅供测试</b>）—— 与 provider 共用同一个。
+         */
+        private final AtomicInteger keySpecCounter;
+
+        /**
          * 当前独占的实例；{@code null} 表示还没借（用完已归还）。
          */
         private KeyedMac keyed;
 
-        JceMacSession(InstancePool<KeyedMac> pool, String algorithm, byte[] key) {
+        JceMacSession(InstancePool<KeyedMac> pool, String algorithm, byte[] key,
+                AtomicInteger initCounter, AtomicInteger keySpecCounter) {
             this.pool = pool;
             this.algorithm = algorithm;
             this.key = key;
+            this.initCounter = initCounter;
+            this.keySpecCounter = keySpecCounter;
         }
 
         private KeyedMac keyed() {
@@ -161,8 +212,11 @@ public class JceMacProvider implements MacProvider {
                 KeyedMac instance = pool.acquire();
                 try {
                     if (!instance.isKeyedWith(key)) {
+                        SecretKeySpec spec = new SecretKeySpec(key, algorithm);
+                        keySpecCounter.incrementAndGet();
+                        initCounter.incrementAndGet();
                         // init 同时完成「换 key」与「重置状态」
-                        instance.mac.init(new SecretKeySpec(key, algorithm));
+                        instance.mac.init(spec);
                         instance.key = key.clone();
                     }
                     // else：同一把 key —— 实例还停在「init 完、无待算数据」的状态，直接用

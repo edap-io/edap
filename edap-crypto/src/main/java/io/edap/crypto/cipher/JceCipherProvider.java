@@ -28,6 +28,7 @@ import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * JCE 对称加密实现 —— JDK 内置 {@link Cipher}。
@@ -81,6 +82,26 @@ public class JceCipherProvider implements CipherProvider {
     private final InstancePool<KeyedCipher> pool;
 
     /**
+     * 至今调用过几次 {@code Cipher.init} —— <b>仅供测试</b>。
+     *
+     * <p>cipher 的 init 带 IV，而 <b>AEAD 每条消息必须换 nonce</b> ⇒ init 躲不掉，
+     * 次数必然是 N（那是语义要求，不是缺陷）。真正要守的是
+     * {@link #keySpecCounter} —— 「同一把 key ⇒ 同一个 key 对象」。</p>
+     */
+    private final AtomicInteger initCounter = new AtomicInteger();
+
+    /**
+     * 至今构造过几个 {@link SecretKeySpec} —— <b>仅供测试</b>。
+     *
+     * <p><b>为什么这个数就是「同一把 key ⇒ 同一个 key 对象」</b>：
+     * JDK 的 PKCS#11 token 导入缓存按 key <b>对象身份</b>走，跟字节无关
+     * ⇒ 只要每次操作都 {@code new SecretKeySpec(...)}，每次 init 都要重新导一次 key
+     * （Solaris 上实测差 12.9 倍）。这个计数器数「造了几个 key 对象」，
+     * 与「传给 init 的是不是同一个对象」等价。</p>
+     */
+    private final AtomicInteger keySpecCounter = new AtomicInteger();
+
+    /**
      * @param transformation JCE transformation（如 {@code "AES/GCM/NoPadding"}）
      * @param keyLength      key 长度（bit）
      * @param ivLength       IV 长度（字节）
@@ -101,7 +122,7 @@ public class JceCipherProvider implements CipherProvider {
         this.aead = transformation.toUpperCase(java.util.Locale.ENGLISH).contains("/GCM/");
         this.pool = new InstancePool<>(() -> {
             try {
-                return new KeyedCipher(Cipher.getInstance(transformation));
+                return new KeyedCipher(Cipher.getInstance(transformation), keySpecCounter);
             } catch (NoSuchAlgorithmException | NoSuchPaddingException e) {
                 throw new IllegalArgumentException("unsupported cipher transformation: " + transformation, e);
             }
@@ -153,6 +174,22 @@ public class JceCipherProvider implements CipherProvider {
         return aead;
     }
 
+    /**
+     * 至今调用过几次 {@code Cipher.init} —— <b>仅供测试</b>。
+     */
+    int initCount() {
+        return initCounter.get();
+    }
+
+    /**
+     * 至今构造过几个 {@link SecretKeySpec} —— <b>仅供测试</b>。
+     *
+     * <p>同一把 key 连续多次操作 ⇒ 这个数不涨 ⇒ 传给 init 的一直是<b>同一个</b> key 对象。</p>
+     */
+    int keySpecCount() {
+        return keySpecCounter.get();
+    }
+
     @Override
     public CipherSession newSession(byte[] key, byte[] iv, int opmode) throws GeneralSecurityException {
         if (key == null) {
@@ -165,7 +202,8 @@ public class JceCipherProvider implements CipherProvider {
             throw new InvalidAlgorithmParameterException(
                     "expected iv length " + ivLength + " bytes, got " + (iv == null ? 0 : iv.length));
         }
-        return new JceCipherSession(pool, keyAlgorithm, key.clone(), iv.clone(), opmode, aead, tagLengthBits);
+        return new JceCipherSession(pool, keyAlgorithm, key.clone(), iv.clone(), opmode, aead, tagLengthBits,
+                initCounter);
     }
 
     /**
@@ -184,6 +222,11 @@ public class JceCipherProvider implements CipherProvider {
         private final Cipher cipher;
 
         /**
+         * key 对象计数计数器（<b>仅供测试</b>）—— 与 provider 共用同一个。
+         */
+        private final AtomicInteger keySpecCounter;
+
+        /**
          * 当前 {@link #keySpec} 对应的 key 字节；{@code null} 表示还没建过。
          */
         private byte[] key;
@@ -193,8 +236,9 @@ public class JceCipherProvider implements CipherProvider {
          */
         private SecretKeySpec keySpec;
 
-        KeyedCipher(Cipher cipher) {
+        KeyedCipher(Cipher cipher, AtomicInteger keySpecCounter) {
             this.cipher = cipher;
+            this.keySpecCounter = keySpecCounter;
         }
 
         /**
@@ -204,9 +248,11 @@ public class JceCipherProvider implements CipherProvider {
             if (key != null && Arrays.equals(key, candidate)) {
                 return keySpec;
             }
-            this.keySpec = new SecretKeySpec(candidate, algorithm);
+            SecretKeySpec spec = new SecretKeySpec(candidate, algorithm);
+            keySpecCounter.incrementAndGet();
+            this.keySpec = spec;
             this.key = candidate.clone();
-            return this.keySpec;
+            return spec;
         }
     }
 
@@ -230,12 +276,17 @@ public class JceCipherProvider implements CipherProvider {
         private final int tagLengthBits;
 
         /**
+         * init 次数计数器（<b>仅供测试</b>）—— 与 provider 共用同一个。
+         */
+        private final AtomicInteger initCounter;
+
+        /**
          * 当前独占的实例；{@code null} 表示还没借（用完已归还）。
          */
         private KeyedCipher keyed;
 
         JceCipherSession(InstancePool<KeyedCipher> pool, String keyAlgorithm, byte[] key, byte[] iv,
-                int opmode, boolean aead, int tagLengthBits) {
+                int opmode, boolean aead, int tagLengthBits, AtomicInteger initCounter) {
             this.pool = pool;
             this.keyAlgorithm = keyAlgorithm;
             this.key = key;
@@ -243,6 +294,7 @@ public class JceCipherProvider implements CipherProvider {
             this.opmode = opmode;
             this.aead = aead;
             this.tagLengthBits = tagLengthBits;
+            this.initCounter = initCounter;
         }
 
         private KeyedCipher keyed() throws GeneralSecurityException {
@@ -251,6 +303,7 @@ public class JceCipherProvider implements CipherProvider {
                 try {
                     // 同一把 key ⇒ 同一个 SecretKeySpec 对象 ⇒ JDK 的 token 导入缓存能命中
                     SecretKeySpec secretKey = instance.keySpec(key, keyAlgorithm);
+                    initCounter.incrementAndGet();
                     if (aead) {
                         instance.cipher.init(opmode, secretKey, new GCMParameterSpec(tagLengthBits, iv));
                     } else {

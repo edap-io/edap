@@ -349,8 +349,17 @@ key 字节相同就**跳过 `init`**（`Mac.doFinal()` 之后实例已经回到�
 换 key 才 `init` 并记录新 key；`init` 失败则把实例标记成「无 key」后归还，保证下次重新 init。
 
 **回归测试用「数 init 次数」而不是测时间**（Solaris 与开发机的时间差是 3000 倍，
-时间断言在任一台机器上都不可靠）⇒ `CountingMacProvider` + `JceMacProviderKeyReuseTest`。
-实测数据与完整归因见 §10.8。
+时间断言在任一台机器上都不可靠）⇒ 计数器直接放在 provider 内部的 **init 调用现场**
+（`JceMacProvider#initCount()` / `#keySpecCount()`），用例放在 `io.edap.crypto.mac` 包内
+（`JceMacProviderKeyReuseTest`）。实测数据与完整归因见 §10.8。
+
+> ⚠️ **计数点为什么在 provider 内部，而不是插一个 JCE 替身 provider**：
+> 早先的写法是往 JCE provider 列表头部插一个自己的 provider，靠 JCE 选中它来数 `init`。
+> **那个办法在 Solaris 上不成立** —— 实测 `Mac.getInstance("HmacSHA256")` /
+> `Cipher.getInstance("AES/GCM/NoPadding")` **没选中替身**（计数恒为 0）。
+> 根因：JDK 的 `GetInstance` 在 **SPI 构造抛异常时会静默回退到下一个 provider**
+> （已用本地探针复现：`Mac.getInstance` 返回 `SunJCE` 而不是替身，且**不报错**）。
+> ⇒ 计数点改到**自己代码里的调用现场**：平台无关，而且被守的正是那一行。
 
 ### 5.3 ★★ cipher 的 key 对象复用（只复用 key 对象，不复用 init）
 
@@ -374,14 +383,17 @@ key 字节相同就**跳过 `init`**（`Mac.doFinal()` 之后实例已经回到�
 实现上池里的实例记住自己是哪把 key（`KeyedCipher`），
 key 字节相同 ⇒ 返回**同一个** `SecretKeySpec` 对象；key 变了 ⇒ 新建并替换。
 
-**回归测试用「数 init 见过几个 key 对象」** ⇒ `CountingCipherProvider` +
-`JceCipherProviderKeyReuseTest`。这里必须按 **key 对象身份**（`IdentityHashMap`）而不是
-按字节统计 —— `SecretKeySpec.equals()` 比的是**字节**，按字节比就分不出
-「同一个对象」与「字节相同但对象不同」，正是要守的那条不变量。
+**回归测试用「数造了几个 key 对象」** ⇒ `JceCipherProvider#keySpecCount()`
+（计数器在 `KeyedCipher.keySpec()` 的**构造现场**：同一把 key 返回缓存的那个对象 ⇒ 计数不涨）
++ `io.edap.crypto.cipher.JceCipherProviderKeyReuseTest`（5 个用例）。
+「造了几个对象」与「传给 init 的是不是同一个对象」是等价的一条信息 ——
+而计数点就在被守的那一行，**不需要任何 JDK 内部机制** ⇒ 平台无关。
 
-> ⚠️ `CountingCipherProvider` 与 `CountingMacProvider` 共用同一个 JDK 坑：
-> **`Provider.Service` 在 JDK 17 上只认无参构造**（`setConstructorParameter` 不存在）
-> ⇒ SPI 只能有无参构造器，替身与计数器只能由 SPI 自己去 `Security` 里按名字排除自己去找。
+> ⚠️ 早先的写法是往 JCE provider 列表头部插一个替身 provider 来数「init 见过几个 key 对象」
+> （按 **key 对象身份**用 `IdentityHashMap` 统计，因为 `SecretKeySpec.equals()` 比的是**字节**，
+> 按字节比就分不出「同一个对象」与「字节相同但对象不同」）。
+> **那个办法在 Solaris 上不成立**（JCE 没选中替身 ⇒ 计数恒为 0，JDK 静默回退），
+> 已改成 provider 内部的调用现场计数。详见 §5.2 的说明。
 
 ### 5.4 ★★ GCM 的 nonce 复用：JDK 的保护是「按实例」的（**已实测**）
 
@@ -1127,16 +1139,22 @@ native HMAC 2908.2 vs 用例 3067.0 —— 三项都在 1% 以内。
 Solaris 上一次 `Mac.init(new SecretKeySpec(...))` ≈ 130μs，开发机（SunJCE 软件路径）只要 ~40ns ——
 **同一个缺陷在两台机器上的时间差是 3000 倍** ⇒ 时间断言要么在开发机上永远绿、要么在 Solaris 上永远 flaky。
 能跨平台守住它的只有「`init` 被调了几次」这个**结构性事实**。
-⇒ 新增 `io.edap.crypto.test.spi.CountingMacProvider`：往 JCE provider 列表**头部**插一个自己的 provider，
-`Mac.getInstance("HmacSHA256")` 就拿到它；它把真正的计算转交给「另一个」真实 `Mac`，自己只数 `engineInit` 的次数。
-⇒ 新增 `JceMacProviderKeyReuseTest`（5 个用例）：同一 key 连续 5 次 ⇒ 只 init 1 次；
+⇒ **计数器就放在 provider 内部的 `init` 调用现场**：`JceMacProvider#initCount()`（init 次数）
+与 `#keySpecCount()`（造过几个 `SecretKeySpec`）。
+⇒ 用例 `io.edap.crypto.mac.JceMacProviderKeyReuseTest`（5 个用例）：同一 key 连续 5 次 ⇒ 只 init 1 次；
 换 key ⇒ 重新 init 且结果跟着变；A→B→A ⇒ 每次切换都 init；
 同一 session 连续 doFinal ⇒ 第二个是空数据的 MAC；同一 key 两个 session 交替用 ⇒ 结果一致。
 **反向验证**：把 `JceMacProvider` 换回修复前 ⇒ `testSameKeyDoesNotReInit` 如期失败（`expected: <1> but was: <5>`）。
 
-**★ `Provider.Service` 在 JDK 17 只认无参构造**（`setConstructorParameter` 不存在，`javap` 已确认）
-⇒ 计数 provider 的 SPI **只能有无参构造器**，替身与计数器只能由 SPI 自己去 `Security` 里按
-provider 名字找（把自己排除掉）。这是写这类测试 provider 时的第一个坑。
+> ★ **踩过的坑：别用「插一个 JCE 替身 provider」来数 init**。
+> 那个办法在 macOS 上能跑通、在 **Solaris 上数到的永远是 0** ——
+> 根因是 JDK 的 `GetInstance` 在 **SPI 构造抛异常时会静默回退到下一个 provider**
+> （已用本地探针复现：替身的 SPI 构造里抛异常 ⇒ `Mac.getInstance("HmacSHA256")`
+> 返回 `SunJCE` 而不是替身，**且不报错**）。
+> ⇒ 计数点放在**自己代码的调用现场**：平台无关（Solaris / macOS 行为一致），
+> 而且被守的正是「init 有没有被多调」这一行本身。
+> （附带结论：JDK 17 的 `Provider.Service` 只认**无参构造**（`setConstructorParameter` 不存在），
+> 这也是当时写替身 provider 时的第一个坑。）
 
 ### 10.9 ★ cipher 侧：复用 key 对象（GCM 的特殊之处）
 
@@ -1153,14 +1171,13 @@ provider 名字找（把自己排除掉）。这是写这类测试 provider 时�
 ⇒ 池里的实例（`KeyedCipher`）记住「自己是哪把 key」；key 字节相同 ⇒ 返回**同一个**
 `SecretKeySpec` 对象；key 变了 ⇒ 新建并替换。**`init` 照旧每次都调**。
 
-**★ 回归测试用「init 见过几个 key 对象」** ⇒ `CountingCipherProvider` +
-`JceCipherProviderKeyReuseTest`（5 个用例）。统计必须按 **key 对象身份**
-（`IdentityHashMap`）而不是按字节 —— `SecretKeySpec.equals()` 比的是**字节**，
-按字节比就分不出「同一个对象」与「字节相同但对象不同」，而那正是要守的不变量。
+**★ 回归测试用「数造了几个 key 对象」** ⇒ `JceCipherProvider#keySpecCount()`
+（计数点在 `KeyedCipher.keySpec()` 的构造现场）+ `io.edap.crypto.cipher.JceCipherProviderKeyReuseTest`
+（5 个用例）。「造了几个对象」与「传给 init 的是不是同一个对象」等价。
 
-> `CountingCipherProvider` 踩到的坑与 `CountingMacProvider` 完全相同：
-> JDK 17 的 `Provider.Service` 只认**无参构造**（`javap` 已确认）⇒ SPI 只能有无参构造器，
-> 替身与计数器只能由 SPI 自己去 `Security` 里按 provider 名字排除自己去找。
+> ⚠️ 早先用「JCE 替身 provider + `IdentityHashMap` 按 key 对象身份统计」，
+> 在 Solaris 上数到的永远是 0（JCE 静默回退到 `OracleUcrypto` / `SunPKCS11-Solaris`），
+> 已改成 provider 内部的调用现场计数 —— 详见 §5.2 / §10.8 的说明。
 
 **★★ 顺带实测到的三条 JDK GCM 语义**（本机 JDK 17.0.20.1 / `SunJCE`，探针实测）：
 

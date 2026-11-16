@@ -14,12 +14,8 @@
  * under the License.
  */
 
-package io.edap.crypto.test;
+package io.edap.crypto.cipher;
 
-import io.edap.crypto.cipher.CipherProvider;
-import io.edap.crypto.cipher.CipherSession;
-import io.edap.crypto.cipher.JceCipherProvider;
-import io.edap.crypto.test.spi.CountingCipherProvider;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -27,7 +23,6 @@ import javax.crypto.Cipher;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
-import java.security.Security;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -42,9 +37,9 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
  * 早先的实现每次操作都 {@code new SecretKeySpec(...)}
  * ⇒ 每次 {@code Cipher.init} 都要把 key 重新导进 token。
  * 这条代价在开发机上完全看不出来（SunJCE 走软件路径），
- * 所以只能靠 {@link CountingCipherProvider} 数「init 见过几个 key 对象」来守。</p>
+ * 所以只能靠「造了几个 key 对象」这个结构性事实来守。</p>
  *
- * <p><b>为什么用「key 对象身份」而不是「init 次数」</b>：
+ * <p><b>为什么计数的是「key 对象」而不是「init 次数」</b>：
  * cipher 的 {@code init} 带 IV，而 <b>AEAD 每条消息必须换 nonce</b> ⇒ init 躲不掉、
  * 次数必然是 N（那是语义要求，不是缺陷）。
  * 能守的只有「同一把 key ⇒ 传给 init 的是<b>同一个</b> key 对象」。</p>
@@ -67,54 +62,42 @@ public class JceCipherProviderKeyReuseTest {
     }
 
     /**
-     * ★ 核心不变量：<b>同一把 key 连续多次操作 ⇒ init 只见过一个 key 对象。</b>
+     * ★ 核心不变量：<b>同一把 key 连续多次操作 ⇒ 只造一个 key 对象。</b>
      *
      * <p>每次用不同的 IV —— GCM 的 nonce 必须每条消息都不同，
      * 复用 nonce 是调用方的错，而且 SunJCE 会直接拒绝（同实例同 IV 第二次加密抛
      * {@code Cannot reuse iv for GCM encryption}）。</p>
      */
     @Test
-    @DisplayName("同一把 key 连续 3 次操作 ⇒ init 只见过 1 个 key 对象")
+    @DisplayName("同一把 key 连续 3 次操作 ⇒ 只造 1 个 key 对象")
     public void testSameKeyReusesKeyObject() throws Exception {
-        CountingCipherProvider counting = new CountingCipherProvider();
-        Security.insertProviderAt(counting, 1);
-        try {
-            CipherProvider provider = new JceCipherProvider(TRANSFORMATION, 256, 12, 128);
+        JceCipherProvider provider = new JceCipherProvider(TRANSFORMATION, 256, 12, 128);
 
-            for (int i = 0; i < 3; i++) {
-                byte[] cipherText = provider
-                        .newSession(KEY_A, iv(i), Cipher.ENCRYPT_MODE)
-                        .doFinal(PLAIN);
-                assertEquals(PLAIN.length + 16, cipherText.length, "GCM 密文 = 明文 + 16 字节 tag");
-            }
-
-            assertEquals(1, counting.distinctKeyCount(),
-                    "同一把 key 不该每次都 new 一个 SecretKeySpec"
-                            + "（Solaris 上每次 init ≈ 130μs 的 token 导入）");
-            assertEquals(3, counting.initCount(), "init 次数 = 操作次数（IV 每条都换，init 躲不掉）");
-        } finally {
-            Security.removeProvider(CountingCipherProvider.NAME);
+        for (int i = 0; i < 3; i++) {
+            byte[] cipherText = provider
+                    .newSession(KEY_A, iv(i), Cipher.ENCRYPT_MODE)
+                    .doFinal(PLAIN);
+            assertEquals(PLAIN.length + 16, cipherText.length, "GCM 密文 = 明文 + 16 字节 tag");
         }
+
+        assertEquals(1, provider.keySpecCount(),
+                "同一把 key 不该每次都 new 一个 SecretKeySpec"
+                        + "（Solaris 上每次 init ≈ 130μs 的 token 导入）");
+        assertEquals(3, provider.initCount(), "init 次数 = 操作次数（IV 每条都换，init 躲不掉）");
     }
 
     /**
      * 换 key ⇒ 必须换 key 对象（否则会算出上一个 key 的密文）。
      */
     @Test
-    @DisplayName("换 key ⇒ init 见到新的 key 对象")
+    @DisplayName("换 key ⇒ 造新的 key 对象")
     public void testDifferentKeyUsesDifferentKeyObject() throws Exception {
-        CountingCipherProvider counting = new CountingCipherProvider();
-        Security.insertProviderAt(counting, 1);
-        try {
-            CipherProvider provider = new JceCipherProvider(TRANSFORMATION, 256, 12, 128);
+        JceCipherProvider provider = new JceCipherProvider(TRANSFORMATION, 256, 12, 128);
 
-            provider.newSession(KEY_A, iv(0), Cipher.ENCRYPT_MODE).doFinal(PLAIN);
-            provider.newSession(KEY_B, iv(1), Cipher.ENCRYPT_MODE).doFinal(PLAIN);
+        provider.newSession(KEY_A, iv(0), Cipher.ENCRYPT_MODE).doFinal(PLAIN);
+        provider.newSession(KEY_B, iv(1), Cipher.ENCRYPT_MODE).doFinal(PLAIN);
 
-            assertEquals(2, counting.distinctKeyCount(), "换 key 必须换 key 对象");
-        } finally {
-            Security.removeProvider(CountingCipherProvider.NAME);
-        }
+        assertEquals(2, provider.keySpecCount(), "换 key 必须换 key 对象");
     }
 
     /**
@@ -123,21 +106,13 @@ public class JceCipherProviderKeyReuseTest {
     @Test
     @DisplayName("复用 key 对象后密文仍与裸 JCE 逐字节一致")
     public void testCipherTextMatchesRawJce() throws Exception {
-        // 参照值必须在装计数 provider **之前**算 —— 装上之后
-        // Cipher.getInstance 拿到的就是计数实现，算参照值会走替身
         byte[] expected = expected(PLAIN, KEY_A, iv(0));
 
-        CountingCipherProvider counting = new CountingCipherProvider();
-        Security.insertProviderAt(counting, 1);
-        try {
-            CipherProvider provider = new JceCipherProvider(TRANSFORMATION, 256, 12, 128);
+        JceCipherProvider provider = new JceCipherProvider(TRANSFORMATION, 256, 12, 128);
 
-            byte[] mine = provider.newSession(KEY_A, iv(0), Cipher.ENCRYPT_MODE).doFinal(PLAIN);
+        byte[] mine = provider.newSession(KEY_A, iv(0), Cipher.ENCRYPT_MODE).doFinal(PLAIN);
 
-            assertArrayEquals(expected, mine);
-        } finally {
-            Security.removeProvider(CountingCipherProvider.NAME);
-        }
+        assertArrayEquals(expected, mine);
     }
 
     /**
@@ -151,20 +126,15 @@ public class JceCipherProviderKeyReuseTest {
         byte[] expectedB = expected(PLAIN, KEY_B, iv(1));
         byte[] expectedA2 = expected(PLAIN, KEY_A, iv(2));
 
-        CountingCipherProvider counting = new CountingCipherProvider();
-        Security.insertProviderAt(counting, 1);
-        try {
-            CipherProvider provider = new JceCipherProvider(TRANSFORMATION, 256, 12, 128);
+        JceCipherProvider provider = new JceCipherProvider(TRANSFORMATION, 256, 12, 128);
 
-            provider.newSession(KEY_A, iv(0), Cipher.ENCRYPT_MODE).doFinal(PLAIN);
-            provider.newSession(KEY_B, iv(1), Cipher.ENCRYPT_MODE).doFinal(PLAIN);
-            byte[] r3 = provider.newSession(KEY_A, iv(2), Cipher.ENCRYPT_MODE).doFinal(PLAIN);
+        provider.newSession(KEY_A, iv(0), Cipher.ENCRYPT_MODE).doFinal(PLAIN);
+        provider.newSession(KEY_B, iv(1), Cipher.ENCRYPT_MODE).doFinal(PLAIN);
+        byte[] r3 = provider.newSession(KEY_A, iv(2), Cipher.ENCRYPT_MODE).doFinal(PLAIN);
 
-            assertArrayEquals(expectedA2, r3, "切回 A 必须还是 A 的密文");
-            assertNotEquals(hex(expectedA), hex(expectedB));
-        } finally {
-            Security.removeProvider(CountingCipherProvider.NAME);
-        }
+        assertArrayEquals(expectedA2, r3, "切回 A 必须还是 A 的密文");
+        assertNotEquals(hex(expectedA), hex(expectedB));
+        assertEquals(3, provider.keySpecCount(), "A→B→A 造了 3 个 key 对象（B 换掉了 A 的）");
     }
 
     /**
@@ -180,7 +150,7 @@ public class JceCipherProviderKeyReuseTest {
         byte[] expected1 = expected(PLAIN, KEY_A, iv(0));
         byte[] expected2 = expected(PLAIN, KEY_A, iv(1));
 
-        CipherProvider provider = new JceCipherProvider(TRANSFORMATION, 256, 12, 128);
+        JceCipherProvider provider = new JceCipherProvider(TRANSFORMATION, 256, 12, 128);
         CipherSession s1 = provider.newSession(KEY_A, iv(0), Cipher.ENCRYPT_MODE);
         CipherSession s2 = provider.newSession(KEY_A, iv(1), Cipher.ENCRYPT_MODE);
 
