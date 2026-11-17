@@ -16,51 +16,78 @@
 
 package io.edap.crypto.mac;
 
-import io.edap.crypto.internal.ByteAccumulator;
 import io.edap.crypto.internal.NativeBridge;
+import io.edap.crypto.internal.NativeStreamBinding;
 
-import java.lang.invoke.MethodHandle;
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HexFormat;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * native MAC 实现（OpenSSL libcrypto，via edap-native）。
  *
- * <p><b>算法映射</b>：JCE 名 → native 方法名。</p>
+ * <p><b>算法映射</b>：JCE 名 → native 算法编号。</p>
  * <table>
  *   <caption>算法映射</caption>
- *   <tr><th>JCE</th><th>native 方法</th><th>输出长度</th></tr>
- *   <tr><td>HmacSHA256</td><td>hmacSha2560</td><td>32</td></tr>
- *   <tr><td>HmacSHA1</td><td>hmacSha10</td><td>20</td></tr>
+ *   <tr><th>JCE</th><th>native 算法编号</th><th>输出长度</th></tr>
+ *   <tr><td>HmacSHA256</td><td>3</td><td>32</td></tr>
+ *   <tr><td>HmacSHA1</td><td>4</td><td>20</td></tr>
  * </table>
  *
- * <p><b>流式语义</b>：与 {@link NativeDigestProvider} 同理 —— native 侧一次性，
- * 累加在 Java 侧。</p>
+ * <p><b>★★ 流式：native 侧持有 HMAC 上下文</b>：
+ * 早先的实现是「native 一次性 API + Java 侧用 {@code ByteAccumulator} 累积」——
+ * 整份数据先拷一遍进 Java 堆，等 {@code doFinal()} 才交给 native。
+ * 实测（Solaris/SPARC，Oracle JDK 17）：64KB 载荷光这次累积就要 <b>~17.7µs</b>
+ * （一次 64KB 分配 + 一次 64KB arraycopy），<b>与一次 HMAC 本体同量级</b>。
+ * ⇒ 现在数据喂一次算一次，累积拷贝整个消失。</p>
+ *
+ * <p><b>为什么用 legacy {@code SHA256_*} 而不是 EVP</b>：见
+ * {@code edap-native/doc/NATIVE_DESIGN.md} §6.6 —— OpenSSL 3.x 的 provider dispatch
+ * 在多线程下会退化（16t profile 17.5% CPU）。</p>
  */
 public class NativeMacProvider implements MacProvider {
 
     /**
-     * edap-native 里的实现类。
+     * edap-native 里的流式实现类。
      */
-    public static final String NATIVE_CLASS = "io.edap.jni.crypto.NativeMac";
+    public static final String NATIVE_CLASS = NativeStreamBinding.NATIVE_CLASS;
 
-    private static final Map<String, String> METHOD_MAP = new HashMap<>();
+    /**
+     * JCE 算法名 → native 算法编号。
+     */
+    private static final Map<String, Integer> ALG_MAP = new HashMap<>();
 
-    private static final Map<String, MethodHandle> HANDLES = new ConcurrentHashMap<>();
+    /**
+     * JCE 算法名 → native 算法编号（探测用的参照实现）。
+     */
+    private static final Map<String, String> JCE_ALG_MAP = new HashMap<>();
+
+    /**
+     * 探测用的 key。
+     */
+    private static final byte[] PROBE_KEY = "edap-crypto-mac-probe-key".getBytes(StandardCharsets.UTF_8);
 
     static {
-        METHOD_MAP.put("HmacSHA256", "hmacSha2560");
-        METHOD_MAP.put("HmacSHA1", "hmacSha10");
+        ALG_MAP.put("HmacSHA256", 3);
+        ALG_MAP.put("HmacSHA1", 4);
+        JCE_ALG_MAP.put("HmacSHA256", "HmacSHA256");
+        JCE_ALG_MAP.put("HmacSHA1", "HmacSHA1");
     }
 
     private final String algorithm;
 
-    private final MethodHandle macHandle;
+    private final int alg;
 
-    private NativeMacProvider(String algorithm, MethodHandle macHandle) {
+    private final NativeStreamBinding binding;
+
+    private NativeMacProvider(String algorithm, int alg, NativeStreamBinding binding) {
         this.algorithm = algorithm;
-        this.macHandle = macHandle;
+        this.alg = alg;
+        this.binding = binding;
     }
 
     /**
@@ -69,23 +96,69 @@ public class NativeMacProvider implements MacProvider {
      * @return native 不可用或算法不支持时返回 {@code null}（调用方降级到 JCE）
      */
     public static NativeMacProvider tryCreate(String algorithm) {
-        String method = METHOD_MAP.get(algorithm);
-        if (method == null) {
+        Integer alg = ALG_MAP.get(algorithm);
+        if (alg == null) {
             return null;
         }
         if (!NativeBridge.isNativeAvailable(NATIVE_CLASS)) {
             return null;
         }
+        NativeStreamBinding binding;
         try {
-            MethodHandle handle = HANDLES.get(method);
-            if (handle == null) {
-                handle = NativeBridge.findStatic(NATIVE_CLASS, method,
-                        byte[].class, byte[].class, byte[].class, int.class, int.class);
-                HANDLES.put(method, handle);
-            }
-            return new NativeMacProvider(algorithm, handle);
+            binding = NativeStreamBinding.get();
         } catch (Throwable t) {
+            // 类/方法不在（edap-native 版本太老，或根本不在 classpath 上）
+            // ⇒ native 不可用 ⇒ 调用方降级到 JCE
             return null;
+        }
+        // ★ 探测失败必须炸出来 —— 不能静默降级到 JCE（见 NativeDigestProvider 的说明）
+        verifySymbol(algorithm, alg, binding);
+        return new NativeMacProvider(algorithm, alg, binding);
+    }
+
+    /**
+     * <b>★ 一次性探测：确认预编译产物里真的有这 3 个 JNI 符号，且算得对。</b>
+     *
+     * <p>参照值用 JCE 现算（不写死常量）—— 探测的是「native 与 JCE 是否逐字节一致」，
+     * 这比「与某个常量一致」更能说明产物是好的。</p>
+     */
+    private static void verifySymbol(String algorithm, int alg, NativeStreamBinding binding) {
+        byte[] expected = jceMac(JCE_ALG_MAP.get(algorithm), PROBE_KEY, new byte[0]);
+        byte[] actual;
+        long ctx = binding.update(0, alg, PROBE_KEY, PROBE_KEY.length, new byte[0], 0, 0);
+        try {
+            actual = binding.finish(ctx);
+            ctx = 0;
+        } finally {
+            if (ctx != 0) {
+                try {
+                    binding.free(ctx);
+                } catch (RuntimeException ignored) {
+                    // 探测失败路径上的清理异常不掩盖主异常
+                }
+            }
+        }
+        if (!Arrays.equals(expected, actual)) {
+            throw new IllegalStateException("native mac 探测结果不对（" + algorithm + "）：期望 "
+                    + HexFormat.of().formatHex(expected) + "，实际 "
+                    + (actual == null ? "null" : HexFormat.of().formatHex(actual))
+                    + " —— 预编译产物与 Java 侧不匹配");
+        }
+        // free 符号也要探：它在「放弃 / 异常」路径上，正常流程永远不碰
+        long freeCtx = binding.update(0, alg, PROBE_KEY, PROBE_KEY.length, new byte[0], 0, 0);
+        binding.free(freeCtx);
+    }
+
+    /**
+     * 用 JCE 算一次（探测参照值）。
+     */
+    private static byte[] jceMac(String jceAlgorithm, byte[] key, byte[] data) {
+        try {
+            Mac mac = Mac.getInstance(jceAlgorithm);
+            mac.init(new SecretKeySpec(key, jceAlgorithm));
+            return mac.doFinal(data);
+        } catch (Exception e) {
+            throw new IllegalStateException("JCE 参照计算失败（" + jceAlgorithm + "）", e);
         }
     }
 
@@ -99,7 +172,7 @@ public class NativeMacProvider implements MacProvider {
         if (key == null || key.length == 0) {
             throw new IllegalArgumentException("mac key required");
         }
-        return new NativeMacSession(macHandle, key);
+        return new NativeMacSession(binding, alg, key);
     }
 
     @Override
@@ -115,44 +188,74 @@ public class NativeMacProvider implements MacProvider {
     }
 
     /**
-     * native MAC 会话 —— Java 侧累积，{@code doFinal()} 时一次性进 native。
+     * native MAC 会话 —— <b>数据喂一次算一次</b>，不落 Java 堆。
+     *
+     * <p><b>上下文句柄的生命周期</b>：句柄在 {@code finish} 时被释放
+     * （native 侧 finish 会顺手 free）⇒ Java 侧必须把句柄置 0，否则会重复释放。
+     * key 留在 Java 侧（拷贝一份），收尾后重新建上下文时再传给 native。</p>
      */
     static final class NativeMacSession implements MacSession {
 
-        private final MethodHandle macHandle;
+        private final NativeStreamBinding binding;
 
+        private final int alg;
+
+        /**
+         * key 的副本 —— 调用方可能复用/改写原数组。
+         */
         private final byte[] key;
 
-        private final ByteAccumulator accumulator = new ByteAccumulator();
+        /**
+         * native 上下文句柄；0 表示当前没有上下文（还没喂数据 / 已收尾）。
+         */
+        private long ctx;
 
-        NativeMacSession(MethodHandle macHandle, byte[] key) {
-            this.macHandle = macHandle;
-            // 拷贝一份 —— 调用方可能复用/改写原数组
+        NativeMacSession(NativeStreamBinding binding, int alg, byte[] key) {
+            this.binding = binding;
+            this.alg = alg;
             this.key = key.clone();
         }
 
         @Override
         public void update(byte[] data, int offset, int len) {
-            accumulator.append(data, offset, len);
+            if (len <= 0) {
+                return;
+            }
+            // ctx == 0 时 native 侧顺便建上下文（用 key 展开 ipad/opad）⇒ 一次 JNI 调用搞定
+            long c = binding.update(ctx, alg, key, key.length, data, offset, len);
+            if (c == 0) {
+                throw new IllegalStateException("native mac 上下文创建失败");
+            }
+            ctx = c;
         }
 
         @Override
         public byte[] doFinal() {
-            // 零拷贝：直接用累加器的内部缓冲 + 实际长度，不再 toArray() 拷一份
-            byte[] data = accumulator.buffer();
-            int len = accumulator.size();
-            try {
-                byte[] result = (byte[]) macHandle.invokeExact(key, data, 0, len);
-                accumulator.reset();
-                return result;
-            } catch (Throwable t) {
-                throw new RuntimeException("native mac failed", t);
+            long c = ctx;
+            ctx = 0;
+            if (c == 0) {
+                // 没喂过数据 ⇒ 空数据的 MAC（仍走一次 native，保证与 JCE 逐字节一致）
+                c = binding.update(0, alg, key, key.length, new byte[0], 0, 0);
+                if (c == 0) {
+                    throw new IllegalStateException("native mac 上下文创建失败");
+                }
             }
+            // finish 在 native 侧释放上下文
+            return binding.finish(c);
         }
 
         @Override
         public void reset() {
-            accumulator.reset();
+            long c = ctx;
+            ctx = 0;
+            if (c != 0) {
+                binding.free(c);
+            }
+        }
+
+        @Override
+        public void close() {
+            reset();
         }
     }
 }

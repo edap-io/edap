@@ -16,35 +16,37 @@
 
 package io.edap.crypto.digest;
 
-import io.edap.crypto.internal.ByteAccumulator;
 import io.edap.crypto.internal.NativeBridge;
+import io.edap.crypto.internal.NativeStreamBinding;
 
-import java.lang.invoke.MethodHandle;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HexFormat;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * native 摘要实现（OpenSSL libcrypto，via edap-native）。
  *
- * <p><b>算法映射</b>：JCE 名 → native 方法名。native 只支持这三个：</p>
+ * <p><b>算法映射</b>：JCE 名 → native 算法编号。native 支持这三个：</p>
  * <table>
  *   <caption>算法映射</caption>
- *   <tr><th>JCE</th><th>native 方法</th><th>输出长度</th></tr>
- *   <tr><td>SHA-256</td><td>digestSha2560</td><td>32</td></tr>
- *   <tr><td>SHA-1</td><td>digestSha10</td><td>20</td></tr>
- *   <tr><td>MD5</td><td>digestMd50</td><td>16</td></tr>
+ *   <tr><th>JCE</th><th>native 算法编号</th><th>输出长度</th></tr>
+ *   <tr><td>SHA-256</td><td>0</td><td>32</td></tr>
+ *   <tr><td>SHA-1</td><td>1</td><td>20</td></tr>
+ *   <tr><td>MD5</td><td>2</td><td>16</td></tr>
  * </table>
  *
- * <p><b>★ 为什么按算法绑定不同的 native 方法</b>（而不是一个带 algorithm 字符串的
- * 统一入口）：字符串参数会让每次调用都付 {@code GetStringUTFChars} + {@code strcmp}
- * + {@code ReleaseStringUTFChars} 的固定成本 —— 在 Solaris/SPARC 上实测约
- * <b>9.5µs/次</b>。算法名在这里一次性解析成方法句柄并缓存，热路径上零字符串。</p>
+ * <p><b>★ 为什么按算法绑定不同的编号（而不是传算法名字符串）</b>：字符串参数会让每次调用
+ * 都付 {@code GetStringUTFChars} + {@code strcmp} + {@code ReleaseStringUTFChars} 的固定成本 ——
+ * 在 Solaris/SPARC 上实测约 <b>9.5µs/次</b>。算法名在这里一次性解析成编号并缓存，
+ * 热路径上零字符串。</p>
  *
- * <p><b>流式语义</b>：native 侧是一次性 API，SPI 要求流式 ⇒ 累加在 Java 侧做，
- * {@code digest()} 时一次性交给 native。</p>
+ * <p><b>★★ 流式：native 侧持有摘要上下文</b>：
+ * 早先的实现是「native 一次性 API + Java 侧用 {@code ByteAccumulator} 累积」——
+ * 整份数据先拷一遍进 Java 堆，等 {@code digest()} 才交给 native。
+ * 实测（Solaris/SPARC，Oracle JDK 17）：64KB 载荷光这次累积就要 <b>~17.7µs</b>
+ * （一次 64KB 分配 + 一次 64KB arraycopy），<b>与一次 SHA-256 本体同量级</b>。
+ * ⇒ 现在数据喂一次算一次，累积拷贝整个消失。</p>
  *
  * <p><b>为什么用 legacy {@code SHA256_*} 而不是 EVP</b>：见
  * {@code edap-native/doc/NATIVE_DESIGN.md} §6.6 —— native HMAC 相对 Java
@@ -54,14 +56,14 @@ import java.util.concurrent.ConcurrentHashMap;
 public class NativeDigestProvider implements DigestProvider {
 
     /**
-     * edap-native 里的实现类。
+     * edap-native 里的流式实现类。
      */
-    public static final String NATIVE_CLASS = "io.edap.jni.crypto.NativeDigest";
+    public static final String NATIVE_CLASS = NativeStreamBinding.NATIVE_CLASS;
 
     /**
-     * JCE 算法名 → native 方法名。
+     * JCE 算法名 → native 算法编号。
      */
-    private static final Map<String, String> METHOD_MAP = new HashMap<>();
+    private static final Map<String, Integer> ALG_MAP = new HashMap<>();
 
     /**
      * JCE 算法名 → <b>空输入</b>的摘要常量（探测用，见 {@link #verifySymbol}）。
@@ -69,19 +71,14 @@ public class NativeDigestProvider implements DigestProvider {
     private static final Map<String, byte[]> EMPTY_DIGEST = new HashMap<>();
 
     /**
-     * native 方法名 → 绑定好的方法句柄（每个算法只绑定一次）。
-     */
-    private static final Map<String, MethodHandle> HANDLES = new ConcurrentHashMap<>();
-
-    /**
      * 探测用的空数组。
      */
     private static final byte[] EMPTY = new byte[0];
 
     static {
-        METHOD_MAP.put("SHA-256", "digestSha2560");
-        METHOD_MAP.put("SHA-1", "digestSha10");
-        METHOD_MAP.put("MD5", "digestMd50");
+        ALG_MAP.put("SHA-256", 0);
+        ALG_MAP.put("SHA-1", 1);
+        ALG_MAP.put("MD5", 2);
         EMPTY_DIGEST.put("SHA-256", hex("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"));
         EMPTY_DIGEST.put("SHA-1", hex("da39a3ee5e6b4b0d3255bfef95601890afd80709"));
         EMPTY_DIGEST.put("MD5", hex("d41d8cd98f00b204e9800998ecf8427e"));
@@ -89,11 +86,14 @@ public class NativeDigestProvider implements DigestProvider {
 
     private final String algorithm;
 
-    private final MethodHandle digestHandle;
+    private final int alg;
 
-    private NativeDigestProvider(String algorithm, MethodHandle digestHandle) {
+    private final NativeStreamBinding binding;
+
+    private NativeDigestProvider(String algorithm, int alg, NativeStreamBinding binding) {
         this.algorithm = algorithm;
-        this.digestHandle = digestHandle;
+        this.alg = alg;
+        this.binding = binding;
     }
 
     /**
@@ -102,39 +102,33 @@ public class NativeDigestProvider implements DigestProvider {
      * @return native 不可用或算法不支持时返回 {@code null}（调用方降级到 JCE）
      */
     public static NativeDigestProvider tryCreate(String algorithm) {
-        String method = METHOD_MAP.get(algorithm);
-        if (method == null) {
+        Integer alg = ALG_MAP.get(algorithm);
+        if (alg == null) {
             return null;
         }
         if (!NativeBridge.isNativeAvailable(NATIVE_CLASS)) {
             return null;
         }
-        MethodHandle handle = HANDLES.get(method);
-        if (handle == null) {
-            MethodHandle bound;
-            try {
-                bound = NativeBridge.findStatic(NATIVE_CLASS, method,
-                        byte[].class, byte[].class, int.class, int.class);
-            } catch (Throwable t) {
-                // 绑不上（类不在 / 签名不匹配）⇒ native 不可用 ⇒ 调用方降级到 JCE
-                return null;
-            }
-            // ★ 探测失败必须炸出来 —— 不能被上面的 catch 吞掉变成「静默降级到 JCE」
-            verifySymbol(method, bound, EMPTY_DIGEST.get(algorithm));
-            HANDLES.put(method, bound);
-            handle = bound;
+        NativeStreamBinding binding;
+        try {
+            binding = NativeStreamBinding.get();
+        } catch (Throwable t) {
+            // 类/方法不在（edap-native 版本太老，或根本不在 classpath 上）
+            // ⇒ native 不可用 ⇒ 调用方降级到 JCE
+            return null;
         }
-        return new NativeDigestProvider(algorithm, handle);
+        // ★ 探测失败必须炸出来 —— 不能被上面的 catch 吞掉变成「静默降级到 JCE」
+        verifySymbol(algorithm, alg, binding, EMPTY_DIGEST.get(algorithm));
+        return new NativeDigestProvider(algorithm, alg, binding);
     }
 
     /**
-     * <b>★ 一次性探测：确认预编译产物里真的有这个 JNI 符号。</b>
+     * <b>★ 一次性探测：确认预编译产物里真的有这 3 个 JNI 符号。</b>
      *
      * <p><b>为什么必须探测</b>：JNI 符号缺失（预编译产物是<b>旧版本</b>）不会在
-     * {@code findStatic} 时暴露 —— Java 侧的 native 方法声明一直都在，
-     * 只有真正调用时才会抛 {@link UnsatisfiedLinkError}。那时排查的人看到的是
-     * 一句「UnsatisfiedLinkError」，而不是「产物过期了，重新构建」，
-     * 而且报错位置离原因十万八千里。</p>
+     * 绑定时暴露 —— Java 侧的 native 方法声明一直都在，只有真正调用时才会抛
+     * {@link UnsatisfiedLinkError}。那时排查的人看到的是一句「UnsatisfiedLinkError」，
+     * 而不是「产物过期了，重新构建」，而且报错位置离原因十万八千里。</p>
      *
      * <p><b>为什么探测失败要抛而不是返回 null</b>：返回 null 会被
      * {@code CryptoRegistry} 当成「native 不可用」<b>静默降级到 JCE</b> ——
@@ -142,25 +136,36 @@ public class NativeDigestProvider implements DigestProvider {
      * 库能加载说明平台是支持的，符号缺失只可能是<b>产物与代码不是同一版本</b>
      * ⇒ 配置/构建错误，应当立刻炸出来。</p>
      *
-     * <p>探测用空输入：结果必须是已知的空摘要常量（顺便校验长度与算法没串）。</p>
+     * <p>探测用空输入：结果必须是已知的空摘要常量（顺便校验长度与算法没串）。
+     * {@code free} 符号单独探一次（探测失败要能被发现，不能等到异常路径才暴露）。</p>
      *
-     * @param method   native 方法名（报错里要点名）
-     * @param handle   已绑定的句柄
-     * @param expected 空输入的期望摘要
+     * @param algorithm 算法名（报错里要点名）
+     * @param alg       native 算法编号
+     * @param binding   已绑定的流式入口
+     * @param expected  空输入的期望摘要
      */
-    private static void verifySymbol(String method, MethodHandle handle, byte[] expected) {
+    private static void verifySymbol(String algorithm, int alg, NativeStreamBinding binding, byte[] expected) {
         byte[] actual;
+        long ctx = binding.update(0, alg, null, 0, EMPTY, 0, 0);
         try {
-            actual = (byte[]) handle.invokeExact(EMPTY, 0, 0);
-        } catch (UnsatisfiedLinkError e) {
-            throw new IllegalStateException(staleArtifactMessage(method), e);
-        } catch (Throwable t) {
-            throw new IllegalStateException("native digest 探测失败（" + method + "）: " + t, t);
+            actual = binding.finish(ctx);
+            ctx = 0;
+        } finally {
+            if (ctx != 0) {
+                try {
+                    binding.free(ctx);
+                } catch (RuntimeException ignored) {
+                    // 探测失败路径上的清理异常不掩盖主异常
+                }
+            }
         }
-        String mismatch = probeMismatchMessage(method, expected, actual);
+        String mismatch = probeMismatchMessage(algorithm, expected, actual);
         if (mismatch != null) {
             throw new IllegalStateException(mismatch);
         }
+        // free 符号也要探：它在「放弃 / 异常」路径上，正常流程永远不碰
+        long freeCtx = binding.update(0, alg, null, 0, EMPTY, 0, 0);
+        binding.free(freeCtx);
     }
 
     /**
@@ -173,9 +178,7 @@ public class NativeDigestProvider implements DigestProvider {
      * @param method 缺失的 native 方法名
      */
     public static String staleArtifactMessage(String method) {
-        return "edap-native 预编译产物过期：缺少 JNI 符号 " + method
-                + "（当前 .o 与 Java 侧不是同一版本）。"
-                + "请在目标机上重新构建：edap-native/scripts/build-native.sh --commit";
+        return NativeStreamBinding.staleArtifactMessage(method);
     }
 
     /**
@@ -207,7 +210,7 @@ public class NativeDigestProvider implements DigestProvider {
 
     @Override
     public DigestSession newSession() {
-        return new NativeDigestSession(digestHandle, algorithm);
+        return new NativeDigestSession(binding, alg, algorithm);
     }
 
     @Override
@@ -225,43 +228,72 @@ public class NativeDigestProvider implements DigestProvider {
     }
 
     /**
-     * native 摘要会话 —— Java 侧累积，{@code digest()} 时一次性进 native。
+     * native 摘要会话 —— <b>数据喂一次算一次</b>，不落 Java 堆。
+     *
+     * <p><b>上下文句柄的生命周期</b>：句柄在 {@code finish} 时被释放
+     * （native 侧 finish 会顺手 free）⇒ Java 侧必须把句柄置 0，否则会重复释放。
+     * 没喂过数据时 {@code digest()} 走「建一个空上下文再收尾」⇒ 结果是空输入的摘要，
+     * 与 JCE 的 {@code MessageDigest.digest()} 语义一致。</p>
      */
     static final class NativeDigestSession implements DigestSession {
 
-        private final MethodHandle digestHandle;
+        private final NativeStreamBinding binding;
+
+        private final int alg;
 
         private final String algorithm;
 
-        private final ByteAccumulator accumulator = new ByteAccumulator();
+        /**
+         * native 上下文句柄；0 表示当前没有上下文（还没喂数据 / 已收尾）。
+         */
+        private long ctx;
 
-        NativeDigestSession(MethodHandle digestHandle, String algorithm) {
-            this.digestHandle = digestHandle;
+        NativeDigestSession(NativeStreamBinding binding, int alg, String algorithm) {
+            this.binding = binding;
+            this.alg = alg;
             this.algorithm = algorithm;
         }
 
         @Override
         public void update(byte[] data, int offset, int len) {
-            accumulator.append(data, offset, len);
+            if (len <= 0) {
+                return;
+            }
+            // ctx == 0 时 native 侧顺便建上下文 ⇒ 一次 JNI 调用搞定
+            long c = binding.update(ctx, alg, null, 0, data, offset, len);
+            if (c == 0) {
+                throw new IllegalStateException("native 摘要上下文创建失败（" + algorithm + "）");
+            }
+            ctx = c;
         }
 
         @Override
         public byte[] digest() {
-            // 零拷贝：直接用累加器的内部缓冲 + 实际长度，不再 toArray() 拷一份
-            byte[] data = accumulator.buffer();
-            int len = accumulator.size();
-            try {
-                byte[] result = (byte[]) digestHandle.invokeExact(data, 0, len);
-                accumulator.reset();
-                return result;
-            } catch (Throwable t) {
-                throw new RuntimeException("native digest failed: " + algorithm, t);
+            long c = ctx;
+            ctx = 0;
+            if (c == 0) {
+                // 没喂过数据 ⇒ 空输入的摘要（仍走一次 native，保证与 JCE 逐字节一致）
+                c = binding.update(0, alg, null, 0, EMPTY, 0, 0);
+                if (c == 0) {
+                    throw new IllegalStateException("native 摘要上下文创建失败（" + algorithm + "）");
+                }
             }
+            // finish 在 native 侧释放上下文
+            return binding.finish(c);
         }
 
         @Override
         public void reset() {
-            accumulator.reset();
+            long c = ctx;
+            ctx = 0;
+            if (c != 0) {
+                binding.free(c);
+            }
+        }
+
+        @Override
+        public void close() {
+            reset();
         }
     }
 }

@@ -27,6 +27,7 @@ import java.util.Random;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -147,6 +148,37 @@ public class JceVsNativeDigestTest {
         }
         assertEquals(32, nativeProvider.getDigestLength());
         assertEquals(32, digest(nativeProvider, new byte[10], 0, 10).length);
+    }
+
+    /**
+     * ★ {@code digest()} 之后 session 必须回到初始状态 —— 再喂一次算的是<b>新</b>数据。
+     *
+     * <p>这条守的是 native 流式实现的核心契约：收尾后上下文被释放，
+     * 下一次喂数据必须重新建上下文，而不是接着上一次的状态往下算。
+     * （旧实现是「Java 侧累加器 reset」，天然满足；改成 native 流式后要重新保证。）</p>
+     */
+    @Test
+    public void testDigestResetsSession() {
+        NativeDigestProvider nativeProvider = nativeProvider("SHA-256");
+        if (nativeProvider == null) {
+            System.out.println("SKIP: native digest unavailable");
+            return;
+        }
+        JceDigestProvider jceProvider = new JceDigestProvider("SHA-256");
+        byte[] firstData = "first chunk".getBytes(StandardCharsets.UTF_8);
+        byte[] secondData = "second chunk".getBytes(StandardCharsets.UTF_8);
+
+        DigestSession session = nativeProvider.newSession();
+        session.update(firstData, 0, firstData.length);
+        byte[] first = session.digest();
+
+        // digest 之后继续喂数据 —— 结果必须只覆盖新数据
+        session.update(secondData, 0, secondData.length);
+        byte[] second = session.digest();
+
+        assertArrayEquals(digest(jceProvider, secondData, 0, secondData.length), second,
+                "digest 之后 session 必须回到初始状态");
+        assertFalse(java.util.Arrays.equals(first, second), "两次喂入不同数据，结果不该相同");
     }
 
     /**

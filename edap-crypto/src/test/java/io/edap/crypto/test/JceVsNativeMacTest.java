@@ -150,6 +150,33 @@ public class JceVsNativeMacTest {
     }
 
     /**
+     * ★ {@code doFinal()} 之后 key 必须保留 —— 再喂同样的数据得到同样的 MAC。
+     *
+     * <p>这条守的是 native 流式实现的核心契约：收尾后上下文被释放，
+     * 但 key 还在 Java 侧 ⇒ 下一次必须用<b>同一把 key</b> 重新建上下文。
+     * （key 丢了就只剩「空 key 的 MAC」，结果会静默变成另一个值。）</p>
+     */
+    @Test
+    public void testDoFinalKeepsKey() {
+        NativeMacProvider nativeProvider = nativeProvider("HmacSHA256");
+        if (nativeProvider == null) {
+            System.out.println("SKIP: native mac unavailable");
+            return;
+        }
+        byte[] key = "this-is-a-test-signing-key-32-bytes!".getBytes(StandardCharsets.UTF_8);
+        byte[] data = "hello edap crypto".getBytes(StandardCharsets.UTF_8);
+
+        MacSession session = nativeProvider.newSession(key);
+        session.update(data, 0, data.length);
+        byte[] first = session.doFinal();
+
+        session.update(data, 0, data.length);
+        byte[] second = session.doFinal();
+
+        assertArrayEquals(first, second, "doFinal 之后 key 必须保留");
+    }
+
+    /**
      * native provider 不支持的算法必须返回 null。
      */
     @Test

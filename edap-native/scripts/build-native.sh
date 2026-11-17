@@ -216,6 +216,9 @@ EXPECTED_SYMBOLS=(
     Java_io_edap_jni_crypto_NativeDigest_digestMd50
     Java_io_edap_jni_crypto_NativeMac_hmacSha2560
     Java_io_edap_jni_crypto_NativeMac_hmacSha10
+    Java_io_edap_jni_crypto_NativeStream_update
+    Java_io_edap_jni_crypto_NativeStream_finish
+    Java_io_edap_jni_crypto_NativeStream_free
 )
 
 # nm 的参数各家不同：GNU 认 -g / -D，Solaris(elftools) 的 nm 认 -D，但**不认 -g**
