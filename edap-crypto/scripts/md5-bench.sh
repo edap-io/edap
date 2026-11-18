@@ -49,14 +49,19 @@ LOG="${OUT_DIR}/bench-${BENCH_TAG}-${TS}.log"
 #   JAVA_HOME 还要 export 出去：下面的 mvn 也吃它（mvn 不认 JAVA 参数）。
 #   候选按平台排：macOS（homebrew / java_home）→ Solaris（/build/jdk-17.0.19、/usr/java/jdk17）。
 pick_java_home() {
+    local c v
     for c in "${JAVA_HOME:-}" \
              /opt/homebrew/opt/openjdk@17 /opt/homebrew/opt/openjdk \
              "$(/usr/libexec/java_home -v 17 2>/dev/null || true)" \
              /build/jdk-17.0.19 /usr/java/jdk17; do
         [ -n "${c}" ] && [ -x "${c}/bin/java" ] || continue
-        if "${c}/bin/java" -version 2>&1 | head -1 | grep -qE '"17[.0-9]*"'; then
-            echo "${c}"; return 0
-        fi
+        # ★ 不能用 `grep -E`：Solaris 的 grep 是老版本，**不认 -E**（报 illegal option）
+        #   ⇒ 版本判定改用纯 bash 的 case（不调外部命令，跨平台最稳）。
+        #   匹配 `"17`：JDK 1.7 的 banner 是 `"1.7.0_80"`（没有 `"17`）⇒ 不会误判。
+        v="$("${c}/bin/java" -version 2>&1 | head -1)"
+        case "${v}" in
+            *'"17'*) echo "${c}"; return 0 ;;
+        esac
     done
     return 1
 }
@@ -145,7 +150,8 @@ for r in $(seq 1 "${ROUNDS}"); do
             "io.edap.crypto.benchmark.${BENCH_CLASS}" >> "${LOG}" 2>&1
     fi
     # native arm 必须真的参与了（否则 JSON 里只有 jce 的结果）
-    if ! grep -q "\"benchmark\" *: *\"io.edap.crypto.benchmark.${BENCH_CLASS}.native" "${OUT}"; then
+    # ★ 只用 BRE（Solaris 的老 grep 也不认 -E）—— 匹配 JMH JSON 里 benchmark 字段的值
+    if ! grep -q "${BENCH_CLASS}\.native" "${OUT}"; then
         log "FATAL: ${OUT} 里没有 native arm 的结果 ⇒ 这一轮作废"
         exit 1
     fi
