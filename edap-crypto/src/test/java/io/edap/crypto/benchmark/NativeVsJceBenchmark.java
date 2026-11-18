@@ -199,6 +199,37 @@ public class NativeVsJceBenchmark {
         if (nativeAvail) {
             builder.include(".*nativeDigest.*").include(".*nativeMac.*");
         }
+
+        // ★★ 诊断开关（2026-11-17 加，用于「native arm 高并发下偶发慢轮」的根因排查）
+        //   全量跑一轮 3.5 分钟 ⇒ 做不了实验矩阵 ⇒ 必须能只跑子集。
+        //   -Dedap.bench.include=<regex,...>  覆盖上面的 include（整表重来）
+        //   -Dedap.bench.param=<k=v,...>      只跑某个 @Param 取值（默认 4 个 payload 全跑）
+        //   -Dedap.bench.jvmArgs=<arg,...>    追加给 fork 出来的 JVM（如 -Xmx4g / -Xlog:gc）
+        String include = System.getProperty("edap.bench.include");
+        if (include != null && !include.isEmpty()) {
+            builder = new OptionsBuilder();
+            for (String re : include.split(",")) {
+                builder.include(re.trim());
+            }
+        }
+        String param = System.getProperty("edap.bench.param");
+        if (param != null && !param.isEmpty()) {
+            for (String kv : param.split(",")) {
+                int eq = kv.indexOf('=');
+                if (eq > 0) {
+                    builder.param(kv.substring(0, eq).trim(), kv.substring(eq + 1).trim());
+                }
+            }
+        }
+        String jvmArgs = System.getProperty("edap.bench.jvmArgs");
+        if (jvmArgs != null && !jvmArgs.isEmpty()) {
+            for (String a : jvmArgs.split(",")) {
+                if (!a.trim().isEmpty()) {
+                    builder.jvmArgsAppend(a.trim());
+                }
+            }
+        }
+
         // 结果文件由「父」JMH 进程写，所以这里配置即可，不必把 -D 透传给 fork 出来的 JVM
         String out = System.getProperty("edap.bench.out");
         if (out != null && !out.isEmpty()) {

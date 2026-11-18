@@ -1,0 +1,2644 @@
+[
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "io.edap.crypto.benchmark.NativeVsJceBenchmark.jceDigest_16t",
+        "mode" : "avgt",
+        "threads" : 16,
+        "forks" : 1,
+        "jvm" : "/opt/homebrew/Cellar/openjdk@17/17.0.20.1/libexec/openjdk.jdk/Contents/Home/bin/java",
+        "jvmArgs" : [
+            "-Dedap.bench.out=/Volumes/Data/NetBeansProjects/edap/edap-crypto/doc/bench/ab-20261118-003241-before-r3.json"
+        ],
+        "jdkVersion" : "17.0.20.1",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "17.0.20.1+0",
+        "warmupIterations" : 3,
+        "warmupTime" : "500 ms",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 5,
+        "measurementTime" : "500 ms",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "payloadSize" : "64"
+        },
+        "primaryMetric" : {
+            "score" : 1381.941091127372,
+            "scoreError" : 312.04902260690466,
+            "scoreConfidence" : [
+                1069.8920685204673,
+                1693.9901137342765
+            ],
+            "scorePercentiles" : {
+                "0.0" : 1312.6717052254069,
+                "50.0" : 1373.5462558414295,
+                "90.0" : 1513.8005142702525,
+                "95.0" : 1513.8005142702525,
+                "99.0" : 1513.8005142702525,
+                "99.9" : 1513.8005142702525,
+                "99.99" : 1513.8005142702525,
+                "99.999" : 1513.8005142702525,
+                "99.9999" : 1513.8005142702525,
+                "100.0" : 1513.8005142702525
+            },
+            "scoreUnit" : "ns/op",
+            "rawData" : [
+                [
+                    1513.8005142702525,
+                    1373.5462558414295,
+                    1312.6717052254069,
+                    1319.174651035869,
+                    1390.512329263902
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "io.edap.crypto.benchmark.NativeVsJceBenchmark.jceDigest_16t",
+        "mode" : "avgt",
+        "threads" : 16,
+        "forks" : 1,
+        "jvm" : "/opt/homebrew/Cellar/openjdk@17/17.0.20.1/libexec/openjdk.jdk/Contents/Home/bin/java",
+        "jvmArgs" : [
+            "-Dedap.bench.out=/Volumes/Data/NetBeansProjects/edap/edap-crypto/doc/bench/ab-20261118-003241-before-r3.json"
+        ],
+        "jdkVersion" : "17.0.20.1",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "17.0.20.1+0",
+        "warmupIterations" : 3,
+        "warmupTime" : "500 ms",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 5,
+        "measurementTime" : "500 ms",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "payloadSize" : "1024"
+        },
+        "primaryMetric" : {
+            "score" : 10037.77695582093,
+            "scoreError" : 757.1992826917906,
+            "scoreConfidence" : [
+                9280.577673129139,
+                10794.97623851272
+            ],
+            "scorePercentiles" : {
+                "0.0" : 9907.075429596942,
+                "50.0" : 9931.311484765207,
+                "90.0" : 10370.97720478431,
+                "95.0" : 10370.97720478431,
+                "99.0" : 10370.97720478431,
+                "99.9" : 10370.97720478431,
+                "99.99" : 10370.97720478431,
+                "99.999" : 10370.97720478431,
+                "99.9999" : 10370.97720478431,
+                "100.0" : 10370.97720478431
+            },
+            "scoreUnit" : "ns/op",
+            "rawData" : [
+                [
+                    9907.075429596942,
+                    10370.97720478431,
+                    10062.63457939792,
+                    9916.886080560269,
+                    9931.311484765207
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "io.edap.crypto.benchmark.NativeVsJceBenchmark.jceDigest_16t",
+        "mode" : "avgt",
+        "threads" : 16,
+        "forks" : 1,
+        "jvm" : "/opt/homebrew/Cellar/openjdk@17/17.0.20.1/libexec/openjdk.jdk/Contents/Home/bin/java",
+        "jvmArgs" : [
+            "-Dedap.bench.out=/Volumes/Data/NetBeansProjects/edap/edap-crypto/doc/bench/ab-20261118-003241-before-r3.json"
+        ],
+        "jdkVersion" : "17.0.20.1",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "17.0.20.1+0",
+        "warmupIterations" : 3,
+        "warmupTime" : "500 ms",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 5,
+        "measurementTime" : "500 ms",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "payloadSize" : "8192"
+        },
+        "primaryMetric" : {
+            "score" : 72828.60584147833,
+            "scoreError" : 4695.640137806226,
+            "scoreConfidence" : [
+                68132.9657036721,
+                77524.24597928456
+            ],
+            "scorePercentiles" : {
+                "0.0" : 71795.9218210857,
+                "50.0" : 72675.14139943958,
+                "90.0" : 74764.84140071305,
+                "95.0" : 74764.84140071305,
+                "99.0" : 74764.84140071305,
+                "99.9" : 74764.84140071305,
+                "99.99" : 74764.84140071305,
+                "99.999" : 74764.84140071305,
+                "99.9999" : 74764.84140071305,
+                "100.0" : 74764.84140071305
+            },
+            "scoreUnit" : "ns/op",
+            "rawData" : [
+                [
+                    73096.93317961277,
+                    71810.19140654053,
+                    74764.84140071305,
+                    72675.14139943958,
+                    71795.9218210857
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "io.edap.crypto.benchmark.NativeVsJceBenchmark.jceDigest_16t",
+        "mode" : "avgt",
+        "threads" : 16,
+        "forks" : 1,
+        "jvm" : "/opt/homebrew/Cellar/openjdk@17/17.0.20.1/libexec/openjdk.jdk/Contents/Home/bin/java",
+        "jvmArgs" : [
+            "-Dedap.bench.out=/Volumes/Data/NetBeansProjects/edap/edap-crypto/doc/bench/ab-20261118-003241-before-r3.json"
+        ],
+        "jdkVersion" : "17.0.20.1",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "17.0.20.1+0",
+        "warmupIterations" : 3,
+        "warmupTime" : "500 ms",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 5,
+        "measurementTime" : "500 ms",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "payloadSize" : "65536"
+        },
+        "primaryMetric" : {
+            "score" : 578830.867878699,
+            "scoreError" : 48885.80060115294,
+            "scoreConfidence" : [
+                529945.067277546,
+                627716.6684798519
+            ],
+            "scorePercentiles" : {
+                "0.0" : 569347.8104387113,
+                "50.0" : 573653.5403024572,
+                "90.0" : 601025.3181220165,
+                "95.0" : 601025.3181220165,
+                "99.0" : 601025.3181220165,
+                "99.9" : 601025.3181220165,
+                "99.99" : 601025.3181220165,
+                "99.999" : 601025.3181220165,
+                "99.9999" : 601025.3181220165,
+                "100.0" : 601025.3181220165
+            },
+            "scoreUnit" : "ns/op",
+            "rawData" : [
+                [
+                    569347.8104387113,
+                    573193.8368786081,
+                    573653.5403024572,
+                    601025.3181220165,
+                    576933.8336517023
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "io.edap.crypto.benchmark.NativeVsJceBenchmark.jceDigest_1t",
+        "mode" : "avgt",
+        "threads" : 1,
+        "forks" : 1,
+        "jvm" : "/opt/homebrew/Cellar/openjdk@17/17.0.20.1/libexec/openjdk.jdk/Contents/Home/bin/java",
+        "jvmArgs" : [
+            "-Dedap.bench.out=/Volumes/Data/NetBeansProjects/edap/edap-crypto/doc/bench/ab-20261118-003241-before-r3.json"
+        ],
+        "jdkVersion" : "17.0.20.1",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "17.0.20.1+0",
+        "warmupIterations" : 3,
+        "warmupTime" : "500 ms",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 5,
+        "measurementTime" : "500 ms",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "payloadSize" : "64"
+        },
+        "primaryMetric" : {
+            "score" : 619.703327007027,
+            "scoreError" : 75.64604411237568,
+            "scoreConfidence" : [
+                544.0572828946514,
+                695.3493711194027
+            ],
+            "scorePercentiles" : {
+                "0.0" : 600.5913091557669,
+                "50.0" : 614.7991567500374,
+                "90.0" : 648.5605613728726,
+                "95.0" : 648.5605613728726,
+                "99.0" : 648.5605613728726,
+                "99.9" : 648.5605613728726,
+                "99.99" : 648.5605613728726,
+                "99.999" : 648.5605613728726,
+                "99.9999" : 648.5605613728726,
+                "100.0" : 648.5605613728726
+            },
+            "scoreUnit" : "ns/op",
+            "rawData" : [
+                [
+                    648.5605613728726,
+                    629.7313385476591,
+                    614.7991567500374,
+                    600.5913091557669,
+                    604.834269208799
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "io.edap.crypto.benchmark.NativeVsJceBenchmark.jceDigest_1t",
+        "mode" : "avgt",
+        "threads" : 1,
+        "forks" : 1,
+        "jvm" : "/opt/homebrew/Cellar/openjdk@17/17.0.20.1/libexec/openjdk.jdk/Contents/Home/bin/java",
+        "jvmArgs" : [
+            "-Dedap.bench.out=/Volumes/Data/NetBeansProjects/edap/edap-crypto/doc/bench/ab-20261118-003241-before-r3.json"
+        ],
+        "jdkVersion" : "17.0.20.1",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "17.0.20.1+0",
+        "warmupIterations" : 3,
+        "warmupTime" : "500 ms",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 5,
+        "measurementTime" : "500 ms",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "payloadSize" : "1024"
+        },
+        "primaryMetric" : {
+            "score" : 4837.949396126489,
+            "scoreError" : 61.817037905517346,
+            "scoreConfidence" : [
+                4776.132358220972,
+                4899.766434032006
+            ],
+            "scorePercentiles" : {
+                "0.0" : 4823.88677514595,
+                "50.0" : 4833.635577162325,
+                "90.0" : 4865.671794772992,
+                "95.0" : 4865.671794772992,
+                "99.0" : 4865.671794772992,
+                "99.9" : 4865.671794772992,
+                "99.99" : 4865.671794772992,
+                "99.999" : 4865.671794772992,
+                "99.9999" : 4865.671794772992,
+                "100.0" : 4865.671794772992
+            },
+            "scoreUnit" : "ns/op",
+            "rawData" : [
+                [
+                    4833.635577162325,
+                    4823.88677514595,
+                    4834.351695324109,
+                    4832.201138227067,
+                    4865.671794772992
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "io.edap.crypto.benchmark.NativeVsJceBenchmark.jceDigest_1t",
+        "mode" : "avgt",
+        "threads" : 1,
+        "forks" : 1,
+        "jvm" : "/opt/homebrew/Cellar/openjdk@17/17.0.20.1/libexec/openjdk.jdk/Contents/Home/bin/java",
+        "jvmArgs" : [
+            "-Dedap.bench.out=/Volumes/Data/NetBeansProjects/edap/edap-crypto/doc/bench/ab-20261118-003241-before-r3.json"
+        ],
+        "jdkVersion" : "17.0.20.1",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "17.0.20.1+0",
+        "warmupIterations" : 3,
+        "warmupTime" : "500 ms",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 5,
+        "measurementTime" : "500 ms",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "payloadSize" : "8192"
+        },
+        "primaryMetric" : {
+            "score" : 36350.633024656694,
+            "scoreError" : 344.19749011060543,
+            "scoreConfidence" : [
+                36006.435534546086,
+                36694.8305147673
+            ],
+            "scorePercentiles" : {
+                "0.0" : 36244.60196205728,
+                "50.0" : 36318.33788739484,
+                "90.0" : 36470.99675066792,
+                "95.0" : 36470.99675066792,
+                "99.0" : 36470.99675066792,
+                "99.9" : 36470.99675066792,
+                "99.99" : 36470.99675066792,
+                "99.999" : 36470.99675066792,
+                "99.9999" : 36470.99675066792,
+                "100.0" : 36470.99675066792
+            },
+            "scoreUnit" : "ns/op",
+            "rawData" : [
+                [
+                    36470.99675066792,
+                    36409.743223760095,
+                    36244.60196205728,
+                    36318.33788739484,
+                    36309.48529940335
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "io.edap.crypto.benchmark.NativeVsJceBenchmark.jceDigest_1t",
+        "mode" : "avgt",
+        "threads" : 1,
+        "forks" : 1,
+        "jvm" : "/opt/homebrew/Cellar/openjdk@17/17.0.20.1/libexec/openjdk.jdk/Contents/Home/bin/java",
+        "jvmArgs" : [
+            "-Dedap.bench.out=/Volumes/Data/NetBeansProjects/edap/edap-crypto/doc/bench/ab-20261118-003241-before-r3.json"
+        ],
+        "jdkVersion" : "17.0.20.1",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "17.0.20.1+0",
+        "warmupIterations" : 3,
+        "warmupTime" : "500 ms",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 5,
+        "measurementTime" : "500 ms",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "payloadSize" : "65536"
+        },
+        "primaryMetric" : {
+            "score" : 289467.08717226714,
+            "scoreError" : 3430.549406859441,
+            "scoreConfidence" : [
+                286036.5377654077,
+                292897.6365791266
+            ],
+            "scorePercentiles" : {
+                "0.0" : 288365.48687214614,
+                "50.0" : 289773.89162844035,
+                "90.0" : 290534.28694652097,
+                "95.0" : 290534.28694652097,
+                "99.0" : 290534.28694652097,
+                "99.9" : 290534.28694652097,
+                "99.99" : 290534.28694652097,
+                "99.999" : 290534.28694652097,
+                "99.9999" : 290534.28694652097,
+                "100.0" : 290534.28694652097
+            },
+            "scoreUnit" : "ns/op",
+            "rawData" : [
+                [
+                    289918.74641422834,
+                    288743.024,
+                    290534.28694652097,
+                    289773.89162844035,
+                    288365.48687214614
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "io.edap.crypto.benchmark.NativeVsJceBenchmark.jceDigest_4t",
+        "mode" : "avgt",
+        "threads" : 4,
+        "forks" : 1,
+        "jvm" : "/opt/homebrew/Cellar/openjdk@17/17.0.20.1/libexec/openjdk.jdk/Contents/Home/bin/java",
+        "jvmArgs" : [
+            "-Dedap.bench.out=/Volumes/Data/NetBeansProjects/edap/edap-crypto/doc/bench/ab-20261118-003241-before-r3.json"
+        ],
+        "jdkVersion" : "17.0.20.1",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "17.0.20.1+0",
+        "warmupIterations" : 3,
+        "warmupTime" : "500 ms",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 5,
+        "measurementTime" : "500 ms",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "payloadSize" : "64"
+        },
+        "primaryMetric" : {
+            "score" : 710.1158900506605,
+            "scoreError" : 36.140209275218105,
+            "scoreConfidence" : [
+                673.9756807754424,
+                746.2560993258786
+            ],
+            "scorePercentiles" : {
+                "0.0" : 699.1477904653866,
+                "50.0" : 714.7245450592718,
+                "90.0" : 719.063354759907,
+                "95.0" : 719.063354759907,
+                "99.0" : 719.063354759907,
+                "99.9" : 719.063354759907,
+                "99.99" : 719.063354759907,
+                "99.999" : 719.063354759907,
+                "99.9999" : 719.063354759907,
+                "100.0" : 719.063354759907
+            },
+            "scoreUnit" : "ns/op",
+            "rawData" : [
+                [
+                    699.1477904653866,
+                    700.8404859640245,
+                    716.8032740047129,
+                    714.7245450592718,
+                    719.063354759907
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "io.edap.crypto.benchmark.NativeVsJceBenchmark.jceDigest_4t",
+        "mode" : "avgt",
+        "threads" : 4,
+        "forks" : 1,
+        "jvm" : "/opt/homebrew/Cellar/openjdk@17/17.0.20.1/libexec/openjdk.jdk/Contents/Home/bin/java",
+        "jvmArgs" : [
+            "-Dedap.bench.out=/Volumes/Data/NetBeansProjects/edap/edap-crypto/doc/bench/ab-20261118-003241-before-r3.json"
+        ],
+        "jdkVersion" : "17.0.20.1",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "17.0.20.1+0",
+        "warmupIterations" : 3,
+        "warmupTime" : "500 ms",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 5,
+        "measurementTime" : "500 ms",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "payloadSize" : "1024"
+        },
+        "primaryMetric" : {
+            "score" : 5116.1643629441,
+            "scoreError" : 94.93521641467399,
+            "scoreConfidence" : [
+                5021.229146529426,
+                5211.099579358774
+            ],
+            "scorePercentiles" : {
+                "0.0" : 5085.584628302848,
+                "50.0" : 5119.831329932407,
+                "90.0" : 5145.90069109756,
+                "95.0" : 5145.90069109756,
+                "99.0" : 5145.90069109756,
+                "99.9" : 5145.90069109756,
+                "99.99" : 5145.90069109756,
+                "99.999" : 5145.90069109756,
+                "99.9999" : 5145.90069109756,
+                "100.0" : 5145.90069109756
+            },
+            "scoreUnit" : "ns/op",
+            "rawData" : [
+                [
+                    5131.9942530990775,
+                    5145.90069109756,
+                    5119.831329932407,
+                    5097.510912288604,
+                    5085.584628302848
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "io.edap.crypto.benchmark.NativeVsJceBenchmark.jceDigest_4t",
+        "mode" : "avgt",
+        "threads" : 4,
+        "forks" : 1,
+        "jvm" : "/opt/homebrew/Cellar/openjdk@17/17.0.20.1/libexec/openjdk.jdk/Contents/Home/bin/java",
+        "jvmArgs" : [
+            "-Dedap.bench.out=/Volumes/Data/NetBeansProjects/edap/edap-crypto/doc/bench/ab-20261118-003241-before-r3.json"
+        ],
+        "jdkVersion" : "17.0.20.1",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "17.0.20.1+0",
+        "warmupIterations" : 3,
+        "warmupTime" : "500 ms",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 5,
+        "measurementTime" : "500 ms",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "payloadSize" : "8192"
+        },
+        "primaryMetric" : {
+            "score" : 37646.87990520652,
+            "scoreError" : 229.65972473183393,
+            "scoreConfidence" : [
+                37417.22018047469,
+                37876.53962993836
+            ],
+            "scorePercentiles" : {
+                "0.0" : 37578.82889200485,
+                "50.0" : 37644.96047154081,
+                "90.0" : 37731.05739822759,
+                "95.0" : 37731.05739822759,
+                "99.0" : 37731.05739822759,
+                "99.9" : 37731.05739822759,
+                "99.99" : 37731.05739822759,
+                "99.999" : 37731.05739822759,
+                "99.9999" : 37731.05739822759,
+                "100.0" : 37731.05739822759
+            },
+            "scoreUnit" : "ns/op",
+            "rawData" : [
+                [
+                    37605.08322373532,
+                    37644.96047154081,
+                    37578.82889200485,
+                    37731.05739822759,
+                    37674.46954052403
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "io.edap.crypto.benchmark.NativeVsJceBenchmark.jceDigest_4t",
+        "mode" : "avgt",
+        "threads" : 4,
+        "forks" : 1,
+        "jvm" : "/opt/homebrew/Cellar/openjdk@17/17.0.20.1/libexec/openjdk.jdk/Contents/Home/bin/java",
+        "jvmArgs" : [
+            "-Dedap.bench.out=/Volumes/Data/NetBeansProjects/edap/edap-crypto/doc/bench/ab-20261118-003241-before-r3.json"
+        ],
+        "jdkVersion" : "17.0.20.1",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "17.0.20.1+0",
+        "warmupIterations" : 3,
+        "warmupTime" : "500 ms",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 5,
+        "measurementTime" : "500 ms",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "payloadSize" : "65536"
+        },
+        "primaryMetric" : {
+            "score" : 299017.4120847016,
+            "scoreError" : 2257.025691610046,
+            "scoreConfidence" : [
+                296760.3863930915,
+                301274.43777631165
+            ],
+            "scorePercentiles" : {
+                "0.0" : 298023.251413028,
+                "50.0" : 299211.04308070586,
+                "90.0" : 299535.70876332885,
+                "95.0" : 299535.70876332885,
+                "99.0" : 299535.70876332885,
+                "99.9" : 299535.70876332885,
+                "99.99" : 299535.70876332885,
+                "99.999" : 299535.70876332885,
+                "99.9999" : 299535.70876332885,
+                "100.0" : 299535.70876332885
+            },
+            "scoreUnit" : "ns/op",
+            "rawData" : [
+                [
+                    299211.04308070586,
+                    298023.251413028,
+                    299299.8510705837,
+                    299017.20609586133,
+                    299535.70876332885
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "io.edap.crypto.benchmark.NativeVsJceBenchmark.jceMac_16t",
+        "mode" : "avgt",
+        "threads" : 16,
+        "forks" : 1,
+        "jvm" : "/opt/homebrew/Cellar/openjdk@17/17.0.20.1/libexec/openjdk.jdk/Contents/Home/bin/java",
+        "jvmArgs" : [
+            "-Dedap.bench.out=/Volumes/Data/NetBeansProjects/edap/edap-crypto/doc/bench/ab-20261118-003241-before-r3.json"
+        ],
+        "jdkVersion" : "17.0.20.1",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "17.0.20.1+0",
+        "warmupIterations" : 3,
+        "warmupTime" : "500 ms",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 5,
+        "measurementTime" : "500 ms",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "payloadSize" : "64"
+        },
+        "primaryMetric" : {
+            "score" : 3242.026894767343,
+            "scoreError" : 301.12241842301836,
+            "scoreConfidence" : [
+                2940.904476344325,
+                3543.149313190361
+            ],
+            "scorePercentiles" : {
+                "0.0" : 3112.3068764257773,
+                "50.0" : 3279.2658009726038,
+                "90.0" : 3300.3086648768854,
+                "95.0" : 3300.3086648768854,
+                "99.0" : 3300.3086648768854,
+                "99.9" : 3300.3086648768854,
+                "99.99" : 3300.3086648768854,
+                "99.999" : 3300.3086648768854,
+                "99.9999" : 3300.3086648768854,
+                "100.0" : 3300.3086648768854
+            },
+            "scoreUnit" : "ns/op",
+            "rawData" : [
+                [
+                    3300.3086648768854,
+                    3292.7845045535805,
+                    3279.2658009726038,
+                    3225.4686270078687,
+                    3112.3068764257773
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "io.edap.crypto.benchmark.NativeVsJceBenchmark.jceMac_16t",
+        "mode" : "avgt",
+        "threads" : 16,
+        "forks" : 1,
+        "jvm" : "/opt/homebrew/Cellar/openjdk@17/17.0.20.1/libexec/openjdk.jdk/Contents/Home/bin/java",
+        "jvmArgs" : [
+            "-Dedap.bench.out=/Volumes/Data/NetBeansProjects/edap/edap-crypto/doc/bench/ab-20261118-003241-before-r3.json"
+        ],
+        "jdkVersion" : "17.0.20.1",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "17.0.20.1+0",
+        "warmupIterations" : 3,
+        "warmupTime" : "500 ms",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 5,
+        "measurementTime" : "500 ms",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "payloadSize" : "1024"
+        },
+        "primaryMetric" : {
+            "score" : 11798.466877099916,
+            "scoreError" : 439.56534665782914,
+            "scoreConfidence" : [
+                11358.901530442086,
+                12238.032223757746
+            ],
+            "scorePercentiles" : {
+                "0.0" : 11680.094140002286,
+                "50.0" : 11779.375097449894,
+                "90.0" : 11985.635288432208,
+                "95.0" : 11985.635288432208,
+                "99.0" : 11985.635288432208,
+                "99.9" : 11985.635288432208,
+                "99.99" : 11985.635288432208,
+                "99.999" : 11985.635288432208,
+                "99.9999" : 11985.635288432208,
+                "100.0" : 11985.635288432208
+            },
+            "scoreUnit" : "ns/op",
+            "rawData" : [
+                [
+                    11680.094140002286,
+                    11779.375097449894,
+                    11746.407966746607,
+                    11985.635288432208,
+                    11800.821892868578
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "io.edap.crypto.benchmark.NativeVsJceBenchmark.jceMac_16t",
+        "mode" : "avgt",
+        "threads" : 16,
+        "forks" : 1,
+        "jvm" : "/opt/homebrew/Cellar/openjdk@17/17.0.20.1/libexec/openjdk.jdk/Contents/Home/bin/java",
+        "jvmArgs" : [
+            "-Dedap.bench.out=/Volumes/Data/NetBeansProjects/edap/edap-crypto/doc/bench/ab-20261118-003241-before-r3.json"
+        ],
+        "jdkVersion" : "17.0.20.1",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "17.0.20.1+0",
+        "warmupIterations" : 3,
+        "warmupTime" : "500 ms",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 5,
+        "measurementTime" : "500 ms",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "payloadSize" : "8192"
+        },
+        "primaryMetric" : {
+            "score" : 75838.21348423278,
+            "scoreError" : 3666.0860541400616,
+            "scoreConfidence" : [
+                72172.12743009272,
+                79504.29953837284
+            ],
+            "scorePercentiles" : {
+                "0.0" : 75208.03325545887,
+                "50.0" : 75434.80801733925,
+                "90.0" : 77508.82189799583,
+                "95.0" : 77508.82189799583,
+                "99.0" : 77508.82189799583,
+                "99.9" : 77508.82189799583,
+                "99.99" : 77508.82189799583,
+                "99.999" : 77508.82189799583,
+                "99.9999" : 77508.82189799583,
+                "100.0" : 77508.82189799583
+            },
+            "scoreUnit" : "ns/op",
+            "rawData" : [
+                [
+                    75709.51980840805,
+                    75208.03325545887,
+                    75434.80801733925,
+                    77508.82189799583,
+                    75329.88444196187
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "io.edap.crypto.benchmark.NativeVsJceBenchmark.jceMac_16t",
+        "mode" : "avgt",
+        "threads" : 16,
+        "forks" : 1,
+        "jvm" : "/opt/homebrew/Cellar/openjdk@17/17.0.20.1/libexec/openjdk.jdk/Contents/Home/bin/java",
+        "jvmArgs" : [
+            "-Dedap.bench.out=/Volumes/Data/NetBeansProjects/edap/edap-crypto/doc/bench/ab-20261118-003241-before-r3.json"
+        ],
+        "jdkVersion" : "17.0.20.1",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "17.0.20.1+0",
+        "warmupIterations" : 3,
+        "warmupTime" : "500 ms",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 5,
+        "measurementTime" : "500 ms",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "payloadSize" : "65536"
+        },
+        "primaryMetric" : {
+            "score" : 589979.3814138311,
+            "scoreError" : 23185.643011149303,
+            "scoreConfidence" : [
+                566793.7384026819,
+                613165.0244249804
+            ],
+            "scorePercentiles" : {
+                "0.0" : 581385.7405360186,
+                "50.0" : 589533.2264442636,
+                "90.0" : 598268.360605395,
+                "95.0" : 598268.360605395,
+                "99.0" : 598268.360605395,
+                "99.9" : 598268.360605395,
+                "99.99" : 598268.360605395,
+                "99.999" : 598268.360605395,
+                "99.9999" : 598268.360605395,
+                "100.0" : 598268.360605395
+            },
+            "scoreUnit" : "ns/op",
+            "rawData" : [
+                [
+                    591350.3963029933,
+                    589533.2264442636,
+                    589359.1831804853,
+                    581385.7405360186,
+                    598268.360605395
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "io.edap.crypto.benchmark.NativeVsJceBenchmark.jceMac_1t",
+        "mode" : "avgt",
+        "threads" : 1,
+        "forks" : 1,
+        "jvm" : "/opt/homebrew/Cellar/openjdk@17/17.0.20.1/libexec/openjdk.jdk/Contents/Home/bin/java",
+        "jvmArgs" : [
+            "-Dedap.bench.out=/Volumes/Data/NetBeansProjects/edap/edap-crypto/doc/bench/ab-20261118-003241-before-r3.json"
+        ],
+        "jdkVersion" : "17.0.20.1",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "17.0.20.1+0",
+        "warmupIterations" : 3,
+        "warmupTime" : "500 ms",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 5,
+        "measurementTime" : "500 ms",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "payloadSize" : "64"
+        },
+        "primaryMetric" : {
+            "score" : 1505.583335194832,
+            "scoreError" : 22.5287481786969,
+            "scoreConfidence" : [
+                1483.054587016135,
+                1528.112083373529
+            ],
+            "scorePercentiles" : {
+                "0.0" : 1500.2896862862265,
+                "50.0" : 1504.7907079290076,
+                "90.0" : 1514.5868992255034,
+                "95.0" : 1514.5868992255034,
+                "99.0" : 1514.5868992255034,
+                "99.9" : 1514.5868992255034,
+                "99.99" : 1514.5868992255034,
+                "99.999" : 1514.5868992255034,
+                "99.9999" : 1514.5868992255034,
+                "100.0" : 1514.5868992255034
+            },
+            "scoreUnit" : "ns/op",
+            "rawData" : [
+                [
+                    1500.737234150023,
+                    1500.2896862862265,
+                    1514.5868992255034,
+                    1504.7907079290076,
+                    1507.5121483833993
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "io.edap.crypto.benchmark.NativeVsJceBenchmark.jceMac_1t",
+        "mode" : "avgt",
+        "threads" : 1,
+        "forks" : 1,
+        "jvm" : "/opt/homebrew/Cellar/openjdk@17/17.0.20.1/libexec/openjdk.jdk/Contents/Home/bin/java",
+        "jvmArgs" : [
+            "-Dedap.bench.out=/Volumes/Data/NetBeansProjects/edap/edap-crypto/doc/bench/ab-20261118-003241-before-r3.json"
+        ],
+        "jdkVersion" : "17.0.20.1",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "17.0.20.1+0",
+        "warmupIterations" : 3,
+        "warmupTime" : "500 ms",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 5,
+        "measurementTime" : "500 ms",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "payloadSize" : "1024"
+        },
+        "primaryMetric" : {
+            "score" : 5724.780869308584,
+            "scoreError" : 45.256193738419725,
+            "scoreConfidence" : [
+                5679.524675570165,
+                5770.037063047004
+            ],
+            "scorePercentiles" : {
+                "0.0" : 5711.607728496144,
+                "50.0" : 5731.091733333334,
+                "90.0" : 5736.9673424446055,
+                "95.0" : 5736.9673424446055,
+                "99.0" : 5736.9673424446055,
+                "99.9" : 5736.9673424446055,
+                "99.99" : 5736.9673424446055,
+                "99.999" : 5736.9673424446055,
+                "99.9999" : 5736.9673424446055,
+                "100.0" : 5736.9673424446055
+            },
+            "scoreUnit" : "ns/op",
+            "rawData" : [
+                [
+                    5731.512369215406,
+                    5736.9673424446055,
+                    5711.607728496144,
+                    5731.091733333334,
+                    5712.725173053432
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "io.edap.crypto.benchmark.NativeVsJceBenchmark.jceMac_1t",
+        "mode" : "avgt",
+        "threads" : 1,
+        "forks" : 1,
+        "jvm" : "/opt/homebrew/Cellar/openjdk@17/17.0.20.1/libexec/openjdk.jdk/Contents/Home/bin/java",
+        "jvmArgs" : [
+            "-Dedap.bench.out=/Volumes/Data/NetBeansProjects/edap/edap-crypto/doc/bench/ab-20261118-003241-before-r3.json"
+        ],
+        "jdkVersion" : "17.0.20.1",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "17.0.20.1+0",
+        "warmupIterations" : 3,
+        "warmupTime" : "500 ms",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 5,
+        "measurementTime" : "500 ms",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "payloadSize" : "8192"
+        },
+        "primaryMetric" : {
+            "score" : 37267.65477723775,
+            "scoreError" : 483.2542464364793,
+            "scoreConfidence" : [
+                36784.40053080127,
+                37750.909023674234
+            ],
+            "scorePercentiles" : {
+                "0.0" : 37133.47239579505,
+                "50.0" : 37253.045508187046,
+                "90.0" : 37473.21561062472,
+                "95.0" : 37473.21561062472,
+                "99.0" : 37473.21561062472,
+                "99.9" : 37473.21561062472,
+                "99.99" : 37473.21561062472,
+                "99.999" : 37473.21561062472,
+                "99.9999" : 37473.21561062472,
+                "100.0" : 37473.21561062472
+            },
+            "scoreUnit" : "ns/op",
+            "rawData" : [
+                [
+                    37260.66671606402,
+                    37217.8736555179,
+                    37473.21561062472,
+                    37133.47239579505,
+                    37253.045508187046
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "io.edap.crypto.benchmark.NativeVsJceBenchmark.jceMac_1t",
+        "mode" : "avgt",
+        "threads" : 1,
+        "forks" : 1,
+        "jvm" : "/opt/homebrew/Cellar/openjdk@17/17.0.20.1/libexec/openjdk.jdk/Contents/Home/bin/java",
+        "jvmArgs" : [
+            "-Dedap.bench.out=/Volumes/Data/NetBeansProjects/edap/edap-crypto/doc/bench/ab-20261118-003241-before-r3.json"
+        ],
+        "jdkVersion" : "17.0.20.1",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "17.0.20.1+0",
+        "warmupIterations" : 3,
+        "warmupTime" : "500 ms",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 5,
+        "measurementTime" : "500 ms",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "payloadSize" : "65536"
+        },
+        "primaryMetric" : {
+            "score" : 289835.9665843995,
+            "scoreError" : 2543.403888489119,
+            "scoreConfidence" : [
+                287292.5626959104,
+                292379.37047288864
+            ],
+            "scorePercentiles" : {
+                "0.0" : 289195.4064109903,
+                "50.0" : 289648.1508027523,
+                "90.0" : 290942.59758203797,
+                "95.0" : 290942.59758203797,
+                "99.0" : 290942.59758203797,
+                "99.9" : 290942.59758203797,
+                "99.99" : 290942.59758203797,
+                "99.999" : 290942.59758203797,
+                "99.9999" : 290942.59758203797,
+                "100.0" : 290942.59758203797
+            },
+            "scoreUnit" : "ns/op",
+            "rawData" : [
+                [
+                    289648.1508027523,
+                    289562.3449856734,
+                    289195.4064109903,
+                    289831.33314054366,
+                    290942.59758203797
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "io.edap.crypto.benchmark.NativeVsJceBenchmark.jceMac_4t",
+        "mode" : "avgt",
+        "threads" : 4,
+        "forks" : 1,
+        "jvm" : "/opt/homebrew/Cellar/openjdk@17/17.0.20.1/libexec/openjdk.jdk/Contents/Home/bin/java",
+        "jvmArgs" : [
+            "-Dedap.bench.out=/Volumes/Data/NetBeansProjects/edap/edap-crypto/doc/bench/ab-20261118-003241-before-r3.json"
+        ],
+        "jdkVersion" : "17.0.20.1",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "17.0.20.1+0",
+        "warmupIterations" : 3,
+        "warmupTime" : "500 ms",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 5,
+        "measurementTime" : "500 ms",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "payloadSize" : "64"
+        },
+        "primaryMetric" : {
+            "score" : 1641.7426677883282,
+            "scoreError" : 57.26623330995377,
+            "scoreConfidence" : [
+                1584.4764344783744,
+                1699.008901098282
+            ],
+            "scorePercentiles" : {
+                "0.0" : 1626.7212775806968,
+                "50.0" : 1634.3137218174688,
+                "90.0" : 1659.1980548296847,
+                "95.0" : 1659.1980548296847,
+                "99.0" : 1659.1980548296847,
+                "99.9" : 1659.1980548296847,
+                "99.99" : 1659.1980548296847,
+                "99.999" : 1659.1980548296847,
+                "99.9999" : 1659.1980548296847,
+                "100.0" : 1659.1980548296847
+            },
+            "scoreUnit" : "ns/op",
+            "rawData" : [
+                [
+                    1656.212862502793,
+                    1659.1980548296847,
+                    1634.3137218174688,
+                    1626.7212775806968,
+                    1632.267422210999
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "io.edap.crypto.benchmark.NativeVsJceBenchmark.jceMac_4t",
+        "mode" : "avgt",
+        "threads" : 4,
+        "forks" : 1,
+        "jvm" : "/opt/homebrew/Cellar/openjdk@17/17.0.20.1/libexec/openjdk.jdk/Contents/Home/bin/java",
+        "jvmArgs" : [
+            "-Dedap.bench.out=/Volumes/Data/NetBeansProjects/edap/edap-crypto/doc/bench/ab-20261118-003241-before-r3.json"
+        ],
+        "jdkVersion" : "17.0.20.1",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "17.0.20.1+0",
+        "warmupIterations" : 3,
+        "warmupTime" : "500 ms",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 5,
+        "measurementTime" : "500 ms",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "payloadSize" : "1024"
+        },
+        "primaryMetric" : {
+            "score" : 6078.381450022176,
+            "scoreError" : 20.243574732467604,
+            "scoreConfidence" : [
+                6058.137875289708,
+                6098.625024754644
+            ],
+            "scorePercentiles" : {
+                "0.0" : 6070.999246534803,
+                "50.0" : 6077.852905479829,
+                "90.0" : 6085.713972302263,
+                "95.0" : 6085.713972302263,
+                "99.0" : 6085.713972302263,
+                "99.9" : 6085.713972302263,
+                "99.99" : 6085.713972302263,
+                "99.999" : 6085.713972302263,
+                "99.9999" : 6085.713972302263,
+                "100.0" : 6085.713972302263
+            },
+            "scoreUnit" : "ns/op",
+            "rawData" : [
+                [
+                    6070.999246534803,
+                    6077.852905479829,
+                    6079.630492779856,
+                    6077.710633014128,
+                    6085.713972302263
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "io.edap.crypto.benchmark.NativeVsJceBenchmark.jceMac_4t",
+        "mode" : "avgt",
+        "threads" : 4,
+        "forks" : 1,
+        "jvm" : "/opt/homebrew/Cellar/openjdk@17/17.0.20.1/libexec/openjdk.jdk/Contents/Home/bin/java",
+        "jvmArgs" : [
+            "-Dedap.bench.out=/Volumes/Data/NetBeansProjects/edap/edap-crypto/doc/bench/ab-20261118-003241-before-r3.json"
+        ],
+        "jdkVersion" : "17.0.20.1",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "17.0.20.1+0",
+        "warmupIterations" : 3,
+        "warmupTime" : "500 ms",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 5,
+        "measurementTime" : "500 ms",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "payloadSize" : "8192"
+        },
+        "primaryMetric" : {
+            "score" : 38616.49185398499,
+            "scoreError" : 367.10138715646195,
+            "scoreConfidence" : [
+                38249.390466828525,
+                38983.593241141454
+            ],
+            "scorePercentiles" : {
+                "0.0" : 38543.031073129394,
+                "50.0" : 38554.89030083974,
+                "90.0" : 38739.44904529213,
+                "95.0" : 38739.44904529213,
+                "99.0" : 38739.44904529213,
+                "99.9" : 38739.44904529213,
+                "99.99" : 38739.44904529213,
+                "99.999" : 38739.44904529213,
+                "99.9999" : 38739.44904529213,
+                "100.0" : 38739.44904529213
+            },
+            "scoreUnit" : "ns/op",
+            "rawData" : [
+                [
+                    38543.031073129394,
+                    38545.17478575101,
+                    38554.89030083974,
+                    38739.44904529213,
+                    38699.91406491266
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "io.edap.crypto.benchmark.NativeVsJceBenchmark.jceMac_4t",
+        "mode" : "avgt",
+        "threads" : 4,
+        "forks" : 1,
+        "jvm" : "/opt/homebrew/Cellar/openjdk@17/17.0.20.1/libexec/openjdk.jdk/Contents/Home/bin/java",
+        "jvmArgs" : [
+            "-Dedap.bench.out=/Volumes/Data/NetBeansProjects/edap/edap-crypto/doc/bench/ab-20261118-003241-before-r3.json"
+        ],
+        "jdkVersion" : "17.0.20.1",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "17.0.20.1+0",
+        "warmupIterations" : 3,
+        "warmupTime" : "500 ms",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 5,
+        "measurementTime" : "500 ms",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "payloadSize" : "65536"
+        },
+        "primaryMetric" : {
+            "score" : 299435.1732327291,
+            "scoreError" : 1051.0378231911657,
+            "scoreConfidence" : [
+                298384.13540953794,
+                300486.2110559202
+            ],
+            "scorePercentiles" : {
+                "0.0" : 298977.90610891324,
+                "50.0" : 299468.56831720984,
+                "90.0" : 299696.0337507668,
+                "95.0" : 299696.0337507668,
+                "99.0" : 299696.0337507668,
+                "99.9" : 299696.0337507668,
+                "99.99" : 299696.0337507668,
+                "99.999" : 299696.0337507668,
+                "99.9999" : 299696.0337507668,
+                "100.0" : 299696.0337507668
+            },
+            "scoreUnit" : "ns/op",
+            "rawData" : [
+                [
+                    299573.5400319065,
+                    299468.56831720984,
+                    299459.81795484904,
+                    298977.90610891324,
+                    299696.0337507668
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "io.edap.crypto.benchmark.NativeVsJceBenchmark.nativeDigest_16t",
+        "mode" : "avgt",
+        "threads" : 16,
+        "forks" : 1,
+        "jvm" : "/opt/homebrew/Cellar/openjdk@17/17.0.20.1/libexec/openjdk.jdk/Contents/Home/bin/java",
+        "jvmArgs" : [
+            "-Dedap.bench.out=/Volumes/Data/NetBeansProjects/edap/edap-crypto/doc/bench/ab-20261118-003241-before-r3.json"
+        ],
+        "jdkVersion" : "17.0.20.1",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "17.0.20.1+0",
+        "warmupIterations" : 3,
+        "warmupTime" : "500 ms",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 5,
+        "measurementTime" : "500 ms",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "payloadSize" : "64"
+        },
+        "primaryMetric" : {
+            "score" : 1070.6303857457656,
+            "scoreError" : 219.32217836516824,
+            "scoreConfidence" : [
+                851.3082073805973,
+                1289.9525641109337
+            ],
+            "scorePercentiles" : {
+                "0.0" : 1007.8950636652262,
+                "50.0" : 1076.9999080453547,
+                "90.0" : 1129.1115570811578,
+                "95.0" : 1129.1115570811578,
+                "99.0" : 1129.1115570811578,
+                "99.9" : 1129.1115570811578,
+                "99.99" : 1129.1115570811578,
+                "99.999" : 1129.1115570811578,
+                "99.9999" : 1129.1115570811578,
+                "100.0" : 1129.1115570811578
+            },
+            "scoreUnit" : "ns/op",
+            "rawData" : [
+                [
+                    1076.9999080453547,
+                    1007.8950636652262,
+                    1016.7619640951713,
+                    1129.1115570811578,
+                    1122.3834358419178
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "io.edap.crypto.benchmark.NativeVsJceBenchmark.nativeDigest_16t",
+        "mode" : "avgt",
+        "threads" : 16,
+        "forks" : 1,
+        "jvm" : "/opt/homebrew/Cellar/openjdk@17/17.0.20.1/libexec/openjdk.jdk/Contents/Home/bin/java",
+        "jvmArgs" : [
+            "-Dedap.bench.out=/Volumes/Data/NetBeansProjects/edap/edap-crypto/doc/bench/ab-20261118-003241-before-r3.json"
+        ],
+        "jdkVersion" : "17.0.20.1",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "17.0.20.1+0",
+        "warmupIterations" : 3,
+        "warmupTime" : "500 ms",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 5,
+        "measurementTime" : "500 ms",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "payloadSize" : "1024"
+        },
+        "primaryMetric" : {
+            "score" : 1870.2781078101955,
+            "scoreError" : 140.8385467814619,
+            "scoreConfidence" : [
+                1729.4395610287336,
+                2011.1166545916574
+            ],
+            "scorePercentiles" : {
+                "0.0" : 1810.4330598105512,
+                "50.0" : 1879.649316709551,
+                "90.0" : 1908.5698583357128,
+                "95.0" : 1908.5698583357128,
+                "99.0" : 1908.5698583357128,
+                "99.9" : 1908.5698583357128,
+                "99.99" : 1908.5698583357128,
+                "99.999" : 1908.5698583357128,
+                "99.9999" : 1908.5698583357128,
+                "100.0" : 1908.5698583357128
+            },
+            "scoreUnit" : "ns/op",
+            "rawData" : [
+                [
+                    1879.649316709551,
+                    1884.7747450616728,
+                    1908.5698583357128,
+                    1867.9635591334895,
+                    1810.4330598105512
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "io.edap.crypto.benchmark.NativeVsJceBenchmark.nativeDigest_16t",
+        "mode" : "avgt",
+        "threads" : 16,
+        "forks" : 1,
+        "jvm" : "/opt/homebrew/Cellar/openjdk@17/17.0.20.1/libexec/openjdk.jdk/Contents/Home/bin/java",
+        "jvmArgs" : [
+            "-Dedap.bench.out=/Volumes/Data/NetBeansProjects/edap/edap-crypto/doc/bench/ab-20261118-003241-before-r3.json"
+        ],
+        "jdkVersion" : "17.0.20.1",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "17.0.20.1+0",
+        "warmupIterations" : 3,
+        "warmupTime" : "500 ms",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 5,
+        "measurementTime" : "500 ms",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "payloadSize" : "8192"
+        },
+        "primaryMetric" : {
+            "score" : 7691.940466214025,
+            "scoreError" : 411.67459701454135,
+            "scoreConfidence" : [
+                7280.265869199484,
+                8103.615063228566
+            ],
+            "scorePercentiles" : {
+                "0.0" : 7533.622993238569,
+                "50.0" : 7735.685282029522,
+                "90.0" : 7803.770025958481,
+                "95.0" : 7803.770025958481,
+                "99.0" : 7803.770025958481,
+                "99.9" : 7803.770025958481,
+                "99.99" : 7803.770025958481,
+                "99.999" : 7803.770025958481,
+                "99.9999" : 7803.770025958481,
+                "100.0" : 7803.770025958481
+            },
+            "scoreUnit" : "ns/op",
+            "rawData" : [
+                [
+                    7533.622993238569,
+                    7637.491546914741,
+                    7735.685282029522,
+                    7803.770025958481,
+                    7749.132482928816
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "io.edap.crypto.benchmark.NativeVsJceBenchmark.nativeDigest_16t",
+        "mode" : "avgt",
+        "threads" : 16,
+        "forks" : 1,
+        "jvm" : "/opt/homebrew/Cellar/openjdk@17/17.0.20.1/libexec/openjdk.jdk/Contents/Home/bin/java",
+        "jvmArgs" : [
+            "-Dedap.bench.out=/Volumes/Data/NetBeansProjects/edap/edap-crypto/doc/bench/ab-20261118-003241-before-r3.json"
+        ],
+        "jdkVersion" : "17.0.20.1",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "17.0.20.1+0",
+        "warmupIterations" : 3,
+        "warmupTime" : "500 ms",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 5,
+        "measurementTime" : "500 ms",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "payloadSize" : "65536"
+        },
+        "primaryMetric" : {
+            "score" : 54047.49576943698,
+            "scoreError" : 2939.6698719466463,
+            "scoreConfidence" : [
+                51107.82589749034,
+                56987.165641383624
+            ],
+            "scorePercentiles" : {
+                "0.0" : 53511.00750687577,
+                "50.0" : 53812.85784047848,
+                "90.0" : 55379.11200759597,
+                "95.0" : 55379.11200759597,
+                "99.0" : 55379.11200759597,
+                "99.9" : 55379.11200759597,
+                "99.99" : 55379.11200759597,
+                "99.999" : 55379.11200759597,
+                "99.9999" : 55379.11200759597,
+                "100.0" : 55379.11200759597
+            },
+            "scoreUnit" : "ns/op",
+            "rawData" : [
+                [
+                    53937.70208417312,
+                    53812.85784047848,
+                    53511.00750687577,
+                    55379.11200759597,
+                    53596.79940806159
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "io.edap.crypto.benchmark.NativeVsJceBenchmark.nativeDigest_1t",
+        "mode" : "avgt",
+        "threads" : 1,
+        "forks" : 1,
+        "jvm" : "/opt/homebrew/Cellar/openjdk@17/17.0.20.1/libexec/openjdk.jdk/Contents/Home/bin/java",
+        "jvmArgs" : [
+            "-Dedap.bench.out=/Volumes/Data/NetBeansProjects/edap/edap-crypto/doc/bench/ab-20261118-003241-before-r3.json"
+        ],
+        "jdkVersion" : "17.0.20.1",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "17.0.20.1+0",
+        "warmupIterations" : 3,
+        "warmupTime" : "500 ms",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 5,
+        "measurementTime" : "500 ms",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "payloadSize" : "64"
+        },
+        "primaryMetric" : {
+            "score" : 388.59332733779036,
+            "scoreError" : 4.37369635359978,
+            "scoreConfidence" : [
+                384.2196309841906,
+                392.9670236913901
+            ],
+            "scorePercentiles" : {
+                "0.0" : 387.34057320786263,
+                "50.0" : 388.43996308623156,
+                "90.0" : 390.3032670273428,
+                "95.0" : 390.3032670273428,
+                "99.0" : 390.3032670273428,
+                "99.9" : 390.3032670273428,
+                "99.99" : 390.3032670273428,
+                "99.999" : 390.3032670273428,
+                "99.9999" : 390.3032670273428,
+                "100.0" : 390.3032670273428
+            },
+            "scoreUnit" : "ns/op",
+            "rawData" : [
+                [
+                    387.34057320786263,
+                    388.98800800192197,
+                    388.43996308623156,
+                    390.3032670273428,
+                    387.8948253655929
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "io.edap.crypto.benchmark.NativeVsJceBenchmark.nativeDigest_1t",
+        "mode" : "avgt",
+        "threads" : 1,
+        "forks" : 1,
+        "jvm" : "/opt/homebrew/Cellar/openjdk@17/17.0.20.1/libexec/openjdk.jdk/Contents/Home/bin/java",
+        "jvmArgs" : [
+            "-Dedap.bench.out=/Volumes/Data/NetBeansProjects/edap/edap-crypto/doc/bench/ab-20261118-003241-before-r3.json"
+        ],
+        "jdkVersion" : "17.0.20.1",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "17.0.20.1+0",
+        "warmupIterations" : 3,
+        "warmupTime" : "500 ms",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 5,
+        "measurementTime" : "500 ms",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "payloadSize" : "1024"
+        },
+        "primaryMetric" : {
+            "score" : 776.9926374328487,
+            "scoreError" : 4.658757643151133,
+            "scoreConfidence" : [
+                772.3338797896976,
+                781.6513950759999
+            ],
+            "scorePercentiles" : {
+                "0.0" : 774.9472239652292,
+                "50.0" : 777.3187177971893,
+                "90.0" : 778.1785852660827,
+                "95.0" : 778.1785852660827,
+                "99.0" : 778.1785852660827,
+                "99.9" : 778.1785852660827,
+                "99.99" : 778.1785852660827,
+                "99.999" : 778.1785852660827,
+                "99.9999" : 778.1785852660827,
+                "100.0" : 778.1785852660827
+            },
+            "scoreUnit" : "ns/op",
+            "rawData" : [
+                [
+                    777.3187177971893,
+                    774.9472239652292,
+                    777.3496689373675,
+                    777.1689911983751,
+                    778.1785852660827
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "io.edap.crypto.benchmark.NativeVsJceBenchmark.nativeDigest_1t",
+        "mode" : "avgt",
+        "threads" : 1,
+        "forks" : 1,
+        "jvm" : "/opt/homebrew/Cellar/openjdk@17/17.0.20.1/libexec/openjdk.jdk/Contents/Home/bin/java",
+        "jvmArgs" : [
+            "-Dedap.bench.out=/Volumes/Data/NetBeansProjects/edap/edap-crypto/doc/bench/ab-20261118-003241-before-r3.json"
+        ],
+        "jdkVersion" : "17.0.20.1",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "17.0.20.1+0",
+        "warmupIterations" : 3,
+        "warmupTime" : "500 ms",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 5,
+        "measurementTime" : "500 ms",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "payloadSize" : "8192"
+        },
+        "primaryMetric" : {
+            "score" : 3699.177723211892,
+            "scoreError" : 36.95416799219543,
+            "scoreConfidence" : [
+                3662.2235552196967,
+                3736.1318912040874
+            ],
+            "scorePercentiles" : {
+                "0.0" : 3687.254980690471,
+                "50.0" : 3698.8774185988605,
+                "90.0" : 3711.4495333970167,
+                "95.0" : 3711.4495333970167,
+                "99.0" : 3711.4495333970167,
+                "99.9" : 3711.4495333970167,
+                "99.99" : 3711.4495333970167,
+                "99.999" : 3711.4495333970167,
+                "99.9999" : 3711.4495333970167,
+                "100.0" : 3711.4495333970167
+            },
+            "scoreUnit" : "ns/op",
+            "rawData" : [
+                [
+                    3698.8774185988605,
+                    3693.0068002837106,
+                    3711.4495333970167,
+                    3705.2998830894,
+                    3687.254980690471
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "io.edap.crypto.benchmark.NativeVsJceBenchmark.nativeDigest_1t",
+        "mode" : "avgt",
+        "threads" : 1,
+        "forks" : 1,
+        "jvm" : "/opt/homebrew/Cellar/openjdk@17/17.0.20.1/libexec/openjdk.jdk/Contents/Home/bin/java",
+        "jvmArgs" : [
+            "-Dedap.bench.out=/Volumes/Data/NetBeansProjects/edap/edap-crypto/doc/bench/ab-20261118-003241-before-r3.json"
+        ],
+        "jdkVersion" : "17.0.20.1",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "17.0.20.1+0",
+        "warmupIterations" : 3,
+        "warmupTime" : "500 ms",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 5,
+        "measurementTime" : "500 ms",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "payloadSize" : "65536"
+        },
+        "primaryMetric" : {
+            "score" : 27076.03067019992,
+            "scoreError" : 85.7641137200277,
+            "scoreConfidence" : [
+                26990.266556479895,
+                27161.794783919948
+            ],
+            "scorePercentiles" : {
+                "0.0" : 27051.49247496117,
+                "50.0" : 27087.348161328588,
+                "90.0" : 27095.795332618025,
+                "95.0" : 27095.795332618025,
+                "99.0" : 27095.795332618025,
+                "99.9" : 27095.795332618025,
+                "99.99" : 27095.795332618025,
+                "99.999" : 27095.795332618025,
+                "99.9999" : 27095.795332618025,
+                "100.0" : 27095.795332618025
+            },
+            "scoreUnit" : "ns/op",
+            "rawData" : [
+                [
+                    27095.795332618025,
+                    27093.27727711619,
+                    27052.24010497563,
+                    27087.348161328588,
+                    27051.49247496117
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "io.edap.crypto.benchmark.NativeVsJceBenchmark.nativeDigest_4t",
+        "mode" : "avgt",
+        "threads" : 4,
+        "forks" : 1,
+        "jvm" : "/opt/homebrew/Cellar/openjdk@17/17.0.20.1/libexec/openjdk.jdk/Contents/Home/bin/java",
+        "jvmArgs" : [
+            "-Dedap.bench.out=/Volumes/Data/NetBeansProjects/edap/edap-crypto/doc/bench/ab-20261118-003241-before-r3.json"
+        ],
+        "jdkVersion" : "17.0.20.1",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "17.0.20.1+0",
+        "warmupIterations" : 3,
+        "warmupTime" : "500 ms",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 5,
+        "measurementTime" : "500 ms",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "payloadSize" : "64"
+        },
+        "primaryMetric" : {
+            "score" : 503.03528198702077,
+            "scoreError" : 54.34505565862252,
+            "scoreConfidence" : [
+                448.69022632839824,
+                557.3803376456433
+            ],
+            "scorePercentiles" : {
+                "0.0" : 492.90377136025126,
+                "50.0" : 496.10341354813175,
+                "90.0" : 527.357008895772,
+                "95.0" : 527.357008895772,
+                "99.0" : 527.357008895772,
+                "99.9" : 527.357008895772,
+                "99.99" : 527.357008895772,
+                "99.999" : 527.357008895772,
+                "99.9999" : 527.357008895772,
+                "100.0" : 527.357008895772
+            },
+            "scoreUnit" : "ns/op",
+            "rawData" : [
+                [
+                    527.357008895772,
+                    495.6546099987452,
+                    503.15760613220385,
+                    496.10341354813175,
+                    492.90377136025126
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "io.edap.crypto.benchmark.NativeVsJceBenchmark.nativeDigest_4t",
+        "mode" : "avgt",
+        "threads" : 4,
+        "forks" : 1,
+        "jvm" : "/opt/homebrew/Cellar/openjdk@17/17.0.20.1/libexec/openjdk.jdk/Contents/Home/bin/java",
+        "jvmArgs" : [
+            "-Dedap.bench.out=/Volumes/Data/NetBeansProjects/edap/edap-crypto/doc/bench/ab-20261118-003241-before-r3.json"
+        ],
+        "jdkVersion" : "17.0.20.1",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "17.0.20.1+0",
+        "warmupIterations" : 3,
+        "warmupTime" : "500 ms",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 5,
+        "measurementTime" : "500 ms",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "payloadSize" : "1024"
+        },
+        "primaryMetric" : {
+            "score" : 957.5051162862176,
+            "scoreError" : 7.670561110308006,
+            "scoreConfidence" : [
+                949.8345551759096,
+                965.1756773965255
+            ],
+            "scorePercentiles" : {
+                "0.0" : 954.9833684298842,
+                "50.0" : 957.5994951014534,
+                "90.0" : 959.8790225044369,
+                "95.0" : 959.8790225044369,
+                "99.0" : 959.8790225044369,
+                "99.9" : 959.8790225044369,
+                "99.99" : 959.8790225044369,
+                "99.999" : 959.8790225044369,
+                "99.9999" : 959.8790225044369,
+                "100.0" : 959.8790225044369
+            },
+            "scoreUnit" : "ns/op",
+            "rawData" : [
+                [
+                    956.1412361415048,
+                    954.9833684298842,
+                    959.8790225044369,
+                    958.922459253808,
+                    957.5994951014534
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "io.edap.crypto.benchmark.NativeVsJceBenchmark.nativeDigest_4t",
+        "mode" : "avgt",
+        "threads" : 4,
+        "forks" : 1,
+        "jvm" : "/opt/homebrew/Cellar/openjdk@17/17.0.20.1/libexec/openjdk.jdk/Contents/Home/bin/java",
+        "jvmArgs" : [
+            "-Dedap.bench.out=/Volumes/Data/NetBeansProjects/edap/edap-crypto/doc/bench/ab-20261118-003241-before-r3.json"
+        ],
+        "jdkVersion" : "17.0.20.1",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "17.0.20.1+0",
+        "warmupIterations" : 3,
+        "warmupTime" : "500 ms",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 5,
+        "measurementTime" : "500 ms",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "payloadSize" : "8192"
+        },
+        "primaryMetric" : {
+            "score" : 3973.9884839141114,
+            "scoreError" : 33.0908883497675,
+            "scoreConfidence" : [
+                3940.897595564344,
+                4007.0793722638787
+            ],
+            "scorePercentiles" : {
+                "0.0" : 3964.6601368763495,
+                "50.0" : 3975.2009417805893,
+                "90.0" : 3984.73011230293,
+                "95.0" : 3984.73011230293,
+                "99.0" : 3984.73011230293,
+                "99.9" : 3984.73011230293,
+                "99.99" : 3984.73011230293,
+                "99.999" : 3984.73011230293,
+                "99.9999" : 3984.73011230293,
+                "100.0" : 3984.73011230293
+            },
+            "scoreUnit" : "ns/op",
+            "rawData" : [
+                [
+                    3984.73011230293,
+                    3979.3119462272866,
+                    3966.0392823834045,
+                    3975.2009417805893,
+                    3964.6601368763495
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "io.edap.crypto.benchmark.NativeVsJceBenchmark.nativeDigest_4t",
+        "mode" : "avgt",
+        "threads" : 4,
+        "forks" : 1,
+        "jvm" : "/opt/homebrew/Cellar/openjdk@17/17.0.20.1/libexec/openjdk.jdk/Contents/Home/bin/java",
+        "jvmArgs" : [
+            "-Dedap.bench.out=/Volumes/Data/NetBeansProjects/edap/edap-crypto/doc/bench/ab-20261118-003241-before-r3.json"
+        ],
+        "jdkVersion" : "17.0.20.1",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "17.0.20.1+0",
+        "warmupIterations" : 3,
+        "warmupTime" : "500 ms",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 5,
+        "measurementTime" : "500 ms",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "payloadSize" : "65536"
+        },
+        "primaryMetric" : {
+            "score" : 28279.824843244023,
+            "scoreError" : 400.679155704138,
+            "scoreConfidence" : [
+                27879.145687539884,
+                28680.503998948163
+            ],
+            "scorePercentiles" : {
+                "0.0" : 28195.39250703961,
+                "50.0" : 28234.999416617145,
+                "90.0" : 28456.693340355152,
+                "95.0" : 28456.693340355152,
+                "99.0" : 28456.693340355152,
+                "99.9" : 28456.693340355152,
+                "99.99" : 28456.693340355152,
+                "99.999" : 28456.693340355152,
+                "99.9999" : 28456.693340355152,
+                "100.0" : 28456.693340355152
+            },
+            "scoreUnit" : "ns/op",
+            "rawData" : [
+                [
+                    28456.693340355152,
+                    28226.389555452875,
+                    28195.39250703961,
+                    28234.999416617145,
+                    28285.64939675533
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "io.edap.crypto.benchmark.NativeVsJceBenchmark.nativeMac_16t",
+        "mode" : "avgt",
+        "threads" : 16,
+        "forks" : 1,
+        "jvm" : "/opt/homebrew/Cellar/openjdk@17/17.0.20.1/libexec/openjdk.jdk/Contents/Home/bin/java",
+        "jvmArgs" : [
+            "-Dedap.bench.out=/Volumes/Data/NetBeansProjects/edap/edap-crypto/doc/bench/ab-20261118-003241-before-r3.json"
+        ],
+        "jdkVersion" : "17.0.20.1",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "17.0.20.1+0",
+        "warmupIterations" : 3,
+        "warmupTime" : "500 ms",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 5,
+        "measurementTime" : "500 ms",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "payloadSize" : "64"
+        },
+        "primaryMetric" : {
+            "score" : 1470.9256346982932,
+            "scoreError" : 44.86083649894989,
+            "scoreConfidence" : [
+                1426.0647981993432,
+                1515.7864711972431
+            ],
+            "scorePercentiles" : {
+                "0.0" : 1458.261915759541,
+                "50.0" : 1469.6308700824122,
+                "90.0" : 1487.2325308911388,
+                "95.0" : 1487.2325308911388,
+                "99.0" : 1487.2325308911388,
+                "99.9" : 1487.2325308911388,
+                "99.99" : 1487.2325308911388,
+                "99.999" : 1487.2325308911388,
+                "99.9999" : 1487.2325308911388,
+                "100.0" : 1487.2325308911388
+            },
+            "scoreUnit" : "ns/op",
+            "rawData" : [
+                [
+                    1458.261915759541,
+                    1462.2617145449262,
+                    1487.2325308911388,
+                    1477.2411422134473,
+                    1469.6308700824122
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "io.edap.crypto.benchmark.NativeVsJceBenchmark.nativeMac_16t",
+        "mode" : "avgt",
+        "threads" : 16,
+        "forks" : 1,
+        "jvm" : "/opt/homebrew/Cellar/openjdk@17/17.0.20.1/libexec/openjdk.jdk/Contents/Home/bin/java",
+        "jvmArgs" : [
+            "-Dedap.bench.out=/Volumes/Data/NetBeansProjects/edap/edap-crypto/doc/bench/ab-20261118-003241-before-r3.json"
+        ],
+        "jdkVersion" : "17.0.20.1",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "17.0.20.1+0",
+        "warmupIterations" : 3,
+        "warmupTime" : "500 ms",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 5,
+        "measurementTime" : "500 ms",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "payloadSize" : "1024"
+        },
+        "primaryMetric" : {
+            "score" : 2224.592929051491,
+            "scoreError" : 173.50884239017066,
+            "scoreConfidence" : [
+                2051.0840866613203,
+                2398.1017714416616
+            ],
+            "scorePercentiles" : {
+                "0.0" : 2156.7386917269987,
+                "50.0" : 2224.7012727560405,
+                "90.0" : 2275.482507860147,
+                "95.0" : 2275.482507860147,
+                "99.0" : 2275.482507860147,
+                "99.9" : 2275.482507860147,
+                "99.99" : 2275.482507860147,
+                "99.999" : 2275.482507860147,
+                "99.9999" : 2275.482507860147,
+                "100.0" : 2275.482507860147
+            },
+            "scoreUnit" : "ns/op",
+            "rawData" : [
+                [
+                    2156.7386917269987,
+                    2213.2034375114,
+                    2275.482507860147,
+                    2224.7012727560405,
+                    2252.8387354028696
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "io.edap.crypto.benchmark.NativeVsJceBenchmark.nativeMac_16t",
+        "mode" : "avgt",
+        "threads" : 16,
+        "forks" : 1,
+        "jvm" : "/opt/homebrew/Cellar/openjdk@17/17.0.20.1/libexec/openjdk.jdk/Contents/Home/bin/java",
+        "jvmArgs" : [
+            "-Dedap.bench.out=/Volumes/Data/NetBeansProjects/edap/edap-crypto/doc/bench/ab-20261118-003241-before-r3.json"
+        ],
+        "jdkVersion" : "17.0.20.1",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "17.0.20.1+0",
+        "warmupIterations" : 3,
+        "warmupTime" : "500 ms",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 5,
+        "measurementTime" : "500 ms",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "payloadSize" : "8192"
+        },
+        "primaryMetric" : {
+            "score" : 7963.11270293348,
+            "scoreError" : 200.64017058083084,
+            "scoreConfidence" : [
+                7762.472532352649,
+                8163.752873514311
+            ],
+            "scorePercentiles" : {
+                "0.0" : 7884.202735237431,
+                "50.0" : 7965.722190744111,
+                "90.0" : 8026.986874179756,
+                "95.0" : 8026.986874179756,
+                "99.0" : 8026.986874179756,
+                "99.9" : 8026.986874179756,
+                "99.99" : 8026.986874179756,
+                "99.999" : 8026.986874179756,
+                "99.9999" : 8026.986874179756,
+                "100.0" : 8026.986874179756
+            },
+            "scoreUnit" : "ns/op",
+            "rawData" : [
+                [
+                    7984.643686118696,
+                    7954.008028387412,
+                    7884.202735237431,
+                    7965.722190744111,
+                    8026.986874179756
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "io.edap.crypto.benchmark.NativeVsJceBenchmark.nativeMac_16t",
+        "mode" : "avgt",
+        "threads" : 16,
+        "forks" : 1,
+        "jvm" : "/opt/homebrew/Cellar/openjdk@17/17.0.20.1/libexec/openjdk.jdk/Contents/Home/bin/java",
+        "jvmArgs" : [
+            "-Dedap.bench.out=/Volumes/Data/NetBeansProjects/edap/edap-crypto/doc/bench/ab-20261118-003241-before-r3.json"
+        ],
+        "jdkVersion" : "17.0.20.1",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "17.0.20.1+0",
+        "warmupIterations" : 3,
+        "warmupTime" : "500 ms",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 5,
+        "measurementTime" : "500 ms",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "payloadSize" : "65536"
+        },
+        "primaryMetric" : {
+            "score" : 53907.46276576883,
+            "scoreError" : 974.3882506256454,
+            "scoreConfidence" : [
+                52933.074515143184,
+                54881.85101639448
+            ],
+            "scorePercentiles" : {
+                "0.0" : 53652.27129901751,
+                "50.0" : 53827.86507767078,
+                "90.0" : 54325.473987060985,
+                "95.0" : 54325.473987060985,
+                "99.0" : 54325.473987060985,
+                "99.9" : 54325.473987060985,
+                "99.99" : 54325.473987060985,
+                "99.999" : 54325.473987060985,
+                "99.9999" : 54325.473987060985,
+                "100.0" : 54325.473987060985
+            },
+            "scoreUnit" : "ns/op",
+            "rawData" : [
+                [
+                    53652.27129901751,
+                    53922.74354187807,
+                    53808.95992321678,
+                    53827.86507767078,
+                    54325.473987060985
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "io.edap.crypto.benchmark.NativeVsJceBenchmark.nativeMac_1t",
+        "mode" : "avgt",
+        "threads" : 1,
+        "forks" : 1,
+        "jvm" : "/opt/homebrew/Cellar/openjdk@17/17.0.20.1/libexec/openjdk.jdk/Contents/Home/bin/java",
+        "jvmArgs" : [
+            "-Dedap.bench.out=/Volumes/Data/NetBeansProjects/edap/edap-crypto/doc/bench/ab-20261118-003241-before-r3.json"
+        ],
+        "jdkVersion" : "17.0.20.1",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "17.0.20.1+0",
+        "warmupIterations" : 3,
+        "warmupTime" : "500 ms",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 5,
+        "measurementTime" : "500 ms",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "payloadSize" : "64"
+        },
+        "primaryMetric" : {
+            "score" : 598.2563262275884,
+            "scoreError" : 14.361746882748765,
+            "scoreConfidence" : [
+                583.8945793448396,
+                612.6180731103371
+            ],
+            "scorePercentiles" : {
+                "0.0" : 593.627649294144,
+                "50.0" : 597.6937602309785,
+                "90.0" : 604.0124571732497,
+                "95.0" : 604.0124571732497,
+                "99.0" : 604.0124571732497,
+                "99.9" : 604.0124571732497,
+                "99.99" : 604.0124571732497,
+                "99.999" : 604.0124571732497,
+                "99.9999" : 604.0124571732497,
+                "100.0" : 604.0124571732497
+            },
+            "scoreUnit" : "ns/op",
+            "rawData" : [
+                [
+                    604.0124571732497,
+                    598.5256642103542,
+                    597.6937602309785,
+                    597.4221002292152,
+                    593.627649294144
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "io.edap.crypto.benchmark.NativeVsJceBenchmark.nativeMac_1t",
+        "mode" : "avgt",
+        "threads" : 1,
+        "forks" : 1,
+        "jvm" : "/opt/homebrew/Cellar/openjdk@17/17.0.20.1/libexec/openjdk.jdk/Contents/Home/bin/java",
+        "jvmArgs" : [
+            "-Dedap.bench.out=/Volumes/Data/NetBeansProjects/edap/edap-crypto/doc/bench/ab-20261118-003241-before-r3.json"
+        ],
+        "jdkVersion" : "17.0.20.1",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "17.0.20.1+0",
+        "warmupIterations" : 3,
+        "warmupTime" : "500 ms",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 5,
+        "measurementTime" : "500 ms",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "payloadSize" : "1024"
+        },
+        "primaryMetric" : {
+            "score" : 999.7596478895572,
+            "scoreError" : 17.923060006676035,
+            "scoreConfidence" : [
+                981.8365878828812,
+                1017.6827078962332
+            ],
+            "scorePercentiles" : {
+                "0.0" : 992.8731776776484,
+                "50.0" : 1001.1719344043495,
+                "90.0" : 1005.0313040634003,
+                "95.0" : 1005.0313040634003,
+                "99.0" : 1005.0313040634003,
+                "99.9" : 1005.0313040634003,
+                "99.99" : 1005.0313040634003,
+                "99.999" : 1005.0313040634003,
+                "99.9999" : 1005.0313040634003,
+                "100.0" : 1005.0313040634003
+            },
+            "scoreUnit" : "ns/op",
+            "rawData" : [
+                [
+                    997.6894043102436,
+                    1002.0324189921444,
+                    1005.0313040634003,
+                    992.8731776776484,
+                    1001.1719344043495
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "io.edap.crypto.benchmark.NativeVsJceBenchmark.nativeMac_1t",
+        "mode" : "avgt",
+        "threads" : 1,
+        "forks" : 1,
+        "jvm" : "/opt/homebrew/Cellar/openjdk@17/17.0.20.1/libexec/openjdk.jdk/Contents/Home/bin/java",
+        "jvmArgs" : [
+            "-Dedap.bench.out=/Volumes/Data/NetBeansProjects/edap/edap-crypto/doc/bench/ab-20261118-003241-before-r3.json"
+        ],
+        "jdkVersion" : "17.0.20.1",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "17.0.20.1+0",
+        "warmupIterations" : 3,
+        "warmupTime" : "500 ms",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 5,
+        "measurementTime" : "500 ms",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "payloadSize" : "8192"
+        },
+        "primaryMetric" : {
+            "score" : 3914.9212515134254,
+            "scoreError" : 54.58521581730679,
+            "scoreConfidence" : [
+                3860.3360356961184,
+                3969.5064673307324
+            ],
+            "scorePercentiles" : {
+                "0.0" : 3903.6912812914293,
+                "50.0" : 3912.664074125209,
+                "90.0" : 3938.6381452453575,
+                "95.0" : 3938.6381452453575,
+                "99.0" : 3938.6381452453575,
+                "99.9" : 3938.6381452453575,
+                "99.99" : 3938.6381452453575,
+                "99.999" : 3938.6381452453575,
+                "99.9999" : 3938.6381452453575,
+                "100.0" : 3938.6381452453575
+            },
+            "scoreUnit" : "ns/op",
+            "rawData" : [
+                [
+                    3904.4319307404376,
+                    3903.6912812914293,
+                    3915.1808261646956,
+                    3938.6381452453575,
+                    3912.664074125209
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "io.edap.crypto.benchmark.NativeVsJceBenchmark.nativeMac_1t",
+        "mode" : "avgt",
+        "threads" : 1,
+        "forks" : 1,
+        "jvm" : "/opt/homebrew/Cellar/openjdk@17/17.0.20.1/libexec/openjdk.jdk/Contents/Home/bin/java",
+        "jvmArgs" : [
+            "-Dedap.bench.out=/Volumes/Data/NetBeansProjects/edap/edap-crypto/doc/bench/ab-20261118-003241-before-r3.json"
+        ],
+        "jdkVersion" : "17.0.20.1",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "17.0.20.1+0",
+        "warmupIterations" : 3,
+        "warmupTime" : "500 ms",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 5,
+        "measurementTime" : "500 ms",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "payloadSize" : "65536"
+        },
+        "primaryMetric" : {
+            "score" : 27386.88134337883,
+            "scoreError" : 280.4511962593165,
+            "scoreConfidence" : [
+                27106.430147119514,
+                27667.332539638148
+            ],
+            "scorePercentiles" : {
+                "0.0" : 27312.61597772542,
+                "50.0" : 27368.67939387356,
+                "90.0" : 27498.18050482473,
+                "95.0" : 27498.18050482473,
+                "99.0" : 27498.18050482473,
+                "99.9" : 27498.18050482473,
+                "99.99" : 27498.18050482473,
+                "99.999" : 27498.18050482473,
+                "99.9999" : 27498.18050482473,
+                "100.0" : 27498.18050482473
+            },
+            "scoreUnit" : "ns/op",
+            "rawData" : [
+                [
+                    27340.004180736454,
+                    27312.61597772542,
+                    27368.67939387356,
+                    27414.926659734003,
+                    27498.18050482473
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "io.edap.crypto.benchmark.NativeVsJceBenchmark.nativeMac_4t",
+        "mode" : "avgt",
+        "threads" : 4,
+        "forks" : 1,
+        "jvm" : "/opt/homebrew/Cellar/openjdk@17/17.0.20.1/libexec/openjdk.jdk/Contents/Home/bin/java",
+        "jvmArgs" : [
+            "-Dedap.bench.out=/Volumes/Data/NetBeansProjects/edap/edap-crypto/doc/bench/ab-20261118-003241-before-r3.json"
+        ],
+        "jdkVersion" : "17.0.20.1",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "17.0.20.1+0",
+        "warmupIterations" : 3,
+        "warmupTime" : "500 ms",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 5,
+        "measurementTime" : "500 ms",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "payloadSize" : "64"
+        },
+        "primaryMetric" : {
+            "score" : 686.7516888330152,
+            "scoreError" : 31.623803636019666,
+            "scoreConfidence" : [
+                655.1278851969955,
+                718.375492469035
+            ],
+            "scorePercentiles" : {
+                "0.0" : 680.3964409435482,
+                "50.0" : 683.6818007527006,
+                "90.0" : 701.0390474066011,
+                "95.0" : 701.0390474066011,
+                "99.0" : 701.0390474066011,
+                "99.9" : 701.0390474066011,
+                "99.99" : 701.0390474066011,
+                "99.999" : 701.0390474066011,
+                "99.9999" : 701.0390474066011,
+                "100.0" : 701.0390474066011
+            },
+            "scoreUnit" : "ns/op",
+            "rawData" : [
+                [
+                    701.0390474066011,
+                    683.6818007527006,
+                    680.3964409435482,
+                    685.7391468309784,
+                    682.9020082312477
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "io.edap.crypto.benchmark.NativeVsJceBenchmark.nativeMac_4t",
+        "mode" : "avgt",
+        "threads" : 4,
+        "forks" : 1,
+        "jvm" : "/opt/homebrew/Cellar/openjdk@17/17.0.20.1/libexec/openjdk.jdk/Contents/Home/bin/java",
+        "jvmArgs" : [
+            "-Dedap.bench.out=/Volumes/Data/NetBeansProjects/edap/edap-crypto/doc/bench/ab-20261118-003241-before-r3.json"
+        ],
+        "jdkVersion" : "17.0.20.1",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "17.0.20.1+0",
+        "warmupIterations" : 3,
+        "warmupTime" : "500 ms",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 5,
+        "measurementTime" : "500 ms",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "payloadSize" : "1024"
+        },
+        "primaryMetric" : {
+            "score" : 1084.4817664614877,
+            "scoreError" : 16.016649073209983,
+            "scoreConfidence" : [
+                1068.4651173882778,
+                1100.4984155346976
+            ],
+            "scorePercentiles" : {
+                "0.0" : 1079.7998281950897,
+                "50.0" : 1084.6338132107571,
+                "90.0" : 1090.4891618557567,
+                "95.0" : 1090.4891618557567,
+                "99.0" : 1090.4891618557567,
+                "99.9" : 1090.4891618557567,
+                "99.99" : 1090.4891618557567,
+                "99.999" : 1090.4891618557567,
+                "99.9999" : 1090.4891618557567,
+                "100.0" : 1090.4891618557567
+            },
+            "scoreUnit" : "ns/op",
+            "rawData" : [
+                [
+                    1090.4891618557567,
+                    1079.7998281950897,
+                    1085.9881077107943,
+                    1084.6338132107571,
+                    1081.497921335041
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "io.edap.crypto.benchmark.NativeVsJceBenchmark.nativeMac_4t",
+        "mode" : "avgt",
+        "threads" : 4,
+        "forks" : 1,
+        "jvm" : "/opt/homebrew/Cellar/openjdk@17/17.0.20.1/libexec/openjdk.jdk/Contents/Home/bin/java",
+        "jvmArgs" : [
+            "-Dedap.bench.out=/Volumes/Data/NetBeansProjects/edap/edap-crypto/doc/bench/ab-20261118-003241-before-r3.json"
+        ],
+        "jdkVersion" : "17.0.20.1",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "17.0.20.1+0",
+        "warmupIterations" : 3,
+        "warmupTime" : "500 ms",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 5,
+        "measurementTime" : "500 ms",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "payloadSize" : "8192"
+        },
+        "primaryMetric" : {
+            "score" : 4145.605103165925,
+            "scoreError" : 54.27644319245926,
+            "scoreConfidence" : [
+                4091.328659973466,
+                4199.881546358384
+            ],
+            "scorePercentiles" : {
+                "0.0" : 4134.601326695148,
+                "50.0" : 4138.125275673903,
+                "90.0" : 4168.098406512633,
+                "95.0" : 4168.098406512633,
+                "99.0" : 4168.098406512633,
+                "99.9" : 4168.098406512633,
+                "99.99" : 4168.098406512633,
+                "99.999" : 4168.098406512633,
+                "99.9999" : 4168.098406512633,
+                "100.0" : 4168.098406512633
+            },
+            "scoreUnit" : "ns/op",
+            "rawData" : [
+                [
+                    4150.801121359447,
+                    4168.098406512633,
+                    4138.125275673903,
+                    4136.399385588496,
+                    4134.601326695148
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "io.edap.crypto.benchmark.NativeVsJceBenchmark.nativeMac_4t",
+        "mode" : "avgt",
+        "threads" : 4,
+        "forks" : 1,
+        "jvm" : "/opt/homebrew/Cellar/openjdk@17/17.0.20.1/libexec/openjdk.jdk/Contents/Home/bin/java",
+        "jvmArgs" : [
+            "-Dedap.bench.out=/Volumes/Data/NetBeansProjects/edap/edap-crypto/doc/bench/ab-20261118-003241-before-r3.json"
+        ],
+        "jdkVersion" : "17.0.20.1",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "17.0.20.1+0",
+        "warmupIterations" : 3,
+        "warmupTime" : "500 ms",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 5,
+        "measurementTime" : "500 ms",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "payloadSize" : "65536"
+        },
+        "primaryMetric" : {
+            "score" : 28430.36357008504,
+            "scoreError" : 315.64265428716345,
+            "scoreConfidence" : [
+                28114.720915797876,
+                28746.006224372202
+            ],
+            "scorePercentiles" : {
+                "0.0" : 28375.202432158363,
+                "50.0" : 28382.754624424968,
+                "90.0" : 28567.92453928792,
+                "95.0" : 28567.92453928792,
+                "99.0" : 28567.92453928792,
+                "99.9" : 28567.92453928792,
+                "99.99" : 28567.92453928792,
+                "99.999" : 28567.92453928792,
+                "99.9999" : 28567.92453928792,
+                "100.0" : 28567.92453928792
+            },
+            "scoreUnit" : "ns/op",
+            "rawData" : [
+                [
+                    28567.92453928792,
+                    28444.902845127446,
+                    28382.754624424968,
+                    28375.202432158363,
+                    28381.033409426513
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    }
+]
+
+

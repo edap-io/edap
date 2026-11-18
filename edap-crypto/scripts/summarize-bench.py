@@ -18,7 +18,13 @@ from collections import defaultdict
 
 
 def load_rounds(bench_dir, ts):
-    """返回 {benchmark 名: {轮次: score}} 与 {benchmark 名: 参数串}"""
+    """返回 {benchmark 名: {轮次: score}} 与 {benchmark 名: 参数串}
+
+    ★ key 必须带上参数串：JMH 的 JSON 里 benchmark 名只到方法名，
+    同一方法的多个 @Param 取值共用一个名字 —— 只按方法名聚合会把
+    几组参数**静默合并**（后读到的覆盖先读到的），
+    汇总表里就只剩最后一组参数（实测：payloadSize 只剩 65536）。
+    """
     scores = defaultdict(dict)
     params = {}
     pattern = os.path.join(bench_dir, f"*-{ts}-r*.json")
@@ -42,9 +48,11 @@ def load_rounds(bench_dir, ts):
             score = metric.get("score")
             if not name or score is None:
                 continue
-            scores[name][rnd] = score
             p = entry.get("params") or {}
-            params[name] = ",".join(f"{k}={v}" for k, v in sorted(p.items()))
+            param_str = ",".join(f"{k}={v}" for k, v in sorted(p.items()))
+            key = f"{name}[{param_str}]" if param_str else name
+            scores[key][rnd] = score
+            params[key] = param_str
     return scores, params
 
 
@@ -90,7 +98,7 @@ def main():
             mean = statistics.fmean(values)
             cv = (statistics.stdev(values) / mean * 100.0) if len(values) > 1 and mean else 0.0
             print(
-                f"| `{name.split('.')[-1]}` | {params.get(name, '')} | {len(values)} | "
+                f"| `{name.split('.')[-1].split('[')[0]}` | {params.get(name, '')} | {len(values)} | "
                 f"{fmt(median)} | {fmt(min(values))} | {fmt(max(values))} | {fmt(mean)} | {cv:.2f} |"
             )
         print("| | | | | | | | |")
