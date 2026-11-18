@@ -47,9 +47,12 @@ LOG="${OUT_DIR}/bench-${BENCH_TAG}-${TS}.log"
 #   而 `/usr/libexec/java_home -v 17` 在本机**返回 JDK 11**（只有 11/1.8 三套），
 #   ⇒ 只能按「版本号必须是 17」逐个候选地挑，不能信 java_home 的 fallback。
 #   JAVA_HOME 还要 export 出去：下面的 mvn 也吃它（mvn 不认 JAVA 参数）。
+#   候选按平台排：macOS（homebrew / java_home）→ Solaris（/build/jdk-17.0.19、/usr/java/jdk17）。
 pick_java_home() {
-    for c in "${JAVA_HOME:-}" /opt/homebrew/opt/openjdk@17 /opt/homebrew/opt/openjdk \
-             "$(/usr/libexec/java_home -v 17 2>/dev/null || true)"; do
+    for c in "${JAVA_HOME:-}" \
+             /opt/homebrew/opt/openjdk@17 /opt/homebrew/opt/openjdk \
+             "$(/usr/libexec/java_home -v 17 2>/dev/null || true)" \
+             /build/jdk-17.0.19 /usr/java/jdk17; do
         [ -n "${c}" ] && [ -x "${c}/bin/java" ] || continue
         if "${c}/bin/java" -version 2>&1 | head -1 | grep -qE '"17[.0-9]*"'; then
             echo "${c}"; return 0
@@ -58,22 +61,55 @@ pick_java_home() {
     return 1
 }
 JAVA_HOME="$(pick_java_home)" || {
-    echo "FATAL: 找不到 JDK 17（试过 \$JAVA_HOME / homebrew openjdk@17 / java_home）" >&2
+    echo "FATAL: 找不到 JDK 17（试过 \$JAVA_HOME / homebrew openjdk@17 / java_home" \
+         "/ /build/jdk-17.0.19 / /usr/java/jdk17）" >&2
     exit 1
 }
 export JAVA_HOME
 JAVA="${JAVA_HOME}/bin/java"
 MVN="$(command -v mvn || echo /opt/homebrew/bin/mvn)"
+# 汇总脚本要 python3（md5-summary.py 用了 statistics 模块 ⇒ py2 跑不了）
+PY="$(command -v python3 || true)"
 
 mkdir -p "${OUT_DIR}"
 
-CORES="$(sysctl -n hw.ncpu 2>/dev/null || nproc 2>/dev/null || echo 8)"
-loadavg() {
-    if [ -r /proc/loadavg ]; then
-        awk '{print $1}' /proc/loadavg
-    else
-        sysctl -n vm.loadavg | awk '{print $2}'
+# ★ 三平台的核数与 loadavg —— 目标机是 **Solaris/SPARC（build-01）**，
+#   那儿**没有 sysctl，也没有 /proc/loadavg** ⇒ 只能走 kstat / uptime。
+#   ★ `set -e` 下命令替换失败会让整个脚本退出 ⇒ 每个探测都要 `|| true` 兜住。
+detect_cores() {
+    if command -v sysctl >/dev/null 2>&1; then
+        local n; n="$(sysctl -n hw.ncpu 2>/dev/null || true)"
+        [ -n "${n}" ] && { echo "${n}"; return 0; }
     fi
+    if command -v nproc >/dev/null 2>&1; then
+        local n; n="$(nproc 2>/dev/null || true)"
+        [ -n "${n}" ] && { echo "${n}"; return 0; }
+    fi
+    if command -v kstat >/dev/null 2>&1; then
+        # Solaris：system_misc 里的 cpu_info 每核一行 ⇒ 数行数就是核数（zone 视角）
+        local n; n="$(kstat -p system_misc:0:system_misc 2>/dev/null |
+                      awk '/cpu_info/ {c++} END {print c+0}' || true)"
+        [ -n "${n}" ] && [ "${n}" -gt 0 ] && { echo "${n}"; return 0; }
+    fi
+    echo 8
+}
+CORES="$(detect_cores)"
+
+# ★ 1 分钟 loadavg：Linux /proc → macOS sysctl → Solaris kstat → uptime 兜底
+loadavg() {
+    local v=""
+    if [ -r /proc/loadavg ]; then
+        v="$(awk '{print $1}' /proc/loadavg 2>/dev/null || true)"
+    elif command -v sysctl >/dev/null 2>&1; then
+        v="$(sysctl -n vm.loadavg 2>/dev/null | awk '{print $2}' || true)"
+    elif command -v kstat >/dev/null 2>&1; then
+        v="$(kstat -p system_misc:0:system_misc 2>/dev/null |
+              awk '/loadavg/ {for (i = 1; i <= NF; i++) if ($i ~ /^[0-9]+\.[0-9]+$/) {print $i; exit}}' || true)"
+    fi
+    if [ -z "${v}" ]; then
+        v="$(uptime 2>/dev/null | sed -n 's/.*load average[s]*: *\([0-9.]*\).*/\1/p' || true)"
+    fi
+    echo "${v}"
 }
 log() { echo "$@" | tee -a "${LOG}"; }
 
@@ -117,7 +153,11 @@ for r in $(seq 1 "${ROUNDS}"); do
 done
 
 SUMMARY="${OUT_DIR}/summary-${BENCH_TAG}-${TS}.md"
-python3 "${MODULE_DIR}/scripts/${SUMMARY_PY}" "${OUT_DIR}" "${BENCH_TAG}-${TS}-r*.json" > "${SUMMARY}"
+if [ -z "${PY}" ]; then
+    log "FATAL: 找不到 python3 ⇒ 没法汇总（原始 JSON 已落在 ${OUT_DIR}/${BENCH_TAG}-${TS}-r*.json）"
+    exit 1
+fi
+"${PY}" "${MODULE_DIR}/scripts/${SUMMARY_PY}" "${OUT_DIR}" "${BENCH_TAG}-${TS}-r*.json" > "${SUMMARY}"
 cat "${SUMMARY}"
 
 echo ""
