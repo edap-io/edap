@@ -13,6 +13,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -142,6 +143,63 @@ public class NativeHmacSha256Test {
             throw new AssertionError("should have thrown");
         } catch (IllegalArgumentException expected) {
             // ok
+        }
+    }
+
+    /**
+     * ★ 载荷跨小载荷阈值 —— native 侧 ≤ 1024 走 {@code GetByteArrayRegion} 拷栈缓冲，
+     * &gt; 1024 走 critical section，两条路径必须给出完全一样的结果。
+     *
+     * <p>这条守的是 edap-auth-jwt 的 HS256 生产路径
+     * （{@code HmacSha256.HmacSha256Native}）。</p>
+     */
+    @Test
+    public void testPayloadsAcrossSmallPayloadThreshold() throws Exception {
+        if (!Native.ENABLE_NATIVE) return;
+        byte[] keyBytes = KEY.getBytes(StandardCharsets.UTF_8);
+        NativeHmacSha256 hmac = new NativeHmacSha256(keyBytes);
+        java.util.Random random = new java.util.Random(20261117L);
+        int[] lengths = {0, 1, 63, 64, 65, 1023, 1024, 1025, 2048, 65536};
+        for (int len : lengths) {
+            byte[] data = new byte[len];
+            random.nextBytes(data);
+            assertArrayEquals(javaHmac(keyBytes, data), hmac.sign(data, 0, len), "len=" + len);
+        }
+    }
+
+    /**
+     * ★ key 跨小载荷阈值 —— key 走同一套分流。
+     */
+    @Test
+    public void testKeysAcrossSmallPayloadThreshold() throws Exception {
+        if (!Native.ENABLE_NATIVE) return;
+        byte[] data = "key threshold".getBytes(StandardCharsets.UTF_8);
+        java.util.Random random = new java.util.Random(20261118L);
+        int[] keyLengths = {1, 16, 32, 63, 64, 65, 1023, 1024, 1025, 4096};
+        for (int keyLen : keyLengths) {
+            byte[] key = new byte[keyLen];
+            random.nextBytes(key);
+            NativeHmacSha256 hmac = new NativeHmacSha256(key);
+            assertArrayEquals(javaHmac(key, data), hmac.sign(data, 0, data.length), "keyLen=" + keyLen);
+        }
+    }
+
+    /**
+     * ★ 带偏移的切片 —— 小载荷路径也必须按 {@code offset} 取。
+     */
+    @Test
+    public void testSliceWithOffsetAcrossThreshold() throws Exception {
+        if (!Native.ENABLE_NATIVE) return;
+        byte[] keyBytes = KEY.getBytes(StandardCharsets.UTF_8);
+        NativeHmacSha256 hmac = new NativeHmacSha256(keyBytes);
+        java.util.Random random = new java.util.Random(20261119L);
+        int[] lengths = {10, 1023, 1024, 1025, 4096};
+        for (int len : lengths) {
+            byte[] buffer = new byte[len + 16];
+            random.nextBytes(buffer);
+            byte[] slice = new byte[len];
+            System.arraycopy(buffer, 7, slice, 0, len);
+            assertArrayEquals(javaHmac(keyBytes, slice), hmac.sign(buffer, 7, len), "len=" + len);
         }
     }
 

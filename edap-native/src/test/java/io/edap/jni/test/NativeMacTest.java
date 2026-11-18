@@ -91,6 +91,10 @@ public class NativeMacTest {
 
     /**
      * 随机对拍。
+     *
+     * <p>★ 长度矩阵带上 <b>1023 / 1024 / 1025</b>：native 侧的小载荷阈值是 1024
+     * （≤ 走 {@code GetByteArrayRegion} 拷栈缓冲，&gt; 走 critical section）
+     * ⇒ 这三个长度正好压住分流边界。</p>
      */
     @Test
     public void testRandomPayloadsMatchJava() throws Exception {
@@ -98,7 +102,7 @@ public class NativeMacTest {
         Random random = new Random(20231103L);
         byte[] key = new byte[37];
         random.nextBytes(key);
-        int[] lengths = {0, 1, 63, 64, 65, 1024};
+        int[] lengths = {0, 1, 63, 64, 65, 1023, 1024, 1025, 2048};
         for (int len : lengths) {
             byte[] data = new byte[len];
             random.nextBytes(data);
@@ -106,6 +110,47 @@ public class NativeMacTest {
                     NativeMac.hmacSha256(key, data, 0, len), "sha256 len=" + len);
             assertArrayEquals(javaHmac("HmacSHA1", key, data),
                     NativeMac.hmacSha1(key, data, 0, len), "sha1 len=" + len);
+        }
+    }
+
+    /**
+     * ★ key 也要跨小载荷阈值 —— key 走的是同一套分流（region / critical）。
+     *
+     * <p>key 长度同时覆盖 RFC 2104 的两条预处理分支（≤ 64 直接补零、&gt; 64 先哈希）。</p>
+     */
+    @Test
+    public void testKeyLengthsAcrossThreshold() throws Exception {
+        if (!nativeReady()) return;
+        Random random = new Random(20261117L);
+        byte[] data = "key length matrix".getBytes(StandardCharsets.UTF_8);
+        int[] keyLengths = {1, 16, 32, 63, 64, 65, 1023, 1024, 1025, 4096};
+        for (int keyLen : keyLengths) {
+            byte[] key = new byte[keyLen];
+            random.nextBytes(key);
+            assertArrayEquals(javaHmac("HmacSHA256", key, data),
+                    NativeMac.hmacSha256(key, data, 0, data.length), "HmacSHA256 keyLen=" + keyLen);
+            assertArrayEquals(javaHmac("HmacSHA1", key, data),
+                    NativeMac.hmacSha1(key, data, 0, data.length), "HmacSHA1 keyLen=" + keyLen);
+        }
+    }
+
+    /**
+     * ★ 带偏移的切片 —— 小载荷路径也必须按 {@code offset} 取。
+     */
+    @Test
+    public void testSliceWithOffsetAcrossThreshold() throws Exception {
+        if (!nativeReady()) return;
+        Random random = new Random(20261118L);
+        byte[] key = "offset-key".getBytes(StandardCharsets.UTF_8);
+        int[] lengths = {10, 1023, 1024, 1025, 4096};
+        for (int len : lengths) {
+            byte[] buffer = new byte[len + 16];
+            random.nextBytes(buffer);
+            byte[] slice = new byte[len];
+            System.arraycopy(buffer, 7, slice, 0, len);
+
+            assertArrayEquals(javaHmac("HmacSHA256", key, slice),
+                    NativeMac.hmacSha256(key, buffer, 7, len), "len=" + len);
         }
     }
 

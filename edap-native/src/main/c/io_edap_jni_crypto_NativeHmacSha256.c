@@ -30,6 +30,11 @@
  * HMAC 手工展开：H((K xor opad) || H((K xor ipad) || m))。
  * 展开逻辑已抽到 edap_jni_common.h，与 NativeMac.c 共用同一份实现。
  *
+ * ★★ 本入口是 edap-auth-jwt 的 HS256 **生产路径**
+ *   （io.edap.auth.jwt.algorithm.HmacSha256.HmacSha256Native），
+ *   所以取数路径（小载荷 region / 大载荷 critical）的分流阈值与
+ *   NativeStream、NativeDigest、NativeMac 共用同一份（edap_jni_array.h）。
+ *
  * Per-thread 优化可选：
  * - 当前实现每次都重算 k_pad / ipad / opad（~128 字节 XOR，几十 cycles）
  * - 16 线程各自独立，不构成竞争点
@@ -40,8 +45,40 @@
 #include <jni.h>
 #include <openssl/sha.h>   /* legacy SHA256_{Init,Update,Final} — direct C, no provider dispatch */
 
+#include "edap_jni_array.h"
 #include "edap_jni_common.h"
 #include "io_edap_jni_crypto_NativeHmacSha256.h"
+
+/**
+ * key → k_pad 的回调上下文。
+ */
+typedef struct {
+    unsigned char k_pad[EDAP_SHA256_BLOCK_SIZE];
+} edap_hmac_key_ctx;
+
+/**
+ * edap_jni_consume_bytes 的回调：拿到 key ⇒ RFC 2104 §2 的 key 预处理。
+ */
+static void edap_hmac_key_apply(void *vctx, const unsigned char *key, size_t keyLen) {
+    edap_hmac_key_ctx *c = (edap_hmac_key_ctx *)vctx;
+    edap_sha256_key_pad(key, keyLen, c->k_pad);
+}
+
+/**
+ * data → MAC 结果的回调上下文。
+ */
+typedef struct {
+    const unsigned char *k_pad;
+    unsigned char result[EDAP_SHA256_DIGEST_SIZE];
+} edap_hmac_data_ctx;
+
+/**
+ * edap_jni_consume_bytes 的回调：拿到消息 ⇒ 算 HMAC。
+ */
+static void edap_hmac_data_apply(void *vctx, const unsigned char *data, size_t len) {
+    edap_hmac_data_ctx *c = (edap_hmac_data_ctx *)vctx;
+    edap_hmac_sha256(c->k_pad, data, len, c->result);
+}
 
 JNIEXPORT jbyteArray JNICALL Java_io_edap_jni_crypto_NativeHmacSha256_sign0
   (JNIEnv *env, jclass cls,
@@ -53,40 +90,32 @@ JNIEXPORT jbyteArray JNICALL Java_io_edap_jni_crypto_NativeHmacSha256_sign0
     }
 
     /*
-     * Critical section 1：拿 key 指针，复制到栈上 k_pad[64]
-     * - key ≤ 64 bytes：直接 memcpy + zero-pad
-     * - key > 64 bytes：SHA256(K) → 32 bytes hash + zero-pad（RFC 2104 §2）
-     * 复制完后立即 ReleasePrimitiveArrayCritical，不在 critical 区间做 SHA256 计算
+     * 取 key：≤ 1 KB 拷栈缓冲（避开 critical section 的 ~102ns 固定成本），
+     * > 1 KB 走 critical section（不拷贝）。
+     * 复制完后立刻释放，不在临界区里做 SHA256 计算。
+     * key ≤ 64 bytes：直接 memcpy + zero-pad
+     * key > 64 bytes：SHA256(K) → 32 bytes hash + zero-pad（RFC 2104 §2）
      */
-    jbyte *keyPtr = (jbyte*)(*env)->GetPrimitiveArrayCritical(env, key, NULL);
-    if (keyPtr == NULL) {
+    edap_hmac_key_ctx kctx;
+    if (!edap_jni_consume_bytes(env, key, 0, keyLen, edap_hmac_key_apply, &kctx)) {
         return NULL;
     }
 
-    unsigned char k_pad[EDAP_SHA256_BLOCK_SIZE];
-    edap_sha256_key_pad((const unsigned char *)keyPtr, (size_t)keyLen, k_pad);
-
-    (*env)->ReleasePrimitiveArrayCritical(env, key, keyPtr, JNI_ABORT);
-
     /*
-     * Critical section 2：拿 data 指针，做 HMAC 计算
+     * 取 data：同样的分流（key 通常 16~64 字节，载荷大小不限）。
      * HMAC(K, m) = H((K xor opad) || H((K xor ipad) || m))
      * ipad = 0x36 * 64, opad = 0x5c * 64
      */
-    jbyte *dataPtr = (jbyte*)(*env)->GetPrimitiveArrayCritical(env, data, NULL);
-    if (dataPtr == NULL) {
+    edap_hmac_data_ctx dctx;
+    dctx.k_pad = kctx.k_pad;
+    if (!edap_jni_consume_bytes(env, data, offset, len, edap_hmac_data_apply, &dctx)) {
         return NULL;
     }
 
-    unsigned char result[EDAP_SHA256_DIGEST_SIZE];
-    edap_hmac_sha256(k_pad, (const unsigned char *)(dataPtr + offset), (size_t)len, result);
-
-    /* 立即 release，反向顺序 */
-    (*env)->ReleasePrimitiveArrayCritical(env, data, dataPtr, JNI_ABORT);
-
     jbyteArray ret = (*env)->NewByteArray(env, (jsize)EDAP_SHA256_DIGEST_SIZE);
     if (ret != NULL) {
-        (*env)->SetByteArrayRegion(env, ret, 0, (jsize)EDAP_SHA256_DIGEST_SIZE, (const jbyte *)result);
+        (*env)->SetByteArrayRegion(env, ret, 0, (jsize)EDAP_SHA256_DIGEST_SIZE,
+                (const jbyte *)dctx.result);
     }
     return ret;
 }

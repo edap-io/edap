@@ -106,6 +106,14 @@ C 侧只用 OpenSSL 的 legacy `SHA256_*` / `SHA1_*` / `MD5_*`（不走 EVP prov
 这三组 API 在 OpenSSL 1.0.x / 1.1.x / 3.x 上签名一致，Solaris 11 自带的
 OpenSSL 1.1.1 可直接编译。
 
+★ **仓库里只提交了 macOS/aarch64 的 `.o`** —— Solaris/SPARC 的产物**不在仓库里**，
+是在目标机（build-01）上现编的 ⇒ **C 源码一改，目标机上的 `.o` 就必须重建**，
+否则目标机跑的还是旧实现（本次三项优化全都吃不到）。
+**2026-11-18 的三项优化（小载荷分流 / 上下文池 / 对齐）改的是 C 源码**
+⇒ **build-01 上必须用 gcc 重新跑一遍 `build-native.sh`**（★ 用 gcc：
+Sun Studio 的 `cc` 在链接期会炸 `iropt` / `_mmheap_create`；OpenSSL 用系统那套
+`/lib/64/libcrypto.so.3`），并确认脚本末尾的**符号自检全绿**。
+
 ### 2.3 在目标机上量「JVM 内置 vs JNI」
 
 `edap-crypto` 里有一个专门的对比用例（见 `io.edap.crypto.test.JvmVsJniPerfTest`）：
@@ -157,6 +165,38 @@ SHA 扩展，JNI 侧 2.1 GB/s vs JCE 侧 0.23 GB/s）；**小载荷时 JNI 的�
 SPARC 没有 ARM 的 SHA 扩展，OpenSSL 走软件实现，JNI 侧不会这么快；
 必须在目标机上用 §2.3 的用例重测。
 
+### 2.5 ★ 产物不可复现：判定「是不是同一份代码」不能比整文件哈希
+
+**同一份源码连续链接两次，整文件哈希必然不同**（macOS 实测：52360 字节里差 48 字节），
+而且**只换输出路径就可能让 `__text` 段也变**。三层差异：
+
+| 层 | 差异来源 | 什么时候变 |
+|---|---|---|
+| 链接期元数据 | `LC_UUID`（16 字节，ld64 每次随机生成） | **每次链接都变** |
+| 链接期元数据 | 代码签名里的 UUID + ECDSA 签名（32 字节） | 每次链接都变 |
+| 链接期元数据 | `__TEXT` 里嵌入的输出路径（`LC_ID_DYLIB` 的 install name） | 输出目录/文件名一变就变 |
+| **布局** | 输出路径长度变化 ⇒ 段偏移平移 ⇒ 代码里的 PC 相对立即数（ADRP 等）随之变 | 输出路径长度一变就变 |
+
+★ 实测：**同一份源码、同样的编译参数，只有输出路径不同**（长度也不同），
+`__text` 段哈希就出现 4 个不同值 ⇒ **`__text` 的字节哈希同样不是稳定的身份标识**。
+
+判定两份 `.o` 是不是同一份实现，**正确口径 = 逐符号的归一化反汇编**
+（把地址与立即数屏蔽掉，只比指令序列）：
+
+```bash
+otool -tV <file.o>     # 每个符号下的指令，逐条把 0x… / #… 换成 HEX / IMM 后按符号取 sha256
+```
+
+实测结论（2026-11-18，本机 macOS/aarch64）：
+
+| 比较 | 归一化后同码符号数 |
+|---|---|
+| A/B 的 after 臂 vs 仓库里已提交的 `.o` | **18 / 18 全同** ⇒ A/B 实测的就是最终发布的那份实现 |
+| A/B 的 before 臂 vs after 臂 | **0 / 10 全不同** ⇒ A/B 确实比的是两份不同实现 |
+
+⇒ 由此可以放心地说：**A/B 结论对已提交产物成立**；
+而整文件哈希的差异**不能**用来解释性能差异的来源。
+
 ---
 
 ## 三、加载机制
@@ -177,6 +217,81 @@ SPARC 没有 ARM 的 SHA 扩展，OpenSSL 走软件实现，JNI 侧不会这么�
 
 ## 四、当前 API
 
+### 4.0 ★ `NativeStream`（流式摘要 / MAC —— 2026-11-17 新增）
+
+```java
+public class NativeStream {
+    public static final int ALG_SHA256 = 0, ALG_SHA1 = 1, ALG_MD5 = 2,
+                             ALG_HMAC_SHA256 = 3, ALG_HMAC_SHA1 = 4;
+
+    public static native long   update(long ctx, int alg, byte[] key, int keyLen,
+                                       byte[] data, int offset, int len);
+    public static native byte[] finish(long ctx);
+    public static native void   free(long ctx);
+}
+```
+
+设计要点：
+
+- **会话形状 `update* → finish`，没有独立的 `init`** —— 「建上下文」并进「追加数据」
+  （`update` 的句柄为 0 时顺便建）。**理由**：JNI 往返在 Solaris/SPARC 上是微秒级量级，
+  分成 `init` + `update` 两个入口 ⇒ 每次操作多一次 native 调用；
+  并进一次后「喂数据 + 收尾」只要 **2 次**（老的一次性 API 是 1 次，流式化只多 1 次）。
+- **`finish` 在 native 侧释放上下文**（句柄随即失效，不能再 `free`）⇒
+  不依赖调用方 close，不会漏；代价是「重复 finish / 二次 free」是**调用方的错**
+  （等价 C 的 double free），不制造测试。
+- **数据按大小分流**（阈值与分流逻辑在 `edap_jni_array.h`，摘要 / MAC / 一次性入口共用）：
+  - **≤ 1 KB**：`GetByteArrayRegion` 拷到栈缓冲再喂 —— 避开 critical section 的
+    ~102ns 固定成本（**与载荷大小无关**），实测 region 在 64B 是 55ns、1KB 是 67ns
+    （★ **分项**数字，端到端实测见本节末）；
+  - **> 1 KB**：`GetPrimitiveArrayCritical` 直接指向 Java 堆喂给 OpenSSL —— 不拷贝。
+  - ★ 附带好处：小载荷路径越界会抛 `ArrayIndexOutOfBoundsException`（与 JCE 一致），
+    而 critical section 越界是**静默读到邻接堆内存**。
+  - ⇒ 一次 64KB 载荷只付一次「拷进 Java 堆」，这次拷贝正是流式化要省掉的。
+- **上下文按线程复用**（空闲池，`pthread_key` + 线程私有）：
+  一次摘要操作原本是 `malloc(360~568) + memset + free` ⇒ 实测 malloc+free ≈ **25.9 ns/op**
+  （而一次 64B 的 SHA-256 全程才 ~60 ns ⇒ 分配器占了近 1/3 的固定成本）。
+  改成「按线程复用一个空闲上下文」后降到 ~3.5 ns ⇒ **净省 ~22 ns/op**
+  （★ **分项**数字，端到端实测见本节末）。
+  - ★ 池是**线程私有**的 ⇒ 上下文在任一时刻只被一个会话持有 ⇒ 天然无竞争、无锁。
+  - ★ 用 `pthread_key`（不是 `__thread`）：后者在线程退出时无法回收 ⇒ 上下文泄漏。
+  - ★ 取出来的上下文**带着上一轮的残值**，但每次使用前都会重新 Init，
+    而 OpenSSL 的 Init 把上下文**全量复位** ⇒ 不存在读未初始化内存的路径。
+  - ★ HMAC 的 ipad/opad 是 key 的简单 XOR ⇒ **归还时** cleanse（不是取用时 memset），
+    否则 key 材料会留在池里等着被 dump。
+- **摘要与 HMAC 共用一个上下文结构**：算法编号决定用哪套 Init/Update/Final；
+  HMAC 额外带 inner_pad / outer_pad（RFC 2104 的 key 预处理）。
+- **工作上下文天然对齐**：两个工作上下文放在结构体**最前面**（union），
+  基址由 malloc 给出（16 字节对齐）⇒ 两者都满足 `SHA256_CTX` 的对齐要求。
+  ★ 对齐要求由 `SHA_LONG` 的宽度决定，**随平台 / OpenSSL 版本而变**：
+  实测（macOS，OpenSSL 3.6.4）`SHA_LONG` 是 `unsigned int`（4 字节）⇒
+  `sizeof(SHA256_CTX)`=112、**对齐要求只有 4 字节** ⇒ 此时旧布局（union a 在偏移 132）
+  **本来就满足** ⇒ 这一项在当前 OpenSSL 3.x 上是 no-op；
+  只有当目标平台的 `sha.h` 把 `SHA_LONG` 定成 8 字节（部分 OpenSSL 1.x 按平台区分）时，
+  旧布局才违反要求（未对齐的 8 字节成员访问在 SPARC 上有 SIGBUS 风险）。
+  ⇒ 编译期断言用 `__alignof__(SHA256_CTX)` **按平台自动取值**（负长度数组，
+  Solaris 上老 gcc 的默认方言未必是 C11 ⇒ 不用 `_Static_assert`）：
+  谁往 union 前面加字段、或换 OpenSSL 版本导致对齐要求变化，都会当场编译失败。
+- **算法编号用 int 而不是字符串** —— 每次 `GetStringUTFChars` + `strcmp` 在
+  Solaris/SPARC 上约 9.5µs，是 native 摘要固定成本的大头。
+
+**★★ 端到端实测（2026-11-18，macOS，5 轮 before/after 交替 A/B，JCE 臂作机器漂移对照）**：
+「小载荷分流 + 上下文池」合计在 **1t/64B 档省 -36.2 ns/op（-9.2%）**，
+1t/1KB 档 -23.7 ns（摘要）/ -22.3 ns（MAC）；
+**载荷 > 1KB 的格子没有变化**（大载荷仍走 critical section；池的固定成本节省占比 <0.6%）。
+★ **分项数字（region -45ns、池 -22ns）不可相加** —— 端到端实测明显小于相加值。
+★ 并发档（4t/16t）在本机落在噪声里，不能下结论。
+★ **A/B 实测的 after 臂 == 仓库里已提交的 `.o`**（逐符号归一化反汇编 18/18 全同，
+口径见 §2.5）⇒ 结论对已提交产物成立，不是「测了一份别人没发布的实现」。
+详见 `edap-crypto/doc/DESIGN.md §10.14.8`（数据与复跑脚本）。
+
+**★ 为什么是 legacy 的 `SHA256_Init/Update/Final` 而不是 EVP**：见 §6.6 ——
+OpenSSL 3.x 的 provider dispatch（`evp_generic_fetch`）在多线程下退化；
+**2026-11-17 在 build-01 上又实测到它的一次性 manifestation**：
+**一次性 `SHA256()` 与 EVP 同价（7463 vs 7137 ns@64B），
+而 legacy 流式只要 411 ns ⇒ 一次性 API 也走 provider dispatch 那条路，
+在 SPARC 上要付 ~7µs 固定开销**。详见 `edap-crypto/doc/DESIGN.md §10.11.2`。
+
 ### 4.1 `NativeHmacSha256`（JNI 入口）
 
 ```java
@@ -192,6 +307,13 @@ public class NativeHmacSha256 {
 - `key` 不可变（构造期拷贝），instance 持有自己的 `byte[] key`
 - `sign()` 单次调用把 key + data 一起交给 native → stateless，多线程并发安全
 - 异常路径：构造期 `ENABLE_NATIVE=false` 抛 `UnsupportedOperationException`；sign 失败抛 `RuntimeException`
+- ★ **取数按大小分流**（与 `NativeStream` 同一份阈值，见 `edap_jni_array.h`）：
+  key 与 data 都是 ≤ 1 KB 走 `GetByteArrayRegion` 拷栈缓冲、> 1 KB 走 critical section。
+  ⇒ 这条是 **edap-auth-jwt 的 HS256 生产路径**（§4.2 的 `HmacSha256Native` 默认委托它），
+  小载荷（JWT 签名串通常几百字节）省掉 critical section 的 ~102ns 固定成本。
+- ★ HMAC 本体用的是 legacy 的 `SHA256_Init/Update/Final`（**不是**一次性 API）
+  ⇒ 在 Solaris 上没有一次性 API 那 ~7µs 的 provider dispatch 开销
+  （见 `edap-crypto/doc/DESIGN.md §10.11.2`）。
 
 ### 4.2 `HmacSha256.HmacSha256Native`（Java 侧 MethodHandle 桥 — nested class）
 

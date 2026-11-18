@@ -87,12 +87,17 @@ public class NativeDigestTest {
 
     /**
      * 随机长度 + 随机内容的对拍（覆盖 block 边界 55/56/63/64/65/119/120 等）。
+     *
+     * <p>★ 长度矩阵里带上 <b>1023 / 1024 / 1025</b>：native 侧的小载荷阈值是 1024
+     * （≤ 走 {@code GetByteArrayRegion} 拷栈缓冲，&gt; 走 critical section）
+     * ⇒ 这三个长度正好压住分流边界，两条路径必须给出完全一样的结果。</p>
      */
     @Test
     public void testRandomLengthsMatchJava() throws Exception {
         if (!nativeReady()) return;
         Random random = new Random(20231102L);
-        int[] lengths = {0, 1, 31, 55, 56, 63, 64, 65, 119, 120, 127, 128, 1000, 65536};
+        int[] lengths = {0, 1, 31, 55, 56, 63, 64, 65, 119, 120, 127, 128, 1000,
+                1023, 1024, 1025, 2048, 65536};
         for (int len : lengths) {
             byte[] data = new byte[len];
             random.nextBytes(data);
@@ -101,6 +106,26 @@ public class NativeDigestTest {
                 byte[] javaResult = MessageDigest.getInstance(alg[1]).digest(data);
                 assertArrayEquals(javaResult, nativeResult, alg[0] + " len=" + len);
             }
+        }
+    }
+
+    /**
+     * ★ 带偏移的切片 —— 小载荷路径也必须按 {@code offset} 取，而不是从数组头开始。
+     */
+    @Test
+    public void testSliceWithOffsetAcrossThreshold() throws Exception {
+        if (!nativeReady()) return;
+        Random random = new Random(20261117L);
+        int[] lengths = {10, 1023, 1024, 1025, 4096};
+        for (int len : lengths) {
+            byte[] buffer = new byte[len + 16];
+            random.nextBytes(buffer);
+            byte[] slice = new byte[len];
+            System.arraycopy(buffer, 7, slice, 0, len);
+
+            byte[] nativeResult = NativeDigest.digest("SHA256", buffer, 7, len);
+            byte[] javaResult = MessageDigest.getInstance("SHA-256").digest(slice);
+            assertArrayEquals(javaResult, nativeResult, "len=" + len);
         }
     }
 

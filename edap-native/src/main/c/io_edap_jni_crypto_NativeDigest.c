@@ -15,12 +15,21 @@
  *   在 Solaris/SPARC 上实测，这段固定开销约 9.5µs/次 —— native digest 的
  *   固定成本比 native HMAC（无字符串入口）多出的部分几乎全来自这里。
  *   拆开后算法在 Java 侧一次性绑定，native 侧零字符串 —— 与 NativeMac.c 同一形状。
+ *
+ * ★★ 这三个入口是**遗留的一次性入口**（edap-crypto 的 provider 已改走
+ *   NativeStream 的流式接口，见 io_edap_jni_crypto_NativeStream.c）。
+ *   ⚠️ **不要把流式语义再接回这里**：Solaris 上 OpenSSL 的一次性 API
+ *   （本文件用的 SHA256() / SHA1() / MD5()）有 **~7µs 固定开销**
+ *   （它同样走 provider dispatch；实测 build-01 上一次性 7463ns@64B
+ *   vs legacy 流式 411ns ⇒ 差 18 倍）。
+ *   ⇒ 需要流式摘要就用 NativeStream（update / finish / free）。
  */
 #include <jni.h>
 #include <openssl/md5.h>
 #include <openssl/sha.h>
 #include <string.h>
 
+#include "edap_jni_array.h"
 #include "edap_jni_common.h"
 #include "io_edap_jni_crypto_NativeDigest.h"
 
@@ -34,7 +43,26 @@
 typedef unsigned char *(*edap_digest_fn)(const unsigned char *, size_t, unsigned char *);
 
 /**
+ * 一次摘要计算的上下文（喂给 edap_jni_consume_bytes 的回调）。
+ */
+typedef struct {
+    edap_digest_fn fn;
+    unsigned char result[EDAP_SHA256_DIGEST_SIZE];
+} edap_digest_ctx;
+
+/**
+ * edap_jni_consume_bytes 的回调：拿到一段数据 ⇒ 算摘要。
+ */
+static void edap_digest_apply(void *vctx, const unsigned char *data, size_t len) {
+    edap_digest_ctx *c = (edap_digest_ctx *)vctx;
+    c->fn(data, len, c->result);
+}
+
+/**
  * 三个入口的公共实现。
+ *
+ * <p>★ 取数走 edap_jni_consume_bytes：小载荷（≤ 1 KB）拷栈缓冲，
+ * 大载荷走 critical section（不拷贝）—— 与流式入口共用同一份阈值与分流逻辑。</p>
  *
  * @param digestSize 输出长度（32 / 20 / 16）
  */
@@ -45,19 +73,15 @@ static jbyteArray edap_digest_common(JNIEnv *env, jbyteArray data, jint offset, 
         return NULL;
     }
 
-    jbyte *dataPtr = (jbyte*)(*env)->GetPrimitiveArrayCritical(env, data, NULL);
-    if (dataPtr == NULL) {
+    edap_digest_ctx ctx;
+    ctx.fn = fn;
+    if (!edap_jni_consume_bytes(env, data, offset, len, edap_digest_apply, &ctx)) {
         return NULL;
     }
 
-    unsigned char result[EDAP_SHA256_DIGEST_SIZE];
-    fn((const unsigned char *)(dataPtr + offset), (size_t)len, result);
-
-    (*env)->ReleasePrimitiveArrayCritical(env, data, dataPtr, JNI_ABORT);
-
     jbyteArray ret = (*env)->NewByteArray(env, (jsize)digestSize);
     if (ret != NULL) {
-        (*env)->SetByteArrayRegion(env, ret, 0, (jsize)digestSize, (const jbyte *)result);
+        (*env)->SetByteArrayRegion(env, ret, 0, (jsize)digestSize, (const jbyte *)ctx.result);
     }
     return ret;
 }
