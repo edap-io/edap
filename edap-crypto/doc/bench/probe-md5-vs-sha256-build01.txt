@@ -1,0 +1,48 @@
+=== MD5 vs SHA-256 raw OpenSSL probe ===
+openssl: OpenSSL 3.0.16 11 Feb 2025
+
+payload=64 iters=20000
+  MD5      oneshot==stream: OK   oneshot==evp: OK
+  SHA-256  oneshot==stream: OK   oneshot==evp: OK
+  MD5      oneshot  median      410.7 ns/op   (CV   0.4%)
+  MD5      stream   median      383.1 ns/op   (CV   4.0%)
+  MD5      evp      median     6974.9 ns/op   (CV   0.7%)
+  SHA-256  oneshot  median     7509.8 ns/op   (CV   0.9%)
+  SHA-256  stream   median      411.7 ns/op   (CV   0.8%)
+  SHA-256  evp      median     7215.0 ns/op   (CV   1.0%)
+
+payload=1024 iters=20000
+  MD5      oneshot==stream: OK   oneshot==evp: OK
+  SHA-256  oneshot==stream: OK   oneshot==evp: OK
+  MD5      oneshot  median     1472.7 ns/op   (CV   0.7%)
+  MD5      stream   median     1433.2 ns/op   (CV   0.6%)
+  MD5      evp      median     8034.6 ns/op   (CV   1.0%)
+  SHA-256  oneshot  median     8645.7 ns/op   (CV   1.1%)
+  SHA-256  stream   median     1472.0 ns/op   (CV   3.0%)
+  SHA-256  evp      median     8331.1 ns/op   (CV   0.9%)
+
+payload=8192 iters=5000
+  MD5      oneshot==stream: OK   oneshot==evp: OK
+  SHA-256  oneshot==stream: OK   oneshot==evp: OK
+  MD5      oneshot  median     9373.5 ns/op   (CV   1.4%)
+  MD5      stream   median     9234.8 ns/op   (CV   0.3%)
+  MD5      evp      median    16127.0 ns/op   (CV   1.6%)
+  SHA-256  oneshot  median    16647.7 ns/op   (CV   0.7%)
+  SHA-256  stream   median     9416.1 ns/op   (CV   3.9%)
+  SHA-256  evp      median    16262.4 ns/op   (CV   0.7%)
+
+payload=65536 iters=1000
+  MD5      oneshot==stream: OK   oneshot==evp: OK
+  SHA-256  oneshot==stream: OK   oneshot==evp: OK
+  MD5      oneshot  median    72501.8 ns/op   (CV   1.2%)
+  MD5      stream   median    71857.9 ns/op   (CV   0.2%)
+  MD5      evp      median    80591.7 ns/op   (CV   4.3%)
+  SHA-256  oneshot  median    80664.4 ns/op   (CV   3.7%)
+  SHA-256  stream   median    73111.4 ns/op   (CV   1.6%)
+  SHA-256  evp      median    81846.9 ns/op   (CV   1.0%)
+
+=== 线性分解（用最小与最大两档外推）===
+  MD5 stream     marginal   1.0917 ns/B  (  916.0 MB/s)   fixed      313.2 ns
+  SHA-256 stream marginal   1.1104 ns/B  (  900.6 MB/s)   fixed      340.6 ns
+  => SHA-256/MD5 每字节成本比 = 1.017
+  （软件实现里这个比值通常是 1.3~2.0；接近 1.0 说明两边都没有汇编或都被别的因素掩盖了）

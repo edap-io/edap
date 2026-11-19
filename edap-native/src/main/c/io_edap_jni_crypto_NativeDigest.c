@@ -23,6 +23,14 @@
  *   （它同样走 provider dispatch；实测 build-01 上一次性 7463ns@64B
  *   vs legacy 流式 411ns ⇒ 差 18 倍）。
  *   ⇒ 需要流式摘要就用 NativeStream（update / finish / free）。
+ *
+ * ⚠️ **2026-11-19 更正**：上面那个「~7µs / 18 倍」**只对 SHA-256 成立**。
+ *   另一个纯 C 探针（edap-native/scripts/md5-vs-sha256-probe.c，同机 build-01）
+ *   实测 **MD5 的一次性 API 没有 provider dispatch 税**：
+ *     一次性 413.0ns@64B vs legacy 流式 371.9ns ⇒ 只差 1.11 倍。
+ *   ⇒ 「不要接回流式」这个结论仍然成立，但**依据是 SHA-256 那条**；
+ *   **MD5 若改回一次性入口，省不到也丢不掉什么**。
+ *   ⇒ 详见 edap-crypto/doc/DESIGN.md §10.11.2 与 §10.15.7。
  */
 #include <jni.h>
 #include <openssl/md5.h>
