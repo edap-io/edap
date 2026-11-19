@@ -17,6 +17,11 @@
             <groupId>io.edap</groupId>
             <artifactId>edap-protobuf</artifactId>
         </dependency>
+        <!-- gRPC/eRPC 共用的 RPC 上下文（deadline / 取消信号 / 属性 / 线程绑定） -->
+        <dependency>
+            <groupId>io.edap</groupId>
+            <artifactId>edap-rpc-api</artifactId>
+        </dependency>
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter</artifactId>

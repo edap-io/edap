@@ -17,12 +17,16 @@
 package io.edap.grpc.server;
 
 import io.edap.grpc.GrpcMethod;
+import io.edap.grpc.GrpcServerInterceptor;
 import io.edap.http.server.HttpServer;
 import io.edap.http.server.PathInfoMatcher;
+import io.edap.rpc.InterceptorLoader;
 
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * gRPC 服务端。
@@ -49,6 +53,15 @@ public class GrpcServer extends HttpServer {
      */
     private volatile Map<String, GrpcMethod> methods = Collections.emptyMap();
 
+    /**
+     * 服务端拦截器 —— 请求进来之前 / 调用结束之后各插一刀。
+     *
+     * <p>★ <b>{@code CopyOnWriteArrayList}</b>：读路径（每次调用都要遍历一遍）无锁，
+     * 写路径（注册 / 卸载）极少发生 ⇒ 写时复制最划算。
+     * 迭代是<b>快照</b>语义 ⇒ 遍历时有人注册/卸载也不会看到中间态。</p>
+     */
+    private final CopyOnWriteArrayList<GrpcServerInterceptor> interceptors = new CopyOnWriteArrayList<>();
+
     public GrpcServer() {
         // gRPC 端口上不注册任何 HTTP 路由，但仍然要有一个空的 matcher ——
         // 否则 HTTP/1.1 的请求（比如有人用 curl 打这个端口）会因为 matcher 为 null 而 NPE。
@@ -57,6 +70,45 @@ public class GrpcServer extends HttpServer {
         //   gRPC 的路由表在构造时还是空的也没关系：路由表是之后才被替换的，
         //   路由器每次 select 时都重新读当前表。
         setProtocolRouter(new GrpcProtocolRouter(this));
+        // ★ SPI 装载：META-INF/services/io.edap.grpc.GrpcServerInterceptor。
+        //   装出来的实例排在编程式注册的前面（注册顺序 = 执行顺序）。
+        interceptors.addAll(InterceptorLoader.load(GrpcServerInterceptor.class));
+    }
+
+    /**
+     * 注册一个服务端拦截器。
+     *
+     * <p>排在已有拦截器<b>后面</b> ⇒ {@code beforeCall} 是正序、{@code afterCall} 是逆序。</p>
+     *
+     * @param interceptor 拦截器；{@code null} 忽略
+     */
+    public void addInterceptor(GrpcServerInterceptor interceptor) {
+        if (interceptor != null) {
+            interceptors.add(interceptor);
+        }
+    }
+
+    /**
+     * 移除一个服务端拦截器。
+     *
+     * @param interceptor 拦截器
+     * @return true 表示确实移除了一个
+     */
+    public boolean removeInterceptor(GrpcServerInterceptor interceptor) {
+        return interceptor != null && interceptors.remove(interceptor);
+    }
+
+    /**
+     * 当前的服务端拦截器。
+     *
+     * <p>★ <b>活视图</b>：注册/移除之后这里立刻能看到（读路径每次调用都要遍历它，
+     * 拷贝一份反而多一次分配）。<b>不要直接改这个列表</b>，用
+     * {@link #addInterceptor} / {@link #removeInterceptor}。</p>
+     *
+     * @return 拦截器列表
+     */
+    public List<GrpcServerInterceptor> interceptors() {
+        return interceptors;
     }
 
     /**

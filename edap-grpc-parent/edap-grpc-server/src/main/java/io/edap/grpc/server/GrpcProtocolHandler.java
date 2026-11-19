@@ -17,10 +17,13 @@
 package io.edap.grpc.server;
 
 import io.edap.grpc.GrpcMethod;
+import io.edap.grpc.GrpcServerInterceptor;
 import io.edap.http.server.http2.Http2ProtocolHandler;
 import io.edap.http.server.http2.Http2Stream;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
 
 /**
  * 一条 gRPC 流上的协议处理器。
@@ -44,10 +47,23 @@ public class GrpcProtocolHandler implements Http2ProtocolHandler {
 
     private final GrpcMethod method;
 
+    /**
+     * 服务端拦截器 —— <b>活视图</b>（{@code CopyOnWriteArrayList}）。
+     *
+     * <p>每次 {@code select} 都从 {@code GrpcServer} 取当前列表 ⇒ 注册/卸载立刻生效，
+     * 不需要重启连接。</p>
+     */
+    private final List<GrpcServerInterceptor> interceptors;
+
     private GrpcCallImpl call;
 
     public GrpcProtocolHandler(GrpcMethod method) {
+        this(method, Collections.emptyList());
+    }
+
+    public GrpcProtocolHandler(GrpcMethod method, List<GrpcServerInterceptor> interceptors) {
         this.method = method;
+        this.interceptors = interceptors == null ? Collections.emptyList() : interceptors;
     }
 
     @Override
@@ -58,7 +74,14 @@ public class GrpcProtocolHandler implements Http2ProtocolHandler {
 
     @Override
     public void onHeaders(Http2Stream stream) throws IOException {
-        call = new GrpcCallImpl(method, stream, GrpcCallImpl.metadataOf(stream.getRequest()));
+        call = new GrpcCallImpl(method, stream, GrpcCallImpl.metadataOf(stream.getRequest()),
+            interceptors);
+        // ★ 拦截器在「请求头到齐」时就跑 ⇒ 鉴权在读 body 之前，
+        //   一元调用也能在收 body 前被拒绝。
+        if (!call.runBeforeInterceptors()) {
+            // 已被拒绝 —— 错误 trailers 已经写出，业务不会执行
+            return;
+        }
         if (method.isClientStreaming()) {
             call.invokeHandler();
         }

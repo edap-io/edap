@@ -32,6 +32,16 @@
             <groupId>io.edap</groupId>
             <artifactId>edap-erpc-api</artifactId>
         </dependency>
+        <!-- gRPC/eRPC 共用的 RPC 上下文（deadline / 取消信号 / 属性） -->
+        <dependency>
+            <groupId>io.edap</groupId>
+            <artifactId>edap-rpc-api</artifactId>
+        </dependency>
+        <!-- 拦截器的收尾钩子抛异常时要记一条 warn 日志 -->
+        <dependency>
+            <groupId>io.edap</groupId>
+            <artifactId>edap-log-api</artifactId>
+        </dependency>
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter</artifactId>

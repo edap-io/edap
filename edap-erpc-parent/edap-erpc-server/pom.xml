@@ -32,6 +32,11 @@
             <groupId>io.edap</groupId>
             <artifactId>edap-erpc-api</artifactId>
         </dependency>
+        <!-- gRPC/eRPC 共用的 RPC 上下文（deadline / 取消信号 / 属性） -->
+        <dependency>
+            <groupId>io.edap</groupId>
+            <artifactId>edap-rpc-api</artifactId>
+        </dependency>
         <!-- 传输层复用 edap 的 NIO 服务端框架（io.edap.Server / NioServerSession） -->
         <dependency>
             <groupId>io.edap</groupId>

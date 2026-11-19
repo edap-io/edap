@@ -46,8 +46,13 @@ import io.edap.nio.codec.FastBufDataRange;
 import io.edap.props.Props;
 import io.edap.erpc.ErpcHandler;
 import io.edap.erpc.ErpcMethodIds;
+import io.edap.erpc.ErpcAuthenticator;
+import io.edap.erpc.ErpcServerInterceptor;
+import io.edap.erpc.server.ErpcServer;
 import io.edap.grpc.GrpcHandler;
 import io.edap.grpc.GrpcMethod;
+import io.edap.grpc.GrpcServerInterceptor;
+import io.edap.grpc.server.GrpcServer;
 import io.edap.protobuf.annotation.ProtoErpc;
 import io.edap.protobuf.annotation.ProtoGrpc;
 import io.edap.protobuf.annotation.ProtoHttp;
@@ -128,6 +133,28 @@ public class AppContext implements Lifecycle {
      * / "port in use"。
      */
     private final Set<String> registeredTxManagerNames = new HashSet<>();
+
+    /**
+     * 本 ctx 注册进<b>进程级共享</b>的 gRPC/eRPC Server 的拦截器。
+     *
+     * <p>★ <b>为什么要单独记一份</b>：gRPC/eRPC Server 在一个 Container 里只有
+     * <b>一个</b>实例（所有 app 共用端口）⇒ 拦截器也是<b>进程级</b>的 ⇒
+     * 本 ctx {@code stop()} 时必须把自己装上去的那些摘掉，否则会拿着已关闭的
+     * appCL / bean 继续处理别人的请求。</p>
+     */
+    private final List<GrpcServerInterceptor> registeredGrpcInterceptors = new ArrayList<>();
+    private final List<ErpcServerInterceptor> registeredErpcInterceptors = new ArrayList<>();
+
+    /**
+     * 本 ctx 装到进程级共享 eRPC Server 上的<b>连接级鉴权器</b>。
+     *
+     * <p>★ <b>只有一个槽位</b>（{@link ErpcServer#setAuthenticator}）—— 与拦截器
+     * 「装一堆」的模型不同：多个 app 各带一个鉴权器时<b>先装的生效</b>，
+     * 后装的记一条 warn（见 {@link #registerErpcAuthenticator()}）。</p>
+     *
+     * <p>本字段记的是「<b>我</b>装的那个」⇒ {@code stop()} 时只摘自己那个。</p>
+     */
+    private ErpcAuthenticator registeredErpcAuthenticator;
 
     // ─── per-app path → handler 索引 ───
     // Container.rebuildHttpMapping() 在 deploy / undeploy / switchVersion 末尾聚合各 app 的
@@ -315,6 +342,7 @@ public class AppContext implements Lifecycle {
 
             // Phase 3 READY：Lifecycle.start() + 路由 bind
             beans.startLifecycles();
+            registerServerInterceptors();                        // 应用 bean 里的 gRPC/eRPC 服务端拦截器 → 进程级共享的 Server
             generateAndBindRoutes();                             // ASM 生成 4 份 Handler + 一次性写入 RouterHub + container.deployAppRoutes
             // generateAndBindRoutes 末尾把全量 pathTable（HTTP + WS）推给 Container.deployAppRoutes；
             // Container 负责 WS path 冲突检测 + 合并 + 整张替换 HttpServer.httpMapping。
@@ -489,6 +517,11 @@ public class AppContext implements Lifecycle {
             }
         }
         catch (Throwable t) { firstErr = t; }
+
+        // 1.5 摘掉本 ctx 装上去的服务端拦截器 —— gRPC/eRPC Server 是进程级共享的，
+        // 不摘的话本 ctx 的 bean（下面就要随 appCL 关闭）会继续挂在 Server 上处理别人的请求。
+        try { unregisterServerInterceptors(); }
+        catch (Throwable t) { if (firstErr == null) firstErr = t; }
 
         // 2. 逆序：Lifecycle.stop / @PreDestroy / AutoCloseable.close / 清空 singletons（含 ShardRegistry 分片）
         try { beans.destroyAllSingletons(); }
@@ -799,6 +832,102 @@ public class AppContext implements Lifecycle {
         } catch (ReflectiveOperationException ex) {
             throw new RouteBindException(null, method.getName(), method.getParameterTypes(), ex);
         }
+    }
+
+    /**
+     * 把应用 bean 里的<b>服务端拦截器</b>装进进程级共享的 gRPC / eRPC Server。
+     *
+     * <p>调用时机：Phase 3（bean 已 instantiate + inject + {@code Lifecycle.start} 完成），
+     * 路由 bind 之前。</p>
+     *
+     * <p>★ <b>语义提醒：拦截器是进程级的</b> —— gRPC/eRPC Server 在一个 Container 里
+     * 只有<b>一个</b>实例（所有 app 共用端口）⇒ 本 app 注册的拦截器对<b>同进程内所有</b>
+     * gRPC/eRPC 方法生效，不只是本 app 的方法。这是「共享 Server」这个部署模型的
+     * 直接后果，不是 bug。</p>
+     *
+     * <p>节点未启用对应能力（{@code container.grpcServer()} / {@code erpcServer()} 为 null）
+     * ⇒ 跳过，不报错 —— 应用可以同时部署到只开 HTTP 的节点上。</p>
+     */
+    private void registerServerInterceptors() {
+        GrpcServer grpc = container.grpcServer();
+        if (grpc != null) {
+            for (GrpcServerInterceptor interceptor : getBeansOfType(GrpcServerInterceptor.class)) {
+                grpc.addInterceptor(interceptor);
+                registeredGrpcInterceptors.add(interceptor);
+            }
+        }
+        ErpcServer erpc = container.erpcServer();
+        if (erpc != null) {
+            for (ErpcServerInterceptor interceptor : getBeansOfType(ErpcServerInterceptor.class)) {
+                erpc.addInterceptor(interceptor);
+                registeredErpcInterceptors.add(interceptor);
+            }
+        }
+        registerErpcAuthenticator();
+    }
+
+    /**
+     * 把应用 bean 里的<b>连接级鉴权器</b>装进进程级共享的 eRPC Server。
+     *
+     * <p>★ <b>鉴权器只有一个槽位</b>（{@link ErpcServer#setAuthenticator}）——
+     * 与拦截器「装一堆」的模型不同：多个 app 各带一个鉴权器时<b>先装的生效</b>，
+     * 后装的<b>不覆盖</b>（覆盖会让先启动的 app 突然失去鉴权策略），
+     * 只记一条 warn 说明「多 app 抢同一个槽位」。</p>
+     *
+     * <p>★ <b>不改变「是否必须握手」</b>：装了鉴权器只是「客户端来握手时我会校验」，
+     * 要不要强制握手是 {@link ErpcServer#setRequireAuth(boolean)} 的事。</p>
+     */
+    private void registerErpcAuthenticator() {
+        ErpcServer erpc = container.erpcServer();
+        if (erpc == null) {
+            return;
+        }
+        List<ErpcAuthenticator> list = getBeansOfType(ErpcAuthenticator.class);
+        if (list.isEmpty()) {
+            return;
+        }
+        if (erpc.getAuthenticator() != null) {
+            log.warn("erpc authenticator slot is already taken by another app —— "
+                + "本次部署的 ErpcAuthenticator 不生效（鉴权器是进程级唯一的槽位）");
+            return;
+        }
+        if (list.size() > 1) {
+            log.warn("multiple ErpcAuthenticator beans found (" + list.size()
+                + ") —— only the first one takes effect");
+        }
+        ErpcAuthenticator first = list.get(0);
+        erpc.setAuthenticator(first);
+        registeredErpcAuthenticator = first;
+    }
+
+    /**
+     * 摘掉本 ctx 装上去的服务端拦截器（{@code stop()} 阶段调用）。
+     *
+     * <p>★ <b>必须摘</b>：Server 是进程级共享的 ⇒ 不摘的话，本 ctx 的 bean（已随 appCL
+     * 关闭）会继续挂在 Server 上处理<b>别的</b> app 的请求。</p>
+     */
+    private void unregisterServerInterceptors() {
+        GrpcServer grpc = container.grpcServer();
+        if (grpc != null) {
+            for (GrpcServerInterceptor interceptor : registeredGrpcInterceptors) {
+                grpc.removeInterceptor(interceptor);
+            }
+        }
+        registeredGrpcInterceptors.clear();
+
+        ErpcServer erpc = container.erpcServer();
+        if (erpc != null) {
+            for (ErpcServerInterceptor interceptor : registeredErpcInterceptors) {
+                erpc.removeInterceptor(interceptor);
+            }
+            // ★ 只摘「本 ctx 装的那个」—— 槽位可能是别的 app 装的（见 registerErpcAuthenticator）
+            if (registeredErpcAuthenticator != null
+                && erpc.getAuthenticator() == registeredErpcAuthenticator) {
+                erpc.setAuthenticator(null);
+            }
+        }
+        registeredErpcInterceptors.clear();
+        registeredErpcAuthenticator = null;
     }
 
     /**

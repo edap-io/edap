@@ -1,11 +1,11 @@
 /*
- * Copyright 2023 The edap Project
+ * Copyright 2020 The edap Project
  *
  * The Netty Project licenses this file to you under the Apache License,
  * version 2.0 (the "License"); you may not use this file except in compliance
  * with the License. You may obtain a copy of the License at:
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
@@ -14,17 +14,19 @@
  * under the License.
  */
 
-package io.edap.erpc.server;
+package io.edap.rpc;
 
 /**
- * eRPC 协议错误 —— 收到不是 eRPC 协议的字节（magic 不符）或不支持的协议版本。
+ * RPC 协议。
  *
- * <p>这类错误**不是**业务错误：业务错误回 ERROR 帧、连接继续用；
- * 协议错误说明对端根本不是 eRPC 客户端 ⇒ 直接关连接。</p>
+ * <p>业务代码不应该靠「判断协议」做分支，但诊断、埋点、日志里经常需要知道
+ * 「这次调用走的是哪条链路」—— 这个枚举就是给这些场合用的。</p>
  */
-public class ErpcProtocolException extends RuntimeException {
+public enum RpcProtocol {
 
-    public ErpcProtocolException(String message) {
-        super(message);
-    }
+    /** gRPC（HTTP/2 + protobuf）。 */
+    GRPC,
+
+    /** eRPC（edap 自有的 socket + 32 字节定长帧头）。 */
+    ERPC
 }

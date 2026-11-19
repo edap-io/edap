@@ -23,6 +23,7 @@ edap 的能力按「基础设施 → 协议 → 容器 → 应用」分层组织
 | 基础设施 | `edap-common` / `edap-log-parent` / `edap-native` | 基础类型、日志、JNI 加速库 |
 | IO | `edap-nio-parent` | NIO 传输栈：`Server` / `NioServerSession` / `Decoder` / `FastBuf` |
 | 协议 | `edap-http-parent` / `edap-grpc-parent` / `edap-mqtt-parent` / `edap-erpc-parent` / `edap-codec` | 各协议的编解码与运行栈 |
+| 协议公共 | `edap-rpc-api` | RPC 上下文公共层：调用级上下文（gRPC / eRPC 共用：deadline、取消信号、属性、线程绑定）、连接级上下文（`RpcChannelContext`：鉴权标记等，目前只有 eRPC 在用）、请求级可上线元数据（`RpcMetadata`：txId 等，目前只有 eRPC 上了线）、超时编解码 |
 | 数据 | `edap-data-parent` / `edap-tx-parent` / `edap-dbtools-parent` | 数据访问、事务、数据库工具 |
 | 序列化 | `edap-json-parent` / `edap-asm-utils` | JSON5 与字节码增强 |
 | 容器 | `edap-container-parent` | 微服务容器：部署、分片亲和、热部署 |

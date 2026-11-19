@@ -72,7 +72,20 @@ public class GrpcTestClient implements Closeable {
      * 发 gRPC 请求头（{@code :method POST} + {@code content-type: application/grpc}）。
      */
     public void sendHeaders(int streamId, String path, String authority) throws IOException {
-        List<HpackHeader> headers = new ArrayList<>(8);
+        sendHeaders(streamId, path, authority, null);
+    }
+
+    /**
+     * 发 gRPC 请求头，并追加自定义头。
+     *
+     * <p>用来测 {@code grpc-timeout} / {@code x-edap-trace-id} 这类由客户端
+     * 带上、服务端要读的元数据。</p>
+     *
+     * @param extra 追加的头；null 表示不加
+     */
+    public void sendHeaders(int streamId, String path, String authority, List<HpackHeader> extra)
+            throws IOException {
+        List<HpackHeader> headers = new ArrayList<>(8 + (extra == null ? 0 : extra.size()));
         headers.add(new HpackHeader(":method", "POST"));
         headers.add(new HpackHeader(":path", path));
         headers.add(new HpackHeader(":scheme", "http"));
@@ -81,6 +94,9 @@ public class GrpcTestClient implements Closeable {
         headers.add(new HpackHeader("te", "trailers"));
         headers.add(new HpackHeader("grpc-encoding", "identity"));
         headers.add(new HpackHeader("user-agent", "edap-grpc-test"));
+        if (extra != null) {
+            headers.addAll(extra);
+        }
         byte[] block = encoder.encode(headers);
         writeFrame(Http2FrameType.HEADERS, Http2Flags.END_HEADERS, streamId, block);
     }

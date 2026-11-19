@@ -22,6 +22,7 @@ import io.edap.grpc.GrpcFrameDecoder;
 import io.edap.grpc.GrpcFrameEncoder;
 import io.edap.grpc.GrpcMetadata;
 import io.edap.grpc.GrpcStatus;
+import io.edap.rpc.RpcContext;
 import io.edap.rpc.StreamObserver;
 
 import java.io.IOException;
@@ -63,6 +64,14 @@ public final class GrpcClientCall {
     /** 响应观察者（可为 null —— 只收集不回调）。 */
     private final StreamObserver<Object> responseObserver;
 
+    /**
+     * 本次调用的 RPC 上下文 —— deadline / 取消信号都挂在它身上。
+     *
+     * <p>★ <b>一次调用一个对象</b>：客户端等响应时看的是它，业务回调里拿到的
+     * {@code RpcContext.current()} 也是它。</p>
+     */
+    private final RpcContext context;
+
     private final GrpcFrameDecoder frameDecoder = new GrpcFrameDecoder();
 
     /** 调用结束信号（trailers 到达 / 出错）。 */
@@ -89,13 +98,14 @@ public final class GrpcClientCall {
 
     GrpcClientCall(GrpcChannel channel, int streamId, String path,
                    Class<?> reqType, Class<?> respType, StreamObserver<Object> responseObserver,
-                   int initialSendWindow) {
+                   int initialSendWindow, RpcContext context) {
         this.channel = channel;
         this.streamId = streamId;
         this.path = path;
         this.reqType = reqType;
         this.respType = respType;
         this.responseObserver = responseObserver;
+        this.context = context;
         // ★ 流级发送窗口初值 = 对端通告的 SETTINGS_INITIAL_WINDOW_SIZE（RFC 9113 §6.9.2），
         //   不是固定的 65535。grpc-java 默认通告 1MB —— 硬编码 65535 会让客户端
         //   发满 64KB 就永远等不到流级额度（对端的窗口还剩 900KB，根本不会发 WINDOW_UPDATE）。
@@ -115,18 +125,22 @@ public final class GrpcClientCall {
         if (message == null) {
             throw new GrpcException("gRPC 请求消息不能为 null: " + path);
         }
-        synchronized (sendLock) {
-            if (requestEnded) {
-                throw new GrpcException("gRPC 请求侧已经结束，不能再发消息: " + path);
-            }
-            try {
-                // ★ 帧头内联：省掉「payload byte[] + 帧数组」两次整块拷贝。
-                //   ★ 编码放在锁内 —— 原来编码在锁外、写在线内，
-                //   两个线程并发发消息时「编码顺序」与「上线顺序」可能不一致。
-                GrpcFrameEncoder.encode(reqType == null ? message.getClass() : reqType, message,
-                        (buf, offset, length) -> channel.writeData(this, buf, offset, length, false));
-            } catch (IOException e) {
-                throw new GrpcException("gRPC 请求写出失败: " + path, e);
+        // ★ 请求侧由调用方线程驱动 —— 绑上本次调用的上下文，
+        //   业务在发消息的线程里也能看到 deadline / 取消信号。
+        try (RpcContext.Scope scope = RpcContext.attach(context)) {
+            synchronized (sendLock) {
+                if (requestEnded) {
+                    throw new GrpcException("gRPC 请求侧已经结束，不能再发消息: " + path);
+                }
+                try {
+                    // ★ 帧头内联：省掉「payload byte[] + 帧数组」两次整块拷贝。
+                    //   ★ 编码放在锁内 —— 原来编码在锁外、写在线内，
+                    //   两个线程并发发消息时「编码顺序」与「上线顺序」可能不一致。
+                    GrpcFrameEncoder.encode(reqType == null ? message.getClass() : reqType, message,
+                            (buf, offset, length) -> channel.writeData(this, buf, offset, length, false));
+                } catch (IOException e) {
+                    throw new GrpcException("gRPC 请求写出失败: " + path, e);
+                }
             }
         }
     }
@@ -137,12 +151,14 @@ public final class GrpcClientCall {
      * <p>一元与服务端流式：发完唯一一条消息后调用；客户端流式与双向流式：发完最后一条后调用。</p>
      */
     public void halfClose() {
-        synchronized (sendLock) {
-            if (requestEnded) {
-                return;
+        try (RpcContext.Scope scope = RpcContext.attach(context)) {
+            synchronized (sendLock) {
+                if (requestEnded) {
+                    return;
+                }
+                requestEnded = true;
+                channel.writeData(this, null, 0, 0, true);
             }
-            requestEnded = true;
-            channel.writeData(this, null, 0, 0, true);
         }
     }
 
@@ -173,9 +189,14 @@ public final class GrpcClientCall {
 
     /**
      * 取消调用（发 RST_STREAM）。
+     *
+     * <p>★ <b>先 trip 取消信号</b>：业务在别处观察 {@code ctx.cancellation()}
+     * 时要能立刻看到「被取消了」，而不是等 RST_STREAM 走完网络。</p>
      */
     public void cancel(Throwable cause) {
         failure = cause;
+        context.cancellation().cancel(cause == null
+                ? new GrpcException("gRPC 调用被取消: " + path) : cause);
         channel.resetStream(streamId);
         complete(GrpcStatus.CANCELLED, cause == null ? null : cause.getMessage());
     }
@@ -231,7 +252,11 @@ public final class GrpcClientCall {
                 responses.add(message);
             }
             if (responseObserver != null) {
-                responseObserver.onNext(message);
+                // ★ 响应侧回调由读线程驱动 —— 也要绑上本次调用的上下文，
+                //   否则业务在回调里 {@code RpcContext.current()} 拿到的是 ROOT。
+                try (RpcContext.Scope scope = RpcContext.attach(context)) {
+                    responseObserver.onNext(message);
+                }
             }
         });
     }
@@ -264,6 +289,9 @@ public final class GrpcClientCall {
 
     /**
      * 结束调用：记状态、通知观察者、放信号量。
+     *
+     * <p>★ <b>这是唯一的终态出口</b>：正常结束 / 取消 / 协议错误 / 连接关闭
+     * 全都汇到这里 ⇒ 「调用结束」这一段的拦截器只跑一次。</p>
      */
     private void complete(GrpcStatus s, String message) {
         if (status != null) {
@@ -274,18 +302,25 @@ public final class GrpcClientCall {
         // 调用结束 —— 从在途表里摘掉（否则长连接的 calls map 会无限膨胀，
         // 而且对端每次改 INITIAL_WINDOW_SIZE 都会给一堆早已结束的流传播差值）
         channel.onCallCompleted(this);
+        // ★ 调用正常结束 ⇒ 标记完成，之后再 cancel 不再生效（业务在收尾阶段
+        //   不该误判「被取消」）。
+        context.cancellation().complete();
+        Throwable error = s == GrpcStatus.OK ? null
+                : new GrpcException("gRPC 调用失败: " + path
+                        + " status=" + s + (message == null ? "" : " message=" + message));
         if (responseObserver != null) {
-            try {
+            try (RpcContext.Scope scope = RpcContext.attach(context)) {
                 if (s == GrpcStatus.OK) {
                     responseObserver.onCompleted();
                 } else {
-                    responseObserver.onError(new GrpcException("gRPC 调用失败: " + path
-                            + " status=" + s + (message == null ? "" : " message=" + message)));
+                    responseObserver.onError(error);
                 }
             } catch (Throwable ignore) {
                 // 业务自己的回调抛了 —— 不能影响连接的存活性
             }
         }
+        // ★ 「调用结束」这一段的拦截器挂在**这里** —— complete() 是唯一的终态出口
+        channel.runAfterInterceptors(this, error);
         completion.countDown();
     }
 
@@ -296,14 +331,20 @@ public final class GrpcClientCall {
     /**
      * 等调用结束。
      *
+     * <p>★ <b>实际上限 = min(调用方给的, 本次调用自己的 deadline)</b>：
+     * 调用方等 10 秒、但这次调用只剩 1 秒 ⇒ 1 秒后就该放弃 ⇒ 顺带 trip 取消信号
+     * （业务侧能观察到「被取消」），而不是傻等满 10 秒。</p>
+     *
      * @param timeoutMillis 超时时间
      * @throws GrpcException 调用失败（非 OK 状态）或超时
      */
     public void awaitCompletion(long timeoutMillis) {
+        // 没有 deadline 时 remainingMillis() 是 Long.MAX_VALUE ⇒ min 就是调用方给的值
+        long limit = Math.min(timeoutMillis, context.remainingMillis());
         try {
-            if (!completion.await(timeoutMillis, TimeUnit.MILLISECONDS)) {
+            if (!completion.await(limit, TimeUnit.MILLISECONDS)) {
                 cancel(new GrpcException("gRPC 调用超时: " + path));
-                throw new GrpcException("gRPC 调用超时(" + timeoutMillis + "ms): " + path);
+                throw new GrpcException("gRPC 调用超时(" + limit + "ms): " + path);
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -359,6 +400,15 @@ public final class GrpcClientCall {
 
     public int streamId() {
         return streamId;
+    }
+
+    /**
+     * 本次调用的 RPC 上下文 —— deadline / 取消信号 / 属性。
+     *
+     * @return 本次调用的上下文
+     */
+    public RpcContext context() {
+        return context;
     }
 
     /**

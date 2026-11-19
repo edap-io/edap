@@ -83,9 +83,31 @@ public final class ErpcFrameEncoder {
                               int type, int codecId, int methodId, int serviceId,
                               int requestId, long traceId,
                               Object message, FrameSink sink) {
+        encode(codec, type, codecId, methodId, serviceId, requestId, traceId, 0, message, sink);
+    }
+
+    /**
+     * 把消息编成一帧交给 {@code sink}（<b>带 flags</b>）。
+     *
+     * @param codec    编解码器
+     * @param type     帧类型（{@link io.edap.erpc.frame.ErpcFrameType#getValue()}）
+     * @param codecId  编解码器 id（原样抄回请求帧的 codec）
+     * @param methodId 方法号
+     * @param serviceId 服务号
+     * @param requestId 请求号
+     * @param traceId  链路号
+     * @param flags    帧头 flags（bit0 = 压缩预留；bit1~bit7 = 超时代码，
+     *                 见 {@link io.edap.rpc.RpcTimeout#toErpcFlags(int, int)}）
+     * @param message  业务对象（可为 {@code null}）
+     * @param sink     帧的消费者
+     */
+    public static void encode(ErpcCodec codec,
+                              int type, int codecId, int methodId, int serviceId,
+                              int requestId, long traceId, int flags,
+                              Object message, FrameSink sink) {
         ErpcFrameHeader header = HEADERS.get();
         header.setType(type)
-            .setFlags(0)
+            .setFlags(flags)
             .setCodec(codecId)
             .setMethodId(methodId)
             .setServiceId(serviceId)

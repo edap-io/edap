@@ -28,6 +28,7 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
 /**
  * gRPC 服务端测试的公共部分：起服务、等端口、停服务。
@@ -44,11 +45,25 @@ public abstract class GrpcTestBase {
      * @param methods path → 方法定义
      */
     protected void startServer(Map<String, GrpcMethod> methods) throws Exception {
+        startServer(methods, null);
+    }
+
+    /**
+     * 起一个 gRPC 服务，并在启动前配置它（注册拦截器等）。
+     *
+     * @param methods  path → 方法定义
+     * @param configurer 服务配置；null 表示不配置
+     */
+    protected void startServer(Map<String, GrpcMethod> methods,
+                               Consumer<GrpcServer> configurer) throws Exception {
         port = freePort();
 
         GrpcServer server = new GrpcServer();
         server.setBufPool(new SimpleFastBufPool());
         server.setMethods(methods);
+        if (configurer != null) {
+            configurer.accept(server);
+        }
         server.listen(port);
 
         edap = new Edap();

@@ -165,4 +165,28 @@ public class ErpcFrameEncoderTest {
             });
         assertArrayEquals(expected, seen[0]);
     }
+
+    @Test
+    public void flagsAreWrittenIntoTheHeader() {
+        // ★ 超时代码要真的进到帧头里（bit1~bit7）
+        ProtobufErpcCodec codec = new ProtobufErpcCodec();
+        final int[] flagsSeen = new int[1];
+        ErpcFrameEncoder.encode(codec, ErpcFrameType.REQUEST.getValue(), codec.id(),
+            1, 2, 3, 4L, 0x7E, new Dto("x", 1), (header, payload, length) -> {
+                flagsSeen[0] = header.getFlags();
+            });
+        assertEquals(0x7E, flagsSeen[0]);
+    }
+
+    @Test
+    public void legacyOverloadWritesZeroFlags() {
+        // 老签名（没有 flags 参数）必须写 0 —— 否则上一帧的超时码会漏到下一帧
+        ProtobufErpcCodec codec = new ProtobufErpcCodec();
+        final int[] flagsSeen = new int[1];
+        ErpcFrameEncoder.encode(codec, ErpcFrameType.REQUEST.getValue(), codec.id(),
+            1, 2, 3, 4L, new Dto("x", 1), (header, payload, length) -> {
+                flagsSeen[0] = header.getFlags();
+            });
+        assertEquals(0, flagsSeen[0]);
+    }
 }

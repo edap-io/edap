@@ -6,3 +6,39 @@
 /edap-log/io/
 /edap-bean-convert/ebc/
 /edap-bean-convert/.flattened-pom.xml
+
+# 构建产物：target/ 与 flatten 插件生成的 .flattened-pom.xml
+target/
+.flattened-pom.xml
+
+# 字节码生成器写在模块根目录下的输出（目录名 = 生成器前缀）
+ebc/
+edao/
+ehh/
+ejdb/
+ejdb5/
+ejds/
+ejds5/
+eje/
+ejmb/
+txp/
+
+# 字节码生成器写在模块根目录下的 io/ 包
+# ★ 不能写成 io/ —— 会连 src/main/java/io/ 一起忽略掉；下面的反选把源码路径放回来
+io/
+!**/src/main/java/io/
+!**/src/test/java/io/
+
+# 容器运行期的本地状态与产物
+.index/
+edap-container-parent/http/
+edap-container-parent/ws/
+edap-container-parent/user-uploads/
+edap-container-parent/*.ear
+
+# 运行日志
+app*.log
+edap-log-parent/edap-log/*.log
+
+# IDE
+.idea/

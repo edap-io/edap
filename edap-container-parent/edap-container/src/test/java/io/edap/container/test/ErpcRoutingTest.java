@@ -26,8 +26,8 @@ import io.edap.container.exc.RouteBindException;
 import io.edap.erpc.ErpcHandler;
 import io.edap.erpc.ErpcMethod;
 import io.edap.erpc.ErpcMethodIds;
-import io.edap.erpc.frame.ErpcRequest;
-import io.edap.erpc.frame.ErpcResponse;
+import io.edap.erpc.ErpcRequest;
+import io.edap.erpc.ErpcResponse;
 import io.edap.util.UnsafeUtil;
 import org.junit.jupiter.api.Test;
 

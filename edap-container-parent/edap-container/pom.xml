@@ -52,6 +52,24 @@
             <artifactId>edap-grpc-api</artifactId>
         </dependency>
         <!--
+            gRPC / eRPC 共用的 RPC 上下文（io.edap.rpc）。
+            容器生成的 handler 跑在框架的 attach 作用域内，业务方法里
+            RpcContext.current() 拿到的就是它 —— 容器侧的测试要直接断言这一点。
+        -->
+        <dependency>
+            <groupId>io.edap</groupId>
+            <artifactId>edap-rpc-api</artifactId>
+        </dependency>
+        <!--
+            gRPC 客户端 —— 仅 test scope：容器接入的端到端测试要真的走一遍
+            「容器生成的 handler → GrpcServer → socket → 客户端」。
+        -->
+        <dependency>
+            <groupId>io.edap</groupId>
+            <artifactId>edap-grpc-client</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!--
             gRPC 服务端实现（GrpcServer extends HttpServer）。容器 attach 时按
             Capability.GRPC 创建 GrpcServer 实例并 listen 到 container.grpc.port（默认 9091）。
         -->

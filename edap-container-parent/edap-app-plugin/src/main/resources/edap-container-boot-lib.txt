@@ -29,6 +29,7 @@ io.edap:edap-protobuf
 io.edap:edap-protobuf-api
 io.edap:edap-protobuf-wire
 io.edap:edap-raft
+io.edap:edap-rpc-api
 io.edap:edap-tx
 io.edap:edap-tx-api
 io.edap:edap-tx-jdbc

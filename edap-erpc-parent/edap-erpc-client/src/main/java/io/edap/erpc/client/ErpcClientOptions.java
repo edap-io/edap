@@ -27,6 +27,12 @@ public final class ErpcClientOptions {
     private int connectTimeoutMillis = 5_000;
     /** 调用的默认超时（毫秒）。 */
     private long callTimeoutMillis = 30_000;
+    /**
+     * 连接级鉴权凭据 —— 建连后用它发一个 <b>AUTH 帧</b>。
+     *
+     * <p>★ <b>{@code null} ⇒ 不握手</b>（服务端若开了「必须鉴权」就会拒这条连接）。</p>
+     */
+    private String credential;
 
     public static ErpcClientOptions defaults() {
         return new ErpcClientOptions();
@@ -57,6 +63,21 @@ public final class ErpcClientOptions {
         return this;
     }
 
+    /**
+     * 设置<b>连接级</b>鉴权凭据。
+     *
+     * <p>★ <b>连接级</b>：建连后发一个 AUTH 帧，服务端校验通过后把「已鉴权」
+     * 记在那条连接上 ⇒ <b>同一连接的后续请求免校验</b>。</p>
+     *
+     * <p>★ 与请求级元数据无关：txId 之类走 {@code RpcContext.metadata()}。</p>
+     *
+     * @param credential 凭据（UTF-8 字符串）；{@code null} ⇒ 不握手
+     */
+    public ErpcClientOptions credential(String credential) {
+        this.credential = credential;
+        return this;
+    }
+
     public int getPoolSize() {
         return poolSize;
     }
@@ -67,5 +88,14 @@ public final class ErpcClientOptions {
 
     public long getCallTimeoutMillis() {
         return callTimeoutMillis;
+    }
+
+    /**
+     * 连接级鉴权凭据。
+     *
+     * @return 凭据；{@code null} ⇒ 不握手
+     */
+    public String getCredential() {
+        return credential;
     }
 }

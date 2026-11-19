@@ -56,6 +56,6 @@ public class GrpcProtocolRouter implements Http2ProtocolRouter {
             // gRPC 规范：未知的方法要回 UNIMPLEMENTED，而不是 HTTP 404
             return new GrpcUnimplementedHandler(path);
         }
-        return new GrpcProtocolHandler(method);
+        return new GrpcProtocolHandler(method, server.interceptors());
     }
 }

@@ -5,6 +5,9 @@ import io.edap.erpc.codec.ErpcCodec;
 import io.edap.erpc.codec.ErpcCodecRegistry;
 import io.edap.erpc.client.loadbalance.RoundRobinLoadBalancer;
 import io.edap.erpc.client.loadbalance.WeightedLoadBalancer;
+import io.edap.rpc.RpcContext;
+import io.edap.rpc.RpcProtocol;
+import io.edap.rpc.RpcTimeout;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -16,6 +19,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -327,6 +331,99 @@ public class ErpcClientTest {
             assertEquals(pool.channelCount(), pool.closedChannelCount(), "关闭客户端要把池里的连接全关掉");
             assertThrows(ErpcException.class,
                 () -> client.invoke(METHOD_ECHO, new ClientDemoDto("b", 2), ClientDemoDto.class));
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // RPC 上下文：deadline 上线 + 本地取消
+    // ------------------------------------------------------------------
+
+    /**
+     * ★ 请求帧的 {@code flags} 高位必须带超时代码 —— 服务端据此算自己的截止时刻。
+     *
+     * <p>★ <b>为什么不能只断言「有值」</b>：7-bit 刻度最粗 25% 超调，
+     * 断言「解出来的时长落在请求值的 [1.0, 1.3] 倍」才是真的守住了
+     * 「向上取整、不会提前掐断客户端仍认为有效的调用」这条不变式。</p>
+     */
+    @Test
+    public void requestFrameCarriesTheTimeoutCode() throws IOException {
+        try (MiniErpcServer server = MiniErpcServer.start(serializer("protobuf"), MiniErpcServer.Mode.ECHO);
+             ErpcClient client = clientFor(serializer("protobuf"), ErpcClientOptions.defaults(), server.port())) {
+            client.invoke(METHOD_ECHO, new ClientDemoDto("t", 1), ClientDemoDto.class, 2_000);
+
+            int flags = server.lastRequestFlags();
+            int code = (flags >>> 1) & 0x7F;
+            assertTrue(code > 0, "请求帧必须带超时代码，实际 flags=" + flags);
+
+            long decoded = RpcTimeout.decodeErpcTimeoutNanos(code);
+            // deadline 从 invoke() 开始走 ⇒ 落帧时已经过去几毫秒 ⇒ 允许一点起跑误差
+            assertTrue(decoded >= 1_900_000_000L,
+                "解出来的超时不该短于请求值（向上取整），实际 " + decoded + "ns");
+            assertTrue(decoded <= 2_600_000_000L,
+                "7-bit 刻度的最大超调是 25%，实际 " + decoded + "ns");
+        }
+    }
+
+    /**
+     * ★ {@code flags} 的 bit0 是「压缩预留」—— 任何路径都不许写它。
+     */
+    @Test
+    public void compressionReservedBitStaysZero() throws IOException {
+        try (MiniErpcServer server = MiniErpcServer.start(serializer("protobuf"), MiniErpcServer.Mode.ECHO);
+             ErpcClient client = clientFor(serializer("protobuf"), ErpcClientOptions.defaults(), server.port())) {
+            client.invoke(METHOD_ECHO, new ClientDemoDto("t", 1), ClientDemoDto.class, 2_000);
+            assertEquals(0, server.lastRequestFlags() & 0x01, "bit0（压缩预留）不能被写");
+        }
+    }
+
+    /**
+     * ★ 本地取消 ⇒ 调用方立刻拿到失败 + 取消信号被 trip。
+     *
+     * <p>★ <b>线上没有 CANCEL 帧</b>（eRPC v1 帧格式不变）⇒ 服务端不会立刻停手，
+     * 本地效果是「调用方立刻拿到失败、上下文能观察到取消」。</p>
+     */
+    @Test
+    public void localCancelFailsThePendingCall() throws Exception {
+        try (MiniErpcServer server = MiniErpcServer.start(serializer("protobuf"), MiniErpcServer.Mode.SILENT)) {
+            ErpcChannel channel = new ErpcChannel(new ErpcNode("127.0.0.1", server.port()),
+                serializer("protobuf"), 3_000);
+            try {
+                RpcContext ctx = RpcContext.builder()
+                    .protocol(RpcProtocol.ERPC)
+                    .method("erpc:" + METHOD_ECHO)
+                    .timeoutMillis(30_000)
+                    .build();
+
+                AtomicReference<Throwable> failure = new AtomicReference<>();
+                Thread caller = new Thread(() -> {
+                    try {
+                        channel.call(METHOD_ECHO, 0, new ClientDemoDto("c", 1), 1L, 30_000, ctx);
+                    } catch (Throwable e) {
+                        failure.set(e);
+                    }
+                }, "erpc-cancel-caller");
+                caller.setDaemon(true);
+                caller.start();
+
+                // 等请求真的落到服务端（请求号是传输层分配的，只能从上下文里读）
+                long deadline = System.currentTimeMillis() + 5_000;
+                while (server.totalRequests() == 0 && System.currentTimeMillis() < deadline) {
+                    Thread.sleep(10);
+                }
+                assertEquals(1, server.totalRequests(), "请求应当已经发出去");
+                assertTrue(ctx.requestId() > 0, "上下文里的请求号应当已被填上");
+
+                ErpcException cause = new ErpcException("调用方主动取消");
+                assertTrue(channel.cancel((int) ctx.requestId(), cause), "这次调用确实还在途");
+
+                caller.join(5_000);
+                assertNotNull(failure.get(), "取消后调用方应当拿到失败");
+                assertTrue(ctx.cancellation().isCancelled(), "取消信号应当被 trip");
+                assertNotNull(ctx.cancellation().reason(), "取消原因不该为空");
+                assertEquals(0, channel.inFlightCount(), "取消后在途表里不能残留");
+            } finally {
+                channel.close();
+            }
         }
     }
 }

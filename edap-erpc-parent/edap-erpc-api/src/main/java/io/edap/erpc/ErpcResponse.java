@@ -1,52 +1,62 @@
 /*
  * Copyright 2023 The edap Project
  *
- * The Netty Project licenses this file to you under the Apache License,
- * version 2.0 (the "License"); you may not use this file except in compliance
- * with the License. You may obtain a copy of the License at:
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at:
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
- * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
- * License for the specific language governing permissions and limitations
- * under the License.
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
-package io.edap.erpc.frame;
-
-import io.edap.erpc.RpcException;
+package io.edap.erpc;
 
 /**
- * 服务端侧的一次响应帧上下文 —— {@link io.edap.erpc.ErpcHandler} 往里填结果。
+ * 一次 eRPC 调用的应答信封 —— <b>客户端与服务端共用同一个类</b>。
  *
- * <p>★ <b>与 {@code io.edap.erpc.RpcResponse} 不是同一个东西</b>：</p>
- * <ul>
- *   <li>{@code io.edap.erpc.frame.ErpcResponse}（本类）：**服务端**回帧时用的上下文，
- *       字段与线上帧头一一对应。</li>
- *   <li>{@code io.edap.erpc.RpcResponse}：**客户端**收到响应后用的信封，
- *       走 {@link io.edap.erpc.RpcInvoker} 这条老接口。</li>
- * </ul>
+ * <p>★ <b>它不是线格式</b>：线上格式是「32 字节帧头 + 业务 DTO 字节」
+ * （见 {@link io.edap.erpc.frame.ErpcFrameHeader}）。本类是<b>进程内</b>的应答上下文。</p>
  *
- * <p>handler 填 {@code payload}（业务 DTO 的编码字节）⇒ 框架发 RESPONSE 帧；
- * 填 {@code exception}（或让 handle 抛异常）⇒ 框架发 ERROR 帧，
- * 载荷是编码后的 {@link RpcException}。</p>
+ * <p>★ <b>两侧各用各的那一半字段</b>：</p>
+ * <table border="1">
+ *   <caption>字段分工</caption>
+ *   <tr><th>字段</th><th>客户端（收方）</th><th>服务端（发方）</th></tr>
+ *   <tr><td>{@code methodId} / {@code serviceId} / {@code requestId} / {@code traceId}</td>
+ *       <td>从响应帧解出来</td><td>从请求帧原样回填</td></tr>
+ *   <tr><td>{@code codec}</td>
+ *       <td>响应帧的 codec 字节</td><td>原样抄回请求帧的 codec</td></tr>
+ *   <tr><td>{@code payload}</td>
+ *       <td>业务 DTO 的编码字节</td><td>handler 填（编码字节）</td></tr>
+ *   <tr><td>{@code result}</td>
+ *       <td>不用</td><td>handler 填业务 DTO <b>对象</b>（框架写帧时才编码）</td></tr>
+ *   <tr><td>{@code exception}</td>
+ *       <td>服务端回的 ERROR 帧里的错误体</td><td>业务异常（非空 ⇒ 框架发 ERROR 帧）</td></tr>
+ *   <tr><td>{@code success}</td>
+ *       <td>这次调用成功吗</td><td>不用</td></tr>
+ * </table>
+ *
+ * <p>★ <b>{@code payload} 与 {@code result} 的关系</b>（服务端侧）：两者都填时
+ * 以 {@code result} 为准（{@code result} 为 {@code null} 才回退到 {@code payload}）。</p>
  */
 public class ErpcResponse {
 
     /** 帧头里的 codec 字节（序列化器 id）—— 服务端会原样抄回请求帧的 codec。 */
-    private int          codec;
+    private int codec;
     /** 帧头里的 methodId —— 从请求帧原样回填。 */
-    private int          methodId;
+    private int methodId;
     /** 帧头里的 serviceId —— 从请求帧原样回填。 */
-    private int          serviceId;
+    private int serviceId;
     /** 帧头里的 requestId —— 从请求帧原样回填（客户端据此配对）。 */
-    private int          requestId;
+    private int requestId;
     /** 帧头里的 traceId —— 从请求帧原样回填。 */
-    private long         traceId;
+    private long traceId;
     /** 业务 DTO 的编码字节（未编码时由 handler 填）。 */
-    private byte[]       payload;
+    private byte[] payload;
     /**
      * ★ 业务 DTO <b>对象</b>（还没编码）—— handler 填这个，框架在<b>写帧时才编码</b>。
      *
@@ -57,9 +67,15 @@ public class ErpcResponse {
      * <p>★ 与 {@link #payload} 的关系：两者都填时以 {@code result} 为准
      * （{@code result} 为 {@code null} 才回退到 {@code payload}）。</p>
      */
-    private Object       result;
+    private Object result;
     /** 业务异常 —— 非空时框架发 ERROR 帧而不是 RESPONSE 帧。 */
     private RpcException exception;
+    /**
+     * 这次调用成功吗 —— <b>客户端侧</b>用。
+     *
+     * <p>★ 服务端侧不填（服务端用 {@link #exception} 表达失败）。</p>
+     */
+    private boolean success;
 
     public int getCodec() {
         return codec;
@@ -85,6 +101,9 @@ public class ErpcResponse {
         this.serviceId = serviceId;
     }
 
+    /**
+     * 请求号（连接内唯一）—— 从请求帧原样回填。
+     */
     public int getRequestId() {
         return requestId;
     }
@@ -101,6 +120,9 @@ public class ErpcResponse {
         this.traceId = traceId;
     }
 
+    /**
+     * 业务 DTO 的编码字节。
+     */
     public byte[] getPayload() {
         return payload;
     }
@@ -129,6 +151,17 @@ public class ErpcResponse {
 
     public void setException(RpcException exception) {
         this.exception = exception;
+    }
+
+    /**
+     * 这次调用成功吗（客户端侧）。
+     */
+    public boolean isSuccess() {
+        return success;
+    }
+
+    public void setSuccess(boolean success) {
+        this.success = success;
     }
 
     @Override

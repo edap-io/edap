@@ -215,6 +215,76 @@ public class ErpcFrameFormatTest {
     }
 
     // ------------------------------------------------------------------
+    // flags：bit0 = 压缩预留，bit1~bit7 = 7-bit 超时代码
+    // ------------------------------------------------------------------
+
+    @Test
+    public void flagsLiveInByteSix() {
+        // ★ flags 的偏移不能动 —— 动了整条线上的帧全部错位
+        ErpcFrameHeader header = new ErpcFrameHeader()
+            .setType(ErpcFrameType.REQUEST)
+            .setFlags(0xFE)                 // bit1~bit7 全置位
+            .setCodec(1)
+            .setLength(0);
+        byte[] buf = new byte[ErpcFrameHeader.HEADER_LENGTH];
+        header.writeTo(buf, 0);
+
+        assertEquals(0xFE, buf[6] & 0xff, "flags 必须在第 6 字节");
+        // 其它字节不受影响
+        assertEquals(ErpcFrameType.REQUEST.getValue(), buf[5]);
+        assertEquals(1, buf[7]);
+        assertEquals(0, buf[8]);
+    }
+
+    @Test
+    public void oldFrameWithZeroFlagsStillParses() {
+        // 老版本写出来的帧 flags 恒为 0 —— 必须照常解析
+        byte[] buf = new byte[ErpcFrameHeader.HEADER_LENGTH];
+        new ErpcFrameHeader()
+            .setType(ErpcFrameType.REQUEST)
+            .setFlags(0)
+            .setCodec(1)
+            .setLength(7)
+            .setMethodId(42)
+            .setRequestId(43)
+            .writeTo(buf, 0);
+
+        ErpcFrameHeader parsed = ErpcFrameHeader.readFrom(buf, 0);
+        assertEquals(0, parsed.getFlags());
+        assertEquals(42, parsed.getMethodId());
+        assertEquals(43, parsed.getRequestId());
+        assertEquals(7, parsed.getLength());
+    }
+
+    @Test
+    public void newFrameWithTimeoutCodeParses() {
+        // ★ 帧长与字段偏移一个字节都没动 —— 只是 flags 的高位有了值
+        int flags = 0x7E;                 // 超时代码 0x3F
+        byte[] buf = new byte[ErpcFrameHeader.HEADER_LENGTH];
+        new ErpcFrameHeader()
+            .setType(ErpcFrameType.REQUEST)
+            .setFlags(flags)
+            .setCodec(0)
+            .setLength(3)
+            .setMethodId(11)
+            .writeTo(buf, 0);
+
+        assertEquals(ErpcFrameHeader.HEADER_LENGTH, buf.length);
+        ErpcFrameHeader parsed = ErpcFrameHeader.readFrom(buf, 0);
+        assertEquals(flags, parsed.getFlags());
+        assertEquals(11, parsed.getMethodId());
+        assertEquals(3, parsed.getLength());
+    }
+
+    @Test
+    public void timeoutCodeDoesNotTouchTheCompressionBit() {
+        // ★ bit0 是「压缩预留」—— 任何路径都不许写它
+        byte[] buf = new byte[ErpcFrameHeader.HEADER_LENGTH];
+        new ErpcFrameHeader().setFlags(0xFE).writeTo(buf, 0);
+        assertEquals(0, buf[6] & 0x01, "bit0（压缩预留）被写了");
+    }
+
+    // ------------------------------------------------------------------
     // 辅助
     // ------------------------------------------------------------------
 

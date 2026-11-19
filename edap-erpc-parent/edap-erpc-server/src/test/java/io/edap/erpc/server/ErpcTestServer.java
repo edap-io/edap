@@ -25,6 +25,7 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
 /**
  * 测试用的 eRPC 服务端 —— 起一个真的 NIO 服务端，等端口开始监听。
@@ -48,9 +49,24 @@ public final class ErpcTestServer implements AutoCloseable {
      * 起一个服务端并等到端口开始监听。
      */
     public static ErpcTestServer start(Map<Integer, ErpcMethod> methods) throws IOException {
+        return start(methods, null);
+    }
+
+    /**
+     * 起一个服务端并等到端口开始监听（可先改服务端配置）。
+     *
+     * @param methods     路由表
+     * @param configurator 配置回调（<b>在 {@code listen} 之前</b>调用 ——
+     *                     业务线程池是 {@code init()} 时才建的）
+     */
+    public static ErpcTestServer start(Map<Integer, ErpcMethod> methods,
+                                       Consumer<ErpcServer> configurator) throws IOException {
         int port = freePort();
         ErpcServer server = new ErpcServer();
         server.setMethods(methods);
+        if (configurator != null) {
+            configurator.accept(server);
+        }
         server.listen(port);
 
         Edap edap = new Edap();

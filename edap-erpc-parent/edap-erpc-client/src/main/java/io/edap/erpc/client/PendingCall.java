@@ -16,6 +16,8 @@
 
 package io.edap.erpc.client;
 
+import io.edap.rpc.RpcContext;
+
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -30,10 +32,14 @@ final class PendingCall {
     /** 帧头里的 requestId —— 响应帧原样回填。 */
     final int requestId;
 
+    /** 本次调用的上下文 —— 超时 / 断连时用它 trip 取消信号。 */
+    final RpcContext context;
+
     /** 响应载荷（RESPONSE 帧）或异常（ERROR 帧 / 连接断开 / 超时）。 */
     final CompletableFuture<byte[]> future = new CompletableFuture<>();
 
-    PendingCall(int requestId) {
+    PendingCall(int requestId, RpcContext context) {
         this.requestId = requestId;
+        this.context = context;
     }
 }

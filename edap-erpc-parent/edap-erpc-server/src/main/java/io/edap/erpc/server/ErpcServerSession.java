@@ -18,16 +18,18 @@ package io.edap.erpc.server;
 
 import io.edap.NioServerSession;
 import io.edap.buffer.FastBuf;
+import io.edap.erpc.ErpcProtocolException;
+import io.edap.erpc.ErpcRequest;
+import io.edap.erpc.ErpcResponse;
 import io.edap.erpc.ErpcStatus;
 import io.edap.erpc.RpcException;
 import io.edap.erpc.codec.ErpcCodec;
 import io.edap.erpc.frame.ErpcFrameType;
-import io.edap.erpc.frame.ErpcRequest;
-import io.edap.erpc.frame.ErpcResponse;
 import io.edap.log.Logger;
 import io.edap.log.LoggerManager;
 import io.edap.nio.ParseResult;
 import io.edap.pool.Pool;
+import io.edap.rpc.RpcChannelContext;
 
 import java.io.IOException;
 import java.nio.channels.SelectionKey;
@@ -57,6 +59,15 @@ public class ErpcServerSession extends NioServerSession<ErpcRequest> {
     private final ErpcServerDecoder decoder;
 
     private final ErpcOutboundWriter outboundWriter;
+
+    /**
+     * ★ <b>本连接</b>的上下文 —— 每连接一个。
+     *
+     * <p>它活到连接结束为止：权限校验通过后把「已鉴权」标记记在这里，
+     * 同一连接的后续请求就不用重复校验了。
+     * <b>新连接 = 新上下文</b> ⇒ 标记不会跨连接泄漏。</p>
+     */
+    private final RpcChannelContext channelContext = new RpcChannelContext();
 
     /**
      * 兴趣位（{@code OP_WRITE}）的更新锁。
@@ -202,6 +213,19 @@ public class ErpcServerSession extends NioServerSession<ErpcRequest> {
             req.getMethodId(), req.getServiceId(), req.getRequestId(), req.getTraceId(), null);
     }
 
+    /**
+     * 回一个<b>空的 RESPONSE 帧</b> —— AUTH 握手成功时用。
+     *
+     * <p>★ <b>握手应答复用 RESPONSE / ERROR 帧</b>：不为它新增帧类型 ——
+     * 客户端按 {@code requestId} 配对应答，加一种帧类型只会让配对逻辑多一条分支。</p>
+     *
+     * @param req 握手请求帧（帧头字段原样抄回）
+     */
+    public void writeAuthOk(ErpcRequest req) {
+        outboundWriter.writeFrame(ErpcFrameType.RESPONSE.getValue(), req.getCodec(),
+            req.getMethodId(), req.getServiceId(), req.getRequestId(), req.getTraceId(), null);
+    }
+
     // ------------------------------------------------------------------
     // NIO 层钩子
     // ------------------------------------------------------------------
@@ -301,5 +325,14 @@ public class ErpcServerSession extends NioServerSession<ErpcRequest> {
 
     public ErpcOutboundWriter outboundWriter() {
         return outboundWriter;
+    }
+
+    /**
+     * 本连接的上下文（连接级状态：已鉴权标记、租户……）。
+     *
+     * @return 连接级上下文；<b>每连接一个实例</b>，连接结束即失效
+     */
+    public RpcChannelContext channelContext() {
+        return channelContext;
     }
 }

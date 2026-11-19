@@ -163,7 +163,7 @@ public class ErpcEndToEndTest {
         return writer == null ? new byte[0] : Arrays.copyOf(writer.buffer(), writer.size());
     }
 
-    private static ErpcTestDto decode(io.edap.erpc.frame.ErpcRequest req) {
+    private static ErpcTestDto decode(io.edap.erpc.ErpcRequest req) {
         byte[] payload = req.getPayload();
         if (payload == null || payload.length == 0) {
             return new ErpcTestDto();

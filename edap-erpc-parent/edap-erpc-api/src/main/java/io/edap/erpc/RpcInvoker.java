@@ -17,14 +17,15 @@
 package io.edap.erpc;
 
 /**
- * RPC框架的执行器，将原有调用转换为RpcRequest并发起调用后获取RpcResponse的对象
+ * RPC框架的执行器，将原有调用转换为 {@link ErpcRequest} 并发起调用后获取
+ * {@link ErpcResponse} 的对象。
  */
 public interface RpcInvoker {
 
     /**
      * 远程执行的操作
-     * @param request
-     * @return
+     * @param request 本次调用的请求上下文
+     * @return 本次调用的应答上下文
      */
-    RpcResponse invoke(RpcRequest request);
+    ErpcResponse invoke(ErpcRequest request);
 }

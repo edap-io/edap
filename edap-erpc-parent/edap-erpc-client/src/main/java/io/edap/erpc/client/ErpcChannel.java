@@ -20,9 +20,16 @@ import io.edap.erpc.ErpcException;
 import io.edap.erpc.RpcException;
 import io.edap.erpc.codec.ErpcFrameEncoder;
 import io.edap.erpc.codec.ErpcCodec;
+import io.edap.erpc.codec.ErpcMetadataCodec;
+import io.edap.erpc.codec.ErpcWriter;
 import io.edap.erpc.frame.ErpcFrameCodec;
 import io.edap.erpc.frame.ErpcFrameHeader;
 import io.edap.erpc.frame.ErpcFrameType;
+import io.edap.rpc.RpcChannelContext;
+import io.edap.rpc.RpcContext;
+import io.edap.rpc.RpcMetadata;
+import io.edap.rpc.RpcProtocol;
+import io.edap.rpc.RpcTimeout;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -30,6 +37,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.net.Socket;
+import java.nio.charset.StandardCharsets;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -108,17 +116,38 @@ public final class ErpcChannel implements Closeable {
     /** 读侧分帧器 —— 只在读线程用。 */
     private final ErpcFrameCodec frameCodec = new ErpcFrameCodec();
 
+    /**
+     * ★ <b>本连接</b>的上下文 —— 每连接一个。
+     *
+     * <p>用来放「连接级」的状态（协商结果、连接级标记……）。
+     * <b>连接重建 = 新上下文</b> ⇒ 连接池换连接时标记不会沿用。</p>
+     */
+    private final RpcChannelContext channelContext = new RpcChannelContext();
+
     private final Thread readerThread;
     private volatile boolean closed;
 
     /**
-     * 建立连接。
+     * 建立连接（不握手）。
      *
      * @param node                目标节点
      * @param serializer          序列化器（解码 ERROR 帧用）
      * @param connectTimeoutMillis 连接超时
      */
     public ErpcChannel(ErpcNode node, ErpcCodec serializer, int connectTimeoutMillis) {
+        this(node, serializer, connectTimeoutMillis, null);
+    }
+
+    /**
+     * 建立连接（可选：建连后做<b>连接级鉴权握手</b>）。
+     *
+     * @param node                目标节点
+     * @param serializer          序列化器（解码 ERROR 帧用）
+     * @param connectTimeoutMillis 连接超时
+     * @param credential          连接级凭据；{@code null} ⇒ 不握手
+     */
+    public ErpcChannel(ErpcNode node, ErpcCodec serializer, int connectTimeoutMillis,
+                       String credential) {
         this.node = node;
         this.serializer = serializer;
         this.connectTimeoutMillis = connectTimeoutMillis;
@@ -143,6 +172,17 @@ public final class ErpcChannel implements Closeable {
         this.readerThread = new Thread(this::readLoop, "edap-erpc-client-reader-" + node.id());
         this.readerThread.setDaemon(true);
         this.readerThread.start();
+        // ★ 握手必须在读线程起来<b>之后</b>：应答要靠读线程收
+        if (credential != null && !credential.isEmpty()) {
+            try {
+                authenticate(credential);
+            } catch (RuntimeException e) {
+                // ★ 握手失败 ⇒ 关连接再抛 —— 连接池据此认为「这个槽位建连失败」，
+                //   不会把一条没鉴权成功的连接留在池里。
+                close();
+                throw e;
+            }
+        }
     }
 
     // ------------------------------------------------------------------
@@ -160,7 +200,7 @@ public final class ErpcChannel implements Closeable {
      * @return 响应载荷（业务 DTO 的编码字节）
      */
     public byte[] call(int methodId, int serviceId, byte[] payload, long traceId, long timeoutMillis) {
-        return call0(methodId, serviceId, payload, null, traceId, timeoutMillis);
+        return call0(methodId, serviceId, payload, null, traceId, timeoutMillis, null);
     }
 
     /**
@@ -178,40 +218,110 @@ public final class ErpcChannel implements Closeable {
      * @return 响应载荷（业务 DTO 的编码字节）
      */
     public byte[] call(int methodId, int serviceId, Object message, long traceId, long timeoutMillis) {
-        return call0(methodId, serviceId, null, message, traceId, timeoutMillis);
+        return call0(methodId, serviceId, null, message, traceId, timeoutMillis, null);
+    }
+
+    /**
+     * 发一次一元调用并等响应 —— <b>带 RPC 上下文</b>（传对象）。
+     *
+     * <p>上下文里的 deadline 会被编码进帧头 {@code flags} 的 bit1~bit7
+     * ⇒ 服务端能算出自己这边的截止时刻。</p>
+     *
+     * @param methodId     方法号
+     * @param serviceId    服务号
+     * @param message      业务 DTO（还没编码）
+     * @param traceId      链路号
+     * @param timeoutMillis 超时
+     * @param context      本次调用的上下文（可为 null）
+     * @return 响应载荷（业务 DTO 的编码字节）
+     */
+    public byte[] call(int methodId, int serviceId, Object message, long traceId,
+                       long timeoutMillis, RpcContext context) {
+        return call0(methodId, serviceId, null, message, traceId, timeoutMillis, context);
+    }
+
+    /**
+     * 发一次一元调用并等响应 —— <b>带 RPC 上下文</b>（传字节）。
+     *
+     * @param methodId     方法号
+     * @param serviceId    服务号
+     * @param payload      业务 DTO 的编码字节
+     * @param traceId      链路号
+     * @param timeoutMillis 超时
+     * @param context      本次调用的上下文（可为 null）
+     * @return 响应载荷（业务 DTO 的编码字节）
+     */
+    public byte[] call(int methodId, int serviceId, byte[] payload, long traceId,
+                       long timeoutMillis, RpcContext context) {
+        return call0(methodId, serviceId, payload, null, traceId, timeoutMillis, context);
     }
 
     private byte[] call0(int methodId, int serviceId, byte[] payload, Object message,
-                         long traceId, long timeoutMillis) {
+                         long traceId, long timeoutMillis, RpcContext context) {
         if (closed) {
             throw new ErpcException("eRPC 连接已关闭: " + node.id());
+        }
+        RpcContext ctx = context != null ? context : RpcContext.builder()
+            .protocol(RpcProtocol.ERPC)
+            .method("erpc:" + methodId)
+            .traceId(traceId)
+            .timeoutMillis(timeoutMillis)
+            .build();
+        // deadline 已经过了 ⇒ 帧不发（服务端收到也是白跑）
+        if (ctx.isExpired()) {
+            ErpcException e = new ErpcException("eRPC 调用已超时: methodId=" + methodId);
+            ctx.cancellation().cancel(e);
+            throw e;
         }
         int requestId = nextRequestId.getAndIncrement() & 0x7FFFFFFF;
         if (requestId == 0) {
             requestId = nextRequestId.getAndIncrement() & 0x7FFFFFFF;
         }
-        PendingCall call = new PendingCall(requestId);
+        // 请求号是传输层分配的 ⇒ 事后补进上下文（业务拿到的就是同一个对象）
+        ctx.assignRequestId(requestId);
+        // ★ 超时码写进帧头 flags 的 bit1~bit7 —— 服务端据此算自己的截止时刻
+        int flags = timeoutFlags(ctx);
+        // ★ 本次调用要不要带「可上线的元数据」—— 没有 ⇒ 走老路径，
+        //   线上帧与不带元数据时字节级一致（默认路径零开销）。
+        boolean withMetadata = ctx.hasMetadata();
+        PendingCall call = new PendingCall(requestId, ctx);
         // ★ 先注册后写：响应可能比写操作返回得还快，先写后注册会把它丢掉 ⇒ 调用方永久等待
         calls.put(requestId, call);
         try {
-            if (message != null) {
+            if (withMetadata) {
+                // 上下文段在锁外编码（不占写锁）
+                byte[] metaSegment = ErpcMetadataCodec.encode(ctx.metadata());
+                if (message != null) {
+                    writeFrameMessageWithContext(serializer.id(), methodId, serviceId,
+                        requestId, traceId, flags, metaSegment, message);
+                } else {
+                    writeFrameWithContext(serializer.id(), methodId, serviceId,
+                        requestId, traceId, flags, metaSegment,
+                        payload, 0, payload == null ? 0 : payload.length);
+                }
+            } else if (message != null) {
                 writeFrameMessage(ErpcFrameType.REQUEST.getValue(), serializer.id(),
-                    methodId, serviceId, requestId, traceId, message);
+                    methodId, serviceId, requestId, traceId, flags, message);
             } else {
                 writeFrame(ErpcFrameType.REQUEST.getValue(), serializer.id(),
-                    methodId, serviceId, requestId, traceId, payload, 0, payload == null ? 0 : payload.length);
+                    methodId, serviceId, requestId, traceId, flags, payload,
+                    0, payload == null ? 0 : payload.length);
             }
         } catch (RuntimeException e) {
             calls.remove(requestId, call);
             throw e;
         }
+        // 等响应：上限取「本次超时」与「上下文剩余时间」的较小者
+        long waitMillis = Math.min(timeoutMillis, ctx.remainingMillis());
         try {
-            return call.future.get(timeoutMillis, TimeUnit.MILLISECONDS);
+            return call.future.get(waitMillis, TimeUnit.MILLISECONDS);
         } catch (TimeoutException e) {
             calls.remove(requestId, call);
-            call.future.completeExceptionally(
-                new ErpcException("eRPC 调用超时: methodId=" + methodId + ", timeout=" + timeoutMillis + "ms"));
-            throw new ErpcException("eRPC 调用超时: methodId=" + methodId + ", timeout=" + timeoutMillis + "ms", e);
+            ErpcException timeout = new ErpcException(
+                "eRPC 调用超时: methodId=" + methodId + ", timeout=" + timeoutMillis + "ms");
+            ctx.cancellation().cancel(timeout);
+            call.future.completeExceptionally(timeout);
+            throw timeout;
         } catch (ExecutionException e) {
             Throwable cause = e.getCause() == null ? e : e.getCause();
             if (cause instanceof ErpcException) {
@@ -220,9 +330,52 @@ public final class ErpcChannel implements Closeable {
             throw new ErpcException("eRPC 调用失败: methodId=" + methodId, cause);
         } catch (InterruptedException e) {
             calls.remove(requestId, call);
+            ctx.cancellation().cancel(e);
             Thread.currentThread().interrupt();
             throw new ErpcException("eRPC 调用被中断: methodId=" + methodId, e);
         }
+    }
+
+    /**
+     * 把上下文的剩余时间编码成帧头 {@code flags} 的 7-bit 超时代码。
+     *
+     * <p>★ <b>没有 deadline ⇒ 不写</b>（码 0 = 无超时），这样老服务端
+     * 读到的还是「无超时」，行为与改造前一致。</p>
+     *
+     * <p>★ <b>写的是 flags 字节，不是码值</b>：码值要左移一位才落在 bit1~bit7 上
+     * —— 由 {@link RpcTimeout#encodeErpcFlags(long)} 一次做完，别在这里手拼。</p>
+     */
+    private static int timeoutFlags(RpcContext ctx) {
+        long remain = ctx.remainingNanos();
+        if (remain == Long.MAX_VALUE) {
+            return 0;
+        }
+        if (remain <= 0) {
+            return RpcTimeout.encodeErpcFlags(1L);
+        }
+        return RpcTimeout.encodeErpcFlags(remain);
+    }
+
+    /**
+     * 本地取消一次在途调用。
+     *
+     * <p>★ <b>线上没有 CANCEL 帧</b>（eRPC v1 的帧格式不变）⇒ 服务端不会立刻
+     * 停下手上的活，它跑完（或撞到自己的 deadline）才回帧。
+     * 本地的效果是：调用方立刻拿到失败、上下文的取消信号被 trip
+     * （业务代码可以据此提前收手）。</p>
+     *
+     * @param requestId 请求号（{@link RpcContext#requestId()}）
+     * @param cause     取消原因
+     * @return true 表示这次调用确实还在途、已被取消
+     */
+    public boolean cancel(int requestId, Throwable cause) {
+        PendingCall call = calls.remove(requestId);
+        if (call == null) {
+            return false;
+        }
+        call.context.cancellation().cancel(cause);
+        call.future.completeExceptionally(cause);
+        return true;
     }
 
     /**
@@ -230,10 +383,16 @@ public final class ErpcChannel implements Closeable {
      */
     public void ping(long timeoutMillis) {
         int requestId = nextRequestId.getAndIncrement() & 0x7FFFFFFF;
-        PendingCall call = new PendingCall(requestId);
+        RpcContext ctx = RpcContext.builder()
+            .protocol(RpcProtocol.ERPC)
+            .method("erpc:ping")
+            .requestId(requestId)
+            .build();
+        PendingCall call = new PendingCall(requestId, ctx);
         calls.put(requestId, call);
         try {
-            writeFrame(ErpcFrameType.PING.getValue(), serializer.id(), 0, 0, requestId, 0L, EMPTY, 0, 0);
+            writeFrame(ErpcFrameType.PING.getValue(), serializer.id(), 0, 0, requestId, 0L,
+                0, EMPTY, 0, 0);
         } catch (RuntimeException e) {
             calls.remove(requestId, call);
             throw e;
@@ -254,15 +413,20 @@ public final class ErpcChannel implements Closeable {
      * 排一帧进待写缓冲，并确保有人会把它刷出去。
      *
      * <p>★ <b>锁内只追加字节，不做 syscall</b>：socket 写由当轮的「刷出者」在锁外做。</p>
+     *
+     * <p>★ <b>flags 必须每帧显式写</b>：{@code headerBuffer} 是复用的，
+     * 不写就会带上上一帧的残留位（请求帧的超时码会漏到 PING/PONG 帧上）。</p>
      */
     private void writeFrame(int type, int codecId, int methodId, int serviceId,
-                            int requestId, long traceId, byte[] payload, int offset, int length) {
+                            int requestId, long traceId, int flags,
+                            byte[] payload, int offset, int length) {
         boolean leader;
         synchronized (writeLock) {
             if (closed) {
                 throw new ErpcException("eRPC 连接已关闭: " + node.id());
             }
             headerBuffer.setType(type)
+                .setFlags(flags)
                 .setCodec(codecId)
                 .setLength(length)
                 .setMethodId(methodId)
@@ -284,9 +448,9 @@ public final class ErpcChannel implements Closeable {
      * 缓冲，本方法只负责把那段字节拷进待写缓冲 ⇒ 载荷只被拷一次。</p>
      */
     private void writeFrameMessage(int type, int codecId, int methodId, int serviceId,
-                                   int requestId, long traceId, Object message) {
+                                   int requestId, long traceId, int flags, Object message) {
         ErpcFrameEncoder.encode(serializer, type, codecId, methodId, serviceId,
-            requestId, traceId, message, frameSink);
+            requestId, traceId, flags, message, frameSink);
     }
 
     /**
@@ -319,6 +483,144 @@ public final class ErpcChannel implements Closeable {
         if (length > 0) {
             System.arraycopy(payload, offset, pending, pendingLen, length);
             pendingLen += length;
+        }
+    }
+
+    /**
+     * 排一帧进待写缓冲 —— 内容区带一段 <b>RPC 上下文</b>（{@code [上下文段][业务 DTO]}）。
+     *
+     * <p>★ <b>不走 {@link ErpcFrameEncoder}</b>：它只能写「帧头 + 一段载荷」，
+     * 而这里要写两段 ⇒ 单独一条写路径（{@code FrameSink} 接口被 benchmark 模块实现，
+     * 改签名会波及那边）。</p>
+     */
+    private void writeFrameWithContext(int codecId, int methodId, int serviceId,
+                                       int requestId, long traceId, int flags,
+                                       byte[] metaSegment,
+                                       byte[] payload, int offset, int length) {
+        boolean leader;
+        synchronized (writeLock) {
+            if (closed) {
+                throw new ErpcException("eRPC 连接已关闭: " + node.id());
+            }
+            headerBuffer.setType(ErpcFrameType.type(ErpcFrameType.REQUEST.getValue(), true))
+                .setFlags(flags)
+                .setCodec(codecId)
+                .setLength(metaSegment.length + length)
+                .setMethodId(methodId)
+                .setServiceId(serviceId)
+                .setRequestId(requestId)
+                .setTraceId(traceId);
+            appendTwoSegmentsLocked(headerBuffer, metaSegment, payload, offset, length);
+            leader = claimDrainLocked();
+        }
+        if (leader) {
+            drain();
+        }
+    }
+
+    /**
+     * 排一帧进待写缓冲 —— 内容区带一段 <b>RPC 上下文</b>，载荷<b>传对象</b>。
+     *
+     * <p>★ 编码发生在 {@code writeLock} 之外：编码器把载荷写进它自己的线程本地缓冲，
+     * 这里只负责把那段字节拷进待写缓冲 ⇒ 载荷只被拷一次。</p>
+     */
+    private void writeFrameMessageWithContext(int codecId, int methodId, int serviceId,
+                                              int requestId, long traceId, int flags,
+                                              byte[] metaSegment, Object message) {
+        ErpcWriter dto = serializer.encode(message);
+        int dtoLen = dto == null ? 0 : dto.size();
+        byte[] dtoBuf = dto == null ? EMPTY : dto.buffer();
+        boolean leader;
+        synchronized (writeLock) {
+            if (closed) {
+                throw new ErpcException("eRPC 连接已关闭: " + node.id());
+            }
+            headerBuffer.setType(ErpcFrameType.type(ErpcFrameType.REQUEST.getValue(), true))
+                .setFlags(flags)
+                .setCodec(codecId)
+                .setLength(metaSegment.length + dtoLen)
+                .setMethodId(methodId)
+                .setServiceId(serviceId)
+                .setRequestId(requestId)
+                .setTraceId(traceId);
+            appendTwoSegmentsLocked(headerBuffer, metaSegment, dtoBuf, 0, dtoLen);
+            leader = claimDrainLocked();
+        }
+        if (leader) {
+            drain();
+        }
+    }
+
+    /**
+     * 把帧头与<b>两段</b>载荷追加进待写缓冲（<b>调用方必须持有 {@code writeLock}</b>）。
+     *
+     * <p>段一 = RPC 上下文段，段二 = 业务 DTO。</p>
+     */
+    private void appendTwoSegmentsLocked(ErpcFrameHeader header, byte[] seg1,
+                                         byte[] seg2, int off2, int len2) {
+        ensurePendingCapacityLocked(ErpcFrameHeader.HEADER_LENGTH + seg1.length + len2);
+        header.writeTo(pending, pendingLen);
+        pendingLen += ErpcFrameHeader.HEADER_LENGTH;
+        System.arraycopy(seg1, 0, pending, pendingLen, seg1.length);
+        pendingLen += seg1.length;
+        if (len2 > 0) {
+            System.arraycopy(seg2, off2, pending, pendingLen, len2);
+            pendingLen += len2;
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // 连接级鉴权握手
+    // ------------------------------------------------------------------
+
+    /**
+     * 连接级鉴权握手 —— 发一个 AUTH 帧，等服务端的应答。
+     *
+     * <p>★ <b>连接级</b>：握手成功 ⇒ 服务端把「已鉴权」记在那条连接上 ⇒
+     * <b>同一连接的后续请求免校验</b>（连接不断就不必重复校验）。</p>
+     *
+     * <p>★ <b>应答复用 RESPONSE / ERROR 帧</b>：不为握手新增响应帧类型 ——
+     * 客户端按 {@code requestId} 配对应答即可。</p>
+     *
+     * <p>★ <b>失败 ⇒ 抛异常</b>：调用方（连接池）据此认为建连失败，不会把
+     * 一条没鉴权成功的连接留在池里。</p>
+     *
+     * @param credential 凭据（UTF-8 字符串）
+     */
+    private void authenticate(String credential) {
+        byte[] payload = credential.getBytes(StandardCharsets.UTF_8);
+        int requestId = nextRequestId.getAndIncrement() & 0x7FFFFFFF;
+        if (requestId == 0) {
+            requestId = nextRequestId.getAndIncrement() & 0x7FFFFFFF;
+        }
+        RpcContext ctx = RpcContext.builder()
+            .protocol(RpcProtocol.ERPC)
+            .method("erpc:auth")
+            .requestId(requestId)
+            .build();
+        PendingCall call = new PendingCall(requestId, ctx);
+        calls.put(requestId, call);
+        try {
+            writeFrame(ErpcFrameType.AUTH.getValue(), serializer.id(), 0, 0, requestId, 0L,
+                0, payload, 0, payload.length);
+        } catch (RuntimeException e) {
+            calls.remove(requestId, call);
+            throw e;
+        }
+        try {
+            call.future.get(connectTimeoutMillis, TimeUnit.MILLISECONDS);
+        } catch (TimeoutException e) {
+            calls.remove(requestId, call);
+            throw new ErpcException("eRPC 鉴权握手超时: " + node.id()
+                + ", timeout=" + connectTimeoutMillis + "ms", e);
+        } catch (ExecutionException e) {
+            calls.remove(requestId, call);
+            Throwable cause = e.getCause() == null ? e : e.getCause();
+            throw new ErpcException("eRPC 鉴权握手失败: " + node.id(), cause);
+        } catch (InterruptedException e) {
+            calls.remove(requestId, call);
+            Thread.currentThread().interrupt();
+            throw new ErpcException("eRPC 鉴权握手被中断: " + node.id(), e);
         }
     }
 
@@ -435,7 +737,8 @@ public final class ErpcChannel implements Closeable {
         if (type == ErpcFrameType.PING.getValue()) {
             // 服务端发来的心跳 ⇒ 回 PONG（帧头字段原样抄回）
             writeFrame(ErpcFrameType.PONG.getValue(), h.getCodec(),
-                h.getMethodId(), h.getServiceId(), h.getRequestId(), h.getTraceId(), EMPTY, 0, 0);
+                h.getMethodId(), h.getServiceId(), h.getRequestId(), h.getTraceId(),
+                0, EMPTY, 0, 0);
             return;
         }
         // PONG：心跳响应，忽略
@@ -467,6 +770,8 @@ public final class ErpcChannel implements Closeable {
 
     private void failAllCalls(Throwable cause) {
         for (PendingCall call : calls.values()) {
+            // 连接断了 ⇒ 在途调用全部取消（业务代码能观察到取消信号）
+            call.context.cancellation().cancel(cause);
             call.future.completeExceptionally(cause);
         }
         calls.clear();
@@ -500,6 +805,18 @@ public final class ErpcChannel implements Closeable {
 
     public ErpcNode node() {
         return node;
+    }
+
+    /**
+     * 本连接的上下文（连接级状态）。
+     *
+     * <p>★ <b>每连接一个实例</b>；连接重建（断链后连接池重建）⇒ <b>新实例</b>，
+     * 旧连接上的标记不会沿用。</p>
+     *
+     * @return 连接级上下文
+     */
+    public RpcChannelContext channelContext() {
+        return channelContext;
     }
 
     /**

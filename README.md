@@ -4484,7 +4484,8 @@ edap-erpc-parent/
 偏移  长度  字段        说明
  0     4    magic       'E','R','P','C'
  4     1    version     协议版本 = 1
- 5     1    type        1=REQUEST 2=RESPONSE 3=ERROR 4=PING 5=PONG
+ 5     1    type        bit7 = 本帧带 RPC 上下文；bit0~6 = 帧种类
+                      1=REQUEST 2=RESPONSE 3=ERROR 4=PING 5=PONG 6=AUTH
  6     1    flags       bit0 = 压缩预留（当前恒 0）
  7     1    codec       序列化器 id：0=protobuf 1=json
  8     4    length      载荷字节数（unsigned int，大端）
@@ -4494,6 +4495,7 @@ edap-erpc-parent/
 24     8    traceId     链路号（大端）
 --- 32 字节 ---
 32     N    payload     业务 DTO 按 codec 编码的字节
+                      （type 的 bit7 置位时，前面多一段 RPC 上下文段，见二十九节）
 ```
 
 - **全部大端**（网络字节序，与 gRPC 帧头一致）。
@@ -4501,6 +4503,8 @@ edap-erpc-parent/
   路由信息在帧头 ⇒ 服务端不解析载荷就能路由、不解析载荷就能回填响应头。
 - **codec 按帧协商**：服务端回帧时把请求帧的 `codec` 字节原样抄回 ⇒ 客户端一定解得动。
 - ERROR 帧用请求帧的 codec；唯一例外是请求帧的 codec 服务端不认识 ⇒ 用服务端自己的默认 codec。
+- **type 的 bit7** 是「本帧带 RPC 上下文」标志位（**不是**版本 —— version 恒为 1）；
+  `AUTH(6)` 是连接级鉴权握手帧（见三十节）。
 
 ### 25.3 序列化可插拔（SPI）
 
@@ -4678,6 +4682,449 @@ proto 生成的 DTO 天然在独立包里，但**同包手写 DTO 时要避开�
 
 ---
 
-**文档版本**：v1.0
-**最后更新**：2026-11-15
+## 二十六、RPC 上下文（gRPC / eRPC 共用，已落地）
+
+> 专题详细设计：[`doc/RPC_CONTEXT_DESIGN.md`](./doc/RPC_CONTEXT_DESIGN.md)
+>
+> 新模块 `edap-rpc-api`（package `io.edap.rpc`，零三方依赖）。
+
+### 26.1 解决的问题
+
+改造前 gRPC 与 eRPC **都没有** deadline、没有取消信号、没有线程绑定 —— 业务无法回答
+「我这个调用还剩多久」「上游是不是已经放弃了」「我是哪个租户的」。
+
+现在两边共用一套上下文，业务代码**不需要知道自己走的是 gRPC 还是 eRPC**：
+
+```java
+public ReviewReply listReviews(ReviewRequest req) {
+    RpcContext ctx = RpcContext.current();          // 本次调用的上下文
+    if (ctx.remainingMillis() <= 0) {
+        throw new RpcDeadlineExceededException("业务超时");
+    }
+    String tenant = ctx.get(TENANT);                // 强类型属性
+    if (ctx.cancellation().isCancelled()) {          // 协作式取消
+        throw new RpcDeadlineExceededException("调用被取消");
+    }
+    return doListReviews(req);
+}
+```
+
+### 26.2 上下文承载什么
+
+| 分组 | 内容 |
+|---|---|
+| 身份 | `protocol()`（GRPC/ERPC）、`method()`、`requestId()`、`traceId()` |
+| deadline | `deadlineNanos()` / `remainingMillis()` / `isExpired()` |
+| 取消 | `cancellation()` —— `cancel(cause)`（被取消）与 `complete()`（**正常结束**）是两个终态 |
+| 属性 | `Key<T>` 强类型键（identity 语义，与 grpc-java 一致） |
+| 线程绑定 | `current()` / `attach(ctx)` / `wrap(Runnable)` —— **不用 `InheritableThreadLocal`** |
+
+### 26.3 怎么设置变量（属性 put）
+
+**第 1 步：定义键** —— 定义成 `static final` 常量（**identity 语义**，与 grpc-java 的
+`Context.Key` 一致：两个同名但不同实例的 key 不相等）：
+
+```java
+public final class RpcKeys {
+    public static final RpcContext.Key<String> TENANT = RpcContext.Key.create("tenant");
+    public static final RpcContext.Key<Long>   USER_ID = RpcContext.Key.create("userId");
+}
+```
+
+**第 2 步：写 / 读**
+
+```java
+RpcContext.current().put(RpcKeys.TENANT, "t-42");   // 写 null = 移除
+String tenant = RpcContext.current().get(RpcKeys.TENANT);   // 没有则 null
+```
+
+在拦截器里写：eRPC 客户端 / 服务端都是 `request.getContext().put(...)`；
+gRPC 客户端的钩子直接给 `RpcContext ctx`（`ctx.put(...)`）。
+
+**三个必须知道的边界**：
+
+| 边界 | 说明 |
+|---|---|
+| ★ **属性不上线** | 只在**进程内**。客户端 put 的，服务端读不到 ⇒ 跨进程要另走通道：gRPC 走 `Metadata`（HTTP/2 头，拦截器里 `headers.put("x-tenant", t)` 就上线）；**eRPC** 现在有独立的**元数据通道**了（见**二十九节**）—— 不再只能放进业务 DTO 或借 `traceId` 那 64 位 |
+| ★ **跨线程要显式传播** | `executor.submit(RpcContext.current().wrap(() -> doWork()))` —— 不用 `InheritableThreadLocal`（会污染其它请求的语义） |
+| ★ **没绑定上下文时写属性会抛异常** | `current()` 返回共享的**只读** ROOT，往它 `put` 抛 `IllegalStateException` —— 防止一个线程误写污染所有线程 |
+
+**★ 与 grpc-java 的差异**（照抄 grpc-java 的写法会踩）：
+
+| | grpc-java `io.grpc.Context` | edap `RpcContext` |
+|---|---|---|
+| 可变性 | **不可变** —— `withValue(k, v)` 返回**新** Context（持久化 trie 实现） | **可变** —— `put(k, v)` 原地改 |
+| 写法 | `Context.current().withValue(K, v)` | `RpcContext.current().put(K, v)` |
+| 属性是否上线 | **不上线**，且 grpc-java 至今**没有 baggage 实现**（`grpc-api` / `grpc-core` 里都没有 baggage 类）⇒ 跨进程只有 `Metadata` 或 protobuf 消息体两条路 | 同样**不上线**，与之对齐 |
+
+> ★ grpc-java 的 `Context` **不上线**这件事是很多人踩坑的地方：
+> `Context` 只是进程内的线程局部状态，不是「会跟着请求走」的载体。
+> 要把自定义数据送给对端，grpc-java 靠 `io.grpc.Metadata`（走 HTTP/2 头）。
+
+> ★ 想把变量放在**连接**上而不是一次调用上（权限校验标记、连接级协商结果）⇒
+> 用 `RpcChannelContext`，见**二十八节**。
+
+### 26.4 deadline 怎么跨进程传
+
+**线上只传「相对时长」，本地只存「绝对 nanoTime 时刻」** ——
+`nanoTime` 跨进程不可比，`currentTimeMillis` 会被 NTP 跳变 ⇒ 两端的 deadline 不受时钟偏移影响。
+
+| 协议 | 线上载体 | 说明 |
+|---|---|---|
+| gRPC | 标准头 `grpc-timeout: 2S` | grpc-java 也发这个 ⇒ 可互通；单位大小写敏感 |
+| eRPC | 帧头 `flags` 的 **bit1~bit7** | bit0 是「压缩预留」恒 0；1/4 八度刻度，**最大超调 25%** |
+
+两条编码路径都保证 **`decode(encode(x)) >= x`**（向上取整）——
+否则服务端会掐掉一个「客户端仍认为有效」的调用。
+
+### 26.5 已知代价
+
+- **gRPC 服务端的业务 handler 仍跑在 HTTP/2 IO 线程上**（本轮不改线程模型）⇒
+  业务阻塞时，deadline 的 trailers 要等 IO 线程空闲才发得出去；eRPC 的 handler 在 worker 线程上，没有这个问题。
+- eRPC **没有服务端取消**：线上没有 CANCEL 帧（v1 帧格式不变）⇒ 客户端取消只取消本地 future。
+- 属性（`RpcContext.put`）**不跨进程传播**（只传 deadline）；跨机 deadline 不做时钟偏移校正（只传时长，不需要）。
+  ★ 要跨进程传播的自定义数据走**元数据**（`RpcMetadata`）—— 见**二十九节**。
+
+### 26.6 容器侧
+
+ASM 生成的 handler **不需要改** —— 生成的字节码跑在框架的 `attach` 作用域内 ⇒
+业务方法里 `RpcContext.current()` 一定拿得到本次调用的上下文。
+容器侧只补了护栏测试（业务在容器生成的 handler 里确实看得到上下文）。
+
+---
+
+## 二十七、拦截器（gRPC / eRPC 客户端与服务端，已落地）
+
+> 四个扩展点：**客户端**与**服务端**各一个，两种协议各一套。
+> 顺序规约与失败语义由 `io.edap.rpc.InterceptorChain` 统一（放在 `edap-rpc-api`，零三方依赖）。
+
+### 27.1 四个接口
+
+| 接口 | 模块（包） | 请求侧钩子 | 收尾侧钩子 |
+|---|---|---|---|
+| `GrpcServerInterceptor` | `edap-grpc-api`（`io.edap.grpc`） | `beforeCall(GrpcCall)` | `afterCall(GrpcCall, Throwable)` |
+| `GrpcClientInterceptor` | `edap-grpc-client`（`io.edap.grpc.client`） | `beforeCall(path, headers, context)` | `afterCall(GrpcClientCall, Throwable)` |
+| `ErpcServerInterceptor` | `edap-erpc-api`（`io.edap.erpc`） | `beforeCall(ErpcRequest, RpcChannelContext)` | `afterCall(ErpcRequest, ErpcResponse, Throwable, RpcChannelContext)` |
+| `ErpcClientInterceptor` | `edap-erpc-client`（`io.edap.erpc.client`） | `beforeCall(RpcRequest)` | `afterCall(RpcRequest, RpcResponse, Throwable)` |
+
+四个钩子都是 `default` 方法 ⇒ 只实现你要的那一个即可。
+典型用途：鉴权、审计、限流、metrics、traceId 透传、失败重试（自己实现）。
+
+> ★ `ErpcServerInterceptor` 另有**不带 `RpcChannelContext`** 的老钩子
+> （`beforeCall(ErpcRequest)` / `afterCall(ErpcRequest, ErpcResponse, Throwable)`）——
+> 只实现老钩子的拦截器**照旧工作**（框架调带 context 的那档，它转调老钩子）；
+> 要按连接存状态（鉴权标记只校验一次）就实现带 context 的那档。
+
+写一个服务端鉴权拦截器（gRPC）：
+
+```java
+public class AuthInterceptor implements GrpcServerInterceptor {
+
+    @Override
+    public void beforeCall(GrpcCall call) {
+        String token = call.metadata().get("authorization");
+        if (!tokenService.valid(token)) {
+            // 抛异常 ⇒ 拒绝本次调用：业务 handler 不会执行
+            throw new GrpcStatusException(GrpcStatus.UNAUTHENTICATED, "token 无效");
+        }
+    }
+
+    @Override
+    public void afterCall(GrpcCall call, Throwable error) {
+        metrics.record(call.getMethod(), error);       // 收尾钩子抛异常会被吞掉
+    }
+}
+```
+
+写一个客户端 traceId 透传（gRPC）：
+
+```java
+channel.addInterceptor(new GrpcClientInterceptor() {
+    @Override
+    public void beforeCall(String path, Map<String, String> headers, RpcContext ctx) {
+        headers.put("x-trace-id", Long.toString(ctx.traceId()));  // headers 可改 ⇒ 直接上线
+    }
+});
+```
+
+### 27.2 三种装法
+
+**① 编程式** —— 拿到客户端 / 服务端实例直接注册：
+
+```java
+grpcServer.addInterceptor(new AuthInterceptor());   // gRPC 服务端
+grpcChannel.addInterceptor(new TraceInjector());     // gRPC 客户端
+erpcServer.addInterceptor(new AuditInterceptor());   // eRPC 服务端
+erpcClient.addInterceptor(new MetricsInterceptor()); // eRPC 客户端
+```
+
+对应有 `removeInterceptor(x)`（返回是否确实摘掉了）与 `interceptors()`（活视图）。
+
+**② SPI** —— 放一个 `META-INF/services/<接口全名>` 文本文件，内容是实现类全名（每行一个）：
+
+```
+# META-INF/services/io.edap.grpc.GrpcServerInterceptor
+com.example.AuthInterceptor
+com.example.AuditInterceptor
+```
+
+★ 装载发生在**构造期**（客户端在 connect 之前）⇒ 装不上（类不存在 / 没有无参构造器）
+直接抛 `IllegalStateException`，**不静默跳过** —— SPI 文件是使用者显式声明的意图，
+装不上就是配置错误。装出来的实例排在编程式注册的前面（注册顺序 = 执行顺序）。
+
+**③ 容器 Bean（只对服务端）** —— 应用里把拦截器写成 bean，容器启动时自动装到
+**进程级共享**的 gRPC / eRPC Server 上，应用停止时自动摘掉：
+
+```java
+// io.edap.microservice.annotation.MicroServiceBean —— 容器扫描时认这个注解
+@MicroServiceBean
+public class AuthInterceptor implements GrpcServerInterceptor { ... }
+```
+
+> ★ **进程级语义**：gRPC / eRPC Server 在一个 Container 里**只有一个**实例（所有 app 共用端口）
+> ⇒ 本 app 注册的拦截器对**同进程内所有** gRPC / eRPC 方法生效，不只是本 app 的方法。
+> 这是「共享 Server」这个部署模型的直接后果，不是 bug。
+
+客户端拦截器**不走容器**（容器不持有客户端）⇒ 自己建客户端时 `addInterceptor`。
+
+### 27.3 顺序与失败语义
+
+| 规约 | 内容 |
+|---|---|
+| **顺序** | `beforeCall` **正序**（先注册先进）、`afterCall` **逆序**（后注册的先出）—— 与 Servlet Filter / Netty Pipeline 一致 |
+| **请求侧抛异常** | **拒绝本次调用**：服务端**不执行业务 handler**（gRPC 回 `INTERNAL` 或 `GrpcStatusException` 带的状态码；eRPC 回 ERROR 帧），但**收尾钩子照跑**（带上了这个错误）；客户端不建流 / 不选节点，直接抛异常，且**收尾钩子不跑**（调用压根没发出去） |
+| **收尾侧抛异常** | **吞掉**（框架记一条 warn 日志）—— 收尾钩子不该影响调用结果 |
+| **只跑一次** | `afterCall` 挂在「调用真正结束」那一刻（gRPC 挂在 trailers 写出之后、eRPC 挂在响应帧写出之后），不是 handler 返回的那一刻 |
+
+### 27.4 钩子跑在哪个线程
+
+| 位置 | 线程 | 注意 |
+|---|---|---|
+| gRPC 服务端 | **HTTP/2 IO 线程**（业务 handler 也在这个线程） | 钩子里做慢操作会拖慢这条连接上的其它请求 ⇒ 重活丢到业务线程池 |
+| gRPC 客户端 `beforeCall` | 调用线程，**传输层 `writeLock` 之外** | 锁内要做「分配 stream id + 写 HEADERS」，必须原子；用户代码跑在锁里会阻塞整条连接的所有调用 |
+| gRPC 客户端 `afterCall` | 完成调用的那个线程（正常响应 = 读线程） | |
+| eRPC 服务端 | **业务 worker 线程**（与业务 handler 同线程） | 诊断模式 `inlineDispatch` 下是 IO 线程 |
+| eRPC 客户端 | 调用线程 | `beforeCall` 在选节点之前 |
+
+### 27.5 上下文与限制
+
+- 四个钩子都在 `RpcContext.attach(ctx)` 作用域内 ⇒ `RpcContext.current()` 拿得到本次调用的
+  上下文（method / traceId / deadline / 取消信号）。
+- **gRPC 客户端的 `headers` 是可改的** ⇒ 鉴权头、traceId 头就靠它
+  （`headers.put("x-trace-id", Long.toString(ctx.traceId()))`）。
+- ★ **eRPC 没有请求头通道**：32 字节帧头字段全占满（`flags` 的 bit0 是压缩预留、
+  bit1~bit7 是超时码）⇒ eRPC 的钩子里**碰不到请求头**，只能碰 traceId / 超时 / 上下文属性。
+  要传自定义头 ⇒ 放 `RpcContext` 的属性里，或者走 gRPC 那边。
+
+### 27.6 容器侧的生命周期
+
+应用 `stop()` 时容器会**摘掉本 app 装上去的拦截器**（gRPC / eRPC Server 是进程级共享的，
+不摘的话，本 app 已关闭（appCL 已关、bean 已销毁）的拦截器会继续挂在 Server 上
+**处理别的 app 的请求** —— 拿着已死的 ClassLoader 去反序列化业务 DTO）。
+
+容器侧有护栏测试守住这条不变量（`ServerInterceptorBeanTest`）。
+
+---
+
+## 二十八、连接级上下文（eRPC 已落地）
+
+> 权限校验、租户协商这类「**连接活着就不必重做**」的事，放在**连接**的上下文里。
+> 一次调用一个上下文（`RpcContext`）管 deadline / 取消信号；
+> 一条连接一个上下文（`RpcChannelContext`）管连接级的状态。
+
+### 28.1 两级上下文的分工
+
+| | `RpcContext` | `RpcChannelContext` |
+|---|---|---|
+| 生命周期 | **一次调用** | **一条连接**（连接断了就没了） |
+| 装什么 | 身份 / deadline / 取消信号 | 连接级状态：已鉴权标记、租户、协商结果…… |
+| 怎么拿到 | `RpcContext.current()` | 拦截器钩子的参数 / 连接对象上的 getter |
+
+类放在共用的 `edap-rpc-api`（`io.edap.rpc`）里，属性键用 `RpcContext.Key`（identity 语义，
+与 grpc-java 一致）；同一条连接上的并发请求共享同一个实例 ⇒ 属性袋是 `ConcurrentHashMap`，
+鉴权标记是 `volatile boolean`。
+
+### 28.2 怎么用：权限校验只做一次
+
+```java
+public class AuthInterceptor implements ErpcServerInterceptor {
+    @Override
+    public void beforeCall(ErpcRequest req, RpcChannelContext channel) throws Exception {
+        if (!channel.isAuthenticated()) {
+            verify(req);                    // 校验一次（抛异常 ⇒ 拒绝本次调用）
+            channel.markAuthenticated();    // 记在连接上
+        }
+        // 同一连接的后续请求直接放行
+    }
+}
+```
+
+服务端：`ErpcServerSession.channelContext()`（一条连接一个 session）；
+客户端：`ErpcChannel.channelContext()`（一条连接一个 channel），
+`afterCall` 阶段通过 `request.getChannelContext()` 拿到。
+
+### 28.3 ★ 安全不变式：新连接 = 新上下文
+
+上下文挂在**连接对象自己**身上（不是连接池持有）⇒ 连接断了、池重建了连接 ⇒
+拿到的是**新实例** ⇒ 标记**不会跨连接泄漏** ⇒ 新连接上的第一个请求**一定**会重新校验。
+
+> ★ 这条不变式靠「上下文挂在连接上」保证，不靠应用自觉 —— 池重建连接时不会去「搬运」
+> 旧上下文的属性（那才是危险的）。
+
+### 28.4 现状与边界
+
+- **只有 eRPC 在用**。**gRPC 确定不接入** —— gRPC 的「连接」对象在 `edap-http-server` 的
+  HTTP/2 层（`Http2Connection`），不在 gRPC 模块内 ⇒ 要接入得先动 HTTP/2 那一层，收益不足。
+  本类本身**与协议无关**（零依赖、不引用任何 eRPC 类型）⇒ 仍放在共用的 `edap-rpc-api`，
+  不挪进 eRPC 模块。
+- 内置的 `authenticated` 标记是**进程级**的一个布尔：容器里 gRPC / eRPC Server 是进程级共享的，
+  多个应用跑在同一条连接上时这个标记对它们是同一个 ⇒ 需要按应用区分就各自用自己的
+  `RpcContext.Key` 存标记。
+- 客户端的 `beforeCall` 钩子跑在「选节点 / 选连接」**之前** ⇒ 那时拿不到连接级上下文
+  （`request.getChannelContext()` 是 `null`）；`afterCall` 阶段可以。
+- 拦截器钩子带 `channel` 的那一档是 **default 方法** ⇒ 只实现老钩子的拦截器照旧工作。
+
+---
+
+## 二十九、请求级元数据（eRPC 已落地）
+
+> **分布式事务的 txId 要传给下游，又不能污染业务参数** ⇒ 走**元数据通道**：
+> 帧内容区里与业务 DTO **分开**的一段。
+
+### 29.1 元数据 ≠ 属性
+
+这是两套**语义不同**的东西，别混：
+
+| | 属性（`RpcContext.put(Key, Object)`） | 元数据（`RpcMetadata`） |
+|---|---|---|
+| 会不会上线 | **不会**（纯进程内） | **会**（随请求帧发给对端） |
+| 键 | `RpcContext.Key`（identity 语义、强类型） | `String`（小写 ASCII，线上可见） |
+| 值 | 任意 `Object` | 字符串 |
+| 典型用途 | 把「已经算好的东西」递给下游代码 | **跨进程传播**：txId、灰度标签、链路标签…… |
+
+★ 为什么属性表撑不起「上线」：属性表的键是 `RpcContext.Key`（每个 JVM 一个实例）、
+值是任意 `Object` —— 而「上线」要求的是**稳定的、可被别的进程读懂的**键值对。
+
+### 29.2 怎么用
+
+```java
+// 客户端：调用时带上
+RpcMetadata meta = RpcMetadata.create().put("txid", "0f9a-42");
+client.invoke(methodId, req, RespType.class, timeoutMillis, meta);
+
+// 客户端拦截器：自动传播（转发下游调用前注入）
+@Override public void beforeCall(ErpcRequest request) {
+    request.getContext().metadata().put("txid", currentTxId());
+}
+
+// 服务端 handler：读
+String txId = RpcContext.current().metadata().get("txid");
+```
+
+★ **键的约束**：小写 ASCII 字母开头，其余 `[a-z0-9-_.]`（与 gRPC 的 metadata 规矩一致）——
+违反约束时 `put` **fail-fast 抛异常**，不静默丢。
+
+★ **没绑定上下文时** `metadata()` 返回**共享的只读空实例**（写它抛 `IllegalStateException`）⇒
+误写立刻暴露，不会静默丢数据。
+
+### 29.3 线格式：帧头 `type` 的 bit7
+
+★ **为什么不加进 `version`**：`version` 是「协议版本」，不该兼职当「有没有上下文」的标记；
+`type` 才是帧种类的字段，取值少、变动少。**帧头 32 字节一个字节都没改**（`version` 恒为 1）。
+
+```
+type 字节：  bit7        bit0 ~ bit6
+            ───────     ─────────────
+            带上下文?   帧种类（1 ~ 6）
+```
+
+```
+type = REQUEST(1)      → [32B 帧头][业务 DTO]                  ← 与改造前字节级一致
+type = REQUEST|0x80    → [32B 帧头][RPC 上下文段][业务 DTO]
+```
+
+**上下文段的格式**（自描述、大端、**不依赖业务序列化器**）：
+
+```
+metadataLen(4B)   ← 上下文块体的字节数（不含本 4 字节）
+entryCount(4B)
+[ keyLen(2B) key(UTF-8) valLen(4B) val(UTF-8) ]*
+```
+
+★ **不复用业务序列化器**：上下文是**框架级**的东西（txId、灰度标签），
+业务 DTO 用什么编码器跟它无关 —— 独立固定格式 ⇒ 任何 codec 下都能解析，也方便别的语言实现。
+
+★ **只有元数据非空才用带上下文的帧** ⇒ 默认路径（绝大多数调用）**线上字节完全不变**、
+零额外开销。
+
+★ **长度越界 ⇒ 协议错误**（关连接），不静默截断。
+
+### 29.4 现状与边界
+
+- **只有 eRPC 上了线**。gRPC 侧暂不接入（gRPC 本来就有自己的 `Metadata` 通道，
+  语义与 edap 的 `RpcMetadata` 不同，硬接会误导）。`RpcMetadata` 类本身**与协议无关**
+  ⇒ 放在共用的 `edap-rpc-api`。
+- 值**一律是字符串**（UTF-8，与 gRPC 的规矩一致）；要传二进制得另设计。
+- 服务端在累积缓冲上**就地**解析上下文段，业务载荷只拷**一次** ⇒ 拷贝次数与不带元数据时持平。
+
+---
+
+## 三十、连接级鉴权握手 AUTH 帧（eRPC 已落地）
+
+> 「**连接不断就不必重复校验**」的完整形态：连上后发一次 AUTH 帧做校验，
+> 结果写进 `RpcChannelContext` ⇒ 同一连接的后续请求**免校验**。
+
+★ **与二十九节是两个互相独立的功能**：凭据走 AUTH 帧（连接级、一次），
+txId 走元数据（请求级、每请求）—— 两条路互不相干。
+
+### 30.1 协议
+
+```
+type = AUTH(6)  → [32B 帧头][凭据(UTF-8)]
+```
+
+★ **握手应答复用 RESPONSE / ERROR 帧**（不新增响应帧类型）：
+
+- 通过 ⇒ 空载荷的 **RESPONSE** 帧（`requestId` 原样回填）；
+- 失败 ⇒ **ERROR(UNAUTHENTICATED)** + **关连接**（连都过不去，这条连接留着也没用）。
+
+### 30.2 客户端
+
+```java
+ErpcClientOptions options = ErpcClientOptions.defaults()
+        .credential("my-token");        // ★ 建连后自动握一次手
+```
+
+- `ErpcChannel` 构造函数在**读线程起来之后**才发 AUTH 帧（否则应答没人收）；
+- 用传输层分配的 `requestId` ⇒ 应答走**现有的 RESPONSE/ERROR 配对路径**；
+  超时用 `connectTimeoutMillis`；
+- **握手失败 ⇒ 关连接 + 抛异常** ⇒ 池里的槽位保持空 ⇒ **不会把坏连接留在池里**，下次重试。
+
+### 30.3 服务端
+
+```java
+public interface ErpcAuthenticator {
+    ErpcAuthResult authenticate(String credential);   // ok(principal) / fail(reason)
+}
+```
+
+- `dispatch()` 里 AUTH 帧**投 worker 线程池**（校验可能要查库/验签，**绝不能挡住 IO 线程**）；
+- 校验通过 ⇒ `channel.markAuthenticated()` + 记认证主体（`RpcChannelContext.PRINCIPAL`）；
+- **服务端没配鉴权器 ⇒ 视为通过**（服务端处于「不校验」模式，
+  不该把坚持握手的客户端拒掉）；
+- `setRequireAuth(true)` ⇒ **未鉴权的连接发请求 ⇒ 回 ERROR(UNAUTHENTICATED)**。
+
+### 30.4 容器装配
+
+应用里写一个 `ErpcAuthenticator` 实现类注册成 bean ⇒ 容器启动时自动装到
+**进程级共享**的 eRPC Server 上；应用停止时摘掉。
+
+★ **鉴权器与拦截器的模型不同**：拦截器是「装一堆」，鉴权器是**一个槽位**
+⇒ 多个 app 各带一个时**先装的生效**、后装的**不覆盖**（覆盖会让先启动的 app
+突然失去鉴权策略）。
+
+---
+
+**文档版本**：v1.4
+**最后更新**：2026-11-18
 **适用项目**：edap

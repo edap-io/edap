@@ -16,6 +16,7 @@
 
 package io.edap.grpc;
 
+import io.edap.rpc.RpcContext;
 import io.edap.rpc.StreamObserver;
 
 /**
@@ -91,4 +92,20 @@ public interface GrpcCall {
      * @param message 状态描述，可以为 null
      */
     void close(GrpcStatus status, String message);
+
+    /**
+     * 本次调用的 RPC 上下文 —— deadline、取消信号、属性、身份字段。
+     *
+     * <p>★ <b>用 {@code default} 方法而不是抽象方法</b>：外部自定义的
+     * {@code GrpcCall} 实现（以及仓库里的测试替身）不需要改动就能继续编译运行 ——
+     * 源码与二进制都兼容。</p>
+     *
+     * <p>默认返回当前线程绑定的上下文 —— 框架在调业务 handler 前绑定、返回后解绑，
+     * 所以业务方法体里拿到的与本方法是同一个对象。</p>
+     *
+     * @return 本次调用的上下文
+     */
+    default RpcContext context() {
+        return RpcContext.current();
+    }
 }

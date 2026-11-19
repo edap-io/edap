@@ -143,6 +143,21 @@ public final class ErpcFrameCodec {
     }
 
     /**
+     * ★ <b>累积缓冲的底层数组</b> —— 只给解码器用。
+     *
+     * <p>用途：帧内容区带 RPC 上下文时（{@code [上下文段][业务 DTO]}），
+     * 解码器要<b>在累积缓冲上就地解析</b>上下文段，再把业务 DTO 那一段拷出来
+     * ⇒ 业务 DTO 只被拷一次（与不带上下文时持平）。</p>
+     *
+     * <p>★ <b>生命周期</b>：返回的是<b>借用</b>的数组 —— {@link #consume()} 之后
+     * 它可能被 {@link #compact()} 搬动 / 覆盖。解码器必须在 {@code consume()} 之前
+     * 把要用的字节拷走。</p>
+     */
+    public byte[] rawBuffer() {
+        return buf;
+    }
+
+    /**
      * 取出当前帧的载荷（**拷贝**一份）。
      */
     public byte[] payload() {

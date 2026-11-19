@@ -66,14 +66,23 @@ final class ErpcRawClient implements Closeable {
     }
 
     /**
-     * 手工拼一帧发出去。
+     * 手工拼一帧发出去（flags = 0 —— 模拟老客户端）。
      */
     void send(int type, int codecId, int methodId, int serviceId, int requestId,
               long traceId, byte[] payload) throws IOException {
+        send(type, codecId, methodId, serviceId, requestId, traceId, 0, payload);
+    }
+
+    /**
+     * 手工拼一帧发出去（带 flags —— bit1~bit7 是超时代码）。
+     */
+    void send(int type, int codecId, int methodId, int serviceId, int requestId,
+              long traceId, int flags, byte[] payload) throws IOException {
         int length = payload == null ? 0 : payload.length;
         byte[] buf = new byte[ErpcFrameHeader.HEADER_LENGTH + length];
         new ErpcFrameHeader()
             .setType(type)
+            .setFlags(flags)
             .setCodec(codecId)
             .setLength(length)
             .setMethodId(methodId)

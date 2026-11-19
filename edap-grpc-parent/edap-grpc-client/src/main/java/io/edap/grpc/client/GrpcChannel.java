@@ -23,6 +23,13 @@ import io.edap.http.http2.Http2FrameType;
 import io.edap.http.http2.hpack.HpackDecoder;
 import io.edap.http.http2.hpack.HpackEncoder;
 import io.edap.http.http2.hpack.HpackHeader;
+import io.edap.log.Logger;
+import io.edap.log.LoggerManager;
+import io.edap.rpc.InterceptorChain;
+import io.edap.rpc.InterceptorLoader;
+import io.edap.rpc.RpcContext;
+import io.edap.rpc.RpcProtocol;
+import io.edap.rpc.RpcTimeout;
 import io.edap.rpc.StreamObserver;
 
 import java.io.Closeable;
@@ -33,9 +40,12 @@ import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -74,6 +84,8 @@ import java.util.concurrent.atomic.AtomicInteger;
  * 且 edap 的 NIO 是纯服务端框架，没有连接池 / 重连 / 流控管理。</p>
  */
 public final class GrpcChannel implements Closeable {
+
+    private static final Logger LOG = LoggerManager.getLogger(GrpcChannel.class);
 
     /** HTTP/2 连接前言（RFC 9113 §3.4） */
     private static final byte[] PREFACE =
@@ -136,6 +148,14 @@ public final class GrpcChannel implements Closeable {
 
     /** 在途调用（stream id → call） */
     private final ConcurrentHashMap<Integer, GrpcClientCall> calls = new ConcurrentHashMap<>();
+
+    /**
+     * 客户端拦截器 —— 请求发出之前 / 调用结束之后各插一刀。
+     *
+     * <p>★ <b>{@code CopyOnWriteArrayList}</b>：读路径（每次调用都要遍历一遍）无锁，
+     * 写路径（注册 / 卸载）极少发生。迭代是<b>快照</b>语义。</p>
+     */
+    private final CopyOnWriteArrayList<GrpcClientInterceptor> interceptors = new CopyOnWriteArrayList<>();
 
     private final Object writeLock = new Object();
     private final Object flowLock = new Object();
@@ -208,6 +228,11 @@ public final class GrpcChannel implements Closeable {
         this.callTimeoutMillis = callTimeoutMillis;
         this.connectTimeoutMillis = connectTimeoutMillis;
 
+        // ★ SPI 装载：META-INF/services/io.edap.grpc.client.GrpcClientInterceptor。
+        //   装出来的实例排在编程式注册的前面（注册顺序 = 执行顺序）。
+        //   ★ 必须在 connect 之前 —— 装不上时不该已经产生网络副作用。
+        interceptors.addAll(InterceptorLoader.load(GrpcClientInterceptor.class));
+
         Socket s = new Socket();
         s.connect(new InetSocketAddress(host, port), connectTimeoutMillis);
         s.setTcpNoDelay(true);
@@ -235,11 +260,105 @@ public final class GrpcChannel implements Closeable {
     }
 
     // ------------------------------------------------------------------
+    // 拦截器
+    // ------------------------------------------------------------------
+
+    /**
+     * 注册一个客户端拦截器。
+     *
+     * <p>排在已有拦截器<b>后面</b> ⇒ {@code beforeCall} 是正序、{@code afterCall} 是逆序。</p>
+     *
+     * @param interceptor 拦截器；{@code null} 忽略
+     */
+    public void addInterceptor(GrpcClientInterceptor interceptor) {
+        if (interceptor != null) {
+            interceptors.add(interceptor);
+        }
+    }
+
+    /**
+     * 移除一个客户端拦截器。
+     *
+     * @param interceptor 拦截器
+     * @return true 表示确实移除了一个
+     */
+    public boolean removeInterceptor(GrpcClientInterceptor interceptor) {
+        return interceptor != null && interceptors.remove(interceptor);
+    }
+
+    /**
+     * 当前的客户端拦截器。
+     *
+     * <p>★ <b>活视图</b>：注册/移除之后这里立刻能看到。<b>不要直接改这个列表</b>，
+     * 用 {@link #addInterceptor} / {@link #removeInterceptor}。</p>
+     *
+     * @return 拦截器列表
+     */
+    public List<GrpcClientInterceptor> interceptors() {
+        return interceptors;
+    }
+
+    // ------------------------------------------------------------------
+    // 拦截器
+    // ------------------------------------------------------------------
+
+    /**
+     * 跑「请求发出之前」这一段的拦截器。
+     *
+     * <p>★ <b>必须在传输层的 {@code writeLock} 之外跑</b>：锁内要做「分配 stream id +
+     * 写 HEADERS」，这两步必须原子（RFC 9113 §5.1.1：客户端新开的流 id 必须递增）。
+     * 用户的代码要是跑在锁里，会阻塞整条连接的所有调用，还可能死锁
+     * （拦截器里再发起一次调用）。</p>
+     *
+     * @param path    被调的方法
+     * @param headers 用户头（可改 —— 拦截器往里 put 的键值对会上线）
+     * @param context 本次调用的上下文（请求号随后由传输层补上）
+     * @throws GrpcException 拦截器拒绝了本次调用
+     */
+    private void runBeforeInterceptors(String path, Map<String, String> headers, RpcContext context) {
+        if (interceptors.isEmpty()) {
+            return;
+        }
+        try (RpcContext.Scope scope = RpcContext.attach(context)) {
+            InterceptorChain.before(interceptors, i -> i.beforeCall(path, headers, context));
+        } catch (GrpcException e) {
+            throw e;
+        } catch (Throwable t) {
+            throw new GrpcException("gRPC 客户端拦截器拒绝了本次调用: " + path
+                + (t.getMessage() == null ? "" : " (" + t.getMessage() + ")"), t);
+        }
+    }
+
+    /**
+     * 跑「调用结束」这一段的拦截器（逆序）。
+     *
+     * <p>★ <b>单个拦截器抛异常不影响后面的</b> —— 收尾钩子不该影响调用结果，
+     * 框架只记一条 warn 日志。</p>
+     */
+    void runAfterInterceptors(GrpcClientCall call, Throwable error) {
+        if (interceptors.isEmpty()) {
+            return;
+        }
+        try (RpcContext.Scope scope = RpcContext.attach(call.context())) {
+            InterceptorChain.after(interceptors, i -> {
+                try {
+                    i.afterCall(call, error);
+                } catch (Throwable t) {
+                    LOG.warn("grpc client interceptor afterCall error: ", l -> l.threw(t));
+                }
+            });
+        }
+    }
+
+    // ------------------------------------------------------------------
     // 调用入口
     // ------------------------------------------------------------------
 
     /**
      * 新建一次调用（请求侧还没发任何东西）。
+     *
+     * <p>超时取连接级的 {@link #callTimeoutMillis}（默认 30 秒）⇒ 请求头里会带
+     * {@code grpc-timeout}，服务端据此算自己的 deadline。</p>
      *
      * @param path             gRPC 的 {@code :path}
      * @param reqType          请求消息类型（编码用）
@@ -249,21 +368,59 @@ public final class GrpcChannel implements Closeable {
      */
     public GrpcClientCall newCall(String path, Class<?> reqType, Class<?> respType,
                                   StreamObserver<Object> responseObserver) {
-        return newCall(path, reqType, respType, responseObserver, null);
+        return newCall(path, reqType, respType, responseObserver, null, callTimeoutMillis);
     }
 
     /**
      * 新建一次调用（带额外的请求元数据）。
+     *
+     * <p>超时取连接级的 {@link #callTimeoutMillis}（默认 30 秒）。</p>
      *
      * @param headers 额外的请求头（如鉴权头）；key 会被转成小写
      */
     public GrpcClientCall newCall(String path, Class<?> reqType, Class<?> respType,
                                   StreamObserver<Object> responseObserver,
                                   Map<String, String> headers) {
+        return newCall(path, reqType, respType, responseObserver, headers, callTimeoutMillis);
+    }
+
+    /**
+     * 新建一次调用（带超时 ⇒ 线上带 {@code grpc-timeout} 头 ⇒ 服务端据此算 deadline）。
+     *
+     * <p>★ <b>线上只传「相对时长」</b>：头里是「还剩多久」，服务端立刻换算成
+     * <b>它自己的</b>绝对 nanoTime 时刻 ⇒ 两端的 deadline 不受时钟偏移影响。</p>
+     *
+     * @param timeoutMillis 本次调用的超时；{@code <= 0} 表示「不带 grpc-timeout 头」
+     *                     （服务端就没有 deadline，行为与改造前一致）
+     */
+    public GrpcClientCall newCall(String path, Class<?> reqType, Class<?> respType,
+                                  StreamObserver<Object> responseObserver,
+                                  Map<String, String> headers, long timeoutMillis) {
         if (closed) {
             throw new GrpcException("gRPC 连接已关闭");
         }
-        List<HpackHeader> hdrs = new ArrayList<>(9 + (headers == null ? 0 : headers.size()));
+        // ★ 本次调用的 RPC 上下文 —— deadline / 取消信号都挂在它身上。
+        //   请求号由传输层在锁内分配（RFC 9113 要求流 id 递增且与写 HEADERS 原子），
+        //   所以这里先建好、待会儿在锁内 {@code assignRequestId} 补上。
+        RpcContext context = RpcContext.builder()
+                .protocol(RpcProtocol.GRPC)
+                .method(path)
+                .timeoutMillis(timeoutMillis)
+                .build();
+        // ★ 用户头收进一个<b>可改</b>的 map —— 拦截器往里 put 的键值对会上线
+        Map<String, String> extra = new LinkedHashMap<>();
+        if (headers != null) {
+            for (Map.Entry<String, String> e : headers.entrySet()) {
+                if (e.getKey() == null || e.getValue() == null) {
+                    continue;
+                }
+                extra.put(e.getKey().toLowerCase(), e.getValue());
+            }
+        }
+        // ★ 拦截器在传输层锁外跑 —— 用户的代码不能占着写锁
+        runBeforeInterceptors(path, extra, context);
+        // 头组装：★ 顺序与改造前完全一致 ⇒ HPACK 动态表命中不受影响
+        List<HpackHeader> hdrs = new ArrayList<>(10 + extra.size());
         hdrs.add(new HpackHeader(":method", "POST"));
         hdrs.add(new HpackHeader(":path", path));
         hdrs.add(new HpackHeader(":scheme", "http"));
@@ -273,13 +430,16 @@ public final class GrpcChannel implements Closeable {
         hdrs.add(new HpackHeader("grpc-encoding", "identity"));
         hdrs.add(new HpackHeader("grpc-accept-encoding", "identity"));
         hdrs.add(new HpackHeader("user-agent", "edap-grpc-client"));
-        if (headers != null) {
-            for (Map.Entry<String, String> e : headers.entrySet()) {
-                if (e.getKey() == null || e.getValue() == null) {
-                    continue;
-                }
-                hdrs.add(new HpackHeader(e.getKey().toLowerCase(), e.getValue()));
+        // ★ deadline 传播：标准 gRPC 头（grpc-java 也发这个）
+        if (timeoutMillis > 0) {
+            String timeout = RpcTimeout.encodeGrpcTimeout(
+                    TimeUnit.MILLISECONDS.toNanos(timeoutMillis));
+            if (timeout != null) {
+                hdrs.add(new HpackHeader("grpc-timeout", timeout));
             }
+        }
+        for (Map.Entry<String, String> e : extra.entrySet()) {
+            hdrs.add(new HpackHeader(e.getKey(), e.getValue()));
         }
         // ★ 分配 stream id 与写 HEADERS 必须在同一把锁里 ——
         //   RFC 9113 §5.1.1：客户端新开的流 id 必须**递增**。
@@ -290,13 +450,15 @@ public final class GrpcChannel implements Closeable {
         boolean leader;
         synchronized (writeLock) {
             streamId = nextStreamId.getAndAdd(2);
+            // 请求号由传输层分配 ⇒ 补进上下文（上下文是调用方先建好的）
+            context.assignRequestId(streamId);
             // ★ 取「流级发送窗口初值」与「放进 calls 表」必须在同一把 flowLock 里 ——
             //   否则 SETTINGS 帧可能正好插在两者中间：对端把 INITIAL_WINDOW_SIZE 改成 1MB，
             //   delta 传播只作用于**当时已在表里**的流，而这个新流既拿到了旧的 65535、
             //   又没被 delta 抬上去 → 发满 64KB 就永远等不到流级额度。
             synchronized (flowLock) {
                 call = new GrpcClientCall(this, streamId, path, reqType, respType, responseObserver,
-                        peerInitialWindowSize);
+                        peerInitialWindowSize, context);
                 calls.put(streamId, call);
             }
             try {
@@ -322,10 +484,22 @@ public final class GrpcChannel implements Closeable {
      * @throws GrpcException 调用失败或超时
      */
     public <Req, Resp> Resp unary(String path, Class<Req> reqType, Class<Resp> respType, Req request) {
-        GrpcClientCall call = newCall(path, reqType, respType, null);
+        return unary(path, reqType, respType, request, callTimeoutMillis);
+    }
+
+    /**
+     * 一元调用（带超时）。
+     *
+     * @param timeoutMillis 本次调用的超时；{@code <= 0} 表示「不带 grpc-timeout 头」
+     * @return 服务端的响应消息
+     * @throws GrpcException 调用失败或超时
+     */
+    public <Req, Resp> Resp unary(String path, Class<Req> reqType, Class<Resp> respType, Req request,
+                                  long timeoutMillis) {
+        GrpcClientCall call = newCall(path, reqType, respType, null, null, timeoutMillis);
         call.sendMessage(request);
         call.halfClose();
-        call.awaitCompletion(callTimeoutMillis);
+        call.awaitCompletion(timeoutMillis > 0 ? timeoutMillis : callTimeoutMillis);
         List<Object> responses = call.responses();
         if (responses.isEmpty()) {
             throw new GrpcException("gRPC 一元调用没有收到响应消息: " + path);

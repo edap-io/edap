@@ -21,8 +21,8 @@ import io.edap.erpc.ErpcHandler;
 import io.edap.erpc.codec.ErpcCodec;
 import io.edap.erpc.codec.ErpcCodecRegistry;
 import io.edap.erpc.codec.ErpcWriter;
-import io.edap.erpc.frame.ErpcRequest;
-import io.edap.erpc.frame.ErpcResponse;
+import io.edap.erpc.ErpcRequest;
+import io.edap.erpc.ErpcResponse;
 import io.edap.protobuf.annotation.ProtoField;
 import org.junit.jupiter.api.Test;
 import org.objectweb.asm.ClassReader;
@@ -205,7 +205,7 @@ class ErpcHandlerGeneratorBytecodeTest {
             }
         }
         assertNotNull(handle);
-        assertEquals("(Lio/edap/erpc/frame/ErpcRequest;Lio/edap/erpc/frame/ErpcResponse;)V", handle.desc);
+        assertEquals("(Lio/edap/erpc/ErpcRequest;Lio/edap/erpc/ErpcResponse;)V", handle.desc);
         assertEquals(0, handle.tryCatchBlocks.size(),
                 "生成的 handle 不该有 try-catch —— 异常直接冒泡给框架转成 ERROR 帧");
     }

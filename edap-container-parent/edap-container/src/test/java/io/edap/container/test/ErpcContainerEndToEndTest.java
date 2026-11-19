@@ -29,6 +29,8 @@ import io.edap.erpc.codec.ErpcCodec;
 import io.edap.erpc.codec.ErpcCodecRegistry;
 import io.edap.erpc.server.ErpcServer;
 import io.edap.protobuf.annotation.ProtoField;
+import io.edap.rpc.RpcContext;
+import io.edap.rpc.RpcProtocol;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -43,6 +45,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -83,8 +86,24 @@ public class ErpcContainerEndToEndTest {
     }
 
     public static class DemoServiceImpl implements DemoService {
+
+        /**
+         * 业务方法体里看到的上下文 —— 框架 attach 的那个。
+         */
+        volatile RpcContext seen;
+
+        /**
+         * 剩余时间在<b>业务方法执行的那一刻</b>取 —— 断言时再取时间已经流走，
+         * 断言会变成「机器慢就挂」的 flaky。
+         */
+        volatile long seenRemainingMillis = -1;
+
         @Override
         public DemoResponse update(DemoRequest req) {
+            RpcContext ctx = RpcContext.current();
+            this.seen = ctx;
+            this.seenRemainingMillis = ctx.remainingMillis();
+
             DemoResponse resp = new DemoResponse();
             resp.name = req == null ? null : req.name;
             resp.value = req == null ? -1 : req.value * 2;
@@ -263,6 +282,63 @@ public class ErpcContainerEndToEndTest {
             server.stop();
         }
     }
+
+    /**
+     * ★ 业务方法在容器生成的 handler 里跑，仍然能看到本次调用的上下文。
+     *
+     * <p>eRPC 的 deadline 走帧头 {@code flags} 的 bit1~bit7 ⇒ 刻度是 1/4 八度，
+     * <b>最大超调 25%</b> ⇒ 2 秒请求可能落在 (0, 2500] 区间。</p>
+     */
+    @Test
+    public void businessMethodSeesTheRpcContext() throws Exception {
+        int port = freePort();
+        ErpcServer server = new ErpcServer();
+
+        String key = ErpcMethodIds.key(SERVICE_NAME, "update");
+        int methodId = ErpcMethodIds.hashKey(key, ErpcMethodIds.DEFAULT_SEED);
+
+        DemoServiceImpl bean = new DemoServiceImpl();
+        Map<Integer, ErpcMethod> methods = new HashMap<>();
+        methods.put(methodId, new ErpcMethod(methodId, SERVICE_NAME, "update",
+                generateHandler(bean), DemoRequest.class, DemoResponse.class));
+        server.setMethods(methods);
+        server.listen(port);
+
+        Edap edap = new Edap();
+        edap.addServer(server);
+        edap.run();
+        awaitListening(port);
+
+        ErpcClient client = null;
+        try {
+            ErpcCodec ser = ErpcCodecRegistry.instance().defaultCodec();
+            client = new ErpcClient(Arrays.asList(new ErpcNode("127.0.0.1", port)),
+                    ser, ErpcClientOptions.defaults());
+
+            DemoRequest req = new DemoRequest();
+            req.name = "edap";
+            req.value = 21;
+            DemoResponse resp = client.invoke(methodId, req, DemoResponse.class, 2_000);
+            assertEquals("edap", resp.name);
+            assertEquals(42, resp.value);
+
+            RpcContext seen = bean.seen;
+            assertNotNull(seen, "业务方法必须能看到上下文（拿到 ROOT 就说明框架没 attach）");
+            assertSame(RpcProtocol.ERPC, seen.protocol(), "协议不对");
+            assertEquals("erpc:" + methodId, seen.method(), "方法标识不对");
+            assertTrue(seen.deadlineNanos() > 0, "服务端应当算出自己的 deadline");
+            assertTrue(bean.seenRemainingMillis > 0 && bean.seenRemainingMillis <= 2_500,
+                    "剩余时间应落在 (0, 2500] 区间（eRPC 刻度最大超调 25%），实际 "
+                            + bean.seenRemainingMillis);
+        } finally {
+            if (client != null) {
+                client.close();
+            }
+            edap.stop();
+            server.stop();
+        }
+    }
+
 
     // ---- helpers ----------------------------------------------------------
 

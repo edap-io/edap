@@ -78,6 +78,7 @@
         <module>edap-tx-parent</module>
         <module>edap-s3-parent</module>
         <module>edap-raft-parent</module>
+        <module>edap-rpc-api</module>
 
     </modules>
 
@@ -225,6 +226,11 @@
             <dependency>
                 <groupId>io.edap</groupId>
                 <artifactId>edap-erpc-client</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.edap</groupId>
+                <artifactId>edap-rpc-api</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
