@@ -36,9 +36,11 @@ public class OneInt64BuilderTest extends AbstractTest {
         String[] lines = ("package io.edap.protobuf.test.message.v3;\n" +
                 "\n" +
                 "import io.edap.protobuf.annotation.ProtoField;\n" +
+                "import io.edap.protobuf.annotation.ProtoMessage;\n" +
                 "import io.edap.protobuf.wire.Field.Type;\n" +
                 "import java.io.Serializable;\n" +
                 "\n" +
+                "@ProtoMessage(protoFile = \"null\")\n" +
                 "public class OneInt64 implements Serializable {\n" +
                 "\n" +
                 "    @ProtoField(tag = 1, type = Type.INT64)\n" +
@@ -58,7 +60,7 @@ public class OneInt64BuilderTest extends AbstractTest {
 
         String path = workPath + "/tmpsrc/" + packName + "/OneInt64.java";
         System.out.println(lines.length);
-        assertTrue(codeEquals(path, lines));
+        assertTrue(codeEquals(path, insertTipsLines(lines)));
     }
 
     @Test
@@ -75,9 +77,11 @@ public class OneInt64BuilderTest extends AbstractTest {
         String[] lines = ("package io.edap.protobuf.test.message.v3;\n" +
                 "\n" +
                 "import io.edap.protobuf.annotation.ProtoField;\n" +
+                "import io.edap.protobuf.annotation.ProtoMessage;\n" +
                 "import io.edap.protobuf.wire.Field.Type;\n" +
                 "import java.io.Serializable;\n" +
                 "\n" +
+                "@ProtoMessage(protoFile = \"null\")\n" +
                 "public class OneInt64 implements Serializable {\n" +
                 "\n" +
                 "    @ProtoField(tag = 1, type = Type.INT64)\n" +
@@ -97,7 +101,7 @@ public class OneInt64BuilderTest extends AbstractTest {
 
         String path = workPath + "/tmpsrc/" + packName + "/OneInt64.java";
         System.out.println(lines.length);
-        assertTrue(codeEquals(path, lines));
+        assertTrue(codeEquals(path, insertTipsLines(lines)));
     }
 
     @Test
@@ -115,9 +119,11 @@ public class OneInt64BuilderTest extends AbstractTest {
         String[] lines = ("package io.edap.protobuf.test.message.v3;\n" +
                 "\n" +
                 "import io.edap.protobuf.annotation.ProtoField;\n" +
+                "import io.edap.protobuf.annotation.ProtoMessage;\n" +
                 "import io.edap.protobuf.wire.Field.Type;\n" +
                 "import java.io.Serializable;\n" +
                 "\n" +
+                "@ProtoMessage(protoFile = \"null\")\n" +
                 "public class OneInt64 implements Serializable {\n" +
                 "\n" +
                 "    @ProtoField(tag = 1, type = Type.INT64)\n" +
@@ -140,7 +146,7 @@ public class OneInt64BuilderTest extends AbstractTest {
 
         String path = workPath + "/tmpsrc/" + packName + "/OneInt64.java";
         System.out.println(lines.length);
-        assertTrue(codeEquals(path, lines));
+        assertTrue(codeEquals(path, insertTipsLines(lines)));
     }
 
     @Test
@@ -156,10 +162,12 @@ public class OneInt64BuilderTest extends AbstractTest {
         String[] lines = ("package io.edap.protobuf.test.message.v3;\n" +
                 "\n" +
                 "import io.edap.protobuf.annotation.ProtoField;\n" +
+                "import io.edap.protobuf.annotation.ProtoMessage;\n" +
                 "import io.edap.protobuf.wire.Field.Type;\n" +
                 "import java.io.Serializable;\n" +
                 "import java.time.LocalDateTime;\n" +
                 "\n" +
+                "@ProtoMessage(protoFile = \"null\")\n" +
                 "public class OneInt64LocalDateTime implements Serializable {\n" +
                 "\n" +
                 "    @ProtoField(tag = 1, type = Type.INT64)\n" +
@@ -179,7 +187,7 @@ public class OneInt64BuilderTest extends AbstractTest {
 
         String path = workPath + "/tmpsrc/" + packName + "/OneInt64LocalDateTime.java";
         System.out.println(lines.length);
-        assertTrue(codeEquals(path, lines));
+        assertTrue(codeEquals(path, insertTipsLines(lines)));
     }
 
     @Test
@@ -195,10 +203,12 @@ public class OneInt64BuilderTest extends AbstractTest {
         String[] lines = ("package io.edap.protobuf.test.message.v3;\n" +
                 "\n" +
                 "import io.edap.protobuf.annotation.ProtoField;\n" +
+                "import io.edap.protobuf.annotation.ProtoMessage;\n" +
                 "import io.edap.protobuf.wire.Field.Type;\n" +
                 "import java.io.Serializable;\n" +
                 "import java.time.LocalDate;\n" +
                 "\n" +
+                "@ProtoMessage(protoFile = \"null\")\n" +
                 "public class OneInt64LocalDate implements Serializable {\n" +
                 "\n" +
                 "    @ProtoField(tag = 1, type = Type.INT64)\n" +
@@ -218,7 +228,7 @@ public class OneInt64BuilderTest extends AbstractTest {
 
         String path = workPath + "/tmpsrc/" + packName + "/OneInt64LocalDate.java";
         System.out.println(lines.length);
-        assertTrue(codeEquals(path, lines));
+        assertTrue(codeEquals(path, insertTipsLines(lines)));
     }
 
     @Test
@@ -234,10 +244,12 @@ public class OneInt64BuilderTest extends AbstractTest {
         String[] lines = ("package io.edap.protobuf.test.message.v3;\n" +
                 "\n" +
                 "import io.edap.protobuf.annotation.ProtoField;\n" +
+                "import io.edap.protobuf.annotation.ProtoMessage;\n" +
                 "import io.edap.protobuf.wire.Field.Type;\n" +
                 "import java.io.Serializable;\n" +
                 "import java.time.LocalDateTime;\n" +
                 "\n" +
+                "@ProtoMessage(protoFile = \"null\")\n" +
                 "public class OneInt64JavaType implements Serializable {\n" +
                 "\n" +
                 "    @ProtoField(tag = 1, type = Type.INT64)\n" +
@@ -257,6 +269,6 @@ public class OneInt64BuilderTest extends AbstractTest {
 
         String path = workPath + "/tmpsrc/" + packName + "/OneInt64JavaType.java";
         System.out.println(lines.length);
-        assertTrue(codeEquals(path, lines));
+        assertTrue(codeEquals(path, insertTipsLines(lines)));
     }
 }

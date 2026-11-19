@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.net.URL;
 
+import static io.edap.protobuf.builder.JavaBuilder.CREATE_FILE_TIPS;
 import static io.edap.protobuf.builder.JavaBuilder.packageToPath;
 
 public abstract class AbstractTest {
@@ -71,5 +72,16 @@ public abstract class AbstractTest {
             e.printStackTrace();
         }
         return false;
+    }
+
+    public static String[] insertTipsLines(String[] lines) {
+        if (CREATE_FILE_TIPS != null && CREATE_FILE_TIPS.length() > 0) {
+            String[] tips = CREATE_FILE_TIPS.split("\\n");
+            String[] tmp = new String[lines.length + tips.length];
+            System.arraycopy(tips, 0, tmp, 0, tips.length);
+            System.arraycopy(lines, 0, tmp, tips.length, lines.length);
+            return tmp;
+        }
+        return lines;
     }
 }

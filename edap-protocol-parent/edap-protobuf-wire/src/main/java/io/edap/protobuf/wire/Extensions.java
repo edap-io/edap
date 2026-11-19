@@ -152,6 +152,10 @@ public class Extensions {
                     }
                     trim();
                     if (pos >= data.length) {
+                        if (extensions.getEndTag() > 0 && extensions.getStartTag() > 0
+                                && extensions.getEndTag() < extensions.getStartTag()) {
+                            throw new ProtoParseException("extensions start tag <= end tag");
+                        }
                         return extensions;
                     }
                     c = data[pos];

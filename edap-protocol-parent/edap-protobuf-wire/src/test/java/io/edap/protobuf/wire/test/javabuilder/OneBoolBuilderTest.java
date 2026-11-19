@@ -36,9 +36,11 @@ public class OneBoolBuilderTest extends AbstractTest {
         String[] lines = ("package io.edap.protobuf.test.message.v3;\n" +
                 "\n" +
                 "import io.edap.protobuf.annotation.ProtoField;\n" +
+                "import io.edap.protobuf.annotation.ProtoMessage;\n" +
                 "import io.edap.protobuf.wire.Field.Type;\n" +
                 "import java.io.Serializable;\n" +
                 "\n" +
+                "@ProtoMessage(protoFile = \"null\")\n" +
                 "public class OneBool implements Serializable {\n" +
                 "\n" +
                 "    @ProtoField(tag = 1, type = Type.BOOL)\n" +
@@ -57,7 +59,7 @@ public class OneBoolBuilderTest extends AbstractTest {
                 "}").split("\\n");
         String path = workPath + "/tmpsrc/" + packName + "/OneBool.java";
         System.out.println(lines.length);
-        assertTrue(codeEquals(path, lines));
+        assertTrue(codeEquals(path, insertTipsLines(lines)));
     }
 
     @Test
@@ -75,9 +77,11 @@ public class OneBoolBuilderTest extends AbstractTest {
         String[] lines = ("package io.edap.protobuf.test.message.v3;\n" +
                 "\n" +
                 "import io.edap.protobuf.annotation.ProtoField;\n" +
+                "import io.edap.protobuf.annotation.ProtoMessage;\n" +
                 "import io.edap.protobuf.wire.Field.Type;\n" +
                 "import java.io.Serializable;\n" +
                 "\n" +
+                "@ProtoMessage(protoFile = \"null\")\n" +
                 "public class OneBool implements Serializable {\n" +
                 "\n" +
                 "    @ProtoField(tag = 1, type = Type.BOOL)\n" +
@@ -99,7 +103,7 @@ public class OneBoolBuilderTest extends AbstractTest {
                 "}").split("\\n");
         String path = workPath + "/tmpsrc/" + packName + "/OneBool.java";
         System.out.println(lines.length);
-        assertTrue(codeEquals(path, lines));
+        assertTrue(codeEquals(path, insertTipsLines(lines)));
     }
 
     @Test
@@ -116,9 +120,11 @@ public class OneBoolBuilderTest extends AbstractTest {
         String[] lines = ("package io.edap.protobuf.test.message.v3;\n" +
                 "\n" +
                 "import io.edap.protobuf.annotation.ProtoField;\n" +
+                "import io.edap.protobuf.annotation.ProtoMessage;\n" +
                 "import io.edap.protobuf.wire.Field.Type;\n" +
                 "import java.io.Serializable;\n" +
                 "\n" +
+                "@ProtoMessage(protoFile = \"null\")\n" +
                 "public class OneBool implements Serializable {\n" +
                 "\n" +
                 "    @ProtoField(tag = 1, type = Type.BOOL)\n" +
@@ -137,7 +143,7 @@ public class OneBoolBuilderTest extends AbstractTest {
                 "}").split("\\n");
         String path = workPath + "/tmpsrc/" + packName + "/OneBool.java";
         System.out.println(lines.length);
-        assertTrue(codeEquals(path, lines));
+        assertTrue(codeEquals(path, insertTipsLines(lines)));
     }
 
     @Test
@@ -153,9 +159,11 @@ public class OneBoolBuilderTest extends AbstractTest {
         String[] lines = ("package io.edap.protobuf.test.message.v3;\n" +
                 "\n" +
                 "import io.edap.protobuf.annotation.ProtoField;\n" +
+                "import io.edap.protobuf.annotation.ProtoMessage;\n" +
                 "import io.edap.protobuf.wire.Field.Type;\n" +
                 "import java.io.Serializable;\n" +
                 "\n" +
+                "@ProtoMessage(protoFile = \"null\")\n" +
                 "public class OneBoolFieldComment1 implements Serializable {\n" +
                 "\n" +
                 "    /**\n" +
@@ -177,7 +185,7 @@ public class OneBoolBuilderTest extends AbstractTest {
                 "}").split("\\n");
         String path = workPath + "/tmpsrc/" + packName + "/OneBoolFieldComment1.java";
         System.out.println(lines.length);
-        assertTrue(codeEquals(path, lines));
+        assertTrue(codeEquals(path, insertTipsLines(lines)));
     }
 
     @Test
@@ -193,9 +201,11 @@ public class OneBoolBuilderTest extends AbstractTest {
         String[] lines = ("package io.edap.protobuf.test.message.v3;\n" +
                 "\n" +
                 "import io.edap.protobuf.annotation.ProtoField;\n" +
+                "import io.edap.protobuf.annotation.ProtoMessage;\n" +
                 "import io.edap.protobuf.wire.Field.Type;\n" +
                 "import java.io.Serializable;\n" +
                 "\n" +
+                "@ProtoMessage(protoFile = \"null\")\n" +
                 "public class OneBoolFieldComment2 implements Serializable {\n" +
                 "\n" +
                 "    /**\n" +
@@ -218,6 +228,6 @@ public class OneBoolBuilderTest extends AbstractTest {
                 "}").split("\\n");
         String path = workPath + "/tmpsrc/" + packName + "/OneBoolFieldComment2.java";
         System.out.println(lines.length);
-        assertTrue(codeEquals(path, lines));
+        assertTrue(codeEquals(path, insertTipsLines(lines)));
     }
 }

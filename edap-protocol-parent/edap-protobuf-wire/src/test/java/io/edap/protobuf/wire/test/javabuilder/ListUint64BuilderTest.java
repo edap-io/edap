@@ -36,6 +36,7 @@ public class ListUint64BuilderTest extends AbstractTest {
         String[] lines = ("package io.edap.protobuf.test.message.v3;\n" +
                 "\n" +
                 "import io.edap.protobuf.annotation.ProtoField;\n" +
+                "import io.edap.protobuf.annotation.ProtoMessage;\n" +
                 "import io.edap.protobuf.wire.Field.Type;\n" +
                 "import java.io.Serializable;\n" +
                 "import java.util.ArrayList;\n" +
@@ -44,6 +45,7 @@ public class ListUint64BuilderTest extends AbstractTest {
                 "/**\n" +
                 " * option java_outer_classname = \"MessageOuter\";\n" +
                 " */\n" +
+                "@ProtoMessage(protoFile = \"null\")\n" +
                 "public class ListUint64 implements Serializable {\n" +
                 "\n" +
                 "    @ProtoField(tag = 1, type = Type.UINT64)\n" +
@@ -81,6 +83,6 @@ public class ListUint64BuilderTest extends AbstractTest {
 
         String path = workPath + "/tmpsrc/" + packName + "/ListUint64.java";
         System.out.println(lines.length);
-        assertTrue(codeEquals(path, lines));
+        assertTrue(codeEquals(path, insertTipsLines(lines)));
     }
 }

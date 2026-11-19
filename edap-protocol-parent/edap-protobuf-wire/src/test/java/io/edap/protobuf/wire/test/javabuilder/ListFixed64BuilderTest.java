@@ -36,11 +36,13 @@ public class ListFixed64BuilderTest extends AbstractTest {
         String[] lines = ("package io.edap.protobuf.test.message.v3;\n" +
                 "\n" +
                 "import io.edap.protobuf.annotation.ProtoField;\n" +
+                "import io.edap.protobuf.annotation.ProtoMessage;\n" +
                 "import io.edap.protobuf.wire.Field.Type;\n" +
                 "import java.io.Serializable;\n" +
                 "import java.util.ArrayList;\n" +
                 "import java.util.List;\n" +
                 "\n" +
+                "@ProtoMessage(protoFile = \"null\")\n" +
                 "public class ListFixed64 implements Serializable {\n" +
                 "\n" +
                 "    @ProtoField(tag = 1, type = Type.FIXED64)\n" +
@@ -78,6 +80,6 @@ public class ListFixed64BuilderTest extends AbstractTest {
 
         String path = workPath + "/tmpsrc/" + packName + "/ListFixed64.java";
         System.out.println(lines.length);
-        assertTrue(codeEquals(path, lines));
+        assertTrue(codeEquals(path, insertTipsLines(lines)));
     }
 }

@@ -81,7 +81,7 @@ public class TestParseEnum {
             List<Option> eoptions = e3.getOptions();
             assertEquals(1, eoptions.size());
             Option eoption = eoptions.get(0);
-            assertEquals("(custom_option)", eoption.getName());
+            assertEquals("custom_option", eoption.getName());
             assertEquals("hello world", eoption.getValue());
 
         } catch (ProtoParseException e) {

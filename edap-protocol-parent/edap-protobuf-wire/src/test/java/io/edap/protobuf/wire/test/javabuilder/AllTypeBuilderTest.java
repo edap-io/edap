@@ -36,6 +36,7 @@ public class AllTypeBuilderTest extends AbstractTest {
         String[] lines = ("package io.edap.protobuf.test.message.v3;\n" +
                 "\n" +
                 "import io.edap.protobuf.annotation.ProtoField;\n" +
+                "import io.edap.protobuf.annotation.ProtoMessage;\n" +
                 "import io.edap.protobuf.wire.Field.Type;\n" +
                 "import java.io.Serializable;\n" +
                 "import java.util.Map;\n" +
@@ -43,6 +44,7 @@ public class AllTypeBuilderTest extends AbstractTest {
                 "/**\n" +
                 " * option java_outer_classname = \"MessageOuter\";\n" +
                 " */\n" +
+                "@ProtoMessage(protoFile = \"null\")\n"+
                 "public class AllType implements Serializable {\n" +
                 "\n" +
                 "    @ProtoField(tag = 1, type = Type.BOOL)\n" +
@@ -249,6 +251,6 @@ public class AllTypeBuilderTest extends AbstractTest {
 
         String path = workPath + "/tmpsrc/" + packName + "/AllType.java";
         System.out.println(lines.length);
-        assertTrue(codeEquals(path, lines));
+        assertTrue(codeEquals(path, insertTipsLines(lines)));
     }
 }
