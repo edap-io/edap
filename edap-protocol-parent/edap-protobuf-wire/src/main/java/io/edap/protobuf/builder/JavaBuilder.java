@@ -668,6 +668,12 @@ public class JavaBuilder {
                                     }
                                     protoHttp.put("method", option.getValue());
                                     break;
+                                case "edap.rpc.api.http_handler_path":
+                                    if (protoHttp == null) {
+                                        protoHttp = new HashMap<>();
+                                    }
+                                    protoHttp.put("handlerPath", option.getValue());
+                                    break;
                                 case "edap.rpc.stateful":
                                     if ("true".equalsIgnoreCase(option.getValue())) {
                                         if (sharded == null) {
@@ -746,6 +752,14 @@ public class JavaBuilder {
                                     needDou = true;
                                 }
                                 cb.c("method= \"").c(protoHttp.get("method")).c("\"");
+                            }
+                            if (protoHttp.containsKey("handlerPath")) {
+                                if (needDou) {
+                                    cb.c(", ");
+                                } else {
+                                    needDou = true;
+                                }
+                                cb.c("handlerPath= \"").c(protoHttp.get("handlerPath")).c("\"");
                             }
                             cb.c(")").ln();
                         }
